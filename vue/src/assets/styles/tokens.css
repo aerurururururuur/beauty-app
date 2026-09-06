@@ -1,0 +1,29 @@
+:root {
+  /* 暖象牙底 · 浆果红 · 墨黑文字 —— 杂志编辑感 */
+  --c-bg: #f5f0e9;              /* 暖象牙背景 */
+  --c-surface: #fffdfb;         /* 卡片 */
+  --c-surface-2: #efe8df;       /* 次级面板 / 按下态 */
+
+  --c-ink: #2a1e22;             /* 墨黑文字 */
+  --c-ink-soft: #6e5b62;        /* 次级文字 */
+  --c-ink-faint: #a6999e;       /* 弱化文字 */
+
+  --c-line: rgba(42, 30, 34, 0.1);         /* 发丝线 */
+  --c-line-strong: rgba(42, 30, 34, 0.2);
+
+  --c-accent: #b23a48;          /* 浆果红（主色） */
+  --c-accent-deep: #8e2733;
+  --c-accent-soft: #f3e4e5;
+  --c-gold: #c7a17a;
+
+  --font-display: Georgia, 'Songti SC', 'Noto Serif SC', 'STSong', SimSun, serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-full: 999px;
+
+  --shadow-soft: 0 1px 2px rgba(42, 30, 34, 0.04), 0 12px 32px rgba(42, 30, 34, 0.06);
+}

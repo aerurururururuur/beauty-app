@@ -1,0 +1,188 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--c-bg);
+  color: var(--c-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+/* ---------- 页面容器 ---------- */
+.page {
+  max-width: 440px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 24px 40px;
+}
+
+/* ---------- 顶栏 ---------- */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.page-header .back-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--c-line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-ink);
+  transition: background 0.15s ease;
+}
+
+.page-header .back-btn:active {
+  background: var(--c-surface-2);
+}
+
+.page-header .title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  letter-spacing: 0.04em;
+}
+
+.page-header .spacer {
+  flex: 1;
+}
+
+/* ---------- 小号大写标签 ---------- */
+.caps {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-ink-faint);
+}
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 0 0 4px;
+  letter-spacing: 0.02em;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: var(--c-ink-soft);
+  margin: 0 0 18px;
+  line-height: 1.6;
+}
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 28px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  transition: transform 0.12s ease, background 0.15s ease, opacity 0.12s ease;
+}
+
+.btn-primary {
+  background: var(--c-accent);
+  color: #fff;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+  background: var(--c-accent-deep);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--c-line-strong);
+  color: var(--c-ink);
+}
+
+.btn-ghost:active {
+  background: var(--c-surface-2);
+}
+
+/* ---------- 文字链接 ---------- */
+.text-link {
+  font-size: 12px;
+  color: var(--c-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--c-line-strong);
+}
+
+/* ---------- 小标签 ---------- */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--c-ink-soft);
+  background: var(--c-surface);
+}
+
+/* ---------- 页面切换过渡：纯淡入，杂志翻页感 ---------- */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 640" width="480" height="640">
+  <!-- 背景与光晕 -->
+  <rect width="480" height="640" fill="#FCEFF2"/>
+  <circle cx="240" cy="220" r="210" fill="#FFFFFF" opacity="0.55"/>
+  <!-- 头发 -->
+  <path d="M240 58 C 148 58 108 140 108 262 L 118 402 C 138 432 200 442 240 442 C 280 442 342 432 362 402 L 372 262 C 372 140 332 58 240 58 Z" fill="#4A2B2A"/>
+  <!-- 身体 -->
+  <path d="M128 640 C 138 518 180 478 240 478 C 300 478 342 518 352 640 Z" fill="#C98BB3"/>
+  <!-- 脖子 -->
+  <rect x="203" y="420" width="74" height="92" rx="32" fill="#F2C9B8"/>
+  <!-- 耳朵 -->
+  <ellipse cx="150" cy="282" rx="22" ry="34" fill="#F0BFAC"/>
+  <ellipse cx="330" cy="282" rx="22" ry="34" fill="#F0BFAC"/>
+  <!-- 脸 -->
+  <ellipse cx="240" cy="270" rx="128" ry="162" fill="#F6CEBC"/>
+  <!-- 眉毛 -->
+  <path d="M178 214 Q 205 198 232 210" stroke="#5A3A32" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M248 210 Q 275 198 302 214" stroke="#5A3A32" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <!-- 眼睛 -->
+  <ellipse cx="205" cy="256" rx="20" ry="13" fill="#FFFFFF"/>
+  <ellipse cx="275" cy="256" rx="20" ry="13" fill="#FFFFFF"/>
+  <ellipse cx="205" cy="257" rx="10" ry="10" fill="#3A2B2E"/>
+  <ellipse cx="275" cy="257" rx="10" ry="10" fill="#3A2B2E"/>
+  <circle cx="208" cy="252" r="3.5" fill="#FFFFFF"/>
+  <circle cx="278" cy="252" r="3.5" fill="#FFFFFF"/>
+  <!-- 鼻子 -->
+  <path d="M240 280 Q 232 300 236 308 Q 240 312 244 308 Q 248 300 240 280" fill="#EFBAA6"/>
+  <!-- 人中 -->
+  <line x1="240" y1="268" x2="240" y2="276" stroke="#E8B0A0" stroke-width="3"/>
+  <!-- 嘴唇（中心约 240,296 ≈ 容器 50%, 46%，与前端 mock 试色锚点对齐） -->
+  <path d="M240 274
+           C 202 270 178 280 178 298
+           C 178 314 210 322 240 322
+           C 270 322 302 314 302 298
+           C 302 280 278 270 240 274 Z" fill="#D98A8C"/>
+</svg>
