@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400">
+  <!-- 示例场景：雪后薄雾山野（冷调、清透） -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dfe7f0"/>
+      <stop offset="1" stop-color="#f4f1ea"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#f7f6f4" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f7f6f4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#sky)"/>
+  <!-- 远山（薄雾里） -->
+  <path d="M0 208 L120 118 L210 176 L330 92 L452 180 L560 110 L640 176 L640 400 L0 400 Z" fill="#bcc7d6"/>
+  <path d="M0 238 L150 152 L282 220 L410 146 L560 232 L640 190 L640 400 L0 400 Z" fill="#cfd7e2" opacity="0.9"/>
+  <!-- 近山覆雪 -->
+  <path d="M0 300 L170 190 L262 272 L398 182 L560 300 L640 252 L640 400 L0 400 Z" fill="#e8ecef"/>
+  <path d="M170 190 L262 272 L398 182 L322 250 L262 272 L204 236 Z" fill="#ffffff"/>
+  <!-- 近处雪原与杉树 -->
+  <rect y="316" width="640" height="84" fill="#fbfbfa"/>
+  <path d="M470 316 L482 268 L494 316 Z" fill="#5d6b74"/>
+  <path d="M482 268 L470 316 L494 316 Z" fill="#47535c"/>
+  <path d="M522 316 L534 258 L546 316 Z" fill="#5d6b74"/>
+  <path d="M534 258 L522 316 L546 316 Z" fill="#47535c"/>
+  <path d="M140 316 L152 274 L164 316 Z" fill="#66747d"/>
+  <path d="M152 274 L140 316 L164 316 Z" fill="#4e5b64"/>
+  <!-- 飘雪 -->
+  <g fill="#ffffff">
+    <circle cx="80" cy="120" r="2.4"/>
+    <circle cx="140" cy="70" r="1.8"/>
+    <circle cx="236" cy="120" r="2"/>
+    <circle cx="330" cy="60" r="2.2"/>
+    <circle cx="420" cy="130" r="2"/>
+    <circle cx="520" cy="80" r="1.8"/>
+    <circle cx="590" cy="150" r="2.2"/>
+    <circle cx="200" cy="180" r="1.6"/>
+    <circle cx="360" cy="170" r="1.7"/>
+    <circle cx="500" cy="190" r="1.5"/>
+  </g>
+  <rect width="640" height="400" fill="url(#mist)" opacity="0.6"/>
+</svg>

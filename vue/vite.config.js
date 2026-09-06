@@ -11,10 +11,10 @@ export default defineConfig({
   },
   server: {
     host: true,
-    // 开发时将 /api 请求转发到本地 FastAPI 后端
+    // 开发时将 /api 请求转发到本地 TS 后端（server/，Fastify，默认 3000）
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:3000',
         changeOrigin: true
       }
     }

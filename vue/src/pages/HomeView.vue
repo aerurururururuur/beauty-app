@@ -1,147 +1,156 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import Icon from '@/components/Icon.vue'
 
 const router = useRouter()
 
 const steps = [
-  { n: '01', text: '上传一张正面自拍' },
-  { n: '02', text: '挑选心仪的口红色号' },
-  { n: '03', text: '查看唇上的试色效果' }
+  { icon: 'camera', no: '01', title: '上传本人照片', desc: '一张正面自拍或照片，妆容将直接画在这张脸上。' },
+  { icon: 'sparkle', no: '02', title: '给一个场景', desc: '上传风景图片，或写一句想要的氛围——雪山、海边、都市夜色……' },
+  { icon: 'check', no: '03', title: 'AI 为你上妆', desc: 'AI 检索场景匹配的参考妆，为照片挑出合适的妆容并渲染。' }
 ]
 </script>
 
 <template>
-  <div class="home">
-    <header class="top">
-      <span class="mark">时光</span>
-      <span class="caps">TIME TRY-ON · 2026</span>
+  <div class="page home">
+    <header class="hero">
+      <div class="caps overline">SCENE MAKEUP · AI 妆容实验</div>
+      <h1 class="brand">场景美妆镜</h1>
+      <p class="lead">
+        把「此刻的风景」当作灵感。<br />
+        上传你的照片与想去的场景，AI 参考真实妆面，
+        为这<em>张脸</em>配上合适的妆容。
+      </p>
     </header>
 
-    <div class="hero">
-      <svg class="mirror" viewBox="0 0 120 150" aria-hidden="true">
-        <path
-          d="M30 6 h60 a24 24 0 0 1 24 24 v90 a24 24 0 0 1 -24 24 h-60 a24 24 0 0 1 -24 -24 v-90 a24 24 0 0 1 24 -24 z"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.4"
-        />
-        <path
-          class="lip"
-          d="M60 58 C 48 53 40 60 40 71 C 40 83 49 90 60 90 C 71 90 80 83 80 71 C 80 60 72 53 60 58 Z"
-        />
-      </svg>
+    <section class="card steps">
+      <div class="caps card-kicker">HOW IT WORKS</div>
+      <ol class="step-list">
+        <li v-for="s in steps" :key="s.no" class="step">
+          <div class="step-no">{{ s.no }}</div>
+          <div class="step-body">
+            <div class="step-title">
+              <Icon :name="s.icon" :size="15" class="step-icon" />
+              {{ s.title }}
+            </div>
+            <p class="step-desc">{{ s.desc }}</p>
+          </div>
+        </li>
+      </ol>
+    </section>
 
-      <h1 class="wordmark">时光试妆镜</h1>
-      <p class="slogan">上传一张自拍，看口红色号<br />在你唇上的样子。</p>
+    <div class="cta-area">
+      <button class="btn btn-primary btn-block" @click="router.push('/upload')">
+        <Icon name="upload" :size="16" />
+        开始创作
+      </button>
+      <p class="hint">全程浏览器本地演示，不收集任何照片 · 后端引擎当前为骨架示例</p>
     </div>
-
-    <ol class="steps">
-      <li v-for="s in steps" :key="s.n" class="step">
-        <span class="n">{{ s.n }}</span>
-        <span class="t">{{ s.text }}</span>
-      </li>
-    </ol>
-
-    <button class="btn btn-primary btn-block cta" @click="router.push('/upload')">开始试色</button>
-
-    <p class="note caps">AI 唇部识别 · 色卡校准 · 大模型解读</p>
   </div>
 </template>
 
 <style scoped>
-.home {
-  min-height: 100vh;
-  max-width: 440px;
-  margin: 0 auto;
-  padding: 28px 32px 40px;
-  display: flex;
-  flex-direction: column;
-}
-
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--c-line);
-}
-
-.mark {
-  font-family: var(--font-display);
-  font-size: 15px;
-  letter-spacing: 0.2em;
-  color: var(--c-accent);
+.page {
+  justify-content: center;
+  gap: 22px;
 }
 
 .hero {
-  margin-top: 64px;
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  padding: 28px 4px 6px;
 }
 
-.mirror {
-  width: 108px;
-  height: 135px;
-  color: var(--c-ink);
-  opacity: 0.85;
+.overline {
+  letter-spacing: 0.22em;
 }
 
-.lip {
-  fill: var(--c-accent);
-}
-
-.wordmark {
+.brand {
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: 0.16em;
-  margin: 32px 0 16px;
-  color: var(--c-ink);
+  font-size: 46px;
+  line-height: 1.2;
+  margin: 12px 0 14px;
+  letter-spacing: 0.06em;
 }
 
-.slogan {
-  font-size: 13.5px;
+.brand::first-letter {
+  color: var(--c-accent);
+}
+
+.lead {
+  font-size: 14px;
   line-height: 1.9;
   color: var(--c-ink-soft);
-  margin: 0;
+  margin: 0 auto;
+  max-width: 300px;
+}
+
+.lead em {
+  font-style: normal;
+  color: var(--c-accent);
 }
 
 .steps {
+  padding: 22px;
+}
+
+.card-kicker {
+  margin-bottom: 14px;
+}
+
+.step-list {
   list-style: none;
-  margin: 60px 0 0;
+  margin: 0;
   padding: 0;
-  border-top: 1px solid var(--c-line);
 }
 
 .step {
   display: flex;
-  align-items: baseline;
-  gap: 18px;
-  padding: 14px 2px;
-  border-bottom: 1px solid var(--c-line);
+  gap: 14px;
 }
 
-.n {
+.step + .step {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-line);
+}
+
+.step-no {
   font-family: var(--font-display);
-  font-size: 12px;
-  letter-spacing: 0.08em;
   color: var(--c-accent);
-  width: 26px;
+  font-size: 18px;
+  line-height: 1.1;
+  flex-shrink: 0;
 }
 
-.t {
-  font-size: 14px;
-  color: var(--c-ink);
+.step-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 0.02em;
 }
 
-.cta {
-  margin-top: 40px;
+.step-icon {
+  color: var(--c-accent);
 }
 
-.note {
-  margin-top: 22px;
+.step-desc {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--c-ink-soft);
+}
+
+.cta-area {
+  margin-top: 2px;
+}
+
+.hint {
   text-align: center;
+  font-size: 11px;
+  color: var(--c-ink-faint);
+  margin: 14px auto 0;
+  line-height: 1.7;
 }
 </style>

@@ -1,0 +1,29 @@
+{
+  "name": "@beauty-app/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "场景美妆后端 —— 四层清洁架构(presentation/application/domain/infrastructure;domain 按 entities/schemas/ports/errors/api 细分)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11",
+    "@fastify/multipart": "^9",
+    "fastify": "^5",
+    "zod": "^3.23"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

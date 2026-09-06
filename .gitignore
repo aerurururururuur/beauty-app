@@ -9,3 +9,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# server 后端
+server/node_modules/
+server/dist/
+server/data/
+server/.env
+server/.env.*.local

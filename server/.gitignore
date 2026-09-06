@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+*.local
+
+# 本地环境变量(由 .env.example 复制而来)
+.env
+.env.local
+.env.*.local

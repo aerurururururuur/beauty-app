@@ -53,7 +53,7 @@ function onUp() {
       <span class="grip"></span>
     </div>
     <span class="badge b-before" :class="{ hide: pos < 45 }">原图</span>
-    <span class="badge b-after" :class="{ hide: pos > 55 }">试色</span>
+    <span class="badge b-after" :class="{ hide: pos > 55 }">妆容</span>
   </div>
 </template>
 
