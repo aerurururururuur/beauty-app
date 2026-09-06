@@ -1,25 +1,25 @@
 /**
- * domain/schemas 的 zod 校验单测。
+ * domain/schemas —— 「形状/契约」测试。
+ * 只验证结构声明本身(字段格式、类型、长度);跨字段业务规则与清洗在 validator.test.ts。
  */
 import { describe, expect, it } from 'vitest';
-import { jobSubmitSchema, MAX_SCENES } from '../src/domain/schemas/job-submit.js';
+import { jobSubmitSchema, MAX_SCENE_TEXT } from '../src/domain/schemas/job-submit.js';
 import { jobIdSchema } from '../src/domain/schemas/job-id.js';
 
 const meta = (mimeType = 'image/png', originalName = 'a.png') => ({ originalName, mimeType });
 
-describe('jobSubmitSchema', () => {
-  it('风景图 + 文字都为空 → 拒绝', () => {
-    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [], sceneText: '  ' });
-    expect(res.success).toBe(false);
-    if (!res.success) expect(JSON.stringify(res.error.issues)).toContain('场景文字');
+describe('jobSubmitSchema(形状)', () => {
+  it('接受 face + scene + sceneText 的结构', () => {
+    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [meta()], sceneText: '雪' });
+    expect(res.success).toBe(true);
   });
 
-  it('缺少本人照片 → 拒绝', () => {
-    const res = jobSubmitSchema.safeParse({ faces: [], scenes: [meta()] });
-    expect(res.success).toBe(false);
+  it('仅 face + scene(无文字)结构合法', () => {
+    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [meta()] });
+    expect(res.success).toBe(true);
   });
 
-  it('非图片类型 → 拒绝', () => {
+  it('拒绝非 image/* 的文件(格式是形状的一部分)', () => {
     const res = jobSubmitSchema.safeParse({
       faces: [meta('application/json')],
       scenes: [meta('text/plain')],
@@ -28,29 +28,22 @@ describe('jobSubmitSchema', () => {
     expect(res.success).toBe(false);
   });
 
-  it('风景图超出上限 → 拒绝', () => {
-    const scenes = Array.from({ length: MAX_SCENES + 1 }, () => meta());
-    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes });
+  it('拒绝超长场景文字(长度是形状的一部分)', () => {
+    const res = jobSubmitSchema.safeParse({
+      faces: [meta()],
+      scenes: [],
+      sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1),
+    });
     expect(res.success).toBe(false);
   });
 
-  it('仅文字即可通过,且 sceneText 被 trim/去空', () => {
-    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [], sceneText: ' 雪景 清透 ' });
-    expect(res.success).toBe(true);
-    if (res.success) {
-      expect(res.data.face.originalName).toBe('a.png');
-      expect(res.data.sceneText).toBe('雪景 清透');
-      expect(res.data.scenes).toEqual([]);
-    }
-  });
-
-  it('仅风景图即可通过', () => {
-    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [meta()], sceneText: undefined });
-    expect(res.success).toBe(true);
+  it('严格模式:拒绝多余字段', () => {
+    const res = jobSubmitSchema.safeParse({ faces: [meta()], scenes: [], surprise: 1 });
+    expect(res.success).toBe(false);
   });
 });
 
-describe('jobIdSchema', () => {
+describe('jobIdSchema(形状)', () => {
   it('接受 UUID 风格 id', () => {
     expect(jobIdSchema.safeParse('3fa85f64-5717-4562-b3fc-2c963f66afa6').success).toBe(true);
   });

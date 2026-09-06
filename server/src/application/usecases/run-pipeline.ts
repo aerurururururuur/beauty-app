@@ -13,6 +13,7 @@ import type { ArtifactStore } from '../../domain/ports/artifact-store.js';
 import type { JobRepository } from '../../domain/ports/job-repository.js';
 import type { ReferenceProvider } from '../../domain/ports/reference-provider.js';
 import type { SceneAnalyzer } from '../../domain/ports/scene-analyzer.js';
+import { validateEngineResult } from '../../domain/validator/engine-output.validator.js';
 import { buildNarrative } from '../narration.js';
 
 export class RunPipeline {
@@ -69,6 +70,8 @@ export class RunPipeline {
         sceneAnalysis: scene,
         references,
       });
+      // 输出校验:引擎是外部适配器,进入流水线前必须保证产物路径/类型与 look 几何合法。
+      validateEngineResult(generated);
 
       // ④ 收编产物 + 完成
       const stored = await this.deps.artifactStore.putResult(

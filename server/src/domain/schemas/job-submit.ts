@@ -1,13 +1,15 @@
 /**
- * domain/schemas/job-submit.ts —— 提交任务入参的运行时校验(zod)。
- * multipart 解析(见 presentation/multipart.ts)先按「字段名/文件元数据」整理成纯数据,
- * 这里统一校验:本人照片 1 张、风景图 ≤ MAX_SCENES 张且为 image/*、场景文字长度限制,
- * 并保证「风景图或文字至少其一」。校验通过的形状再配回 stream 交给 SubmitJob 用例。
- * 类型推导由 zod 提供,UI 契约见 domain/api。
+ * domain/schemas/job-submit.ts —— 提交任务入参的「形状/契约」(zod,无行为)。
+ * 只声明结构:本人照片若干、风景图若干、可选场景文字,并给每个文件规定类型范围
+ * (须为 image/*)与文字长度上限。
+ *
+ * ★ 跨字段业务规则(至少一个场景)、FACE_REQUIRED / SCENES_* 语义错误码、
+ *   文字清洗(trim)等「校验行为」一律放在 domain/validator/job-submit.validator.ts,
+ *   这里不做动作、不写 refine/transform。
  */
 import { z } from 'zod';
 
-/** 风景图上限。 */
+/** 风景图上限(形状参数之一)。 */
 export const MAX_SCENES = 6;
 /** 场景文字上限(字)。 */
 export const MAX_SCENE_TEXT = 2000;
@@ -24,33 +26,14 @@ const fileInfoSchema = z
   })
   .strict();
 
-/** multipart 解析后的标量入参(不含流)。 */
+/** 提交入参的形状(结构合法与否;数组数量/依赖等业务判断在 validator)。 */
 export const jobSubmitSchema = z
   .object({
-    faces: z.array(fileInfoSchema).min(1, '请上传本人照片(face)').max(1, '本人照片只能上传一张'),
-    scenes: z.array(fileInfoSchema).max(MAX_SCENES, `风景图最多 ${MAX_SCENES} 张`),
-    sceneText: z
-      .string()
-      .max(MAX_SCENE_TEXT, `场景文字最多 ${MAX_SCENE_TEXT} 字`)
-      .optional(),
+    faces: z.array(fileInfoSchema),
+    scenes: z.array(fileInfoSchema),
+    sceneText: z.string().max(MAX_SCENE_TEXT, `场景文字最多 ${MAX_SCENE_TEXT} 字`).optional(),
   })
-  .strict()
-  .refine((v) => v.scenes.length > 0 || (v.sceneText?.trim().length ?? 0) > 0, {
-    message: '请至少提供一张风景图或一段场景文字',
-    path: ['scenes'],
-  })
-  .transform((v) => ({
-    face: v.faces[0]!,
-    scenes: v.scenes,
-    sceneText: v.sceneText && v.sceneText.trim().length > 0 ? v.sceneText.trim() : undefined,
-  }));
+  .strict();
 
-/** 通过校验后的输入形状(scalars)。 */
-export type JobSubmitScalars = z.output<typeof jobSubmitSchema>;
-
-/** 把 zod 错误转成可读中文。 */
-export function zodIssuesMessage(err: z.ZodError): string {
-  return err.issues
-    .map((issue) => `${issue.path.join('.') || '请求'}: ${issue.message}`)
-    .join('; ');
-}
+/** 通过形状校验的入参形状(multipart 解析后的标量,不含流)。 */
+export type JobSubmitRaw = z.output<typeof jobSubmitSchema>;

@@ -7,10 +7,9 @@ import type { FastifyInstance } from 'fastify';
 import type { GetJob } from '../../application/usecases/get-job.js';
 import type { GetJobResult } from '../../application/usecases/get-job-result.js';
 import type { SubmitJob } from '../../application/usecases/submit-job.js';
-import { AppError, ErrorCode } from '../../domain/errors/app-error.js';
-import { jobIdSchema } from '../../domain/schemas/job-id.js';
-import { jobSubmitSchema, zodIssuesMessage } from '../../domain/schemas/job-submit.js';
 import type { UploadFile } from '../../domain/ports/artifact-store.js';
+import { validateJobId } from '../../domain/validator/job-id.validator.js';
+import { validateSubmitJob } from '../../domain/validator/job-submit.validator.js';
 import { parseJobParts } from '../multipart.js';
 
 export interface JobsDeps {
@@ -20,9 +19,7 @@ export interface JobsDeps {
 }
 
 function parseJobId(raw: unknown): string {
-  const parsed = jobIdSchema.safeParse(raw);
-  if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(parsed.error));
-  return parsed.data;
+  return validateJobId(raw);
 }
 
 function toMeta(file: UploadFile): { originalName: string; mimeType: string } {
@@ -36,19 +33,20 @@ function destroyFiles(files: UploadFile[]): void {
 export function registerJobsRoutes(app: FastifyInstance, deps: JobsDeps): void {
   app.post('/jobs', async (request, reply) => {
     const parts = await parseJobParts(request);
-    const schemaResult = jobSubmitSchema.safeParse({
-      faces: parts.faceFiles.map(toMeta),
-      scenes: parts.sceneFiles.map(toMeta),
-      sceneText: parts.sceneText,
-    });
-    if (!schemaResult.success) {
-      destroyFiles([...parts.faceFiles, ...parts.sceneFiles]);
-      throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(schemaResult.error), {
-        issues: schemaResult.error.issues,
+    // 形状(字段类型/image/*)与业务规则(至少一场景等)统一由校验器执行;
+    // 失败时先销毁已打开的上传流再抛出,避免句柄泄漏。
+    let input;
+    try {
+      input = validateSubmitJob({
+        faces: parts.faceFiles.map(toMeta),
+        scenes: parts.sceneFiles.map(toMeta),
+        sceneText: parts.sceneText,
       });
+    } catch (err) {
+      destroyFiles([...parts.faceFiles, ...parts.sceneFiles]);
+      throw err;
     }
-    // schema 已保证 face 恰好 1 张;把它配回流交给用例落盘。
-    const input = schemaResult.data;
+    // 校验器已保证 face 恰好 1 张;把它配回流交给用例落盘。
     const created = await deps.submitJob.execute({
       face: parts.faceFiles[0]!,
       scenes: parts.sceneFiles,

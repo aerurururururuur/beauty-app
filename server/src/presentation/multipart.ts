@@ -1,6 +1,6 @@
 /**
  * presentation/multipart.ts —— multipart 请求解析。
- * 只负责把上传流与标量按「字段名」归拢;字段约束/类型校验交给 domain/schemas 的 zod。
+ * 只负责把上传流与标量按「字段名」归拢;结构与业务校验交给 domain/validator 执行。
  * 说明:浏览器会自动带 image/* Content-Type;命令行/旧客户端可能不带,
  * 这里按扩展名做一次兜底推断,保证 curl 冒烟也能过。
  */
