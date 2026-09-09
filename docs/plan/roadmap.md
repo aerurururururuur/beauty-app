@@ -39,6 +39,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
     ├── references/        参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
+    ├── user/              [空壳] 用户账号:User 实体 + UserRepository 契约(登录未做,见 §10)
     ├── weather/           [空壳] 天气拉取端口(骨架未 wire)
     └── recommendations/   [空壳] 平价同款推荐端口(骨架未 wire)
 ```
@@ -137,12 +138,23 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 - **现状 [~]**：端口 `recommender.ts` 已声明；`recommendations/compose.ts` 返回 `provider: null`，未接线。
 - **待办 [ ]**：
   - [ ] 规则引擎：`occasion + 肤质/肤色 + 已拥有产品` →「缺什么补什么」——**优先已有品，缺的推平价线**；输出诚实标注「品牌参考」，UI 不渲染成广告位。
-  - [ ] 输入建模拍板：用户「已拥有产品」从哪来（骨架可本地手选 / 硬编码列表，别建账户体系）→ 再定 `RecommendationsProvider` 入参出参形状。
+  - [ ] 输入建模拍板：用户「已拥有产品」从哪来（骨架可本地手选 / 硬编码列表；将来属 `user` 模块档案的已拥有品字段）→ 再定 `RecommendationsProvider` 入参出参形状。
   - [ ] `compose.ts` 返回实例、`src/index.ts` 接入；前端结果页展示推荐区。
 
 ---
 
-## 10. 前端（vue/ —— 非模块目录，独立成板）
+## 10. user（空壳占位 · 用户系统起点）
+
+- **现状 [~]**：`User` 实体 + `UserRepository` 契约已立（`domain/entities/user.ts` / `domain/ports/user-repository.ts`）；`user/compose.ts` 返回 `{ repository: null }`，**未接入** `src/index.ts`。本轮只做账号本身，无端点 / 错误码 / HTTP 映射。
+- **接缝（将来）**：
+  - [ ] **任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史（动 jobs schema/实体/DTO 三处）。
+  - [ ] **账号用例/端点**：注册 / 改档案用例放 `application`；`POST /api/users` 放 `presentation`。
+  - [ ] **偏好并入档案**：skinType/skinTone/常用 occasion 预设、已拥有品清单 → 喂上传预填与 `recommendations`。
+- **待拍板（阻塞账号用例开工）**：做真登录（密码哈希 + token）还是轻量无密码身份（nickname 即身份）？演示与隐私取舍（见 §12 红线 4/5）。
+
+---
+
+## 11. 前端（vue/ —— 非模块目录，独立成板）
 
 - **现状 [x]**：三页动线（上传 → 生成 → 成片对比）；`UploadView` 表单齐（本人照 + 场合 chips + 肤质 chips + **肤色 5 档色卡** + 穿搭 tag + 天气组 + 自由文字 + 可选氛围图折叠）；`stores/makeup.js` / `api/{makeup,mock}.js` 与 server 语义同源；浏览器纯 mock 模式可跑通。
 - **待办 [ ]**：
@@ -154,17 +166,17 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 11. 红线（写进验收，任何人改动都不得破坏）
+## 12. 红线（写进验收，任何人改动都不得破坏）
 
 1. **demo 稳 > 一切**：引擎不稳 / 人脸检测失败 / 断网 / 设备故障 → 预设照 + mock + 录播三重兜底。
 2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；不抓网络图。参考素材必须 自绘 / 自有 / 可授权。
 3. **肤色 / 肤质包容**：`skinTone` 5 档、缺省 `medium`（中间档），**不默认浅肤色审美**；上妆与推荐都按真实肤色走。
 4. **肖像与隐私**：演示只用**已授权人物**；现场临时自拍采集最小化、即用即删、口头同意即可；不做任何真实用户数据的留存与上传。
-5. **不做**（竞赛红线内的帮倒忙）：账户 / 多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
+5. **账号边界**：`user` 模块为**空壳占位**（账号模型 + 仓库契约已立，2026-09-09 起）；完整登录鉴权**未做、待定**——若做须密码哈希不存明文。仍**不做**：多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
 
 ---
 
-## 12. 待拍板（阻塞项，需要 owner 决策后任务才能开工）
+## 13. 待拍板（阻塞项，需要 owner 决策后任务才能开工）
 
 - [ ] 渲染方案 ① 自研参数化 vs ② 第三方 API（本周半天验证后拍板 → 决定 §6 的人脸关键点 / 渲染两单怎么派）。
 - [ ] 参考素材替换来源与授权范围（谁能贡献自绘 / 可授权图）。

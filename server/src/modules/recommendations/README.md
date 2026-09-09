@@ -12,7 +12,7 @@
 
 ## 待办（何时做、怎么做）
 
-1. **输入建模拍板**：用户「已拥有产品」从哪来（骨架可本地手选/硬编码列表，**别建账户体系**）→ 再定 `RecommendationsProvider` 入参出参形状。
+1. **输入建模拍板**：用户「已拥有产品」从哪来（骨架可本地手选/硬编码列表；将来属 `user` 模块档案的已拥有品字段）→ 再定 `RecommendationsProvider` 入参出参形状。
 2. **规则引擎**：occasion + 肤质/肤色 + 已有产品 → 补齐缺口；输出 `RecommendationItem{ id, name, note }`，诚实标注「品牌参考」。
 3. `compose.ts` 返回实例 → `src/index.ts` 接入 → 前端结果页展示推荐区。
 

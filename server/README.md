@@ -32,6 +32,7 @@ src/
     ├── references/          # 参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/              # 上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
+    ├── user/                # [空壳] 用户账号:User 实体 + UserRepository 契约(登录未做,接缝见 roadmap §10)
     ├── weather/             # [空壳] 天气拉取端口(骨架未 wire)
     └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire)
 ```
