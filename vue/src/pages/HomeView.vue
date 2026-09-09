@@ -5,21 +5,36 @@ import Icon from '@/components/Icon.vue'
 const router = useRouter()
 
 const steps = [
-  { icon: 'camera', no: '01', title: '上传本人照片', desc: '一张正面自拍或照片，妆容将直接画在这张脸上。' },
-  { icon: 'sparkle', no: '02', title: '给一个场景', desc: '上传风景图片，或写一句想要的氛围——雪山、海边、都市夜色……' },
-  { icon: 'check', no: '03', title: 'AI 为你上妆', desc: 'AI 检索场景匹配的参考妆，为照片挑出合适的妆容并渲染。' }
+  {
+    icon: 'camera',
+    no: '01',
+    title: '上传本人照片',
+    desc: '一张正面照，妆容与肤色都按你真实的脸来配。'
+  },
+  {
+    icon: 'sparkle',
+    no: '02',
+    title: '告诉我们要去哪儿',
+    desc: '面试、约会、见家长、上台……再选肤质肤色、穿搭与天气。'
+  },
+  {
+    icon: 'check',
+    no: '03',
+    title: '为你配一套得体妆',
+    desc: 'AI 按「场合 × 你的肤色肤质」挑参考与色板，前后对比一目了然。'
+  }
 ]
 </script>
 
 <template>
   <div class="page home">
     <header class="hero">
-      <div class="caps overline">SCENE MAKEUP · AI 妆容实验</div>
-      <h1 class="brand">场景美妆镜</h1>
+      <div class="caps overline">OCCASION MAKEUP · AI 妆容实验</div>
+      <h1 class="brand">场合美妆镜</h1>
       <p class="lead">
-        把「此刻的风景」当作灵感。<br />
-        上传你的照片与想去的场景，AI 参考真实妆面，
-        为这<em>张脸</em>配上合适的妆容。
+        为那些<em>重要的时刻</em>，配一张体面、得体的脸。<br />
+        面试、约会、见家长、上台——上传照片，
+        告诉我们要去往哪个场合，AI 就为你配一套合适的妆容。
       </p>
     </header>
 
@@ -42,7 +57,7 @@ const steps = [
     <div class="cta-area">
       <button class="btn btn-primary btn-block" @click="router.push('/upload')">
         <Icon name="upload" :size="16" />
-        开始创作
+        开始配妆
       </button>
       <p class="hint">全程浏览器本地演示，不收集任何照片 · 后端引擎当前为骨架示例</p>
     </div>
@@ -81,7 +96,7 @@ const steps = [
   line-height: 1.9;
   color: var(--c-ink-soft);
   margin: 0 auto;
-  max-width: 300px;
+  max-width: 320px;
 }
 
 .lead em {

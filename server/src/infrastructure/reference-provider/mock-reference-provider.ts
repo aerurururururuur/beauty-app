@@ -1,7 +1,10 @@
 /**
  * infrastructure/reference-provider/mock-reference-provider.ts —— ReferenceProvider 的 mock 实现。
- * 按场景 label 返回预设参考条目(带授权来源标注)。不联网。
- * 未来可替换为网页/资源库搜索(需遵守授权条款)。
+ * 按场景 label(场合语义)返回预设参考条目。不联网、不抓取网络图。
+ *
+ * ★ IP/原创红线(roadmap §七):素材须自绘/自有/可授权并逐张记录来源。
+ * 本 mock 只给出「场合化的示意标题」,license 诚实标注为自绘演示素材;
+ * 正式稿须替换为可授权参考素材并回填真实 license/sourceUrl。
  */
 import type { ReferenceImage } from '../../domain/entities/reference.js';
 import type { SceneAnalysis } from '../../domain/entities/scene.js';
@@ -12,48 +15,38 @@ interface Sample {
 }
 
 const SAMPLES: Record<string, Sample[]> = {
-  snow: [
-    { title: '雪景清透妆 · 冷调底妆' },
-    { title: '冷感粉调腮红晕染' },
-    { title: '水润透亮唇妆示例' },
+  interview: [
+    { title: '正式面试妆 · 哑光大地色(参考) ' },
+    { title: '低饱和豆沙唇妆(参考)' },
+    { title: '眉目利落的通勤妆示范(参考)' },
   ],
-  beach: [
-    { title: '海边元气橘粉妆' },
-    { title: '水光感高光点缀' },
-    { title: '夏日清透腮红示例' },
+  date: [
+    { title: '约会温柔粉调妆(参考)' },
+    { title: '水光感腮红晕染(参考)' },
+    { title: '暖调玫瑰唇妆示范(参考)' },
   ],
-  'red-leaf': [
-    { title: '秋日枫叶眼妆' },
-    { title: '复古红棕唇色' },
-    { title: '暖调腮红修容示例' },
+  stage: [
+    { title: '上台演讲 · 哑光高显色底妆(参考)' },
+    { title: '立体眉眼轮廓示范(参考)' },
+    { title: '镜头友好唇色示范(参考)' },
   ],
-  city: [
-    { title: '都市轻烟熏眼妆' },
-    { title: '冷调裸色唇妆' },
-    { title: '夜景灯光下哑光底妆示例' },
+  family: [
+    { title: '见家长 · 温婉得体妆(参考)' },
+    { title: '自然提气色腮红(参考)' },
+    { title: '豆沙调温柔唇妆示范(参考)' },
   ],
-  desert: [
-    { title: '沙漠大地色眼影' },
-    { title: '暖棕修容与晒伤腮红' },
-    { title: '哑光蜜桃唇妆示例' },
-  ],
-  mountain: [
-    { title: '山野裸感伪素颜妆' },
-    { title: '透光高光与清透底妆' },
-    { title: '豆沙色日常唇妆示例' },
-  ],
-  unknown: [
-    { title: '百搭日常淡妆' },
-    { title: '自然提气色腮红' },
-    { title: '通勤豆沙唇妆示例' },
+  daily: [
+    { title: '日常通勤百搭淡妆(参考)' },
+    { title: '自然伪素颜底妆示范(参考)' },
+    { title: '通勤豆沙唇妆(参考)' },
   ],
 };
 
-/** 兜底条目(未识别场景)。 */
+/** 兜底条目(自由文字但未命中任何场合)。 */
 const FALLBACK_SAMPLES: Sample[] = [
-  { title: '百搭日常淡妆' },
-  { title: '自然提气色腮红' },
-  { title: '通勤豆沙唇妆示例' },
+  { title: '日常通勤百搭淡妆(参考)' },
+  { title: '自然伪素颜底妆示范(参考)' },
+  { title: '通勤豆沙唇妆(参考)' },
 ];
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -68,8 +61,8 @@ export class MockReferenceProvider implements ReferenceProvider {
     return samples.map((s, i) => ({
       id: `ref-${scene.label}-${i + 1}`,
       title: s.title,
-      license: '骨架示例条目 · 接入真实来源后须标注授权条款',
-      sourceUrl: `https://example.com/makeup-reference/${scene.label}/${i + 1}`,
+      license: '自绘演示素材 · 正式稿替换为可授权来源并回填授权信息',
+      sourceUrl: '', // 红线:不抓网络图;正式稿填本地/授权素材地址
     }));
   }
 }

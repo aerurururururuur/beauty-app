@@ -25,7 +25,7 @@ describe('SubmitJob', () => {
     const res = await submitJob.execute({
       face: memFile('me.png', 'image/png', 'FACE'),
       scenes: [memFile('scene1.png', 'image/png', 'SCENE1')],
-      sceneText: '雪景 冷调',
+      brief: { occasion: 'interview', skinType: 'oily', skinTone: 'medium' },
     });
 
     expect(res.status).toBe('queued');
@@ -37,23 +37,26 @@ describe('SubmitJob', () => {
     expect(rec!.status).toBe('queued');
     expect(rec!.inputs.face.originalName).toBe('me.png');
     expect(rec!.inputs.scenes).toHaveLength(1);
-    expect(rec!.inputs.sceneText).toBe('雪景 冷调');
+    expect(rec!.inputs.brief?.occasion).toBe('interview');
+    expect(rec!.inputs.brief?.skinType).toBe('oily');
 
-    // 存储层确实落盘了两类输入
+    // 存储层确实落盘了两类输入(face + scene 文件)
     expect(artifactStore.fileCount()).toBe(2);
   });
 
-  it('无场景(无图且无文字) → SCENES_REQUIRED', async () => {
+  it('既无 occasion 也无 sceneText → CONTEXT_REQUIRED', async () => {
     const { queue, submitJob } = setup();
     await expect(
-      submitJob.execute({ face: memFile(), scenes: [], sceneText: '   ' }),
-    ).rejects.toMatchObject({ code: ErrorCode.SCENES_REQUIRED });
+      submitJob.execute({ face: memFile(), scenes: [], brief: {} }),
+    ).rejects.toMatchObject({ code: ErrorCode.CONTEXT_REQUIRED });
     expect(queue.enqueued).toHaveLength(0);
   });
 
-  it('场景图超出上限 → SCENES_MAX_EXCEEDED', async () => {
+  it('风景参考图超出上限 → SCENES_MAX_EXCEEDED', async () => {
     const { submitJob } = setup();
     const scenes = Array.from({ length: 7 }, () => memFile());
-    await expect(submitJob.execute({ face: memFile(), scenes })).rejects.toBeInstanceOf(AppError);
+    await expect(
+      submitJob.execute({ face: memFile(), scenes, brief: { occasion: 'interview' } }),
+    ).rejects.toBeInstanceOf(AppError);
   });
 });

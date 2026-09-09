@@ -36,8 +36,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: {
       fileSize: deps.config.maxUploadMb * 1024 * 1024,
-      files: 12, // face 1 + scene ≤ 6,留余量
-      fields: 8,
+      files: 12, // face 1 + scene ≤ 6(可选氛围参考图),留余量
+      fields: 8, // meta(JSON 简报)一个标量 + 余量
     },
   });
 

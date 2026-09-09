@@ -3,7 +3,12 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMakeupStore } from '@/stores/makeup'
 import { fetchMakeupJob, resultImageHref } from '@/api/makeup'
-import { SCENE_CN } from '@/api/mock'
+import {
+  OCCASION_CN,
+  SKIN_TONE_CN,
+  SKIN_TONE_OPTIONS,
+  SKIN_TYPE_CN
+} from '@/constants/options'
 import { rgbCss, rgbToHex } from '@/utils/color'
 import CompareSlider from '@/components/CompareSlider.vue'
 import Icon from '@/components/Icon.vue'
@@ -22,9 +27,9 @@ let timer = null
 
 const STEP_CN = {
   queued: '任务排队中…',
-  scene_understand: 'AI 正在理解场景氛围…',
-  reference_gather: '正在检索场景匹配的参考妆…',
-  makeup_generate: '正在为照片挑选并渲染妆容…',
+  scene_understand: 'AI 正在理解场合与需求…',
+  reference_gather: '正在检索该场合相配的参考妆…',
+  makeup_generate: '正在按你的肤质肤色配妆容…',
   store_result: '正在保存结果…'
 }
 
@@ -82,6 +87,43 @@ const references = computed(() => result.value?.references || view.value?.refere
 const errorMsg = computed(
   () => view.value?.error?.message || pollError.value || '生成失败，请重试'
 )
+
+// ---- 输入简报回显 ----
+const brief = computed(() => view.value?.inputs?.brief || {})
+const toneMeta = Object.fromEntries(SKIN_TONE_OPTIONS.map((t) => [t.value, t]))
+const hasEcho = computed(
+  () =>
+    !!brief.value.occasion ||
+    !!brief.value.sceneText ||
+    !!brief.value.skinType ||
+    !!brief.value.skinTone ||
+    !!brief.value.dress ||
+    !!brief.value.weather
+)
+
+function occasionCn(v) {
+  return OCCASION_CN[v] || v || ''
+}
+function skinTypeCn(v) {
+  return SKIN_TYPE_CN[v] || v || ''
+}
+function weatherText(w) {
+  if (!w) return ''
+  const bits = []
+  if (w.condition) bits.push(w.condition)
+  if (w.temperatureC != null) bits.push(`${w.temperatureC}°C`)
+  if (w.humidityPct != null) bits.push(`湿度${w.humidityPct}%`)
+  return bits.join(' · ')
+}
+
+/** 顶部场合名：命中枚举按中文；自由文字未命中场合时展示需求 snippet。 */
+function sceneDisplayName() {
+  const cn = OCCASION_CN[scene.value?.label]
+  if (cn) return cn
+  const t = (brief.value.sceneText || '').trim()
+  if (t) return `自定义 · ${t.length > 14 ? t.slice(0, 14) + '…' : t}`
+  return scene.value?.label || '日常'
+}
 
 /** 底图：真实引擎产物优先；mock（resultUrl 为空）则用本人照片原图 + look 叠加。 */
 const baseSrc = computed(() => {
@@ -151,11 +193,45 @@ function restart() {
         <p class="compare-hint">拖拽中间滑杆，对比妆容前后</p>
       </section>
 
+      <!-- 本次输入回显 -->
+      <section v-if="hasEcho" class="card echo-card">
+        <div class="caps card-kicker">YOUR INPUT</div>
+        <ul class="echo">
+          <li v-if="brief.occasion" class="echo-item">
+            <span class="echo-label">场合</span>
+            <span class="echo-val"><span class="val-text">{{ occasionCn(brief.occasion) }}</span></span>
+          </li>
+          <li v-if="brief.sceneText" class="echo-item">
+            <span class="echo-label">你的需求</span>
+            <span class="echo-val"><span class="val-text echo-free">{{ brief.sceneText }}</span></span>
+          </li>
+          <li v-if="brief.skinType" class="echo-item">
+            <span class="echo-label">肤质</span>
+            <span class="echo-val"><span class="val-text">{{ skinTypeCn(brief.skinType) }}</span></span>
+          </li>
+          <li v-if="brief.skinTone" class="echo-item">
+            <span class="echo-label">肤色</span>
+            <span class="echo-val">
+              <span class="tone-swatch" :style="{ background: toneMeta[brief.skinTone]?.swatch }"></span>
+              <span class="val-text">{{ SKIN_TONE_CN[brief.skinTone] || brief.skinTone }}</span>
+            </span>
+          </li>
+          <li v-if="brief.dress" class="echo-item">
+            <span class="echo-label">穿搭</span>
+            <span class="echo-val"><span class="val-text">{{ brief.dress }}</span></span>
+          </li>
+          <li v-if="brief.weather" class="echo-item">
+            <span class="echo-label">天气</span>
+            <span class="echo-val"><span class="val-text">{{ weatherText(brief.weather) || '未提供' }}</span></span>
+          </li>
+        </ul>
+      </section>
+
       <!-- 风格结论 -->
       <section v-if="scene" class="card">
-        <div class="caps card-kicker">SCENE LOOK</div>
+        <div class="caps card-kicker">OCCASION LOOK</div>
         <div class="verdict">
-          <span class="scene-name">{{ SCENE_CN[scene.label] || scene.label }}</span>
+          <span class="scene-name">{{ sceneDisplayName() }}</span>
           <span class="dot">·</span>
           <span class="look-style">{{ look?.style }}</span>
         </div>
@@ -181,7 +257,7 @@ function restart() {
       <!-- 参考妆 -->
       <section v-if="references.length" class="card">
         <div class="caps card-kicker">REFERENCE</div>
-        <p class="card-sub">AI 参考了这些场景妆面的处理方式：</p>
+        <p class="card-sub">AI 参考了这些妆面处理方式（自绘演示示意）：</p>
         <ol class="ref-list">
           <li v-for="r in references" :key="r.id" class="ref-item">
             <span class="ref-idx">{{ references.indexOf(r) + 1 }}</span>
@@ -195,7 +271,7 @@ function restart() {
 
       <!-- 解读 -->
       <section class="card">
-        <div class="caps card-kicker">WHY</div>
+        <div class="caps card-kicker">WHY THIS LOOK</div>
         <p v-if="result?.explain" class="explain">{{ result.explain }}</p>
         <ul v-if="result?.tips?.length" class="tips">
           <li v-for="(tip, i) in result.tips" :key="i" class="tip">
@@ -206,7 +282,7 @@ function restart() {
       </section>
 
       <div class="actions">
-        <button class="btn btn-primary btn-block" @click="restart">换个场景再来一次</button>
+        <button class="btn btn-primary btn-block" @click="restart">换个场合，再来一次</button>
       </div>
     </template>
   </div>
@@ -290,6 +366,58 @@ function restart() {
   transform: translate(-50%, -50%);
   mix-blend-mode: multiply;
   pointer-events: none;
+}
+
+/* ---- 输入回显 ---- */
+.echo-card {
+  padding: 16px 20px;
+}
+
+.echo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.echo-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.echo-label {
+  flex: none;
+  width: 62px;
+  color: var(--c-ink-faint);
+}
+
+.echo-val {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--c-ink);
+}
+
+.val-text {
+  word-break: break-word;
+}
+
+.echo-free {
+  color: var(--c-ink-soft);
+  line-height: 1.6;
+}
+
+.tone-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--c-line-strong);
 }
 
 .verdict {

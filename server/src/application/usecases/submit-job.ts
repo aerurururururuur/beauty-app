@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { createQueuedJob } from '../../domain/entities/job.js';
 import type { JobUpload } from '../../domain/entities/job.js';
+import type { MakeupBrief } from '../../domain/entities/brief.js';
 import type { ImageRef } from '../../domain/entities/image.js';
 import type { SubmitJobResponse } from '../../domain/api/job-view.js';
 import { validateSubmitJob } from '../../domain/validator/job-submit.validator.js';
@@ -17,7 +18,7 @@ import type { JobQueue } from '../../domain/ports/job-queue.js';
 export interface SubmitJobCommand {
   face: UploadFile;
   scenes: UploadFile[];
-  sceneText?: string;
+  brief: MakeupBrief;
 }
 
 export class SubmitJob {
@@ -30,11 +31,11 @@ export class SubmitJob {
   ) {}
 
   async execute(command: SubmitJobCommand): Promise<SubmitJobResponse> {
-    // 领域不变量(至少一个场景、数量上限、face 单张等)收敛在 domain/validator 一处。
-    validateSubmitJob({
+    // 领域不变量(face 单张、occasion/文字至少其一、scene 数量上限等)收敛在 domain/validator 一处。
+    const input = validateSubmitJob({
       faces: [{ originalName: command.face.originalName, mimeType: command.face.mimeType }],
       scenes: command.scenes.map((f) => ({ originalName: f.originalName, mimeType: f.mimeType })),
-      sceneText: command.sceneText,
+      metaRaw: JSON.stringify(command.brief ?? {}),
     });
 
     const id = randomUUID();
@@ -47,7 +48,7 @@ export class SubmitJob {
     const upload: JobUpload = {
       face,
       scenes,
-      sceneText: command.sceneText?.trim() ? command.sceneText : undefined,
+      brief: input.brief,
     };
     const record = createQueuedJob(id, upload);
 

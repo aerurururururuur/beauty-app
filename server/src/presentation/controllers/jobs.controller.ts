@@ -33,14 +33,15 @@ function destroyFiles(files: UploadFile[]): void {
 export function registerJobsRoutes(app: FastifyInstance, deps: JobsDeps): void {
   app.post('/jobs', async (request, reply) => {
     const parts = await parseJobParts(request);
-    // 形状(字段类型/image/*)与业务规则(至少一场景等)统一由校验器执行;
+    // 形状(image/*、meta JSON、occasion/肤质肤色枚举等)与业务规则
+    // (FACE_REQUIRED / CONTEXT_REQUIRED / SCENES_MAX_EXCEEDED…)统一由校验器执行;
     // 失败时先销毁已打开的上传流再抛出,避免句柄泄漏。
     let input;
     try {
       input = validateSubmitJob({
         faces: parts.faceFiles.map(toMeta),
         scenes: parts.sceneFiles.map(toMeta),
-        sceneText: parts.sceneText,
+        metaRaw: parts.metaRaw,
       });
     } catch (err) {
       destroyFiles([...parts.faceFiles, ...parts.sceneFiles]);
@@ -50,7 +51,7 @@ export function registerJobsRoutes(app: FastifyInstance, deps: JobsDeps): void {
     const created = await deps.submitJob.execute({
       face: parts.faceFiles[0]!,
       scenes: parts.sceneFiles,
-      sceneText: input.sceneText,
+      brief: input.brief,
     });
     return reply.code(202).send(created);
   });

@@ -101,8 +101,11 @@ export class FakeQueue implements JobQueue {
 export class FakeSceneAnalyzer implements SceneAnalyzer {
   readonly name = 'fake';
   async analyze(input: SceneAnalyzerInput): Promise<SceneAnalysis> {
+    const brief = input.brief ?? {};
+    const label =
+      brief.occasion ?? (brief.sceneText?.includes('面试') ? 'interview' : 'daily');
     return {
-      label: input.sceneText?.includes('雪') ? 'snow' : 'unknown',
+      label,
       direction: '测试方向',
       tags: ['测试'],
       confidence: 0.6,
@@ -114,9 +117,7 @@ export class FakeSceneAnalyzer implements SceneAnalyzer {
 export class FakeReferenceProvider implements ReferenceProvider {
   readonly name = 'fake';
   async fetch(scene: SceneAnalysis): Promise<ReferenceImage[]> {
-    return [
-      { id: 'r1', title: `参考:${scene.label}`, license: 'cc0', sourceUrl: 'https://example.com/1' },
-    ];
+    return [{ id: 'r1', title: `参考:${scene.label}`, license: '自绘测试素材', sourceUrl: '' }];
   }
 }
 
@@ -126,7 +127,12 @@ export class FakeEngine implements Engine {
     return {
       resultFilePath: 'mem://rendered.png',
       mimeType: 'image/png',
-      look: { style: input.sceneAnalysis?.direction ?? '默认', palette: [], zones: [] },
+      look: {
+        style: input.sceneAnalysis?.direction ?? '默认',
+        skinTone: input.brief?.skinTone,
+        palette: [],
+        zones: [],
+      },
     };
   }
 }

@@ -7,7 +7,7 @@
  * 说明:引擎收到的是已解析到本机磁盘的图片路径;将来若换云存储/把图片转交远端 API,
  * 由上层用例在调用处解析/适配,端口形状可保持不变。
  */
-import type { Look, ReferenceImage, SceneAnalysis } from '../entities/index.js';
+import type { Look, MakeupBrief, ReferenceImage, SceneAnalysis } from '../entities/index.js';
 
 export interface EngineSourceImage {
   filePath: string; // 本机绝对路径
@@ -17,9 +17,10 @@ export interface EngineSourceImage {
 
 export interface EngineInput {
   face: EngineSourceImage;
+  /** 可选风景/氛围参考图(不驱动风格)。 */
   scenes: EngineSourceImage[];
-  /** 自由文字场景描述。 */
-  sceneText?: string;
+  /** 用户需求简报:occasion / 肤质肤色 / 穿搭 / 天气 / 自由文字。 */
+  brief: MakeupBrief;
   sceneAnalysis?: SceneAnalysis; // 场景阶段开启并成功时传入
   references?: ReferenceImage[]; // 参考图阶段开启时传入
 }

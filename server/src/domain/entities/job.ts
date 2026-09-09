@@ -5,6 +5,7 @@
 import type { ImageRef } from './image.js';
 import type { ReferenceImage } from './reference.js';
 import type { SceneAnalysis } from './scene.js';
+import type { MakeupBrief } from './brief.js';
 import type { JobError, Look, ResultText } from './look.js';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
@@ -18,16 +19,17 @@ export type PipelineStep =
 /** 任务输入(含持久化所需的存储引用)。 */
 export interface JobUpload {
   face: ImageRef;
+  /** 可选风景/氛围参考图(不驱动风格,仅回显;最多 6 张)。 */
   scenes: ImageRef[];
-  /** 自由文字场景描述(与 scenes 至少其一)。 */
-  sceneText?: string;
+  /** 用户需求简报:occasion / 自由文字 / 肤质肤色 / 穿搭 / 天气。 */
+  brief?: MakeupBrief;
 }
 
 /** 给用户回显的最小输入描述(不暴露内部存储键)。 */
 export interface JobInputMeta {
   faceName: string;
   sceneNames: string[];
-  sceneText?: string;
+  brief?: MakeupBrief;
 }
 
 /** 完成任务时返回给客户端的最终结果。 */
@@ -82,11 +84,22 @@ function nowIso(): string {
 
 /** 给用户回显的最小输入描述。 */
 export function displayInputs(upload: JobUpload): JobInputMeta {
-  return {
+  const meta: JobInputMeta = {
     faceName: upload.face.originalName ?? upload.face.storeKey,
     sceneNames: upload.scenes.map((s) => s.originalName ?? s.storeKey),
-    ...(upload.sceneText && upload.sceneText.trim() ? { sceneText: upload.sceneText } : {}),
   };
+  if (upload.brief) {
+    // 展开副本,仅保留有值的字段,便于 UI 展示。
+    const brief: MakeupBrief = {};
+    if (upload.brief.occasion) brief.occasion = upload.brief.occasion;
+    if (upload.brief.sceneText?.trim()) brief.sceneText = upload.brief.sceneText;
+    if (upload.brief.skinType) brief.skinType = upload.brief.skinType;
+    if (upload.brief.skinTone) brief.skinTone = upload.brief.skinTone;
+    if (upload.brief.dress?.trim()) brief.dress = upload.brief.dress;
+    if (upload.brief.weather) brief.weather = { ...upload.brief.weather };
+    if (Object.keys(brief).length > 0) meta.brief = brief;
+  }
+  return meta;
 }
 
 export function createQueuedJob(id: string, inputs: JobUpload): JobRecord {

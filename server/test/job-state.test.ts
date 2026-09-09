@@ -17,7 +17,7 @@ function sampleJob(id = 'job-1'): JobRecord {
   return createQueuedJob(id, {
     face: { storeKey: 'inputs/job-1/face/face-1.png', mimeType: 'image/png', originalName: 'me.png' },
     scenes: [],
-    sceneText: '雪景 冷调',
+    brief: { occasion: 'interview', sceneText: '正式终面' },
   });
 }
 
@@ -25,8 +25,8 @@ function sampleResult(): JobResult {
   return {
     engine: 'mock',
     resultUrl: '/jobs/job-1/result',
-    scene: { label: 'snow', direction: '清透', tags: ['冷调'], confidence: 0.7, source: 'mock' },
-    look: { style: '清透' },
+    scene: { label: 'interview', direction: '正式得体', tags: ['正式'], confidence: 0.7, source: 'mock' },
+    look: { style: '正式得体' },
     references: [],
     analysis: 'a',
     explain: 'b',
@@ -42,7 +42,7 @@ describe('Job 状态机', () => {
     expect(rec.scene).toBeUndefined();
     expect(rec.startedAt).toBeDefined();
 
-    const sceneAnalysis = { label: 'snow', direction: '清透冷调', tags: ['雪'], confidence: 0.7, source: 'mock' };
+    const sceneAnalysis = { label: 'interview', direction: '正式得体', tags: ['正式'], confidence: 0.7, source: 'mock' };
     rec = recordScene(advanceTo(rec, 'scene_understand'), sceneAnalysis);
     expect(rec.step).toBe('scene_understand');
     expect(rec.progress).toBe(20);

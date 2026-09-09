@@ -1,6 +1,6 @@
-# 场景美妆镜 · 前端（Vue 3）
+# 场合美妆镜 · 前端（Vue 3）
 
-以「风景为灵感」的 AI 上妆项目的 Web 前端：上传本人照片与一个场景（风景图 和/或 自由文字），后端识别场景并选配妆容渲染到照片。前端内置演示模式（mock），后端未就绪也能跑通「上传 → 提交 → 轮询进度 → 妆容对比」全流程。
+为「重要场合」配得体妆容的 AI 上妆项目 Web 前端：上传**本人照片**，选择**场合**并补充肤质/肤色/穿搭/天气/自由文字，后端据此配妆容渲染到照片。前端内置演示模式（mock），后端未就绪也能跑通「上传 → 提交 → 轮询进度 → 妆容对比」全流程。
 
 ## 技术栈
 
@@ -33,32 +33,40 @@ npm run dev
 
 ## 页面流程
 
-首页 `/` → 上传 `/upload`（本人照片必填 + 风景图/文字至少其一）→ 结果 `/result`（任务进度 + 原图 vs 妆容对比）
+首页 `/` → 上传 `/upload`（本人照片必填 + 选场合或写一句需求，可再补肤质肤色穿搭天气与可选氛围图）→ 结果 `/result`（任务进度 + 输入回显 + 原图 vs 妆容对比）
+
+上传页选项常量集中在 `src/constants/options.js`，value 与后端 `meta` 契约的枚举一致：
+
+- **场合 5 个**：`interview` 面试 / `date` 约会 / `stage` 上台 / `family` 见家长 / `daily` 日常
+- **肤质 5 个**：`dry`/`oily`/`combination`/`sensitive`/`neutral`
+- **肤色 5 档**：`light` 浅 … `deep` 深（默认 `medium` 中档，色卡为本地肤底示意色，不默认浅肤色审美）
+- **天气**：骨架先手动切换 4 个预设（实拉免费源是 roadmap W2），默认「晴 24°C / 湿度45% / UV3」
 
 ## 与后端联调
 
 真实模式下前端请求（TS 后端 `server/`，契约见其 `domain/api`）：
 
-- `POST /api/jobs`（multipart：`face` 必填、`scene` 0..N、`scene_text` 可选）→ `202 { id, status, progress, step }`
-- `GET /api/jobs/:id` → `JobView`（轮询到 `done`；含 `scene` / `references` / `result`）
-- `GET /api/jobs/:id/result` → 结果图片
+- `POST /api/jobs`（multipart：`face` 必填、`scene` 0..N 可选、`meta` = 需求简报 JSON）→ `202 { id, status, progress, step }`
+- `GET /api/jobs/:id` → `JobView`（轮询到 `done`；`inputs.brief` 回显；含 `scene` / `references` / `result`）
+- `GET /api/jobs/:id/result` → 成品图片
 
 开发时代理已配置：`/api` → `http://localhost:3000`（见 `vite.config.js`）。
 
 Mock 模式下：
-- 假流水线 `src/api/mock.js` 复刻上述 JobView 契约，模拟三段进度 + 参考妆 + `engine:'mock'` 的 look（色板/叠加区）。
-- 妆容预览：前端用 `look.zones/palette` 做 CSS `mix-blend-mode: multiply` 叠加；真实引擎返回 `resultUrl` 成品图时直接展示。
-- 示例素材：`public/demo/demo-photo.svg`（示例人像）、`public/demo/scenery.svg`（雪景）。
+- 假流水线 `src/api/mock.js` 复刻上述 JobView 契约：按 `brief.occasion`（或文字关键词，兜底 daily）选场合，`skinTone` 调深浅——与 server mock 适配器同源。
+- 妆容预览：前端用 `look.zones/palette` 做 CSS `mix-blend-mode: multiply` 叠加（`resultUrl` 为空时）；真实引擎返回 `resultUrl` 成品图时直接展示。
+- 示例素材：`public/demo/demo-photo.svg`（示例人像）。氛围参考图非必填，示例可在结果回显中省去。
 
 ## 目录结构
 
 ```
 src/
-├── api/           # axios 实例、接口封装（makeup.js）、假后端（mock.js）
-├── components/    # PhotoUploader / CompareSlider / TipBanner / LoadingOverlay / Icon
-├── pages/         # HomeView / UploadView / ResultView
+├── api/            # axios 实例、接口封装（makeup.js）、假后端（mock.js）
+├── components/     # PhotoUploader / CompareSlider / TipBanner / LoadingOverlay / Icon
+├── constants/      # options.js：场合/肤质/肤色/天气可选项与中文名
+├── pages/          # HomeView / UploadView / ResultView
 ├── router/
-├── stores/        # makeup 全局状态（本人照/场景/任务）
-├── utils/         # 颜色工具
-└── assets/styles/ # 设计令牌 + 全局样式
+├── stores/         # makeup 全局状态（本人照片/brief 表单/任务）
+├── utils/          # 颜色工具
+└── assets/styles/  # 设计令牌 + 全局样式
 ```

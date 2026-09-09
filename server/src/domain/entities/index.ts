@@ -1,6 +1,14 @@
 /**
  * domain/entities/index.ts —— 实体聚合导出,便于端口/上层按需引用。
  */
+export { OCCASIONS, SKIN_TYPES, SKIN_TONES } from './brief.js';
+export type {
+  Occasion,
+  SkinType,
+  SkinTone,
+  WeatherInfo,
+  MakeupBrief,
+} from './brief.js';
 export type { ImageRef } from './image.js';
 export type { SceneAnalysis } from './scene.js';
 export type { ReferenceImage } from './reference.js';

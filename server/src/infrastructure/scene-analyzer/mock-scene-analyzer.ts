@@ -1,64 +1,46 @@
 /**
  * infrastructure/scene-analyzer/mock-scene-analyzer.ts —— SceneAnalyzer 的 mock 实现。
- * 只做关键词匹配(对场景文字与文件名),不读图、不联网。
- * 未来替换为视觉大模型后,本实现退役。
+ * 依据用户需求简报(brief)做场合判定:
+ *   - brief.occasion 给定 → 直接采用(最高置信);
+ *   - 否则对自由文字 sceneText 做场合关键词匹配;
+ *   - 都未命中 → 归到 daily(自然百搭),避免任意自定义文字被当成某类场合。
+ * 不读图、不联网。可选风景参考图(scenes)不参与风格判定,留给未来视觉大模型加分项。
  */
+import type { Occasion } from '../../domain/entities/brief.js';
 import type { SceneAnalysis } from '../../domain/entities/scene.js';
 import type { SceneAnalyzer, SceneAnalyzerInput } from '../../domain/ports/scene-analyzer.js';
 
-interface Rule {
-  keywords: string[];
-  label: string;
-  direction: string;
-  tags: string[];
-}
-
-const RULES: Rule[] = [
-  {
-    keywords: ['雪', '冰川', '极光', 'snow'],
-    label: 'snow',
-    direction: '清透冷调 · 雾面服帖',
-    tags: ['冷调', '清透', '雾面', '低饱和'],
+/** 每个场合预置的妆容方向与关键词。 */
+const STYLE: Record<Occasion, { direction: string; tags: string[] }> = {
+  interview: {
+    direction: '正式得体 · 哑光大地色,眉眼利落显精神',
+    tags: ['正式', '哑光', '大地色', '利落'],
   },
-  {
-    keywords: ['海', '沙滩', '海岛', '泳', 'beach'],
-    label: 'beach',
-    direction: '元气橘粉 · 水光清透',
-    tags: ['暖调', '水光', '元气', '橘粉'],
+  date: {
+    direction: '温柔提气色 · 粉调水光,亲和自然',
+    tags: ['温柔', '粉调', '水光', '亲和'],
   },
-  {
-    keywords: ['红叶', '枫', '秋', '银杏', 'red'],
-    label: 'red-leaf',
-    direction: '枫叶暖调 · 提升气色',
-    tags: ['暖调', '枫叶红', '显气色'],
+  stage: {
+    direction: '上台醒目 · 哑光高显色,轮廓立体、镜头友好',
+    tags: ['舞台', '高显色', '哑光', '立体'],
   },
-  {
-    keywords: ['城市', '都市', '夜景', '霓虹', '街头', 'city'],
-    label: 'city',
-    direction: '冷调都市 · 眉眼利落',
-    tags: ['冷调', '轻烟熏', '哑光'],
+  family: {
+    direction: '温婉得体 · 自然提气色,亲切耐看',
+    tags: ['温婉', '自然', '提气色', '耐看'],
   },
-  {
-    keywords: ['沙漠', '戈壁', '沙丘', 'desert'],
-    label: 'desert',
-    direction: '大地暖棕 · 哑光修容',
-    tags: ['暖调', '大地色', '哑光'],
+  daily: {
+    direction: '日常百搭 · 通透自然伪素颜',
+    tags: ['日常', '通透', '伪素颜', '自然'],
   },
-  {
-    keywords: ['山', '森林', '草原', '湖', '瀑布', 'mountain'],
-    label: 'mountain',
-    direction: '裸感自然 · 轻雾透光',
-    tags: ['自然', '裸感', '透光'],
-  },
-];
-
-const UNKNOWN: SceneAnalysis = {
-  label: 'unknown',
-  direction: '自然日常 · 百搭',
-  tags: ['日常', '自然'],
-  confidence: 0.3,
-  source: 'mock',
 };
+
+const KEYWORD_RULES: { keywords: string[]; occasion: Occasion }[] = [
+  { occasion: 'interview', keywords: ['面试', '终面', '求职', '复试'] },
+  { occasion: 'stage', keywords: ['上台', '演讲', '答辩', '路演', '主持', '汇报'] },
+  { occasion: 'date', keywords: ['约会', '相亲', '烛光'] },
+  { occasion: 'family', keywords: ['见家长', '家长'] },
+  { occasion: 'daily', keywords: ['上班', '通勤', '日常', '开会', '客户'] },
+];
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -66,21 +48,33 @@ export class MockSceneAnalyzer implements SceneAnalyzer {
   readonly name = 'mock';
 
   async analyze(input: SceneAnalyzerInput): Promise<SceneAnalysis> {
-    // 模拟一点点“理解耗时”,让前端轮询能看到进度推进。
-    await sleep(250);
-    const text = (input.sceneText ?? '').toLowerCase();
-    const hay = [text, ...input.scenes.map((s) => s.originalName ?? '')].join(' ');
-    for (const rule of RULES) {
-      if (rule.keywords.some((k) => hay.includes(k))) {
-        return {
-          label: rule.label,
-          direction: rule.direction,
-          tags: rule.tags,
-          confidence: text ? 0.72 : 0.5,
-          source: 'mock',
-        };
+    await sleep(250); // 模拟一点“理解耗时”,让前端轮询看到进度推进。
+    const brief = input.brief ?? {};
+    const text = (brief.sceneText ?? '').toLowerCase();
+
+    let label: Occasion;
+    let confidence: number;
+    if (brief.occasion) {
+      label = brief.occasion;
+      confidence = 0.92;
+    } else {
+      const hit = KEYWORD_RULES.find((r) => r.keywords.some((k) => text.includes(k)));
+      if (hit) {
+        label = hit.occasion;
+        confidence = 0.72;
+      } else {
+        label = 'daily';
+        confidence = text ? 0.4 : 0.3;
       }
     }
-    return { ...UNKNOWN, source: 'mock' };
+
+    const s = STYLE[label];
+    return {
+      label,
+      direction: s.direction,
+      tags: s.tags,
+      confidence,
+      source: 'mock',
+    };
   }
 }

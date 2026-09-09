@@ -11,7 +11,8 @@ import type { UploadFile } from '../domain/ports/artifact-store.js';
 export interface ParsedJobParts {
   faceFiles: UploadFile[];
   sceneFiles: UploadFile[];
-  sceneText?: string;
+  /** 结构化需求简报(JSON 字符串):occasion / 肤质肤色 / 穿搭 / 天气 / sceneText。 */
+  metaRaw?: string;
   /** 未识别的字段名(仅记录,不影响主流程)。 */
   unknownFields: string[];
 }
@@ -53,9 +54,9 @@ export async function parseJobParts(request: FastifyRequest): Promise<ParsedJobP
     } else {
       // field
       const value = String((part as { value?: unknown }).value ?? '');
-      if (part.fieldname === 'scene_text') {
-        if (out.sceneText === undefined) out.sceneText = value;
-        else out.unknownFields.push('scene_text(重复)');
+      if (part.fieldname === 'meta') {
+        if (out.metaRaw === undefined) out.metaRaw = value;
+        else out.unknownFields.push('meta(重复)');
       } else {
         out.unknownFields.push(part.fieldname);
       }

@@ -45,12 +45,9 @@ export class RunPipeline {
       const face = await toSource(rec.inputs.face);
       const scenes = await Promise.all(rec.inputs.scenes.map((ref) => toSource(ref)));
 
-      // ① 场景理解
-      const scene = await this.deps.sceneAnalyzer.analyze({
-        face,
-        scenes,
-        sceneText: rec.inputs.sceneText,
-      });
+      // ① 场景理解(brief:occasion/自由文字 → 妆容方向)
+      const brief = rec.inputs.brief ?? {};
+      const scene = await this.deps.sceneAnalyzer.analyze({ face, scenes, brief });
       rec = await this.deps.jobs.update(jobId, (prev) =>
         recordScene(advanceTo(prev, 'scene_understand'), scene),
       );
@@ -66,7 +63,7 @@ export class RunPipeline {
       const generated = await this.deps.engine.generate({
         face,
         scenes,
-        sceneText: rec.inputs.sceneText,
+        brief,
         sceneAnalysis: scene,
         references,
       });
@@ -79,7 +76,7 @@ export class RunPipeline {
         generated.resultFilePath,
         generated.mimeType,
       );
-      const text = buildNarrative(scene, this.deps.engine.name, generated.look);
+      const text = buildNarrative(scene, this.deps.engine.name, generated.look, brief);
       const result: JobResult = {
         engine: this.deps.engine.name,
         resultUrl: stored.url,

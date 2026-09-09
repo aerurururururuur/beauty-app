@@ -38,12 +38,12 @@ function setup(engine = new FakeEngine()) {
 }
 
 describe('RunPipeline', () => {
-  it('提交 → 流水线跑完 → done,含 scene/references/result', async () => {
+  it('提交(occasion 驱动)→ 流水线跑完 → done,含 scene/references/result', async () => {
     const { jobs, queue, submitJob, runPipeline, getJob, getJobResult } = setup();
     const created = await submitJob.execute({
       face: memFile('me.png', 'image/png', 'FACE'),
       scenes: [],
-      sceneText: '雪景 清透',
+      brief: { occasion: 'interview', sceneText: '正式终面', skinTone: 'deep' },
     });
     expect(queue.enqueued).toEqual([created.id]);
 
@@ -52,15 +52,18 @@ describe('RunPipeline', () => {
     const rec = jobs.get(created.id)!;
     expect(rec.status).toBe('done');
     expect(rec.progress).toBe(100);
-    expect(rec.scene?.label).toBe('snow');
+    expect(rec.scene?.label).toBe('interview');
     expect(rec.references).toHaveLength(1);
     expect(rec.result?.engine).toBe('fake');
     expect(rec.result?.resultUrl).toBe(`/jobs/${created.id}/result`);
     expect(rec.result?.explain.length).toBeGreaterThan(0);
+    // 引擎确实收到了 brief.skinTone
+    expect((rec.result?.look as { skinTone?: string }).skinTone).toBe('deep');
 
     // 查询视图 & 产物可读
     const view = await getJob.execute(created.id);
     expect(view.result?.references).toHaveLength(1);
+    expect(view.inputs.brief?.occasion).toBe('interview');
     const artifact = await getJobResult.execute(created.id);
     expect(artifact.mimeType).toBe('image/png');
   });
@@ -70,6 +73,7 @@ describe('RunPipeline', () => {
     const created = await submitJob.execute({
       face: memFile(),
       scenes: [memFile('s.png')],
+      brief: { occasion: 'date' },
     });
 
     await runPipeline.execute(created.id);
@@ -92,7 +96,11 @@ describe('RunPipeline', () => {
       artifactStore: new FakeArtifactStore(),
       queue,
     });
-    const created = await submitJob.execute({ face: memFile(), scenes: [], sceneText: '城市' });
+    const created = await submitJob.execute({
+      face: memFile(),
+      scenes: [],
+      brief: { occasion: 'stage' },
+    });
     await expect(getJobResult.execute(created.id)).rejects.toMatchObject({
       code: ErrorCode.JOB_NOT_READY,
     });

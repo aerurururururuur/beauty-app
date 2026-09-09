@@ -8,11 +8,13 @@ import type { JobError, ResultText } from '../entities/look.js';
 import type { JobStatus, PipelineStep } from '../entities/job.js';
 import type { Look, ReferenceImage, SceneAnalysis } from '../entities/index.js';
 
+import type { MakeupBrief } from '../entities/brief.js';
+
 /** 给用户回显的最小输入(不含内部存储键)。 */
 export interface JobInputsView {
   faceName: string;
   sceneNames: string[];
-  sceneText?: string;
+  brief?: MakeupBrief;
 }
 
 /** 完成任务的最终结果视图。 */
