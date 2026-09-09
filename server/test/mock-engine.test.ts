@@ -3,8 +3,8 @@
  * 呼应 roadmap「按真实肤色走、不默认浅肤色审美」。
  */
 import { describe, expect, it } from 'vitest';
-import { MockEngine } from '../src/infrastructure/engine/mock-engine.js';
-import type { EngineInput, EngineResult } from '../src/domain/ports/engine.js';
+import { MockEngine } from '../src/modules/makeup/index.js';
+import type { EngineInput, EngineResult } from '../src/modules/makeup/index.js';
 
 const eng = new MockEngine();
 

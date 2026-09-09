@@ -2,20 +2,19 @@
  * test/helpers/fakes.ts —— 用例单测用的内存假端口。
  */
 import { Readable } from 'node:stream';
-import type { ImageRef } from '../../src/domain/entities/image.js';
-import type { JobRecord } from '../../src/domain/entities/job.js';
-import type { SceneAnalysis } from '../../src/domain/entities/scene.js';
-import type { ReferenceImage } from '../../src/domain/entities/reference.js';
+import type { ImageRef } from '../../src/modules/shared/index.js';
+import type { JobRecord } from '../../src/modules/jobs/index.js';
+import type { SceneAnalysis } from '../../src/modules/understanding/index.js';
+import type { ReferenceImage } from '../../src/modules/references/index.js';
 import type {
   ArtifactStore,
   StoredResult,
   UploadFile,
-} from '../../src/domain/ports/artifact-store.js';
-import type { JobQueue } from '../../src/domain/ports/job-queue.js';
-import type { JobRepository } from '../../src/domain/ports/job-repository.js';
-import type { Engine, EngineInput, EngineResult } from '../../src/domain/ports/engine.js';
-import type { SceneAnalyzer, SceneAnalyzerInput } from '../../src/domain/ports/scene-analyzer.js';
-import type { ReferenceProvider } from '../../src/domain/ports/reference-provider.js';
+} from '../../src/modules/assets/index.js';
+import type { JobQueue, JobRepository } from '../../src/modules/jobs/index.js';
+import type { Engine, EngineInput, EngineResult } from '../../src/modules/makeup/index.js';
+import type { SceneAnalyzer, SceneAnalyzerInput } from '../../src/modules/understanding/index.js';
+import type { ReferenceProvider } from '../../src/modules/references/index.js';
 
 export function memFile(
   originalName = 'me.png',

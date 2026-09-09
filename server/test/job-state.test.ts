@@ -10,8 +10,8 @@ import {
   recordReferences,
   recordScene,
   startJob,
-} from '../src/domain/entities/job.js';
-import type { JobRecord, JobResult } from '../src/domain/entities/job.js';
+} from '../src/modules/jobs/index.js';
+import type { JobRecord, JobResult } from '../src/modules/jobs/index.js';
 
 function sampleJob(id = 'job-1'): JobRecord {
   return createQueuedJob(id, {

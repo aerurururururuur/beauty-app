@@ -10,8 +10,8 @@ import {
   MAX_META_RAW,
   MAX_SCENE_TEXT,
   metaSchema,
-} from '../src/domain/schemas/job-submit.js';
-import { jobIdSchema } from '../src/domain/schemas/job-id.js';
+  jobIdSchema,
+} from '../src/modules/jobs/index.js';
 
 const meta = (mimeType = 'image/png', originalName = 'a.png') => ({ originalName, mimeType });
 

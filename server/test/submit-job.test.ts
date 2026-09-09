@@ -2,8 +2,8 @@
  * SubmitJob 用例单测(内存假端口)。
  */
 import { describe, expect, it } from 'vitest';
-import { AppError, ErrorCode } from '../src/domain/errors/app-error.js';
-import { SubmitJob } from '../src/application/usecases/submit-job.js';
+import { AppError, ErrorCode } from '../src/modules/shared/index.js';
+import { SubmitJob } from '../src/modules/jobs/index.js';
 import {
   FakeArtifactStore,
   FakeJobRepository,

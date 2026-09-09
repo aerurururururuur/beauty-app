@@ -2,7 +2,7 @@
   "name": "@beauty-app/server",
   "version": "0.1.0",
   "private": true,
-  "description": "场景美妆后端 —— 四层清洁架构(presentation/application/domain/infrastructure;domain 按 entities/schemas/validator/ports/errors/api 细分)",
+  "description": "场合美妆后端 —— 模块化清洁架构:src/modules/* 按功能拆模块,模块内部 domain/application/presentation/infrastructure;模块间只走 public barrel",
   "type": "module",
   "engines": {
     "node": ">=22"

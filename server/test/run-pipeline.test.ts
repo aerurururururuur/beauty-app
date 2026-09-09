@@ -2,11 +2,11 @@
  * RunPipeline 用例单测:全 mock 走通 + 引擎异常 → failed。
  */
 import { describe, expect, it } from 'vitest';
-import { RunPipeline } from '../src/application/usecases/run-pipeline.js';
-import { SubmitJob } from '../src/application/usecases/submit-job.js';
-import { GetJob } from '../src/application/usecases/get-job.js';
-import { GetJobResult } from '../src/application/usecases/get-job-result.js';
-import { ErrorCode } from '../src/domain/errors/app-error.js';
+import { RunPipeline } from '../src/modules/jobs/index.js';
+import { SubmitJob } from '../src/modules/jobs/index.js';
+import { GetJob } from '../src/modules/jobs/index.js';
+import { GetJobResult } from '../src/modules/jobs/index.js';
+import { ErrorCode } from '../src/modules/shared/index.js';
 import {
   FakeArtifactStore,
   FakeEngine,

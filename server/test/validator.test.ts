@@ -4,12 +4,10 @@
  * 输出侧:validateEngineResult 把关外部引擎产物(路径/类型/look 几何)。
  */
 import { describe, expect, it } from 'vitest';
-import { AppError, ErrorCode } from '../src/domain/errors/app-error.js';
-import type { EngineResult } from '../src/domain/ports/engine.js';
-import { validateJobId } from '../src/domain/validator/job-id.validator.js';
-import { validateSubmitJob } from '../src/domain/validator/job-submit.validator.js';
-import { MAX_SCENES } from '../src/domain/schemas/job-submit.js';
-import { validateEngineResult } from '../src/domain/validator/engine-output.validator.js';
+import { AppError, ErrorCode } from '../src/modules/shared/index.js';
+import type { EngineResult } from '../src/modules/makeup/index.js';
+import { validateJobId, validateSubmitJob, MAX_SCENES } from '../src/modules/jobs/index.js';
+import { validateEngineResult } from '../src/modules/makeup/index.js';
 
 const meta = (mimeType = 'image/png', originalName = 'a.png') => ({ originalName, mimeType });
 /** 把简报对象序列化成 metaRaw(validator 从 JSON 里解析)。 */
