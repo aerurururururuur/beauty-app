@@ -1,6 +1,6 @@
 # 场合美妆后端（server/）
 
-TypeScript + **四层清洁架构**的后端：domain ← application ← presentation，`infrastructure` 只实现 `domain/ports`。目前场景理解 / 参考检索 / 上妆引擎均为 mock，接口留作接缝，换真实实现不改业务层。
+TypeScript + **模块化清洁架构**的后端：`src/modules/*` 按功能拆模块，模块内部走 domain ← application ← presentation、`infrastructure` 只实现模块内 `domain/ports`；模块间只经各模块 `index.ts`(public barrel)协作。目前场景理解 / 参考检索 / 上妆引擎均为 mock，接口留作接缝，换真实实现不改业务层。
 
 产品定位（赛道 3 · 无界体验家）：为「重要场合」配得体妆容——输入是**本人照片 + 需求简报 brief**（occasion 场合 / 肤质 / 肤色 / 穿搭 / 天气 / 自由文字）。0..6 张「氛围参考图」保留但**降级为可选、不驱动成片**，仅回显。
 
@@ -13,47 +13,36 @@ TypeScript + **四层清洁架构**的后端：domain ← application ← presen
 
 ## 分层与目录
 
-依赖单向向内，只有组装根 `src/index.ts` 认识所有实现；domain 不依赖框架 / IO。
+依赖单向向内，只有组装根(`src/index.ts` + 各模块 `compose.ts`)认识全部实现；模块内部 domain 不依赖框架 / IO。
 
 ```
-presentation  →  application  →  domain
-infrastructure ── 实现 ──►  domain/ports
+presentation → application → domain         # 模块内部的分层方向
+infrastructure ── 实现 ──► domain/ports
+modules ── public barrel ──► modules         # 模块间只经各 index.ts,禁止直达内部文件
 ```
 
 ```
 src/
-├── index.ts                        # 组装根:配置 → new 适配器 → new 用例 → 装配 → 启停
-├── domain/
-│   ├── entities/                   # 业务实体 + 纯函数(Job 状态机、brief、Scene、Look…)
-│   │   └── brief.ts                # ★ 枚举单源:OCCASIONS/SKIN_TYPES/SKIN_TONES + MakeupBrief
-│   ├── schemas/                    # ★ 形状/契约:zod 结构声明,无行为
-│   ├── validator/                  # ★ 校验行为:输入/输出校验,语义错误码,数据清洗
-│   ├── ports/                      # ArtifactStore / JobRepository / JobQueue /
-│   │                               # SceneAnalyzer / ReferenceProvider / Engine
-│   ├── errors/                     # AppError + ErrorCode(不带 HTTP 状态码)
-│   └── api/                        # 对外 API 契约 / DTO(联调唯一真源)
-├── application/
-│   ├── usecases/                   # SubmitJob / RunPipeline / GetJob / GetJobResult
-│   ├── narration.ts                # 面向用户的文案组装(occasion × 肤质肤色穿搭天气)
-│   └── mapping/job-view.mapper.ts  # 领域对象 → domain/api 的 JobView
-├── presentation/
-│   ├── controllers/                # jobs / health 路由(很薄)
-│   ├── multipart.ts                # 归拢 face / scene 文件 + meta(JSON 简报)标量
-│   ├── error-handler.ts            # 错误码 → HTTP 的唯一映射
-│   └── app.ts                      # Fastify 装配;路由统一挂 /api 前缀
-└── infrastructure/
-    ├── config.ts                   # .env / 环境变量读取
-    ├── file-system/artifact-store.ts   # 实现 ArtifactStore
-    ├── json/job-repository.ts          # 实现 JobRepository(临时文件 + rename 原子写)
-    ├── queue/in-memory-queue.ts        # 实现 JobQueue(进程内串行)
-    ├── engine/mock-engine.ts           # 实现 Engine:occasion 风格 × skinTone 调色 → zones/palette
-    ├── scene-analyzer/mock-scene-analyzer.ts   # 实现 SceneAnalyzer:brief.occasion 或文字关键词
-    └── reference-provider/mock-reference-provider.ts  # 实现 ReferenceProvider:场合样本(自绘授权诚实)
+├── index.ts                 # 组装根:loadConfig → 各模块 createXxxModule → buildApp → 启停
+├── app.ts                   # Fastify web shell:cors / multipart / 错误码→HTTP / 挂 /api 路由
+└── modules/                 # ★ 按功能拆模块;模块内部 domain/application/presentation/infrastructure
+    ├── shared/              # 地基:brief 枚举单源 / ImageRef·EngineSourceImage / AppError(+ compose)
+    ├── assets/              # 图片存储:ArtifactStore 端口 + 本地文件系统实现
+    ├── understanding/       # 场景理解:SceneAnalysis + 分析器端口 + mock(occasion/关键词→方向)
+    ├── references/          # 参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
+    ├── makeup/              # 上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
+    ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
+    ├── weather/             # [空壳] 天气拉取端口(骨架未 wire)
+    └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire)
 ```
+
+每个模块 = `index.ts`(public barrel,跨模块协作只走它) + `compose.ts`(`createXxxModule` 组合根) + 模块内四层；
+`shared` 只被依赖;`jobs` 是编排者,依赖 assets / understanding / references / makeup 的公开端口与工具。
+**每个模块下都有 `README.md`**：一句话职责、目录/依赖、现状、怎么改（含空壳模块的待办），接手前先读。
 
 ### brief —— 输入的唯一结构化载体
 
-`domain/entities/brief.ts` 是枚举单源，schema / validator / 测试共用：
+`modules/shared/domain/entities/brief.ts` 是枚举单源，schema / validator / 测试共用：
 
 | 字段 | 枚举 / 约束 | 说明 |
 | --- | --- | --- |
@@ -66,14 +55,14 @@ src/
 
 ### schema vs validator
 
-- `domain/schemas` 只声明**形状**：字段结构、枚举取值、类型、长度上限——没有跨字段规则，不做动作。
-- `domain/validator` 才是**做校验行为的对象**：把 multipart 的 `metaRaw` JSON 解析 + 形状校验 + 业务规则一并执行，失败映射成语义错误码，同时校验**输出**（外部引擎产物）。
+- `jobs/domain/schemas` 只声明**形状**：字段结构、枚举取值、类型、长度上限——没有跨字段规则，不做动作。
+- `jobs/domain/validators`（+ 校验输出的 `makeup/domain/validators`）才是**做校验行为的对象**：输入侧把 multipart 的 `metaRaw` JSON 解析 + 形状校验 + 业务规则一并执行，失败映射成语义错误码；输出侧把关外部引擎产物。
 
-| 校验器 | 位置 | 行为 |
+| 校验器 | 模块·位置 | 行为 |
 | --- | --- | --- |
-| `job-submit.validator.ts` | 输入 | face 单张、scene ≤6；`metaRaw` JSON 坏/越界枚举 → `VALIDATION_ERROR`；无 `occasion` 且无 `sceneText` → `CONTEXT_REQUIRED`；清洗 `sceneText`/`dress` 后产出 `SubmitJobInput { face, scenes, brief }` |
-| `job-id.validator.ts` | 输入 | 路径参数 `:id` 格式，非法抛 `VALIDATION_ERROR` |
-| `engine-output.validator.ts` | 输出 | 把关引擎产物：成品路径/类型存在；`look.zones/palette` 若声明则坐标/比例 `0..1`、RGB `0..255`、`opacity 0..1`、`blur ≥ 0`，非法抛 `INTERNAL_ERROR`（任务置 failed） |
+| `jobs/domain/validators/job-submit.validator.ts` | 输入 | face 单张、scene ≤6；`metaRaw` JSON 坏/越界枚举 → `VALIDATION_ERROR`；无 `occasion` 且无 `sceneText` → `CONTEXT_REQUIRED`；清洗 `sceneText`/`dress` 后产出 `SubmitJobInput { face, scenes, brief }` |
+| `jobs/domain/validators/job-id.validator.ts` | 输入 | 路径参数 `:id` 格式，非法抛 `VALIDATION_ERROR` |
+| `makeup/domain/validators/engine-output.validator.ts` | 输出 | 把关引擎产物：成品路径/类型存在；`look.zones/palette` 若声明则坐标/比例 `0..1`、RGB `0..255`、`opacity 0..1`、`blur ≥ 0`，非法抛 `INTERNAL_ERROR`（任务置 failed） |
 
 ### Job 聚合与进度
 
@@ -91,7 +80,7 @@ src/
 
 ## HTTP 契约（全部挂 `/api` 前缀）
 
-契约类型唯一真源在 `src/domain/api/job-view.ts`。
+契约类型唯一真源在 `modules/jobs/domain/api/job-view.ts`。
 
 | 方法 & 路径 | 说明 |
 | --- | --- |
@@ -162,10 +151,10 @@ npm test           # vitest run
 
 ## 换真实引擎怎么做
 
-任选其一实现对应 port，再到 `src/index.ts` 换一行 new 即可，无需改动 domain / application / presentation：
+任选其一实现对应 port，再到所属模块的 `compose.ts` 里换实现即可，无需改动模块内的业务层：
 
-- 真实上妆引擎：实现 `domain/ports/engine.ts` 的 `generate()`，产物仍交给 `validateEngineResult` 把关；
-- 真实场景理解：实现 `scene-analyzer` 端口（视觉大模型），输入里带着 `brief`；
-- 真实参考检索：实现 `reference-provider` 端口（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`。
+- 真实上妆引擎：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关；
+- 真实场景理解：实现 `modules/understanding/domain/ports/scene-analyzer.ts`（视觉大模型），输入里带着 `brief`；
+- 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`。
 
 > **素材红线**：参考样本当前为自绘演示示意，license 诚实标注、`sourceUrl` 置空；正式稿须替换为可授权素材并逐张回填来源，不抓取网络图。

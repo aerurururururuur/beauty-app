@@ -1,142 +1,171 @@
-# 场景美妆镜 · 竞赛路线图
+# 场景美妆 · 开发路线图（按模块 · 可派单）
 
-> 欧莱雅美妆科技黑客松 · **赛道 3「无界体验家」** · 初赛提交 **2026-10-20**
-> 状态(2026-09-08)：已有可运行骨架——四层清洁架构后端 + Vue3 前端；
-> 上妆引擎 / 场景理解 / 参考检索均为 mock。本文按赛道主题 + 受众定位重写，
-> 回答"6 周做到 10/20 交什么、怎么做、哪些绝不做"。
-
-图例：`[ ]` 待办 · `[~]` 部分完成 · `[x]` 已完成(供对照)
-
----
-
-## 一、产品一句话与受众（已拍板：路径 A）
-
-**一句话（pitch 第一屏）**：*让「得体地出现在明天那场面试 / 约会 / 重要场合」，不再是有化妆导师、有预算、有底气之人的特权。*
-
-- **受众（打破谁的壁垒）**：在人生重要场合没有指导、没有自信、没有预算的人——应届求职者、重返职场妈妈、社恐要上台 / 约会、跨性别者第一次体面出席、大病 / 疤痕后重新学上妆的人。
-- **赛道对齐**：我"打破"的是**场合 / 门槛壁垒**（化妆知识、试错成本、预算、肤色肤色不全带来的排斥）；主张 **科技向善**、**素颜真实优先**、**肤色 / 肤质包容**、**用已有品省钱普惠**。
-- **演示主角（本周定 1 个）**：用一个真实人物 + 真实场合讲（同学 / 亲友的面试或重要日子，需获肖像授权），真人真事比虚构动人。
-- **商业化怎么讲才加分**：不讲"插广告"；讲「预算有限的人用**已有品 + 平价线**配出得体方案 → 普惠才可持续」，品牌推荐**诚实标注**。
+> 定位一句话：让「得体地出现在明天那场面试 / 约会 / 重要场合」，不再是有化妆导师、有预算、有底气之人的特权
+> （欧莱雅美妆科技黑客松 · 赛道 3「无界体验家」 · 受众 = 路径 A「重要场合体面平等」 · 初赛提交 2026-10-20）。
+>
+> 本文件是**给协作者的代码任务板**：按 `server/src/modules/*` 拆模块，任务可直接认领、做完跑门禁即可。
+> 产品叙事 / 观众画像 / 提交材料叙事不入此文件；赛道背景与红线见文末「红线（写进验收）」。
+>
+> 状态（2026-09-09）：server 已按模块拆好、typecheck + 45 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
+> 接口留作接缝。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
 
 ---
 
-## 二、从现状出发：技术盘底（复用已有，不推倒）
+## 0. 给提交者的门禁（每条任务合并前都要绿）
 
-`server/src/infrastructure/` 现状与竞赛判定：
+```bash
+cd server
+npm run typecheck   # tsc --noEmit
+npm test            # 45 用例全绿
+# 动了 HTTP / 流水线语义时,另做一次真实 e2e:
+#   PORT=3199 DATA_DIR=./data-e2e npm run dev
+#   curl -F "face=@../vue/public/demo/demo-photo.svg" -F 'meta={"occasion":"interview","skinTone":"tan",...}' http://127.0.0.1:3199/api/jobs
+#   → 轮询 /api/jobs/:id 到 done;GET /api/jobs/:id/result 取回成品图字节
+cd ../vue && npm run build   # 只改了前端才需要
+```
 
-| infra | 当前形态 | 竞赛判定 |
-| --- | --- | --- |
-| `config.ts` | 已实现 | 留 |
-| 本地文件产物 `ArtifactStore` | 已实现 | 留（够用） |
-| JSON 作业仓库 `JobRepository` | 已实现 | 留（够用） |
-| 进程内队列 `JobQueue` | 部分(串行,重启丢) | 留（竞赛无削峰需求） |
-| `engine` **上妆引擎** | **仅 mock**（CSS 叠加示意） | **换成真**——决定性投入，见 §三 |
-| `scene-analyzer` 场景理解 | 仅 mock（关键词,不读图） | **保稳优先**，视觉理解作可选加分 |
-| `reference-provider` 参考图 | 仅 mock | **不抓网络图**——用自有/授权素材，见 §三红线 |
-
-> 复用红利：依赖单向向内，换真实实现只换 infrastructure adapter + `index.ts` 一行分发，
-> 不动 domain / application / presentation。技术债可控 = 可以把预算砸在 demo 效果上。
+错误码 → HTTP、契约字段、curl 示例的权威描述见 `server/README.md`，别在别处再维护一份。
 
 ---
 
-## 三、技术路线（到 10/20 的判定）
+## 1. 模块总览
 
-### 决定性两件（决赛 wow 的唯一来源 = 上妆像本人、且自然）
-- [ ] **人脸关键点检测 / 对齐**：真实照片 → 五官关键点（mediapipe 等），坐标才算得准。
-- [ ] **参数化渲染**：把妆容画到照片像素（唇 / 眼影 / 底妆调色合成），保"素颜真实度"，不做夸张滤镜。
-  方案二选一（**本周花半天验证后拍板**）：
-  ① 自研参数化渲染（关键点 + 局部调色合成）——可控、原创性强，冲「卓越技术奖」；
-  ② 第三方上妆图像 API——快而稳，但要核授权，且原创性叙事弱。
-- [ ] mock 分支保留作离线兜底，演示永不因引擎崩掉。
+```
+src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp → 启停(唯一认识全部实现的地方)
+└── src/modules/
+    ├── shared/            地基:brief 枚举单源 · ImageRef/EngineSourceImage · AppError(无业务)
+    ├── assets/            图片存取:ArtifactStore 端口 + 本地文件系统实现
+    ├── understanding/     场景理解:SceneAnalysis + 分析器端口 + mock(occasion/关键词 → 方向)
+    ├── references/        参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
+    ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
+    ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
+    ├── weather/           [空壳] 天气拉取端口(骨架未 wire)
+    └── recommendations/   [空壳] 平价同款推荐端口(骨架未 wire)
+```
 
-### 场景理解：保「稳」优先
-- [ ] 主路径用**预设场景 + 关键词 → 妆容风格**（确定性、可控、现场不翻车）。
-- [ ] 视觉大模型读风景图 = **可开关的加分项**，有余力再上；它出错可能让现场 demo 死，宁可默认关。
+依赖方向：`shared` 只被依赖；`assets / understanding / references / makeup` 相互独立、都被 `jobs` 编排。
+跨模块协作**只经各模块 `index.ts`(public barrel)**，禁止直达模块内部文件；依赖图保持无环。
 
-### 参考素材：原创 / 授权红线（主办明文：不得侵犯第三方知识产权）
-- [ ] 风格参考与素材全部**自绘 / 自有 / 可授权来源**，逐张记录 license/sourceUrl。
-- [ ] 不抓取网络图、不做站内教程库；教程只做外链。
+### 每个模块的固定规则（照做，别例外）
 
-### 竞赛版输入维度（够用即可，不多建模）
-- [ ] `肤质` enum + **`肤色`(深浅范围)**——包容性落点，上妆 / 推荐都按真实肤色走，禁止默认"浅肤色审美"。
-- [ ] `场合预设`（面试 / 约会 / 上台 / 见家长…）= 一键文案，前端预设层，不进领域建模。
-- [ ] `穿搭` 一句话 tag（风格 + 主色）+ `日期天气`（温 / 湿 / 晴雨 / UV，免费源，离线 mock 兜底）。
-- [ ] `场景·文字` 自由输入保留（自定义板）。
+- 模块内四层：`domain ← application ← presentation`，`infrastructure` 只实现本模块 `domain/ports`；依赖单向向内，domain 不碰框架 / IO。
+- `index.ts` = public barrel（跨模块能看到的只有它）；`compose.ts` = `createXxxModule` 组合根，是模块内**唯一装配点**。
+- 一个 Zod Schema 作数据形状（shape）SSOT；**schema(形状) ≠ validator(行为)**——校验语义、错误码、清洗放 `domain/validators`。
+- 错误统一 `AppError`（`shared`），代码不带 HTTP 状态；由 `shared/presentation/error-handler` 唯一映射成 HTTP。
+- 换真实实现 = 实现端口 + 在本模块 `compose.ts` 按 `config.*` 开关分发，业务 / 控制器层不感知。
 
-### 省钱普惠推荐（原「种草」改说法）
-- [ ] 规则：场景 + 肤质/肤色 + **已拥有产品** → "缺什么补什么"，优先已有品，缺的推**平价线**；
-- [ ] 推荐诚实标注「品牌参考」，UI 不渲染成广告位。
+### 接缝地图（想换哪个能力，改哪）
 
-### 交互与前端
-- [ ] （可选）一条**语音讲解**"为什么给你推这套"——点题赛道「AI 能听能说」，成本低。
-- [ ] 三页动线打磨：上传 → 生成 → 成片对比 + 本地"妆造间"（下次大事再备）。
-- [ ] 分享卡导出（canvas → PNG）作 demo 收尾彩蛋。
-- [ ] 演示照 2~3 张（不同肤色 / 性别 / 光线）一键载入 + 全空态文案 + 离线兜底。
-
----
-
-## 四、交付物与时间线（初赛 = 材料评审）
-
-初赛评审 10/21–10/26，提交材料大概率 = **方案文档 / PPT + 演示视频 + 代码**——**演示视频就是你的初赛交付物**，格式与提交入口先上天池核对。
-
-- **W1 · 本周(9/8–9/13)**
-  - [ ] 定 demo 主角人物与真实场合（拿肖像授权）
-  - [ ] 一句话定位 + 3 页 pitch 大纲
-  - [ ] 核对天池提报格式 / 材料清单 / 代码要求
-  - [ ] 半天验证：渲染方案 ① 自研 vs ② API → 拍板
-  - [ ] 找 2~3 个目标受众各聊 15 分钟，验证"愿不愿意为重要场合这么用"
-- **W2–W3(9/14–9/27)**
-  - [ ] 关键点对齐 + 渲染打通，端到端「传照片 → 3 个场合预设 → 成片」稳、快、好看
-  - [ ] 肤色 / 肤质包容参数、mock 兜底、演示照
-- **W4(9/28–10/4，含国庆冲刺窗)**
-  - [ ] 已有品 + 平价推荐规则上线；天气 / 穿搭 / 肤质输入闭环
-  - [ ] 妆造间(本地历史)、分享卡导出
-  - [ ] （可选）语音讲解
-- **W5(10/5–10/11)**
-  - [ ] 找 5~10 个真实目标用户试（远程即可），收集"为谁、解决什么、效果如何"证据
-  - [ ] demo 脚本定稿（见 §五）
-- **W6(10/12–10/18)**
-  - [ ] 录 3–5 分钟演示视频（真人前后对比 + 无障碍字幕）成片
-  - [ ] PPT / 方案文档、代码整理、素材授权清单
-- **10/19–10/20 缓冲 · 提交**
-
-> 决赛 11 月中下旬（训练营 10/30–11/12 另排打磨与排练）。这里只负责 10/20 前赢下初赛。
+| 想接真实能力 | 现有 mock（位置） | 要实现的端口 | 接线点 |
+| --- | --- | --- | --- |
+| 场景理解 → 视觉大模型 | `understanding/infrastructure/scene-analyzer/mock-scene-analyzer.ts` | `understanding/domain/ports/scene-analyzer.ts` | `understanding/compose.ts` |
+| 参考检索 → 网页 / 图库 | `references/infrastructure/reference-provider/mock-reference-provider.ts` | `references/domain/ports/reference-provider.ts` | `references/compose.ts` |
+| 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（`config.makeupEngine`） |
+| 天气实拉 → 免费源 | （空壳无 mock） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts` + `src/index.ts` 接入 |
+| 平价推荐 → 规则引擎 | （空壳无 mock） | `recommendations/domain/ports/recommender.ts` | `recommendations/compose.ts` + `src/index.ts` 接入 |
 
 ---
 
-## 五、决赛 demo 脚本草案（3–5 分钟）
+## 2. shared（地基）
 
-1. **开场 10s**：白屏一句话——"她不是不会美，只是没有导师和底气。" 引出主角人物与场合（如下周三心仪公司终面）。
-2. **传照片**：官方预设照或现场自拍 + 一键「面试·终面」预设 + 天气 / 穿搭 tag。
-3. **wow**：进度 → 成片，左右滑动对比「素颜 vs 得体妆」，强调**真实不夸张、按她的肤色肤质**。
-4. **「为什么这套」**：场合(正式终面) + 肤质(混油持妆) + 预算(她已有的 2 款 + 平价补 1 款)，语音 / 文字解说，品牌诚实标注。
-5. **收尾 10s**：一键导出「面试装备卡」，存进她的"妆造间"——"为下周的大事，今晚先定妆。"
-
-**现场兜底**：预设照一键载入 · 断网 mock · 全程录播备胎。评委自拍想试 → 走同一动线，人脸失败有友好空态，绝不卡死。
+- **现状 [x]**：`domain/entities/brief.ts` = 枚举单源——`OCCASIONS`(interview/date/stage/family/daily) · `SKIN_TYPES`(5) · `SKIN_TONES`(light/light_medium/medium/tan/deep **5 档,缺省 `medium` 中间档**) · `WeatherInfo` · `MakeupBrief`；`ImageRef` + `EngineSourceImage`；`AppError`/`ErrorCode`。
+- **关键文件**：`brief.ts` · `image.ts` · `app-error.ts` · `infrastructure/config.ts`（.env 读取，属组装关心，不进 barrel）· `presentation/error-handler.ts`。
+- **待办 [ ]**：
+  - [ ] 未来若要新增维度（如妆品风格偏好），先在 `brief.ts` 加枚举 + 同步 zod schema/validator/测试——此文件是唯一改点。
+  - 无其它结构性待办（地基稳定，勿在 shared 放业务逻辑）。
 
 ---
 
-## 六、明确不做（竞赛红线内，帮倒忙的事）
+## 3. assets（图片存取）
 
-- 社区 / 投票评论、用户账户与多机、PostgreSQL / 队列削峰 / 云存储、CI / Docker、教程内容库、电商购物记录导入、化妆品拍照识别、多人共同搭配、约会对象 / 公司职位对象化建模。
-- 生产级工程化（鉴权、可观测性、配额限流）**降级为"够干净够稳即可"**——评委看不见，时间留给 demo。
-- 之前的"Part 2 · V2 产品范围"按主流消费者 App 的取舍**整体作废**，仅保留：已有品平价推荐、天气、妆造间(本地)、分享卡、语音。
-
----
-
-## 七、风险与红线
-
-1. **demo 死在台上 > 一切**：引擎不稳、人脸检测失败、断网、设备故障 → 预设照 + mock + 录播三重兜底。
-2. **IP / 原创**（主办明文要求，侵犯第三方知识产权直接出局）：素材、参考图、模板字体逐张记录来源；不抓网络图。
-3. **肖像与隐私**：演示只用**已授权人物**（自己的 / 同意的志愿者）；现场临时自拍采集做到最小化、即用即删、口头同意即可，不做任何真实用户数据的留存与上传。
-4. **国庆窗口**：W4 遇长假，把它当冲刺窗排，别默认团队全员随时在线。
+- **现状 [x]**：`ArtifactStore` 端口（写输入文件 / 读产物）+ 本地文件系统实现（dataDir 下按类型分目录、rename 原子写）。
+- **待办 [ ]**：
+  - [ ] 接真实上妆引擎后确认产物写入策略：MockEngine 目前"把本人照片原样收编为 result"，真实渲染产出新文件——复查 `ArtifactStore` 是否需要按 job 隔离产物目录（避免多人 / 多任务串写）。
 
 ---
 
-## 八、一周内要拍的板
+## 4. understanding（场景理解 —— 保「稳」优先）
 
-- [ ] demo 主角人物与真实场合（要能露脸、有授权）
-- [ ] 渲染方案：自研参数化 vs 第三方 API
-- [ ] 要不要语音讲解这一条（赛道加分 vs 6 周成本）
-- [ ] 肤色包容的具体范围（深浅几档）
-- [ ] 天池提报格式核对结果
+- **现状 [x]**：`SceneAnalyzer` 端口；mock 读 `brief.occasion`，否则 `sceneText` 关键词命中（面试/约会/上台/见家长…），再否则 `daily` 兜底 → `SceneAnalysis{ label, direction, tags, confidence, source }`；`config.sceneAnalyzer` 已留 `mock` / `off` 分发缝。
+- **待办 [ ]**：
+  - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片 / 氛围图提升场景判定置信度。它出错可能让现场 demo 翻车，须默认 off；接缝在 `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`。
+  - 注意：风景/氛围参考图**不驱动成片**，只作回显，任何改动不得让它变回风格主输入。
+
+---
+
+## 5. references（参考素材 —— 原创 / 授权红线）
+
+- **现状 [x]**：`ReferenceProvider` 端口；mock 按场景 label 返回自绘样本，license 诚实标注、`sourceUrl` 置空（不抓网络图、无 example.com）。
+- **待办 [ ]**：
+  - [ ] **替换为可授权素材**：逐张换成 自绘 / 自有 / 可授权 来源，回填 `license` + 真实 `sourceUrl`（主办明文：侵犯第三方知识产权直接出局）。
+  - [ ] （可选）参考妆面按 `skinTone` / 场合分层，让「参考」对深肤色用户同样有代表性——需先扩展 `ReferenceImage` 数据 + port 形状，评估后再动。
+
+---
+
+## 6. makeup（核心接缝 · 决定性投入所在）
+
+- **现状 [x]**：`Engine` 端口（`name` + `generate(EngineInput)→EngineResult{ resultFilePath, mimeType, look }`）；`look` = `Look{ style, palette, zones }`；`engine-output.validator` 把关外部产物（路径/类型存在、坐标/比例 0..1、RGB 0..255、opacity 0..1、blur ≥0，非法 → `INTERNAL_ERROR`）；`MockEngine` 按 **occasion 基准风格 × skinTone 调深浅**（深肤色档加深、缺省 medium，不默认浅肤色审美）；`application/narration.ts` 组装「为什么这套」文案。
+- **待办 [ ]（wow 的唯一来源 = 上妆像本人、且自然）**：
+  - [ ] **拍板（阻塞下面两项）**：① 自研参数化渲染（关键点 + 局部调色合成，可控、原创强） vs ② 第三方上妆图像 API（快而稳，需核授权、原创叙事弱）。
+  - [ ] **人脸关键点检测 / 对齐**：真实照片 → 五官关键点（mediapipe 等），坐标才算得准。定位：`makeup` 新 infra（或独立子目录），产出喂给渲染；仍走 `Engine` 端口，`compose.ts` 分发，业务层不感知。
+  - [ ] **参数化渲染**：把妆容画到照片像素（唇 / 眼影 / 底妆调色合成），保「素颜真实度」，不做夸张滤镜；实现后产物仍交 `engine-output.validator` 把关。
+  - [ ] **保留 mock 分支作离线兜底**：演示永不因引擎崩掉（`config.makeupEngine` 分发，`mock` 常驻可选）。
+  - [ ] 真实渲染变慢后，核对 jobs 前端等待体验（见 §7 最后一项）与 narration 文案是否贴合真实妆效。
+
+---
+
+## 7. jobs（Job 生命周期 + 流水线编排）
+
+- **现状 [x]**：状态机 `queued → running → done | failed` + 步骤单调推进（`queued`0 → `scene_understand`20 → `reference_gather`40 → `makeup_generate`70 → `store_result`100）；`JobRepository`(JSON,rename 原子写) · `InMemoryJobQueue`(进程内串行) · 用例 `SubmitJob / RunPipeline / GetJob / GetJobResult` · `JobView` DTO（契约唯一真源 `domain/api/job-view.ts`）· `multipart.ts`(归口 face 1 张 / scene 0..6 / meta JSON) · `jobs.controller` · 错误码映射。
+- **待办 [ ]**：
+  - [ ] 队列重启即丢任务：**竞赛够用，明确不做持久化**；真要做也只是进程内文件化队列，别引外部中间件。
+  - [ ] 接真实引擎后，跑一次端到端量级：若单任务秒级变几十秒，确认轮询 / 超时 / 前端 loading 体验扛得住（改动点在控制器 + vue 轮询逻辑，不是状态机）。
+
+---
+
+## 8. weather（空壳 → 接线）
+
+- **现状 [~]**：端口 `WeatherProvider{ name, fetch(WeatherQuery)→Promise<WeatherInfo> }` 已声明；`weather/compose.ts` 返回 `provider: null`，**未在 `src/index.ts` 接入**；`brief.weather` 目前由前端手动预设回显。
+- **待办 [ ]**：
+  - [ ] 实现一个免费天气源 provider（无 key 优先，如 open-meteo；**离线 mock 兜底**），在 `weather/compose.ts` 返回实例、`src/index.ts` 接入，让 `brief.weather` 从「手动预设」升级为「自动拉取」。
+  - [ ] 前端：上传页可带城市 / 定位 → 调后端填 `brief.weather`；天气源挂了仍回落到手动预设（不阻塞提交）。
+
+---
+
+## 9. recommendations（空壳 → 接线 · 省钱普惠）
+
+- **现状 [~]**：端口 `recommender.ts` 已声明；`recommendations/compose.ts` 返回 `provider: null`，未接线。
+- **待办 [ ]**：
+  - [ ] 规则引擎：`occasion + 肤质/肤色 + 已拥有产品` →「缺什么补什么」——**优先已有品，缺的推平价线**；输出诚实标注「品牌参考」，UI 不渲染成广告位。
+  - [ ] 输入建模拍板：用户「已拥有产品」从哪来（骨架可本地手选 / 硬编码列表，别建账户体系）→ 再定 `RecommendationsProvider` 入参出参形状。
+  - [ ] `compose.ts` 返回实例、`src/index.ts` 接入；前端结果页展示推荐区。
+
+---
+
+## 10. 前端（vue/ —— 非模块目录，独立成板）
+
+- **现状 [x]**：三页动线（上传 → 生成 → 成片对比）；`UploadView` 表单齐（本人照 + 场合 chips + 肤质 chips + **肤色 5 档色卡** + 穿搭 tag + 天气组 + 自由文字 + 可选氛围图折叠）；`stores/makeup.js` / `api/{makeup,mock}.js` 与 server 语义同源；浏览器纯 mock 模式可跑通。
+- **待办 [ ]**：
+  - [ ] **本地「妆造间」**：把生成历史存本地（localStorage / IndexedDB），“下次大事再备”；与账户 / 后端历史无关。
+  - [ ] **分享卡导出**：canvas → PNG 导出成品对比图，作 demo 收尾彩蛋。
+  - [ ] （可选加分）**语音讲解**「为什么给你推这套」——赛道「AI 能听能说」点题；成本可控再上（浏览器 SpeechSynthesis 起步）。
+  - [ ] **演示照 2~3 张**（不同肤色 / 性别 / 光线）一键载入 + 全空态文案 + 离线兜底。
+  - [ ] 接真实上妆后：结果页由 `zones` CSS 叠加平滑演进为「真图为主、zones 为辅」，两条路（浏览器 mock / 后端真引擎）都要通。
+
+---
+
+## 11. 红线（写进验收，任何人改动都不得破坏）
+
+1. **demo 稳 > 一切**：引擎不稳 / 人脸检测失败 / 断网 / 设备故障 → 预设照 + mock + 录播三重兜底。
+2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；不抓网络图。参考素材必须 自绘 / 自有 / 可授权。
+3. **肤色 / 肤质包容**：`skinTone` 5 档、缺省 `medium`（中间档），**不默认浅肤色审美**；上妆与推荐都按真实肤色走。
+4. **肖像与隐私**：演示只用**已授权人物**；现场临时自拍采集最小化、即用即删、口头同意即可；不做任何真实用户数据的留存与上传。
+5. **不做**（竞赛红线内的帮倒忙）：账户 / 多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
+
+---
+
+## 12. 待拍板（阻塞项，需要 owner 决策后任务才能开工）
+
+- [ ] 渲染方案 ① 自研参数化 vs ② 第三方 API（本周半天验证后拍板 → 决定 §6 的人脸关键点 / 渲染两单怎么派）。
+- [ ] 参考素材替换来源与授权范围（谁能贡献自绘 / 可授权图）。
+- [ ] （已完成）肤色档数 = 5 档、缺省 medium —— 不再改。

@@ -25,7 +25,7 @@
 
 | 目录 | 说明 |
 | --- | --- |
-| `server/` | 后端，TypeScript + **四层清洁架构**（详见 [server/README.md](server/README.md)） |
+| `server/` | 后端，TypeScript + **模块化清洁架构**：`src/modules/*` 按功能拆模块，模块内部再走四层（详见 [server/README.md](server/README.md)） |
 | `vue/` | 前端，Vue 3 + Vite + Pinia（详见 [vue/README.md](vue/README.md)），内置离线 mock 演示 |
 
 ## 快速开始
@@ -62,34 +62,35 @@ curl -s -o out.bin http://localhost:3000/api/jobs/<id>/result
 
 ## 后端架构要点
 
-依赖单向向内，只有组装根 `server/src/index.ts` 认识全部实现：
+`server/src` 按**功能模块**组织（`modules/*`），每个模块内部再走清洁分层；依赖单向向内，只有组装根（`src/index.ts` + 各模块 `compose.ts`）认识全部实现：
 
 ```
-presentation(controllers/HTTP)  →  application(usecases)  →  domain(业务)
-infrastructure ──实现──►  domain/ports   (文件存储 / 仓库 / 队列 / mock 引擎…)
+src/
+├── index.ts         组装根:config → 各 createXxxModule → buildApp → 启停
+├── app.ts           Fastify web shell(挂 /api 路由、错误码→HTTP)
+└── modules/
+    ├── shared/          地基:brief 枚举单源 / 图片值对象 / AppError
+    ├── assets/          图片存取:ArtifactStore 端口 + 本地文件系统实现
+    ├── understanding/   场景理解:端口 + mock(occasion/关键词 → 方向)
+    ├── references/      参考妆面:端口 + mock(自绘授权诚实)
+    ├── makeup/          上妆引擎:Engine 端口 + 输出校验 + mock 引擎
+    ├── jobs/            Job 生命周期 + 流水线编排(编排方)
+    ├── weather/         [空壳] 天气端口
+    └── recommendations/ [空壳] 平价推荐端口
 ```
 
-`domain/` 内部按「类别」细分，各管一事：
+每个模块 = `index.ts`(public barrel，跨模块只走它) + `compose.ts`(组合根) + 模块内 `domain ← application ← presentation`、`infrastructure` 只实现模块内 `domain/ports`。各「类别」（entities/schemas/validators/ports/errors/api）都落在各自所属模块内。
 
-| 子目录 | 职责 |
-| --- | --- |
-| `entities/` | 领域实体与纯函数（Job 状态机、brief 枚举单源、Scene/Reference/Look 等） |
-| `schemas/` | **形状/契约**：zod 结构声明（字段格式、类型、长度），无行为 |
-| `validator/` | **校验行为**：真正执行输入/输出校验，转成语义错误码并清洗数据 |
-| `ports/` | 端口接口：ArtifactStore / JobRepository / JobQueue / SceneAnalyzer / ReferenceProvider / Engine |
-| `errors/` | AppError + ErrorCode（不携带 HTTP 状态码） |
-| `api/` | 对外 API 契约 / DTO 类型（前后端联调的唯一真源） |
+> **schema vs validator**：schema 只描述「长什么样」（形状单源）；validator 才是被上层调用、做校验动作的对象——跨字段业务规则、语义错误码、输出（引擎产物几何/颜色）把关都在这层。
 
-> **schema vs validator**：schema 只描述「长什么样」；validator 才是被上层调用、做校验动作的对象——跨字段业务规则、语义错误码、输出（引擎产物几何/颜色）把关都在这层。
-
-**换真实实现只换 adapter**：真实上妆引擎、视觉大模型场景理解、真实网页/图库参考检索，都只需实现对应 port，业务与 HTTP 层不感知。
+**换真实实现只换 adapter**：真实上妆引擎、视觉大模型场景理解、真实网页/图库参考检索、天气、推荐，都只需实现对应模块的 port，业务与 HTTP 层不感知（见 `docs/plan/roadmap.md` 的「接缝地图」）。
 
 ## 文档
 
 - [docs/环境搭建-Windows版.md](docs/环境搭建-Windows版.md) — Windows 小白装环境指南（Node.js/VS Code/Git）
 - [server/README.md](server/README.md) — 后端分层、HTTP 契约、错误码、命令、测试
 - [vue/README.md](vue/README.md) — 前端页面、mock 与联调、目录
-- [docs/plan/roadmap.md](docs/plan/roadmap.md) — 产品规划源文档（本次对齐的判定）
+- [docs/plan/roadmap.md](docs/plan/roadmap.md) — 开发路线图：按 `server/src/modules/*` 拆的模块任务板（可派单 + 接缝地图 + 红线）
 
 ## 测试
 
