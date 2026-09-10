@@ -78,7 +78,7 @@ src/
 | `makeup_generate` | 70 |
 | `store_result` | 100(done) |
 
-流水线语义：`SceneAnalyzer` 按 `brief.occasion`（或 `brief.sceneText` 关键词命中，否则 `daily` 兜底）定 `label`，**再叠一层自由文字里的修饰词**（低调 / 加浓 / 利落 / 温柔 / 提气色 → 追加 tags + 在 `direction` 后接一句），产出 `SceneAnalysis{ label, direction, tags, confidence, source }`；`ReferenceProvider` 按 label 取场合样本；`Engine` 按 **occasion 基准风格 × skinTone 调深浅** 生成 `Look`（含 `zones` 供前端 CSS 叠加）。标识符沿用 `scene` 词（中文「场景/场合」皆可），语义已场合化。
+流水线语义：`SceneAnalyzer` 按 `brief.occasion`（或 `brief.sceneText` 关键词命中，否则 `daily` 兜底）定 `label`，**再叠一层自由文字里的修饰词**（低调 / 加浓 / 利落 / 温柔 / 提气色 → 追加 tags + 在 `direction` 后接一句），产出 `SceneAnalysis{ label, direction, tags, source }`（**没有 `confidence`**——它是按分支硬写的常量、零消费者，2026-09-10 删掉；「没推断」的标记是 `source: 'off'`）；`ReferenceProvider` 按 label 取场合样本；`Engine` 按 **occasion 基准风格 × skinTone 调深浅** 生成 `Look`（含 `zones` 供前端 CSS 叠加）。标识符沿用 `scene` 词（中文「场景/场合」皆可），语义已场合化。
 
 > 修饰词**只改 `direction`/`tags`（文案与前端 chip），不改 `label`、不动色板** —— 判定结果与妆效与从前一致。
 > 判定规则是前后端单一源（`shared/domain/scene-rules.ts`），前端浏览器 mock 模式直读同一份。详见 `modules/shared/README.md` 与 `modules/understanding/README.md`。
@@ -160,7 +160,7 @@ curl -s -X POST http://localhost:3000/api/users/login -H 'Content-Type: applicat
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
 | `MAKEUP_ENGINE` | `mock` | **尚未接线**（`createMakeupModule()` 还不收参数）：`off` 对「上妆引擎」没有意义——没有引擎就出不了成品，硬接只会得到又一个假开关。接真实引擎时再接。 |
-| `SCENE_ANALYZER` | `mock` | `mock` 或 `off`(**已接通**,见 `understanding/compose.ts`)。`off` = **不推断**，不是关掉这一棒（流水线强依赖 `scene`） |
+| `SCENE_ANALYZER` | `mock` | `mock` 或 `off`(**已接通**,见 `understanding/compose.ts`)。`off` = **不推断**（返回 `source:'off'`、空 tags），不是关掉这一棒（流水线强依赖 `scene`） |
 | `REFERENCE_PROVIDER` | `mock` | `mock` 或 `off`(**已接通**,见 `references/compose.ts`)。`off` 返回空列表且**不声称任何来源** |
 | `WEATHER_PROVIDER` | `open-meteo` | `open-meteo`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**） |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
@@ -186,7 +186,7 @@ npm test           # vitest run
 - `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取 medium
 - `user.test.ts` — 注册/重名/登录成败/查档案 + 真实 JSON 仓库与 scrypt 凭据（守「明文不落库、视图不含凭据」）
 - `weather.test.ts` — WMO 码映射 / 查询校验 / 用例错误翻译 + open-meteo 适配器（**打桩 fetch，单测不联网**）
-- `understanding.test.ts` — 场合判定行为不变（0.92/0.72/0.4/0.3 四档 + 优先级表）+ **自由文字真的进方向**（修掉的短路）+ 修饰词去重不发散 + **红线:「显白」不被采纳** + 单一源完整性（`SCENE_RULES`/`SCENE_MATCH_ORDER` 覆盖 `OCCASIONS` 全集、共享文件**零运行时 import**、前端 alias 确实指向它）+ mock 与 off 适配器
+- `understanding.test.ts` — 场合判定行为不变（四条分支 + 优先级表）+ **自由文字真的进方向**（修掉的短路）+ 修饰词去重不发散 + **红线:「显白」不被采纳** + 单一源完整性（`SCENE_RULES`/`SCENE_MATCH_ORDER` 覆盖 `OCCASIONS` 全集、共享文件**零运行时 import**、前端 alias 确实指向它、**判定结果里没有 `confidence`**）+ mock 与 off 适配器
 - `cabinet.test.ts` — 衣橱边界（空名 / 超长 / 特性重名 / 控制字符 / 空更新）+ 用例（用户不存在 → `USER_NOT_FOUND`、超上限 → `CABINET_FULL`）+ **越权改删 → 报 404 且原数据一个字没动** + 真实 JSON 仓库 `mkdtemp` 验「重启后还在」
 
 ## 换真实引擎怎么做

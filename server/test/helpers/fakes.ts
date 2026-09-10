@@ -121,7 +121,6 @@ export class FakeSceneAnalyzer implements SceneAnalyzer {
       label,
       direction: '测试方向',
       tags: ['测试'],
-      confidence: 0.6,
       source: 'fake',
     };
   }

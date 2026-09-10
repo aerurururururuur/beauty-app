@@ -137,7 +137,6 @@ export interface SceneDescriptor {
   label: Occasion;
   direction: string;
   tags: string[];
-  confidence: number;
   source: string;
 }
 
@@ -153,31 +152,21 @@ function appendModifiers(base: string, suffixes: string[]): string {
  * 前后端都调它:`MockSceneAnalyzer` 包一层 sleep(只为让前端轮询看到进度),
  * 浏览器 mock 模式直接调。所以这里的每一条判断,两侧行为完全一致。
  *
- * 判定顺序:显式 `occasion`(0.92)→ 自由文字命中关键词(0.72)→ `daily` 兜底(0.4 / 0.3)。
+ * 判定顺序:显式 `occasion` → 自由文字命中关键词 → `daily` 兜底。
  * 之后**无论走哪条**都再叠一层修饰词。
+ *
+ * ★ 这里**曾经**返回一个 `confidence: number`(0.92/0.72/0.4/0.3),已删:那四个值是按
+ *   分支硬写的常量,不含任何测量信息 —— 调用方本来就知道用户点没点 chip。真正的诚实标记
+ *   是 `source`(判不出来时 `'off'`,`OffSceneAnalyzer` 给)。要接视觉模型时,分数才有意义,
+ *   那时再加回来。
  */
 export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
   const text = (brief.sceneText ?? '').toLowerCase();
 
-  let label: Occasion;
-  let confidence: number;
-
-  if (brief.occasion) {
-    label = brief.occasion;
-    confidence = 0.92;
-  } else {
-    const hit = SCENE_MATCH_ORDER.find((o) =>
-      SCENE_RULES[o].keywords.some((k) => text.includes(k)),
-    );
-    if (hit) {
-      label = hit;
-      confidence = 0.72;
-    } else {
-      label = DEFAULT_OCCASION;
-      // 写了东西但没认出场合,置信度略高于完全没写 —— 至少知道「这不是空提交」。
-      confidence = text ? 0.4 : 0.3;
-    }
-  }
+  const label: Occasion =
+    brief.occasion ??
+    SCENE_MATCH_ORDER.find((o) => SCENE_RULES[o].keywords.some((k) => text.includes(k))) ??
+    DEFAULT_OCCASION;
 
   const style = SCENE_RULES[label];
   const tags = [...style.tags];
@@ -196,7 +185,6 @@ export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
     label,
     direction: appendModifiers(style.direction, suffixes),
     tags,
-    confidence,
     source: 'mock',
   };
 }

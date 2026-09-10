@@ -119,13 +119,13 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 
 ## 4. understanding（场景理解 —— 保「稳」优先）
 
-- **现状 [x]**：`SceneAnalyzer` 端口；判定本身在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)`——`brief.occasion` 优先（0.92）→ 否则 `sceneText` 关键词命中（0.72）→ 否则 `daily` 兜底（0.4 / 0.3）。`MockSceneAnalyzer` 只是包一层 `sleep(250)`（让前端轮询看到进度），`OffSceneAnalyzer` 不推断（`source:'off'` + `confidence:0`）。**`config.sceneAnalyzer` 已真接通** `mock` / `off`。
+- **现状 [x]**：`SceneAnalyzer` 端口；判定本身在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)`——`brief.occasion` 优先 → 否则 `sceneText` 关键词命中 → 否则 `daily` 兜底。`MockSceneAnalyzer` 只是包一层 `sleep(250)`（让前端轮询看到进度），`OffSceneAnalyzer` 不推断（`source:'off'`）。**`config.sceneAnalyzer` 已真接通** `mock` / `off`。
 - **现状 [x]**（本轮修的短路）：此前 `if (brief.occasion)` 会把 `sceneText` **整个丢掉**——用户写满需求，只要点了场合 chip，方向就固定不动。现在两者同时生效：场合定基调，自由文字里的**修饰词**（低调/加浓/利落/温柔/提气色）追加 `tags` 并在 `direction` 后接一句；场合基准已有的标签整条跳过，不发散。**只改文案与 chip，不改 `label`、不动色板 → 妆效与从前一致。**
 - **现状 [x]**：红线钉进测试——修饰词表**刻意不收「显白」**（红线 §13-3）；用户写了也不迎合，`narration` 另有一句正面回应。改修饰词表前先回去读红线。
 - **测试**：`server/test/understanding.test.ts`（此前该模块零测试）。
 - **待办 [ ]**：
   - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片 / 氛围图提升场景判定置信度。它出错可能让现场 demo 翻车，须默认 off；接缝在 `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`（`kind` 扩成 `'mock' | 'vision' | 'off'`），**保留 `off` 当逃生门**。
-  - [ ] `SceneAnalysis.confidence` 目前**零消费者**（算出来、传下去、没人读）：要么接 UI（低置信度时提示用户补一句），要么删字段。**别假设它在起作用。**
+  - ~~`SceneAnalysis.confidence`~~ **已删**（2026-09-10）：它零消费者，而且那四个值（0.92/0.72/0.4/0.3）是按分支硬写的常量，**不含任何测量信息**——调用方本来就知道用户点没点 chip。判不出来时看 `source: 'off'` 就够了。**真接了视觉模型、分数变成真的了再连同测试一起加回来**；在那之前别重新引入一个恒定字段（`understanding.test.ts` 有一条断言它不存在）。
   - 注意：风景/氛围参考图**不驱动成片**，只作回显，任何改动不得让它变回风格主输入。
 
 ---

@@ -1,6 +1,6 @@
 /**
  * understanding.test.ts —— 场景理解模块单测。
- * 守三条:① 场合判定行为不变(显式 occasion → 关键词命中 → daily 兜底,置信度分档);
+ * 守三条:① 场合判定行为不变(显式 occasion → 关键词命中 → daily 兜底);
  *        ② **自由文字真的进方向**——选了场合也不再被整个丢掉(本轮修的就是这个短路);
  *        ③ 判定规则是前后端共享的单一源,所以既验「纯函数与适配器一致」,
  *           也把共享文件本身的硬约束(零运行时 import)钉住。
@@ -29,29 +29,22 @@ const input = (brief: Parameters<typeof describeScene>[0]) => ({
 });
 
 describe('describeScene —— 场合判定(行为不变)', () => {
-  it('显式 occasion 直接采用,置信度 0.92', () => {
+  it('显式 occasion 直接采用', () => {
     const s = describeScene({ occasion: 'stage' });
     expect(s.label).toBe('stage');
-    expect(s.confidence).toBe(0.92);
     expect(s.source).toBe('mock');
   });
 
-  it('无 occasion 时按自由文字关键词命中,置信度 0.72', () => {
-    const s = describeScene({ sceneText: '明天要去面试' });
-    expect(s.label).toBe('interview');
-    expect(s.confidence).toBe(0.72);
+  it('无 occasion 时按自由文字关键词命中', () => {
+    expect(describeScene({ sceneText: '明天要去面试' }).label).toBe('interview');
   });
 
-  it('写了字但认不出场合 → daily,置信度 0.4', () => {
-    const s = describeScene({ sceneText: '随便弄弄' });
-    expect(s.label).toBe('daily');
-    expect(s.confidence).toBe(0.4);
+  it('写了字但认不出场合 → daily', () => {
+    expect(describeScene({ sceneText: '随便弄弄' }).label).toBe('daily');
   });
 
-  it('完全没写 → daily,置信度 0.3', () => {
-    const s = describeScene({});
-    expect(s.label).toBe('daily');
-    expect(s.confidence).toBe(0.3);
+  it('完全没写 → daily', () => {
+    expect(describeScene({}).label).toBe('daily');
   });
 
   it('任意自定义文字不会被硬塞进某类场合(daily 兜底)', () => {
@@ -151,6 +144,15 @@ describe('单一源完整性', () => {
     }
   });
 
+  it('★ 判定结果里没有 confidence(它是硬写的常量,不含信息,已删——别加回来)', () => {
+    // 曾经的 0.92/0.72/0.4/0.3 完全由「用户点没点 chip」决定,而调用方本来就知道这件事。
+    // 判不出来时该看 `source: 'off'`,不是一个恒定的置信度。
+    // 真接了视觉模型、分数变成真的了,再连同这条测试一起改。
+    for (const brief of [{}, { occasion: 'stage' }, { sceneText: '面试' }] as const) {
+      expect(Object.keys(describeScene(brief))).not.toContain('confidence');
+    }
+  });
+
   it('★ 共享文件里没有运行时 import(前端会直接执行它,加了就会炸)', () => {
     const src = readFileSync(RULES_PATH, 'utf8');
     // 只允许 `import type`(编译期擦除)。注释里的示例写在行首 `*` 之后,不会命中这个正则。
@@ -182,8 +184,7 @@ describe('适配器', () => {
       label: DEFAULT_OCCASION,
       direction: SCENE_RULES[DEFAULT_OCCASION].direction,
       tags: [], // 不拿场合基准 tags 冒充推断结果
-      confidence: 0,
-      source: 'off',
+      source: 'off', // ★ 「没推断」的诚实标记就是它,别只看 label
     });
   });
 });

@@ -17,7 +17,6 @@ async function run(occasion: string, skinTone: string): Promise<EngineResult> {
       label: occasion,
       direction: 'x',
       tags: [],
-      confidence: 1,
       source: 'mock',
     },
   };
@@ -50,7 +49,7 @@ describe('MockEngine', () => {
       face: { filePath: 'mem://face.png', mimeType: 'image/png' },
       scenes: [],
       brief: { occasion: 'daily' },
-      sceneAnalysis: { label: 'daily', direction: 'x', tags: [], confidence: 1, source: 'mock' },
+      sceneAnalysis: { label: 'daily', direction: 'x', tags: [], source: 'mock' },
     };
     const out = await eng.generate(input);
     expect((out.look as { skinTone: string }).skinTone).toBe('medium');

@@ -6,7 +6,7 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/scene.ts` | `SceneAnalysis`：`{ label, direction, tags, confidence, source }`（label 驱动后续参考图/文案/引擎） |
+| `domain/entities/scene.ts` | `SceneAnalysis`：`{ label, direction, tags, source }`（label 驱动后续参考图/文案/引擎） |
 | `domain/ports/scene-analyzer.ts` | `SceneAnalyzer` 端口（本模块持契约）：`analyze(SceneAnalyzerInput) → SceneAnalysis` |
 | `infrastructure/scene-analyzer/mock-scene-analyzer.ts` | `MockSceneAnalyzer`：`sleep(250)` + 调 `describeScene(brief)`。**判定逻辑不在这里** |
 | `infrastructure/scene-analyzer/off-scene-analyzer.ts` | `OffSceneAnalyzer`：**不推断**，返回中性结果（见下「off 的语义」） |
@@ -17,9 +17,9 @@
 
 场合判定**不在本模块**，在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)`：
 
-1. `brief.occasion` 显式给定 → 直接采用（confidence 0.92）
-2. 否则按 `sceneText` 关键词命中，优先级由 `SCENE_MATCH_ORDER` 决定（0.72）
-3. 都没命中 → `daily` 兜底（有文字 0.4 / 完全没写 0.3）
+1. `brief.occasion` 显式给定 → 直接采用
+2. 否则按 `sceneText` 关键词命中，优先级由 `SCENE_MATCH_ORDER` 决定
+3. 都没命中 → `daily` 兜底
 4. **之后无论走哪条**，再叠一层「修饰词」（见下）
 
 `MockSceneAnalyzer` 只是加了个 `sleep`（让前端轮询能看到进度），判定结果与纯函数**逐字一致**——`test/understanding.test.ts` 有断言钉住这一点。
@@ -40,10 +40,10 @@
 
 ## off 的语义（别理解错）
 
-`SCENE_ANALYZER=off` → `OffSceneAnalyzer`：返回 `{ label: 'daily', tags: [], confidence: 0, source: 'off' }`。
+`SCENE_ANALYZER=off` → `OffSceneAnalyzer`：返回 `{ label: 'daily', direction: <日常基准>, tags: [], source: 'off' }`。
 
 - **off ≠ 关掉这一棒**。`jobs` 的 `run-pipeline.ts` 强依赖 `scene`，没有它流水线出不了结果；`off` 只是「**不推断**」。
-- 判定实现得诚实：判不出来时报 `source: 'off'` + `confidence: 0`，**不要只看 `label`**（`label` 是 `daily` 只是为了给下游一个能跑的合法值）。
+- 诚实标记是 **`source: 'off'`**，**不要只看 `label`**（`label` 是 `daily` 只是为了给下游一个能跑的合法值）。
 - 它存在的意义是**紧急逃生门**：将来接了视觉模型而现场翻车时，一个环境变量就能退回「什么都不判断」。
 
 ## 依赖 / 被依赖
@@ -54,6 +54,6 @@
 ## 现状与改法
 
 - **现状**：mock / off 均已接通（`config.sceneAnalyzer` 真的能拨）。判定规则前后端单一源，有测试覆盖。
-- **已知未消费字段**：`confidence` 目前**没有任何消费者**（算出来、传下去、没人读）。要么将来接 UI（低置信度时提示用户补一句），要么删字段——先记录，别假设它在起作用。
+- **`confidence` 已删**（2026-09-10）：它零消费者，而且那四个值（0.92/0.72/0.4/0.3）是按分支**硬写的常量**——0.92 还是 0.72 完全由「用户点没点 chip」决定，而调用方本来就知道这件事。所以它连信息都不含，拿它做 UI（「置信度低，建议补一句」）等于把常量包装成测量值。判不出来时看 `source: 'off'` 就够了。**真接了视觉模型、分数变成真的了再连同测试一起加回来**（`test/understanding.test.ts` 有一条断言它不存在，就是为了挡「顺手加回去」）。
 - **可选加分项（默认关，别让它变主路径）**：视觉大模型读真实照片 / 氛围图提升判定置信度。出错可能让现场 demo 翻车，须可开关且默认 off。接缝 = `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`（`kind` 扩成 `'mock' | 'vision' | 'off'` 即可）。
 - **红线**：无论如何，不得让氛围参考图重新变成风格主输入。
