@@ -50,10 +50,14 @@
 ## 依赖 / 被依赖
 
 - 依赖：`shared`（`WeatherInfo` / `AppError` / `ErrorCode`）、zod、`node: 全局 fetch`。不依赖其它业务模块。
-- 被依赖：`src/index.ts`（组装）、前端上传页（待接）。
+- 被依赖：`src/index.ts`（组装）、前端上传页（已接）。
 
 ## 待办
 
-- [ ] **前端接入**：上传页带城市 / 定位 → 调 `/api/weather` 填 `brief.weather`；502 / 404 时静默回落手动预设（roadmap §8 第 2 条，属前端板）。
+- [x] **前端接入**（2026-09-10）：上传页填城市 → 调 `/api/weather`，取天气四字段填 `brief.weather`；
+      422 / 404 / 502 一律**整个不带 `weather` 提交**，不阻塞提交。
+      ★ **前端没有「手动预设」可回落**——预设 chips 已按本模块第 2 条的同一口径删掉（roadmap §8）：
+      既然不编造天气冒充实时，就不该再让人手挑一个假天气混进 `brief`。断网时 `brief` 里没有天气，
+      那是诚实的空，不是缺件；要让演示看到天气就走 `WEATHER_PROVIDER=mock`（UI 会标「离线示意」）。
 - [ ] 按日期取非当日天气（`WeatherQuery.date` 已预留，当前只取当日实况）。
 - [ ] 上游异常可观测性（目前只进 502 的 `details.reason`，无指标；竞赛规模够用）。

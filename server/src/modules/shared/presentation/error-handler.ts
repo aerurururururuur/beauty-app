@@ -21,6 +21,10 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   NICKNAME_TAKEN: 409,
   // 「用户不存在」与「密码错」共用 401,不外泄账号是否存在,避免昵称枚举。
   INVALID_CREDENTIALS: 401,
+  // 衣橱条目的「不存在」与「不属于你」共用 404:同样不外泄"这条存在但不是你的"。
+  CABINET_ITEM_NOT_FOUND: 404,
+  // 单用户件数上限:JSON 单表是整表读改写,不设上限会越写越慢。
+  CABINET_FULL: 409,
   VALIDATION_ERROR: 422,
   INTERNAL_ERROR: 500,
 };

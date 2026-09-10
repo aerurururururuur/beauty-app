@@ -12,6 +12,8 @@ import { createMakeupModule } from './modules/makeup/index.js';
 import { createJobsModule } from './modules/jobs/index.js';
 import { createUserModule } from './modules/user/index.js';
 import { createWeatherModule } from './modules/weather/index.js';
+import { createCabinetModule } from './modules/cabinet/index.js';
+import { AppError, ErrorCode } from './modules/shared/index.js';
 import { buildApp } from './app.js';
 
 async function main(): Promise<void> {
@@ -39,8 +41,26 @@ async function main(): Promise<void> {
   // 当日天气:缺省 open-meteo 实拉,WEATHER_PROVIDER=mock 切离线示意。
   const weather = createWeatherModule({ kind: config.weatherProvider });
 
+  // 衣橱:归属校验要问 user 模块「这人存在吗」。
+  // ★ 跨模块粘合**只发生在这里**——cabinet 自己不 import user,
+  //   它只声明 UserDirectory 端口(见 cabinet/domain/ports/user-directory.ts)。
+  const cabinet = createCabinetModule({
+    dataDir: config.dataDir,
+    userExists: async (userId) => {
+      try {
+        await user.getUser.execute(userId);
+        return true;
+      } catch (err) {
+        // 只把「用户不存在」翻译成 false;存储故障等真错误照常抛出,
+        // 不能伪装成「用户不存在」把 500 说成 404。
+        if (err instanceof AppError && err.code === ErrorCode.USER_NOT_FOUND) return false;
+        throw err;
+      }
+    },
+  });
+
   // —— web shell ——
-  const app = await buildApp({ config, jobs, user, weather });
+  const app = await buildApp({ config, jobs, user, weather, cabinet });
 
   try {
     await app.listen({ host: config.host, port: config.port });

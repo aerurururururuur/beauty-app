@@ -8,8 +8,7 @@ import { DEMO_PORTRAIT } from '@/api/mock'
 import {
   OCCASION_OPTIONS,
   SKIN_TYPE_OPTIONS,
-  SKIN_TONE_OPTIONS,
-  WEATHER_PRESETS
+  SKIN_TONE_OPTIONS
 } from '@/constants/options'
 import PhotoUploader from '@/components/PhotoUploader.vue'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
@@ -45,17 +44,15 @@ function toggleSkinType(v) {
 function pickSkinTone(v) {
   store.skinTone = v
 }
-function pickWeather(p) {
-  store.useWeatherPreset(p.value)
-}
-
-// ---- 天气实拉：失败只提示、绝不清空已填的天气，也绝不阻塞提交 ----
+// ---- 天气实拉:只有这一条路(无手动预设)。失败只提示,绝不阻塞提交 ----
 const weatherLoading = ref(false)
 
 async function pullWeather() {
   const city = store.weatherCity.trim()
   if (!city || weatherLoading.value) return
   weatherLoading.value = true
+  // 先清空再拉:旧数值对不上新城市,让「拉取中」期间显示的是空而不是上次的结果
+  store.clearWeather()
   try {
     store.applyWeather(await fetchWeather({ city }))
   } catch (e) {
@@ -66,8 +63,10 @@ async function pullWeather() {
 }
 
 // ---- 生效中的天气回显:让用户看得见「提交上去的到底是什么」 ----
-const WEATHER_SOURCE_CN = { manual: '预设', 'open-meteo': '实时', mock: '离线示意' }
-const weatherSourceLabel = computed(() => WEATHER_SOURCE_CN[store.weatherSource] || '预设')
+const WEATHER_SOURCE_CN = { 'open-meteo': '实时', mock: '离线示意' }
+const weatherSourceLabel = computed(
+  () => WEATHER_SOURCE_CN[store.weatherSource] || store.weatherSource || '未拉取'
+)
 
 const weatherSummary = computed(() => {
   const w = store.weather
@@ -221,7 +220,7 @@ async function submit() {
         placeholder="例：藏青西装 / 米色连衣裙"
       />
 
-      <label class="field-label caps" for="weather-city">当天天气（可选）</label>
+      <label class="field-label caps" for="weather-city">当天天气（可选 · 填城市自动拉取）</label>
       <div class="city-row">
         <input
           id="weather-city"
@@ -242,27 +241,13 @@ async function submit() {
       </div>
       <div class="weather-now" :class="{ warn: store.weatherWarn }">
         <span class="weather-now-tag caps">{{ weatherSourceLabel }}</span>
-        <span class="weather-now-val">{{ weatherSummary || '未设置' }}</span>
+        <span class="weather-now-val">{{ weatherSummary || '未拉取' }}</span>
         <span v-if="store.weatherPlace" class="weather-now-place">{{ store.weatherPlace }}</span>
       </div>
 
       <p v-if="store.weatherNote" class="field-tip" :class="{ warn: store.weatherWarn }">
         {{ store.weatherNote }}
       </p>
-
-      <div class="weather-row">
-        <button
-          v-for="p in WEATHER_PRESETS"
-          :key="p.label"
-          type="button"
-          class="weather-chip"
-          :class="{ on: store.weatherSource === 'manual' && store.weather.condition === p.value.condition && store.weather.temperatureC === p.value.temperatureC }"
-          @click="pickWeather(p)"
-        >
-          {{ p.label }}
-        </button>
-      </div>
-      <p class="field-tip">拉不到也没关系——上面任一预设都行，天气不影响提交。</p>
     </section>
 
     <!-- ④ 可选：氛围参考图 -->
@@ -426,7 +411,7 @@ async function submit() {
   font-weight: 600;
 }
 
-/* ---- 天气：城市实拉 + 预设 ---- */
+/* ---- 天气：填城市实拉（无预设） ---- */
 .city-row {
   display: flex;
   gap: 8px;
@@ -489,29 +474,6 @@ async function submit() {
   margin-left: auto;
   font-size: 11px;
   color: var(--c-ink-faint);
-}
-
-.weather-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.weather-chip {
-  border: 1px solid var(--c-line-strong);
-  border-radius: var(--radius-full);
-  background: var(--c-surface);
-  color: var(--c-ink-soft);
-  font-size: 11px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-.weather-chip.on {
-  border-color: var(--c-accent);
-  background: var(--c-accent-soft);
-  color: var(--c-accent-deep);
 }
 
 /* ---- 通用文本 ---- */

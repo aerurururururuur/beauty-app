@@ -1,5 +1,5 @@
 import api, { API_BASE } from './index'
-import { mockCreateJob, mockGetJob, useMock } from './mock'
+import { useMock } from './use-mock'
 
 export { useMock }
 
@@ -11,6 +11,8 @@ export { useMock }
  */
 export async function createMakeupJob({ portraitFile, sceneFiles = [], brief = {} }) {
   if (useMock()) {
+    // 惰性引入:假后端几十 KB,真实后端模式下不该进首屏包
+    const { mockCreateJob } = await import('./mock')
     return mockCreateJob({ sceneFiles, brief })
   }
   const form = new FormData()
@@ -21,8 +23,12 @@ export async function createMakeupJob({ portraitFile, sceneFiles = [], brief = {
 }
 
 /** 轮询任务视图(GET /jobs/:id)。 */
-export function fetchMakeupJob(id) {
-  return useMock() ? mockGetJob(id) : api.get(`/jobs/${id}`)
+export async function fetchMakeupJob(id) {
+  if (useMock()) {
+    const { mockGetJob } = await import('./mock')
+    return mockGetJob(id)
+  }
+  return api.get(`/jobs/${id}`)
 }
 
 /** 结果图的资源地址(真实引擎产物;mock 引擎为 null,前端改走本人照片 + CSS 叠加)。 */

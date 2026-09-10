@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { DEFAULT_WEATHER } from '@/constants/options'
 
 /**
  * makeup store —— 「场景美妆镜」制作台状态。
@@ -26,11 +25,11 @@ export const useMakeupStore = defineStore('makeup', () => {
   const skinTone = ref('medium') // SkinTone(默认中间档,不以浅肤色为默认)
   const dress = ref('') // 穿搭一句话(风格 + 主色)
 
-  // ---- 天气:预设手动 / 后端实拉,二者互斥地写同一个 weather ----
-  const weather = ref({ ...DEFAULT_WEATHER })
+  // ---- 天气:只有「实拉」一条路(无手动预设)。没拉成功就是空,不编数据 ----
+  const weather = ref({}) // 空对象 = 本次不带天气提交
   const weatherCity = ref('') // 用户输入的城市(拉取用)
   const weatherPlace = ref('') // 拉取回来的地点回显(如「北京 · 中国」)
-  const weatherSource = ref('manual') // manual | open-meteo | mock
+  const weatherSource = ref('') // '' 未拉取 | open-meteo | mock(后端 provider 原样透传)
   const weatherNote = ref('') // 给用户看的一行说明
   const weatherWarn = ref(false) // 该说明是否要提示色(离线示意 / 拉取失败)
 
@@ -48,7 +47,8 @@ export const useMakeupStore = defineStore('makeup', () => {
     if (skinTone.value) b.skinTone = skinTone.value
     const d = (dress.value || '').trim()
     if (d) b.dress = d
-    b.weather = { ...weather.value }
+    // 天气拉到了才带:一个字段都没有时就整个省掉(后端 weather 本来就是可选)。
+    if (Object.keys(weather.value).length > 0) b.weather = { ...weather.value }
     return b
   })
 
@@ -90,24 +90,30 @@ export const useMakeupStore = defineStore('makeup', () => {
     weather.value = next
 
     weatherPlace.value = view?.place || ''
-    weatherSource.value = view?.source === 'mock' ? 'mock' : 'open-meteo'
+    // 原样透传 provider 名,不猜:后端加第三个源时前端不会把它错标成 open-meteo。
+    // 视图侧对认不出的 source 有一层兜底文案。
+    weatherSource.value = view?.source || ''
     // 具体数值与地点由视图直接渲染 weather / weatherPlace;
     // 这里只留「需要提醒一句」的情况——正常拉成功就不必再啰嗦一行字。
     weatherWarn.value = weatherSource.value === 'mock'
     weatherNote.value = weatherWarn.value ? '离线示意——不是实况，仅作演示' : ''
   }
 
-  /** 拉取失败:保留当前天气(手动预设),只把原因说清楚,不阻塞提交。 */
+  /**
+   * 拉取失败:只把原因说清楚,**不阻塞提交**。
+   * 调用方已先 clearWeather() 清空,所以这里只负责「说明」这一件事;
+   * 没有手动预设可回落——拉不到就是不带天气,比留着一份对不上城市的值更诚实。
+   */
   function setWeatherFailure(message) {
     weatherWarn.value = true
-    weatherNote.value = `${message}——已保留当前天气，可直接提交`
+    weatherNote.value = `${message}——没有天气也能提交`
   }
 
-  /** 手动预设:回到 manual 态,清掉拉取回显。 */
-  function useWeatherPreset(value) {
-    weather.value = { ...value }
-    weatherSource.value = 'manual'
+  /** 发起新一次拉取前先清空(视图在 await 之前调用):避免旧数值与「拉取中」并存。 */
+  function clearWeather() {
+    weather.value = {}
     weatherPlace.value = ''
+    weatherSource.value = ''
     weatherNote.value = ''
     weatherWarn.value = false
   }
@@ -137,10 +143,10 @@ export const useMakeupStore = defineStore('makeup', () => {
     skinType.value = ''
     skinTone.value = 'medium'
     dress.value = ''
-    weather.value = { ...DEFAULT_WEATHER }
+    weather.value = {}
     weatherCity.value = ''
     weatherPlace.value = ''
-    weatherSource.value = 'manual'
+    weatherSource.value = ''
     weatherNote.value = ''
     weatherWarn.value = false
     jobId.value = ''
@@ -182,7 +188,7 @@ export const useMakeupStore = defineStore('makeup', () => {
     setSceneText,
     applyWeather,
     setWeatherFailure,
-    useWeatherPreset,
+    clearWeather,
     startSubmit,
     finishSubmit,
     failSubmit,

@@ -41,16 +41,4 @@ export const SKIN_TONE_CN = Object.fromEntries(
   SKIN_TONE_OPTIONS.map((o) => [o.value, o.label])
 )
 
-/**
- * 天气预设 = 实拉失败时的兜底,也是无后端演示(mock)时的示意值。
- * 实拉走 `api/weather.js` 的 GET /weather(后端 open-meteo),见 server/README.md。
- * 实时/预设是并列的两条路,不互相覆盖:一点预设就回到 manual 态。
- */
-export const WEATHER_PRESETS = [
-  { label: '晴 · 24°C / 湿度45% / UV3', value: { condition: '晴', temperatureC: 24, humidityPct: 45, uvIndex: 3 } },
-  { label: '晴热 · 32°C / 湿度60% / UV7', value: { condition: '晴', temperatureC: 32, humidityPct: 60, uvIndex: 7 } },
-  { label: '阴 · 20°C / 湿度70% / UV2', value: { condition: '阴', temperatureC: 20, humidityPct: 70, uvIndex: 2 } },
-  { label: '雨 · 22°C / 湿度85% / UV1', value: { condition: '雨', temperatureC: 22, humidityPct: 85, uvIndex: 1 } }
-]
-
-export const DEFAULT_WEATHER = WEATHER_PRESETS[0].value
+// 天气没有可选项,故不在此处:填城市 → 实拉 GET /weather(见 api/weather.js)。

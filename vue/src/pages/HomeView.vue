@@ -1,8 +1,16 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const user = useUserStore()
+
+/** 退出:清本地身份后回登录页(守卫也会把没登录的人拦到那儿)。 */
+function logout() {
+  user.logout()
+  router.replace('/login')
+}
 
 const steps = [
   {
@@ -28,6 +36,13 @@ const steps = [
 
 <template>
   <div class="page home">
+    <div class="top-bar">
+      <Icon name="user" :size="13" class="top-icon" />
+      <span class="top-name">{{ user.nickname }}</span>
+      <div class="spacer" />
+      <button class="text-link" @click="logout">退出</button>
+    </div>
+
     <header class="hero">
       <div class="caps overline">OCCASION MAKEUP · AI 妆容实验</div>
       <h1 class="brand">场合美妆镜</h1>
@@ -59,7 +74,14 @@ const steps = [
         <Icon name="upload" :size="16" />
         开始配妆
       </button>
-      <p class="hint">全程浏览器本地演示，不收集任何照片 · 后端引擎当前为骨架示例</p>
+      <button class="btn btn-ghost btn-block" @click="router.push('/cabinet')">
+        <Icon name="cabinet" :size="16" />
+        我的衣橱
+      </button>
+      <p class="hint">
+        衣橱里录上你已有的化妆品，配妆时会参考「已经有什么、还缺什么」。<br />
+        全程浏览器本地演示，不收集任何照片 · 后端引擎当前为骨架示例
+      </p>
     </div>
   </div>
 </template>
@@ -70,9 +92,29 @@ const steps = [
   gap: 22px;
 }
 
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.top-icon {
+  color: var(--c-accent);
+}
+
+.top-name {
+  font-size: 12px;
+  color: var(--c-ink-soft);
+}
+
+.spacer {
+  flex: 1;
+}
+
 .hero {
   text-align: center;
-  padding: 28px 4px 6px;
+  padding: 14px 4px 6px;
 }
 
 .overline {
@@ -159,6 +201,10 @@ const steps = [
 
 .cta-area {
   margin-top: 2px;
+}
+
+.cta-area .btn + .btn {
+  margin-top: 10px;
 }
 
 .hint {

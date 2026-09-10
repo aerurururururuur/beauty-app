@@ -34,7 +34,8 @@ src/
     ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
     ├── user/                # 账号:昵称+密码(scrypt 哈希,不存明文) / 注册·登录核对·查档案 + JSON 落盘
     ├── weather/             # 当日天气:open-meteo 实拉(无 key)+ WMO 码映射 + mock 兜底 + 查询校验
-    └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire)
+    ├── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
+    └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire);「已拥有品」将来取自 cabinet
 ```
 
 每个模块 = `index.ts`(public barrel,跨模块协作只走它) + `compose.ts`(`createXxxModule` 组合根) + 模块内四层；
@@ -52,7 +53,7 @@ src/
 | `skinType` | `dry`/`oily`/`combination`/`sensitive`/`neutral` | 肤质（持妆策略） |
 | `skinTone` | `light`/`light_medium`/`medium`/`tan`/`deep` 5 档 | **缺省默认 `medium`（中间档）**，不默认浅肤色审美 |
 | `dress` | ≤80 字 | 穿搭一句话（风格 + 主色） |
-| `weather` | `{ condition?, temperatureC?, humidityPct?, uvIndex? }` | 当日天气（骨架先手动预设，实拉在 W2） |
+| `weather` | `{ condition?, temperatureC?, humidityPct?, uvIndex? }` | 当日天气，整块 `.optional()`：前端拉不到就**整个省掉**（无手动预设可填，不吃假数据） |
 
 ### schema vs validator
 
@@ -91,8 +92,15 @@ src/
 | `POST /api/users` | JSON `{ nickname, password }` → **201** `UserView{ id, nickname, createdAt }`(昵称唯一；密码只存 scrypt 凭据) |
 | `POST /api/users/login` | JSON `{ nickname, password }` → **200** `UserView`；不符 → 401 `INVALID_CREDENTIALS`。**只核对，不签发 token**（登录态未做） |
 | `GET /api/users/:id` | 账号档案 `UserView`(响应**永不含密码/凭据**) |
-| `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端拿到后填进 `POST /jobs` 的 `meta.weather` |
+| `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /jobs` 的 `meta.weather`（`place`/`source` 是回显元信息，**不进 meta**——weather schema 是 `.strict()`）；失败就不填 |
+| `POST /api/cabinet/items` | JSON `{ userId, name, attributes? }` → **201** `CosmeticItemView`。`attributes` 是 `{label,value}[]` 的**自定义**键值（≤12 条，标签去重），名称 ≤40 字 |
+| `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
+| `PATCH /api/cabinet/items/:id` | JSON `{ userId, name?, attributes? }` → **200** `CosmeticItemView`。两者**至少给一个**（都不给 = 空操作，直接 422） |
+| `DELETE /api/cabinet/items/:id?userId=` | → **204** 无响应体。归属走**查询串**（DELETE 带 body 会被不少代理丢掉） |
 | `GET /api/health` | 存活检查 `{ ok, name, uptimeSec, now }` |
+
+> 衣橱的 `userId` 由客户端显式传（本轮无登录态、不签发 token）。**改 / 删一律校验归属**：
+> 条目不存在与不属于你**共用** `CABINET_ITEM_NOT_FOUND` / 404，不泄露「这条存在但不属于你」。
 
 ### 错误体（与错误码 → HTTP 映射）
 
@@ -107,8 +115,10 @@ src/
 | `SCENES_MAX_EXCEEDED` | 422 | 氛围参考图 >6 |
 | `LOCATION_REQUIRED` | 422 | 天气查询既没给 city 也没给 lat/lon |
 | `CITY_NOT_FOUND` | 404 | 城市名解析不到坐标 |
-| `WEATHER_UNAVAILABLE` | 502 | 上游天气源超时 / 断网 / 返回体不合预期（前端据此回落手动预设，不阻塞提交） |
-| `USER_NOT_FOUND` | 404 | 账号 id 不存在 |
+| `WEATHER_UNAVAILABLE` | 502 | 上游天气源超时 / 断网 / 返回体不合预期（前端据此**整个不带 `weather` 提交**，不阻塞提交；没有手动预设这条回落路） |
+| `USER_NOT_FOUND` | 404 | 账号 id 不存在（含衣橱归属指向不存在的用户） |
+| `CABINET_ITEM_NOT_FOUND` | 404 | 衣橱条目不存在**或不属于你**（两者共用，不泄露存在性） |
+| `CABINET_FULL` | 409 | 单用户衣橱超过 100 件 |
 | `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
 | `INVALID_CREDENTIALS` | 401 | 昵称或密码不正确（两者共用，不泄露账号是否存在） |
 | `VALIDATION_ERROR` | 422 | meta JSON 非法 / 枚举越界 / face>1 / 昵称密码不合规等 |
@@ -145,7 +155,7 @@ curl -s -X POST http://localhost:3000/api/users/login -H 'Content-Type: applicat
 | --- | --- | --- |
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
-| `DATA_DIR` | `./data` | 任务记录、输入/产物文件与账号表（`users/users.json`）的根目录 |
+| `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
 | `MAKEUP_ENGINE` | `mock` | `mock`（未来 `parametric`/`third-party`） |
 | `SCENE_ANALYZER` | `mock` | `mock`（或 `off`） |
 | `REFERENCE_PROVIDER` | `mock` | `mock`（或 `off`） |
@@ -173,6 +183,7 @@ npm test           # vitest run
 - `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取 medium
 - `user.test.ts` — 注册/重名/登录成败/查档案 + 真实 JSON 仓库与 scrypt 凭据（守「明文不落库、视图不含凭据」）
 - `weather.test.ts` — WMO 码映射 / 查询校验 / 用例错误翻译 + open-meteo 适配器（**打桩 fetch，单测不联网**）
+- `cabinet.test.ts` — 衣橱边界（空名 / 超长 / 特性重名 / 控制字符 / 空更新）+ 用例（用户不存在 → `USER_NOT_FOUND`、超上限 → `CABINET_FULL`）+ **越权改删 → 报 404 且原数据一个字没动** + 真实 JSON 仓库 `mkdtemp` 验「重启后还在」
 
 ## 换真实引擎怎么做
 
@@ -182,6 +193,7 @@ npm test           # vitest run
 - 真实场景理解：实现 `modules/understanding/domain/ports/scene-analyzer.ts`（视觉大模型），输入里带着 `brief`；
 - 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`；
 - 换账号存储 / 换哈希算法：实现 `modules/user/domain/ports/user-repository.ts` 或 `password-hasher.ts`，在 `user/compose.ts` 换实现（用例与路由不变）；
-- 换天气源：实现 `modules/weather/domain/ports/weather-provider.ts`，在 `weather/compose.ts` 按 `kind` 分发 + `config.weatherProvider` 开一个环境变量。拿不到数据要抛 `WeatherUpstreamError`（→ 502 让前端回落手动预设），**不要返回假天气**。
+- 换天气源：实现 `modules/weather/domain/ports/weather-provider.ts`，在 `weather/compose.ts` 按 `kind` 分发 + `config.weatherProvider` 开一个环境变量。拿不到数据要抛 `WeatherUpstreamError`（→ 502 让前端**省掉这次天气**，不阻塞提交），**不要返回假天气**；
+- 换衣橱存储：实现 `modules/cabinet/domain/ports/cosmetic-repository.ts`，在 `cabinet/compose.ts` 换实现。换到有并发保障的存储后，把「件数上限 / 归属判断」从用例下沉到仓库层兜底（端口契约不变）。
 
 > **素材红线**：参考样本当前为自绘演示示意，license 诚实标注、`sourceUrl` 置空；正式稿须替换为可授权素材并逐张回填来源，不抓取网络图。

@@ -15,12 +15,15 @@ import type { UserModuleServices } from './modules/user/index.js';
 import { registerUsersRoutes } from './modules/user/index.js';
 import type { WeatherModuleServices } from './modules/weather/index.js';
 import { registerWeatherRoutes } from './modules/weather/index.js';
+import type { CabinetModuleServices } from './modules/cabinet/index.js';
+import { registerCabinetRoutes } from './modules/cabinet/index.js';
 
 export interface AppDeps {
   config: ServerConfig;
   jobs: JobsModuleServices;
   user: UserModuleServices;
   weather: WeatherModuleServices;
+  cabinet: CabinetModuleServices;
 }
 
 /**
@@ -70,6 +73,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
       registerWeatherRoutes(scoped, {
         getWeather: deps.weather.getWeather,
+      });
+
+      registerCabinetRoutes(scoped, {
+        addCosmetic: deps.cabinet.addCosmetic,
+        listCosmetics: deps.cabinet.listCosmetics,
+        updateCosmetic: deps.cabinet.updateCosmetic,
+        removeCosmetic: deps.cabinet.removeCosmetic,
       });
     },
     { prefix: API_PREFIX },

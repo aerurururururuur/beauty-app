@@ -23,6 +23,9 @@ npm test            # 74 用例全绿
 #   → 轮询 /api/jobs/:id 到 done;GET /api/jobs/:id/result 取回成品图字节
 #   账号:POST /api/users 注册 → POST /api/users/login 核对 → GET /api/users/:id;
 #     重名 409 / 密码错 401 / 昵称密码不合规 422 / id 不存在 404,各来一发
+#   衣橱:POST /api/cabinet/items → GET ?userId= → PATCH → DELETE → 再 GET 应为空;
+#     user 不存在 404 USER_NOT_FOUND / 超 100 条 409 CABINET_FULL;
+#     拿别人的 itemId 去改或删 → 404 CABINET_ITEM_NOT_FOUND,**且原数据一字未动**
 #   天气:GET /api/weather?city=北京 与 ?lat=39.9&lon=116.4;
 #     没地点 422 / 城名查不到 404 / 上游挂 502;再以 WEATHER_PROVIDER=mock 起一次确认 source=mock
 #   · Windows/Git Bash:curl -d 带中文会按本地编码发,Content-Length 对不上而报
@@ -46,12 +49,18 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
     ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
     ├── user/              账号:昵称+密码(scrypt 哈希) · 注册/登录核对/查档案 · JSON 落盘(无登录态,见 §10)
+    ├── cabinet/           衣橱:用户自记化妆品(名称 + 自定义特性)· 归属校验 · JSON 落盘(见 §11)
     ├── weather/           当日天气:open-meteo 实拉(无 key) + WMO 码映射 + mock 兜底
     └── recommendations/   [空壳] 平价同款推荐端口(骨架未 wire)
 ```
 
 依赖方向：`shared` 只被依赖；`assets / understanding / references / makeup` 相互独立、都被 `jobs` 编排。
 跨模块协作**只经各模块 `index.ts`(public barrel)**，禁止直达模块内部文件；依赖图保持无环。
+
+**跨模块「问一句」的规矩**（cabinet 起的头，以后照这个来）：cabinet 要确认 `userId` 指向真实用户，
+才不至于把孤儿条目喂给推荐——但它**不 import user 模块**。做法是端口声明在 cabinet 自己的
+`domain/ports`（`userExists`），实现由 **组装根 `src/index.ts`** 把 user 的 `getUser` 包一层传进
+`createCabinetModule`。依赖图仍无环，模块间仍零 import。
 
 ### 每个模块的固定规则（照做，别例外）
 
@@ -70,6 +79,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 | 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（`config.makeupEngine`） |
 | 天气实拉 → 换源 | `weather/infrastructure/weather-provider/mock-weather-provider.ts`（离线示意） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts`（`config.weatherProvider`） |
 | 平价推荐 → 规则引擎 | （空壳无 mock） | `recommendations/domain/ports/recommender.ts` | `recommendations/compose.ts` + `src/index.ts` 接入 |
+| 衣橱存储 → 数据库 | `cabinet/infrastructure/json/`（无 mock，真实实现） | `cabinet/domain/ports/cosmetic-repository.ts` | `cabinet/compose.ts`（`config.dataDir`，同 user 的做法） |
 
 ---
 
@@ -133,8 +143,11 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 ## 8. weather（当日天气实拉 · 已接线）
 
 - **现状 [x]**（2026-09-10）：上游 **open-meteo**（无 key、免企业认证）：城市名 → `geocoding-api` 解析坐标 → `api/forecast` 取当日实况 + 当日 UV；`wmo.ts` 把 WMO 码转中文；`GET /api/weather?city=北京` 或 `?lat=&lon=` 返回 `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`；`WEATHER_PROVIDER=open-meteo|mock` 分发（`weather/compose.ts`）；错误码 `LOCATION_REQUIRED` 422 / `CITY_NOT_FOUND` 404 / `WEATHER_UNAVAILABLE` 502 已进 `shared` 映射表。
-- **失败口径（红线 1 的落法）**：拿不到就 502，**绝不返回编造的天气冒充实时**；前端据此静默回落手动预设，不阻塞提交。`mock` 只能在**知情**的离线演示里用，响应带 `source:"mock"` 供 UI 标注「离线示意」。
-- **前端接入 [x]**（2026-09-10）：`vue/src/api/weather.js` 调 `/weather`；上传页「当天天气」加了城市输入 + 「拉取实时」按钮，返回值只取天气四字段填 `brief.weather`（`place`/`source` 是回显元信息，**不进 meta**——后端 weather schema 是 `.strict()`，多键会 422）；`source:"mock"` 或拉取失败只在说明行标提示色，**保留当前预设、不阻塞提交**，点任一预设即回 `manual` 态。mock 模式下不联网、回本地示意值。
+- **失败口径（红线 §13-1 的落法）**：拿不到就 502，**绝不返回编造的天气冒充实时**；前端据此**整个不带 `weather` 提交**，不阻塞提交。`mock` 只能在**知情**的离线演示里用，响应带 `source:"mock"` 供 UI 标注「离线示意」。
+- **前端接入 [x]**（2026-09-10）：`vue/src/api/weather.js` 调 `/weather`；上传页「当天天气」是城市输入 + 「拉取实时」按钮，返回值只取天气四字段填 `brief.weather`（`place`/`source` 是回显元信息，**不进 meta**——后端 weather schema 是 `.strict()`，多键会 422）；`source` 由后端**原样透传**给 UI 判断，前端不猜来源；拉取失败 / 标了 `mock` 只在说明行标提示色，**不阻塞提交**。mock 模式下不联网、回本地示意值。
+- **手动预设已删 [x]**（2026-09-10）：**没有「手动预设」这条回落路**（原 `WEATHER_PRESETS` / `useWeatherPreset` 已移除）。
+  理由与失败口径是同一件事：既声明不编造天气，就不该再让人手挑一个假天气混进 `brief`。代价是断网演示时
+  提交的 `brief` 里**没有天气**——这是诚实的空，不是缺件；有网就实拉，无网就按本节待办把 `WEATHER_PROVIDER=mock` 写进现场 `.env`，让 UI 明说「离线示意」。
 - **待办 [ ]**：
   - [ ] 演示前把 `WEATHER_PROVIDER` 写进现场 `.env`（有网 `open-meteo` / 无网 `mock`），别临场改代码。
   - [ ] （可选）按日期取非当日天气：`WeatherQuery.date` 已预留，当前只取当日实况。
@@ -144,10 +157,15 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 ## 9. recommendations（空壳 → 接线 · 省钱普惠）
 
 - **现状 [~]**：端口 `recommender.ts` 已声明；`recommendations/compose.ts` 返回 `provider: null`，未接线。
+- **输入建模 [x]（2026-09-10 拍板）**：用户「已拥有产品」= **cabinet 衣橱**（见 §11），不是硬编码列表、
+  也不塞进 user 档案。推荐真正需要的只是「按 userId 查已拥有品」这一个能力，cabinet 的 `listByUser` 就是那个接缝。
+  **代价要认**：衣橱的「特性」是完全自定义的自由键值，**没有稳定的「品类」锚点**——所以「缺什么补什么」这一句
+  暂时只能靠 `brief.occasion + 肤质/肤色` 推，不能可靠断言「你已经有唇部了」。取舍理由见 `server/src/modules/cabinet/README.md`。
 - **待办 [ ]**：
-  - [ ] 规则引擎：`occasion + 肤质/肤色 + 已拥有产品` →「缺什么补什么」——**优先已有品，缺的推平价线**；输出诚实标注「品牌参考」，UI 不渲染成广告位。
-  - [ ] 输入建模拍板：用户「已拥有产品」从哪来（骨架可本地手选 / 硬编码列表；将来属 `user` 模块档案的已拥有品字段）→ 再定 `RecommendationsProvider` 入参出参形状。
-  - [ ] `compose.ts` 返回实例、`src/index.ts` 接入；前端结果页展示推荐区。
+  - [ ] 规则引擎：`occasion + 肤质/肤色 + 已有品（cabinet.listByUser）` →「缺什么补什么」——**优先已有品，缺的推平价线**；输出诚实标注「品牌参考」，UI 不渲染成广告位。
+  - [ ] 定 `RecommendationsProvider` 入参出参形状：入参加「已拥有品」（形状就取 cabinet 的 `CosmeticItemView[]`）；
+    **出参要扩** —— `RecommendationItem` 现在只有 `{ id, name, note }`，撑不起「品牌参考 + 为什么推它」。本轮未动 `recommendations` 代码。
+  - [ ] `compose.ts` 返回实例、`src/index.ts` 接入（拿 cabinet 的 `listByUser` 喂进来，粘法同 §1「跨模块问一句」）；前端结果页展示推荐区。
 
 ---
 
@@ -164,9 +182,47 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 11. 前端（vue/ —— 非模块目录，独立成板）
+## 11. cabinet（衣橱 · 用户化妆品档案 · 已接线）
 
-- **现状 [x]**：三页动线（上传 → 生成 → 成片对比）；`UploadView` 表单齐（本人照 + 场合 chips + 肤质 chips + **肤色 5 档色卡** + 穿搭 tag + 天气组 + 自由文字 + 可选氛围图折叠）；`stores/makeup.js` / `api/{makeup,mock}.js` 与 server 语义同源；浏览器纯 mock 模式可跑通。
+- **现状 [x]**（2026-09-10）：`CosmeticItem{ id, userId, name, attributes[{label,value}], createdAt, updatedAt? }`；
+  用例 `AddCosmetic` / `ListCosmetics` / `UpdateCosmetic` / `RemoveCosmetic`；端点
+  `POST /api/cabinet/items`（201）· `GET /api/cabinet/items?userId=`（200 `{items}`）·
+  `PATCH /api/cabinet/items/:id`（200）· `DELETE /api/cabinet/items/:id?userId=`（204）；
+  错误码 `CABINET_ITEM_NOT_FOUND` 404 / `CABINET_FULL` 409 已进 `shared` 映射表；
+  `JsonCosmeticRepository` 落 `DATA_DIR/cabinet/items.json`（tmp+rename 原子写，同 user）。
+- **三条拍板（2026-09-10）**：
+  1. **归属靠客户端显式传 `userId`** —— 本轮无令牌、无会话（红线 §13-5），这是唯一可行的归属方式。
+  2. **特性完全自定义** —— 只强制 `name`，其余是用户自填的「标签 + 值」自由键值对，**不给枚举**。
+     表单给 品类/色号/质地 三个快捷 chip，但**那是约定，不是枚举**——用户仍可写任意标签。
+  3. **独立模块，不塞进 user 档案** —— 衣橱是有自己生命周期的 CRUD 资源（增删改、逐条排序、
+     将来可能要图片/保质期）；塞进 user 会撑大 `User` 实体和它的 JSON 单表，且每加一个字段都要动 user 的表。
+- **不泄露存在性**：改/删若归属不符，报 `CABINET_ITEM_NOT_FOUND`（404）而**不是 403**——不区分
+  「这条不存在」与「这条不属于你」。在无守卫的前提下，这是最低成本的一道正确性。
+- **上限 `MAX_ITEMS_PER_USER = 100`**：JSON 单表是整表读-改-写，无上限时演示反复添加会越写越慢。
+- **明确不做（本轮）**：化妆品拍照识别（红线 §13-5）、条目的图片 / 保质期、公开分享、条目去重合并。
+- **前端 [x]**：`pages/CabinetView.vue`（名称 + 动态增删的特性行 + 常用标签 chip；列表可改可删，
+  删除是两步确认）· `stores/cabinet.js` · `api/cabinet.js`；入口在主页 `HomeView` 的按钮。
+- **接缝（将来）**：
+  - [ ] **喂给推荐**：`src/index.ts` 把 `listByUser` 接到 recommendations（见 §9 待办）。
+  - [ ] **存储换数据库**：新实现一个 `CosmeticRepository`，在 `cabinet/compose.ts` 换掉，用例 / 校验 / 路由 / 测试都不动。
+  - [ ] **品类锚点**（若 §9 非做不可）：加一个**约定标签**常量（不是枚举），或让用户显式选品类——届时再拍一次。
+
+---
+
+## 12. 前端（vue/ —— 非模块目录，独立成板）
+
+- **现状 [x]**：**登录页打头**（`/login` → 主页）→ 上传 → 生成 → 成片对比，衣橱页 `/cabinet` 由主页入口进；
+  `UploadView` 表单齐（本人照 + 场合 chips + 肤质 chips + **肤色 5 档色卡** + 穿搭 tag + 天气组 + 自由文字 + 可选氛围图折叠）；
+  `stores/{makeup,user,cabinet}.js` / `api/{makeup,weather,users,cabinet,mock}.js` 与 server 语义同源；浏览器纯 mock 模式可跑通。
+- **登录门禁 [x]**（2026-09-10）：`router/index.js` 里一条 `beforeEach`——没身份一律先去 `/login`，登完回原路。
+  ★ **这不是安全边界**：后端不签发 token、不建会话（红线 §13-5），所以前端拦不住也无需拦住谁，
+  真正拦住「看/改别人衣橱」的是**后端的归属校验**。它只是别让人一进来就对着一堆「你是谁」的空表单发呆。
+  本地只存 `{ id, nickname }`（`beauty-app.user`），**密码绝不落 localStorage、绝不进 store**；
+  `logout()` 顺带 `makeupStore.reset()`——**身份边界就是现场照片的边界**（红线 §13-4 要求即用即删，不靠人记得手动清）。
+- **天气去掉手动预设 [x]**（2026-09-10）：原先的「预设天气 chips」已删——**不能既说『绝不返回编造的天气冒充实时』，
+  又让人手挑一个假天气提交**。现在只有一条路：填城市 → 实拉 `/api/weather`；拉不到就**整个不带 `weather` 提交**
+  （后端 brief schema 里 `weather` 是 `.strict().optional()`，省掉是合法契约，不是绕过），天气永不阻塞提交。
+  mock 模式回一份样例值并标 `source:'mock'`，UI 明写「离线示意」。
 - **待办 [ ]**：
   - [ ] **本地「妆造间」**：把生成历史存本地（localStorage / IndexedDB），“下次大事再备”；与账户 / 后端历史无关。
   - [ ] **分享卡导出**：canvas → PNG 导出成品对比图，作 demo 收尾彩蛋。
@@ -176,7 +232,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 12. 红线（写进验收，任何人改动都不得破坏）
+## 13. 红线（写进验收，任何人改动都不得破坏）
 
 1. **demo 稳 > 一切**：引擎不稳 / 人脸检测失败 / 断网 / 设备故障 → 预设照 + mock + 录播三重兜底。
 2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；不抓网络图。参考素材必须 自绘 / 自有 / 可授权。
@@ -186,7 +242,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 13. 待拍板（阻塞项，需要 owner 决策后任务才能开工）
+## 14. 待拍板（阻塞项，需要 owner 决策后任务才能开工）
 
 - [ ] 渲染方案 ① 自研参数化 vs ② 第三方 API（本周半天验证后拍板 → 决定 §6 的人脸关键点 / 渲染两单怎么派）。
 - [ ] 参考素材替换来源与授权范围（谁能贡献自绘 / 可授权图）。

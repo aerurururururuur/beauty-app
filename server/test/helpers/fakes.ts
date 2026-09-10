@@ -24,6 +24,11 @@ import type {
   WeatherProvider,
   WeatherResult,
 } from '../../src/modules/weather/index.js';
+import type {
+  CosmeticItem,
+  CosmeticRepository,
+  UserDirectory,
+} from '../../src/modules/cabinet/index.js';
 
 export function memFile(
   originalName = 'me.png',
@@ -193,5 +198,35 @@ export class ThrowingEngine implements Engine {
   readonly name = 'throwing';
   async generate(): Promise<EngineResult> {
     throw new Error('引擎炸了');
+  }
+}
+
+export class FakeCosmeticRepository implements CosmeticRepository {
+  private map = new Map<string, CosmeticItem>();
+
+  async save(item: CosmeticItem): Promise<void> {
+    this.map.set(item.id, item);
+  }
+  async findById(id: string): Promise<CosmeticItem | null> {
+    return this.map.get(id) ?? null;
+  }
+  async listByUser(userId: string): Promise<CosmeticItem[]> {
+    return [...this.map.values()].filter((item) => item.userId === userId);
+  }
+  async remove(id: string): Promise<void> {
+    this.map.delete(id);
+  }
+  /** 断言辅助:表里现有条目数(跨全部用户)。 */
+  size(): number {
+    return this.map.size;
+  }
+}
+
+/** 归属目录假实现:构造时给定「存在的用户 id 集合」。 */
+export class FakeUserDirectory implements UserDirectory {
+  constructor(private readonly ids: readonly string[] = []) {}
+
+  async exists(userId: string): Promise<boolean> {
+    return this.ids.includes(userId);
   }
 }
