@@ -2,6 +2,11 @@
  * constants/options.js —— 上传表单/结果回显共用的可选项与中文名。
  * value 与后端契约(meta 里的 occasion/skinType/skinTone 枚举)保持一致,
  * 只做展示层,不在前端二次建模。
+ *
+ * ⚠️ 这里的 `label` 是**表单选项文案**(「面试 / 终面」这种带补充说明的长标签),
+ * 与场合语义里的短中文名(`SCENE_RULES[x].cn` = 「面试」,见 `@scene-rules`)是两回事:
+ * 前者只在下拉/chip 与回显里出现,后者进文案。**判定逻辑不在这里**,
+ * 别把关键词表加回来——那是 `@scene-rules` 的活。
  */
 
 export const OCCASION_OPTIONS = [

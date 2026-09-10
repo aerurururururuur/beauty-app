@@ -4,19 +4,24 @@
  * 输入附加 MakeupBrief(occasion / 肤质肤色 / 穿搭 / 天气),拼出「为什么这套」——
  * 呼应 roadmap:场合 formality 决定风格、肤质决定持妆选择、肤色决定色板(不默认浅肤色审美)。
  */
-import type { MakeupBrief, Occasion, SkinTone, SkinType } from '../../shared/index.js';
+import type { MakeupBrief, SkinTone, SkinType } from '../../shared/index.js';
+import { SCENE_RULES } from '../../shared/index.js';
 import type { SceneAnalysis } from '../../understanding/index.js';
 import type { Look } from '../domain/entities/look.js';
 import type { ResultText } from '../domain/entities/result-text.js';
 
-/** 场合英文 label → 中文名(缺失时原样回显)。 */
-const OCCASION_CN: Record<string, string> = {
-  interview: '面试',
-  date: '约会',
-  stage: '上台',
-  family: '见家长',
-  daily: '日常',
-};
+/**
+ * 场合英文 label → 中文名。
+ *
+ * 单一源在 `shared/domain/scene-rules.ts` —— 这里不再自己抄一份(曾经有第三份,
+ * 与前端 constants 和 understanding 的规则表各写一遍,加减场合时会漏改)。
+ * `scene.label` 的静态类型是 `string`(将来接视觉模型可能给出非枚举标签),
+ * 所以按字符串查表,**认不出就原样回显**,不编一个中文名出来。
+ */
+function occasionCn(label: string): string {
+  const rule = (SCENE_RULES as Record<string, { cn: string }>)[label];
+  return rule ? rule.cn : label;
+}
 
 const SKIN_TYPE_CN: Record<SkinType, string> = {
   dry: '干性',
@@ -51,15 +56,15 @@ export function buildNarrative(
 ): ResultText {
   const isOccasion = brief?.occasion !== undefined;
   const sceneCn = isOccasion && brief?.occasion
-    ? (OCCASION_CN[brief.occasion as Occasion] ?? brief.occasion)
+    ? occasionCn(brief.occasion)
     : brief?.sceneText?.trim()
       ? '自定义需求'
-      : (OCCASION_CN[scene.label] ?? scene.label);
+      : occasionCn(scene.label);
   const palette = Array.isArray(look.palette) ? (look.palette as unknown[]) : [];
   const style = typeof look.style === 'string' && look.style ? (look.style as string) : '自然日常';
 
   const basisParts: string[] = [];
-  if (brief?.occasion) basisParts.push(`场合:${OCCASION_CN[brief.occasion] ?? brief.occasion}`);
+  if (brief?.occasion) basisParts.push(`场合:${occasionCn(brief.occasion)}`);
   if (brief?.sceneText?.trim()) basisParts.push(`需求:${brief.sceneText.trim()}`);
   const basis = basisParts.join(' / ') || sceneCn;
 

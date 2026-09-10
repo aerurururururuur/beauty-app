@@ -15,5 +15,15 @@ export type {
 
 export type { EngineSourceImage, ImageRef } from './domain/entities/image.js';
 
+// 场合语义单一源(中文名/方向/标签/关键词 + 纯函数 describeScene)。
+// ★ 本文件同时被前端经 vite alias `@scene-rules` 直接执行,规矩见其文件头。
+export {
+  DEFAULT_OCCASION,
+  SCENE_MATCH_ORDER,
+  SCENE_RULES,
+  describeScene,
+} from './domain/scene-rules.js';
+export type { SceneDescriptor, SceneStyle } from './domain/scene-rules.js';
+
 export { AppError, ErrorCode } from './domain/errors/app-error.js';
 export type { ErrorCodeValue } from './domain/errors/app-error.js';

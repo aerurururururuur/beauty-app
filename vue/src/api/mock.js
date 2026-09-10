@@ -1,12 +1,15 @@
 /**
  * api/mock.js —— 演示模式的假后端。
  * 不联网即复刻真实 HTTP 契约(JobView / UserView / CosmeticItemView),使前端可离线完整体验。
- * 判定/风格/调色与 server 的 mock 适配器同源:按 brief.occasion(或自由文字关键词)
- * 选场合,再按 brief.skinTone 调色板——呼应「按真实肤色、不默认浅肤色审美」。
+ * 判定与 server 的 mock 适配器**同源**:场合判定直调 `@scene-rules` 里那个纯函数
+ * (就是 `MockSceneAnalyzer` 调的同一个人),不再在本文件抄一份关键词表。
+ * 风格文案 + 色板仍按 brief.skinTone 调——呼应「按真实肤色、不默认浅肤色审美」。
  *
  * 开关 `useMock` 在 `./use-mock.js`(那儿小,能被首屏链安全引用);
  * 本文件请**只经 `await import('./mock')` 惰性引用**,别静态 import 进首屏链。
  */
+
+import { SCENE_RULES, describeScene } from '@scene-rules'
 
 export const DEMO_PORTRAIT = '/demo/demo-photo.svg'
 /** 刷新结果页时的回放示例任务简报。 */
@@ -19,40 +22,35 @@ const DEMO_BRIEF = {
   weather: { condition: '晴', temperatureC: 24, humidityPct: 45, uvIndex: 3 }
 }
 
-// ---------------- 场合判定(与 server mock-scene-analyzer 同源) ----------------
-const KEYWORD_RULES = [
-  { keywords: ['面试', '终面', '求职', '复试'], label: 'interview' },
-  { keywords: ['上台', '演讲', '答辩', '路演', '主持', '汇报'], label: 'stage' },
-  { keywords: ['约会', '相亲', '烛光'], label: 'date' },
-  { keywords: ['见家长', '家长'], label: 'family' },
-  { keywords: ['上班', '通勤', '日常', '开会', '客户'], label: 'daily' }
-]
+// ---------------- 场合判定:直接调后端的单一源,不再自己抄一份 ----------------
+// `describeScene` 就是 `MockSceneAnalyzer` 调的那个纯函数(经 vite alias `@scene-rules`
+// 直读 server/src/modules/shared/domain/scene-rules.ts)。此前这里抄了一整套
+// 关键词表 + 方向 + 标签,改后端忘了改前端时,浏览器 mock 模式会**静默**给出另一个答案。
+// 现在两侧逐字一致,包括自由文字的修饰词叠加。
 
-const OCC = {
-  interview: { cn: '面试', style: '正式得体 · 哑光大地色', direction: '正式得体 · 哑光大地色,眉眼利落显精神', tags: ['正式', '哑光', '大地色', '利落'], base: { 唇: [188, 118, 122], 颊: [214, 150, 130], 眼影: [166, 128, 104] } },
-  date: { cn: '约会', style: '温柔水光 · 粉调提气色', direction: '温柔提气色 · 粉调水光,亲和自然', tags: ['温柔', '粉调', '水光', '亲和'], base: { 唇: [214, 132, 138], 颊: [244, 178, 168], 眼影: [210, 156, 158] } },
-  stage: { cn: '上台', style: '上台高显色 · 立体哑光', direction: '上台醒目 · 哑光高显色,轮廓立体、镜头友好', tags: ['舞台', '高显色', '哑光', '立体'], base: { 唇: [178, 66, 84], 颊: [226, 130, 108], 眼影: [122, 88, 120] } },
-  family: { cn: '见家长', style: '温婉自然 · 豆沙提气色', direction: '温婉得体 · 自然提气色,亲切耐看', tags: ['温婉', '自然', '提气色', '耐看'], base: { 唇: [198, 128, 132], 颊: [228, 168, 150], 眼影: [186, 150, 142] } },
-  daily: { cn: '日常', style: '自然伪素颜 · 通透百搭', direction: '日常百搭 · 通透自然伪素颜', tags: ['日常', '通透', '伪素颜', '自然'], base: { 唇: [212, 142, 144], 颊: [232, 176, 160], 眼影: [188, 170, 168] } }
+/** 场合英文 label → 中文名。单一源同上;认不出就原样回显,不编一个中文名。 */
+function occCn(label) {
+  return SCENE_RULES[label]?.cn || label
 }
 
 /** 肤色档 → 色板校正(与 server mock-engine 一致):浅向白提亮、深向黑加深,medium 基准。 */
 const TONE_MIX = { light: 0.22, light_medium: 0.1, medium: 0, tan: -0.08, deep: -0.16 }
 const DEFAULT_TONE = 'medium'
 
-function detectScene(brief) {
-  const text = `${brief?.sceneText || ''}`.toLowerCase()
-  if (brief?.occasion && OCC[brief.occasion]) {
-    const o = OCC[brief.occasion]
-    return { label: brief.occasion, direction: o.direction, tags: o.tags, confidence: 0.92, source: 'mock' }
-  }
-  const hit = KEYWORD_RULES.find((r) => r.keywords.some((k) => text.includes(k)))
-  if (hit) {
-    const o = OCC[hit.label]
-    return { label: hit.label, direction: o.direction, tags: o.tags, confidence: 0.72, source: 'mock' }
-  }
-  const daily = OCC.daily
-  return { label: 'daily', direction: daily.direction, tags: daily.tags, confidence: text ? 0.4 : 0.3, source: 'mock' }
+/**
+ * 场合 → 基准风格文案 + 基准色板(与 server mock-engine 的 STYLES 同源)。
+ *
+ * ⚠️ **这份仍是拷贝,是知情的**:色板属于**上妆引擎的实现细节**,不是场合语义,
+ * 所以没有并进 `@scene-rules`(那会让 shared 里躺一份「将来换真引擎就没人用」的死数据)。
+ * 正确的清理时机是接真实引擎时——由 MockEngine 导出快照,而不是在这里再抄一遍。
+ * 已记进 roadmap §4 待办。
+ */
+const ENGINE_SPECS = {
+  interview: { style: '正式得体 · 哑光大地色', base: { 唇: [188, 118, 122], 颊: [214, 150, 130], 眼影: [166, 128, 104] } },
+  date: { style: '温柔水光 · 粉调提气色', base: { 唇: [214, 132, 138], 颊: [244, 178, 168], 眼影: [210, 156, 158] } },
+  stage: { style: '上台高显色 · 立体哑光', base: { 唇: [178, 66, 84], 颊: [226, 130, 108], 眼影: [122, 88, 120] } },
+  family: { style: '温婉自然 · 豆沙提气色', base: { 唇: [198, 128, 132], 颊: [228, 168, 150], 眼影: [186, 150, 142] } },
+  daily: { style: '自然伪素颜 · 通透百搭', base: { 唇: [212, 142, 144], 颊: [232, 176, 160], 眼影: [188, 170, 168] } }
 }
 
 // ---------------- 风格 / 色板 / 叠加区(与 server mock-engine 同源) ----------------
@@ -72,7 +70,7 @@ function mixWith(c, towardWhite) {
 
 /** 选场合基准风格并按肤色档校正色板。 */
 function specFor(label, tone) {
-  const o = OCC[label] || OCC.daily
+  const o = ENGINE_SPECS[label] || ENGINE_SPECS.daily
   const mix = TONE_MIX[tone] ?? TONE_MIX[DEFAULT_TONE]
   const base = o.base
   const palette = {
@@ -129,10 +127,10 @@ const TYPE_STRATEGY = {
 }
 
 function buildResultText(scene, look, brief) {
-  const isOccasion = !!brief?.occasion && !!OCC[brief.occasion]
-  const cn = isOccasion ? OCC[brief.occasion].cn : brief?.sceneText ? '自定义需求' : (OCC[scene.label]?.cn || scene.label)
+  const isOccasion = !!brief?.occasion && !!SCENE_RULES[brief.occasion]
+  const cn = isOccasion ? occCn(brief.occasion) : brief?.sceneText ? '自定义需求' : occCn(scene.label)
   const basisParts = []
-  if (brief?.occasion) basisParts.push(`场合:${OCC[brief.occasion].cn}`)
+  if (brief?.occasion) basisParts.push(`场合:${occCn(brief.occasion)}`)
   if (brief?.sceneText?.trim()) basisParts.push(`需求:${brief.sceneText.trim()}`)
   const basis = basisParts.join(' / ') || cn
 
@@ -221,7 +219,8 @@ export async function mockGetJob(id) {
     }
   }
 
-  const scene = detectScene(rec.brief)
+  // 与后端 MockSceneAnalyzer 调的是同一个纯函数(单一源 @scene-rules)。
+  const scene = describeScene(rec.brief)
   if (elapsed >= STEP_AT[1].at) view.scene = scene
   if (elapsed >= STEP_AT[2].at) view.references = buildReferences(scene.label)
   if (elapsed >= STEP_AT[3].at) {

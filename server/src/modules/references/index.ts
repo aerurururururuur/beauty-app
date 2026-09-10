@@ -6,5 +6,10 @@
 export type { ReferenceImage } from './domain/entities/reference.js';
 export type { ReferenceProvider } from './domain/ports/reference-provider.js';
 export { MockReferenceProvider } from './infrastructure/reference-provider/mock-reference-provider.js';
+export { OffReferenceProvider } from './infrastructure/reference-provider/off-reference-provider.js';
 export { createReferencesModule } from './compose.js';
-export type { ReferencesModuleServices } from './compose.js';
+export type {
+  ReferenceProviderKind,
+  ReferencesModuleOptions,
+  ReferencesModuleServices,
+} from './compose.js';

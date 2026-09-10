@@ -6,8 +6,9 @@
 > 本文件是**给协作者的代码任务板**：按 `server/src/modules/*` 拆模块，任务可直接认领、做完跑门禁即可。
 > 产品叙事 / 观众画像 / 提交材料叙事不入此文件；赛道背景与红线见文末「红线（写进验收）」。
 >
-> 状态（2026-09-10）：server 已按模块拆好、typecheck + 74 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
-> 接口留作接缝。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
+> 状态（2026-09-10）：server 已按模块拆好、typecheck + 121 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
+> 接口留作接缝（`SCENE_ANALYZER` / `REFERENCE_PROVIDER` 的开关已真接通，`MAKEUP_ENGINE` 待接引擎时再接）。
+> 场合语义已单源化到 `shared/domain/scene-rules.ts`，前后端共享同一份判定。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
 
 ---
 
@@ -16,7 +17,7 @@
 ```bash
 cd server
 npm run typecheck   # tsc --noEmit
-npm test            # 74 用例全绿
+npm test            # 121 用例全绿
 # 动了 HTTP / 流水线语义时,另做一次真实 e2e:
 #   PORT=3199 DATA_DIR=./data-e2e npm run dev
 #   curl -F "face=@../vue/public/demo/demo-photo.svg" -F 'meta={"occasion":"interview","skinTone":"tan",...}' http://127.0.0.1:3199/api/jobs
@@ -30,7 +31,12 @@ npm test            # 74 用例全绿
 #     没地点 422 / 城名查不到 404 / 上游挂 502;再以 WEATHER_PROVIDER=mock 起一次确认 source=mock
 #   · Windows/Git Bash:curl -d 带中文会按本地编码发,Content-Length 对不上而报
 #     "Request body size did not match Content-Length"——改用 --data-binary @utf8.json
+#   场景理解:POST 带 occasion=interview + sceneText=想显得专业但低调 → scene.tags 同时含
+#     场合标签与「低调」、direction 有「;按你的要求…」后缀;再发一次只带 sceneText=面试
+#     (无 occasion) → label 仍判 interview;SCENE_ANALYZER=off 起一次 → source=off、tags=[]
 cd ../vue && npm run build   # 只改了前端才需要
+#   ★ 动过 shared/domain/scene-rules.ts、vite alias 或 server.fs.allow 时,必须再 npm run dev
+#     实开一次并打开页面:跨根引用只在 dev 暴露,build 过得去不代表 dev 过得去
 ```
 
 错误码 → HTTP、契约字段、curl 示例的权威描述见 `server/README.md`，别在别处再维护一份。
@@ -42,9 +48,9 @@ cd ../vue && npm run build   # 只改了前端才需要
 ```
 src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp → 启停(唯一认识全部实现的地方)
 └── src/modules/
-    ├── shared/            地基:brief 枚举单源 · ImageRef/EngineSourceImage · AppError(无业务)
+    ├── shared/            地基:brief 枚举单源 · scene-rules(场合语义·前后端单一源) · AppError(无业务)
     ├── assets/            图片存取:ArtifactStore 端口 + 本地文件系统实现
-    ├── understanding/     场景理解:SceneAnalysis + 分析器端口 + mock(occasion/关键词 → 方向)
+    ├── understanding/     场景理解:SceneAnalysis + 分析器端口 + mock/off(判定实现在 shared/scene-rules)
     ├── references/        参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
@@ -62,6 +68,13 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 `domain/ports`（`userExists`），实现由 **组装根 `src/index.ts`** 把 user 的 `getUser` 包一层传进
 `createCabinetModule`。依赖图仍无环，模块间仍零 import。
 
+**唯一的跨「端」共享**（understanding 起的头）：场合语义在 `shared/domain/scene-rules.ts`，
+前端经 vite alias `@scene-rules` **直接执行后端这个源文件**（浏览器 mock 模式必须与真实后端
+给出同一个判定，各抄一份会静默漂移）。代价是那个文件必须**零运行时依赖**（只许 `import type`），
+`vue/vite.config.js` 需要 alias + `server.fs.allow` 放行 `../server`（本项目没有 workspace，
+dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先问：真的两端都需要吗？**
+色板这类「引擎实现细节」就不要放进来。详见 §2 与 `server/src/modules/shared/README.md`。
+
 ### 每个模块的固定规则（照做，别例外）
 
 - 模块内四层：`domain ← application ← presentation`，`infrastructure` 只实现本模块 `domain/ports`；依赖单向向内，domain 不碰框架 / IO。
@@ -74,9 +87,9 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 | 想接真实能力 | 现有 mock（位置） | 要实现的端口 | 接线点 |
 | --- | --- | --- | --- |
-| 场景理解 → 视觉大模型 | `understanding/infrastructure/scene-analyzer/mock-scene-analyzer.ts` | `understanding/domain/ports/scene-analyzer.ts` | `understanding/compose.ts` |
-| 参考检索 → 网页 / 图库 | `references/infrastructure/reference-provider/mock-reference-provider.ts` | `references/domain/ports/reference-provider.ts` | `references/compose.ts` |
-| 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（`config.makeupEngine`） |
+| 场景理解 → 视觉大模型 | `understanding/infrastructure/scene-analyzer/mock-scene-analyzer.ts` + 判定在 `shared/domain/scene-rules.ts` | `understanding/domain/ports/scene-analyzer.ts` | `understanding/compose.ts`（**已接通** `config.sceneAnalyzer`；`kind` 扩成 `'mock'\|'vision'\|'off'`，**留 `off` 当逃生门**） |
+| 参考检索 → 网页 / 图库 | `references/infrastructure/reference-provider/mock-reference-provider.ts` | `references/domain/ports/reference-provider.ts` | `references/compose.ts`（**已接通** `config.referenceProvider`；`off` = 返回空列表且不声称来源） |
+| 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（**尚未接线**：`createMakeupModule()` 还不收参数。`off` 对引擎没意义——没引擎就出不了成品，接真实引擎时再接） |
 | 天气实拉 → 换源 | `weather/infrastructure/weather-provider/mock-weather-provider.ts`（离线示意） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts`（`config.weatherProvider`） |
 | 平价推荐 → 规则引擎 | （空壳无 mock） | `recommendations/domain/ports/recommender.ts` | `recommendations/compose.ts` + `src/index.ts` 接入 |
 | 衣橱存储 → 数据库 | `cabinet/infrastructure/json/`（无 mock，真实实现） | `cabinet/domain/ports/cosmetic-repository.ts` | `cabinet/compose.ts`（`config.dataDir`，同 user 的做法） |
@@ -86,10 +99,13 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 ## 2. shared（地基）
 
 - **现状 [x]**：`domain/entities/brief.ts` = 枚举单源——`OCCASIONS`(interview/date/stage/family/daily) · `SKIN_TYPES`(5) · `SKIN_TONES`(light/light_medium/medium/tan/deep **5 档,缺省 `medium` 中间档**) · `WeatherInfo` · `MakeupBrief`；`ImageRef` + `EngineSourceImage`；`AppError`/`ErrorCode`。
-- **关键文件**：`brief.ts` · `image.ts` · `app-error.ts` · `infrastructure/config.ts`（.env 读取，属组装关心，不进 barrel）· `presentation/error-handler.ts`。
+- **现状 [x]**（场景语义单源）：`domain/scene-rules.ts` = 场合语义的**前后端单一源**——`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。它被 `understanding`（mock 分析器）、`makeup`（narration 取中文名）、**前端 `vue/src/api/mock.js`** 三处消费，消灭了此前各抄一份的漂移。
+- **关键文件**：`brief.ts` · `scene-rules.ts` · `image.ts` · `app-error.ts` · `infrastructure/config.ts`（.env 读取，属组装关心，不进 barrel）· `presentation/error-handler.ts`。
 - **待办 [ ]**：
-  - [ ] 未来若要新增维度（如妆品风格偏好），先在 `brief.ts` 加枚举 + 同步 zod schema/validator/测试——此文件是唯一改点。
-  - 无其它结构性待办（地基稳定，勿在 shared 放业务逻辑）。
+  - [ ] 未来若要新增维度（如妆品风格偏好），先在 `brief.ts` 加枚举 + 同步 zod schema/validator/测试——**枚举只在这里定义一处**。
+  - [ ] 加减**场合**时是两处：`brief.ts` 的 `OCCASIONS` + `scene-rules.ts` 的 `SCENE_RULES`/`SCENE_MATCH_ORDER`（漏配会编译不过 / 测试红），前端 `constants/options.js` 的 `OCCASION_OPTIONS` 也要跟着加（纯展示，无编译期保护）。
+  - [ ] `scene-rules.ts` 是唯一跨端共享资产，**禁止加运行时 import / 顶层副作用**（前端会直接执行它）。`understanding.test.ts` 有正则扫源码钉住这条。
+  - 无其它结构性待办（地基稳定，勿在 shared 放业务逻辑——`scene-rules` 是例外，见其上文件头说明：场合语义独立于引擎，且枚举本就单源于此）。
 
 ---
 
@@ -103,9 +119,13 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ## 4. understanding（场景理解 —— 保「稳」优先）
 
-- **现状 [x]**：`SceneAnalyzer` 端口；mock 读 `brief.occasion`，否则 `sceneText` 关键词命中（面试/约会/上台/见家长…），再否则 `daily` 兜底 → `SceneAnalysis{ label, direction, tags, confidence, source }`；`config.sceneAnalyzer` 已留 `mock` / `off` 分发缝。
+- **现状 [x]**：`SceneAnalyzer` 端口；判定本身在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)`——`brief.occasion` 优先（0.92）→ 否则 `sceneText` 关键词命中（0.72）→ 否则 `daily` 兜底（0.4 / 0.3）。`MockSceneAnalyzer` 只是包一层 `sleep(250)`（让前端轮询看到进度），`OffSceneAnalyzer` 不推断（`source:'off'` + `confidence:0`）。**`config.sceneAnalyzer` 已真接通** `mock` / `off`。
+- **现状 [x]**（本轮修的短路）：此前 `if (brief.occasion)` 会把 `sceneText` **整个丢掉**——用户写满需求，只要点了场合 chip，方向就固定不动。现在两者同时生效：场合定基调，自由文字里的**修饰词**（低调/加浓/利落/温柔/提气色）追加 `tags` 并在 `direction` 后接一句；场合基准已有的标签整条跳过，不发散。**只改文案与 chip，不改 `label`、不动色板 → 妆效与从前一致。**
+- **现状 [x]**：红线钉进测试——修饰词表**刻意不收「显白」**（红线 §13-3）；用户写了也不迎合，`narration` 另有一句正面回应。改修饰词表前先回去读红线。
+- **测试**：`server/test/understanding.test.ts`（此前该模块零测试）。
 - **待办 [ ]**：
-  - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片 / 氛围图提升场景判定置信度。它出错可能让现场 demo 翻车，须默认 off；接缝在 `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`。
+  - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片 / 氛围图提升场景判定置信度。它出错可能让现场 demo 翻车，须默认 off；接缝在 `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`（`kind` 扩成 `'mock' | 'vision' | 'off'`），**保留 `off` 当逃生门**。
+  - [ ] `SceneAnalysis.confidence` 目前**零消费者**（算出来、传下去、没人读）：要么接 UI（低置信度时提示用户补一句），要么删字段。**别假设它在起作用。**
   - 注意：风景/氛围参考图**不驱动成片**，只作回显，任何改动不得让它变回风格主输入。
 
 ---
@@ -223,7 +243,14 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
   又让人手挑一个假天气提交**。现在只有一条路：填城市 → 实拉 `/api/weather`；拉不到就**整个不带 `weather` 提交**
   （后端 brief schema 里 `weather` 是 `.strict().optional()`，省掉是合法契约，不是绕过），天气永不阻塞提交。
   mock 模式回一份样例值并标 `source:'mock'`，UI 明写「离线示意」。
+- **场合判定改调共享源 [x]**（2026-09-10）：`api/mock.js` 原先把后端的场合判定**又抄了一遍**（自己的
+  `KEYWORD_RULES` + `OCC` 的 cn/direction/tags），改一边另一边静默漂移。现在 `detectScene()` 整个删掉，
+  改调 `describeScene(brief)`——就是 `MockSceneAnalyzer` 调的同一个人，经 vite alias `@scene-rules`
+  直读 `server/src/modules/shared/domain/scene-rules.ts`。配套：`vue/vite.config.js` 加 alias +
+  `server.fs.allow: ['..']`（本项目无 workspace，dev server 默认根是 `vue/`，不放行取不到 `../server`）。
+  ★ **构建过 ≠ dev 过**：这类跨根引用只在 dev 才暴露，改完必须 `npm run dev` 实开一次。
 - **待办 [ ]**：
+  - [ ] `api/mock.js` 里 `ENGINE_SPECS[x].base` 与 `TONE_MIX` **仍是 `MockEngine` 色板的拷贝**（知情保留）：色板是**引擎实现细节**，提进 `@scene-rules` 会让 shared 里躺一份「将来换真引擎就没人用」的死数据。正确时机是接真实引擎时由 `MockEngine` 导出快照，**不要**再去 shared 里加一张表。
   - [ ] **本地「妆造间」**：把生成历史存本地（localStorage / IndexedDB），“下次大事再备”；与账户 / 后端历史无关。
   - [ ] **分享卡导出**：canvas → PNG 导出成品对比图，作 demo 收尾彩蛋。
   - [ ] （可选加分）**语音讲解**「为什么给你推这套」——赛道「AI 能听能说」点题；成本可控再上（浏览器 SpeechSynthesis 起步）。

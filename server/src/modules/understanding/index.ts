@@ -6,5 +6,10 @@
 export type { SceneAnalysis } from './domain/entities/scene.js';
 export type { SceneAnalyzer, SceneAnalyzerInput } from './domain/ports/scene-analyzer.js';
 export { MockSceneAnalyzer } from './infrastructure/scene-analyzer/mock-scene-analyzer.js';
+export { OffSceneAnalyzer } from './infrastructure/scene-analyzer/off-scene-analyzer.js';
 export { createUnderstandingModule } from './compose.js';
-export type { UnderstandingModuleServices } from './compose.js';
+export type {
+  SceneAnalyzerKind,
+  UnderstandingModuleOptions,
+  UnderstandingModuleServices,
+} from './compose.js';

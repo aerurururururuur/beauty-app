@@ -20,11 +20,14 @@ async function main(): Promise<void> {
   loadDotEnvIfPresent();
   const config = loadConfig();
 
-  // —— 各模块组合(当前全部走 mock 适配器;config.SCENE_ANALYZER / REFERENCE_PROVIDER /
-  //    MAKEUP_ENGINE 是未来分发开关,接入真实实现时在对应 create*Module 内读取) ——
+  // —— 各模块组合 ——
+  // SCENE_ANALYZER / REFERENCE_PROVIDER 已真正接通(在各自 compose.ts 里按 kind 分发)。
+  // ★ MAKEUP_ENGINE 仍**故意**没接:`off` 对「上妆引擎」没有意义——流水线没有引擎就出不了
+  //   成品,硬接一个 off 分支只会得到又一个假开关,而那正是本轮要修掉的东西。
+  //   接真实引擎时它的 kind 会扩成 'mock' | 'param' | 'api' 之类,那时再接。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  const { sceneAnalyzer } = createUnderstandingModule();
-  const { referenceProvider } = createReferencesModule();
+  const { sceneAnalyzer } = createUnderstandingModule({ kind: config.sceneAnalyzer });
+  const { referenceProvider } = createReferencesModule({ kind: config.referenceProvider });
   const { engine } = createMakeupModule();
 
   const jobs = createJobsModule({
