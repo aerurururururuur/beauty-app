@@ -13,6 +13,14 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   FACE_REQUIRED: 422,
   CONTEXT_REQUIRED: 422,
   SCENES_MAX_EXCEEDED: 422,
+  LOCATION_REQUIRED: 422,
+  CITY_NOT_FOUND: 404,
+  // 上游天气源挂了:网关类错误,前端据此回落到手动预设(不是本服务的锅)。
+  WEATHER_UNAVAILABLE: 502,
+  USER_NOT_FOUND: 404,
+  NICKNAME_TAKEN: 409,
+  // 「用户不存在」与「密码错」共用 401,不外泄账号是否存在,避免昵称枚举。
+  INVALID_CREDENTIALS: 401,
   VALIDATION_ERROR: 422,
   INTERNAL_ERROR: 500,
 };

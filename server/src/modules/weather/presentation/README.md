@@ -1,7 +1,11 @@
 # modules/weather/presentation —— 表现层
 
-本层放「对外入口/HTTP 适配」。
+`controllers/weather.controller.ts` —— 一个端点，`src/app.ts` 挂在 `/api` 前缀下：
 
-- **现状**：空（空壳模块，且预计长期为空）。weather 是**非 HTTP 能力模块**——天气经 `brief.weather` 随任务提交，不单独开端点；对外只经 `index.ts`(public barrel)。
-- **为什么没有**：HTTP 入口统一在 `jobs/presentation` + `src/app.ts`。
-- **将来**：天气以结构化数据进 `brief.weather` 回显（已有字段），无独立 HTTP 需求。
+| 方法 & 路径 | 说明 |
+| --- | --- |
+| `GET /weather?city=北京` / `?lat=..&lon=..` | 当日天气 → **200** `WeatherView`；无地点 422 / 城名查不到 404 / 上游挂 502 |
+
+- **现状**：已实现并接线。控制器很薄——把 `request.query` 原样交给用例（校验在 domain/validator、错误翻译在用例），不做业务判断。
+- **错误码 → HTTP**：复用 `shared/presentation/error-handler` 的**唯一映射表**，新增错误码去那里补，别在别处再映射。
+- **给前端的约定**：`source: "mock"` 时 UI 要标注「离线示意」；任何非 2xx 都该**静默回落手动预设**，不阻塞妆容提交。

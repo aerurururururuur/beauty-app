@@ -1,7 +1,8 @@
 # modules/weather/application —— 应用层
 
-本层放「天气的独立用例/策略」。
+放「取天气用例」：`usecases/get-weather.ts`，外加 `mapping/weather-view.mapper.ts`（结果 → 对外视图）。
 
-- **现状**：空（空壳模块，未 wire）。`weather/compose.ts` 返回 `{ provider: null }`，尚未在 `src/index.ts` 接入。
-- **将来放什么**：天气拉取若需独立编排（城市/坐标归一、失败回退到前端预设、限频缓存）放这里；`compose.ts` 里把 provider 实例化并返回。
-- **起点**：先实现 `domain/ports/weather-provider.ts` 的一个免费源实现（放 `infrastructure`）——见本模块根 README 待办。
+- **现状**：已实现并接线。用例只做编排——校验入参（`domain/validator`）、调 `WeatherProvider` 端口、投影成 `WeatherView`。
+- **关键职责**：这里是**上游错误与业务错误码的唯一翻译点**——`CityNotFoundError` → `CITY_NOT_FOUND`(404)，
+  其余异常 → `WEATHER_UNAVAILABLE`(502)。控制器因此不必认识任何上游错误类型。
+- **别做**：别在这里碰 HTTP、别在这里拼上游 URL（那是 `infrastructure` 的事）、别在上游失败时**返回猜测的天气**。

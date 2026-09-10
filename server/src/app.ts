@@ -11,10 +11,16 @@ import type { ServerConfig } from './modules/shared/infrastructure/config.js';
 import { makeErrorHandler } from './modules/shared/presentation/error-handler.js';
 import type { JobsModuleServices } from './modules/jobs/index.js';
 import { registerJobsRoutes } from './modules/jobs/index.js';
+import type { UserModuleServices } from './modules/user/index.js';
+import { registerUsersRoutes } from './modules/user/index.js';
+import type { WeatherModuleServices } from './modules/weather/index.js';
+import { registerWeatherRoutes } from './modules/weather/index.js';
 
 export interface AppDeps {
   config: ServerConfig;
   jobs: JobsModuleServices;
+  user: UserModuleServices;
+  weather: WeatherModuleServices;
 }
 
 /**
@@ -54,6 +60,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         submitJob: deps.jobs.submitJob,
         getJob: deps.jobs.getJob,
         getJobResult: deps.jobs.getJobResult,
+      });
+
+      registerUsersRoutes(scoped, {
+        registerUser: deps.user.registerUser,
+        authenticateUser: deps.user.authenticateUser,
+        getUser: deps.user.getUser,
+      });
+
+      registerWeatherRoutes(scoped, {
+        getWeather: deps.weather.getWeather,
       });
     },
     { prefix: API_PREFIX },

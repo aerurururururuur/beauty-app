@@ -7,6 +7,12 @@ import path from 'node:path';
 
 export type AdapterKind = 'mock' | 'off';
 
+/**
+ * 天气源开关。与 `weather/compose.ts` 的 WeatherProviderKind 同形(那边独立声明,
+ * 免得业务模块反向依赖组装层);两处要一起改。
+ */
+export type WeatherProviderKind = 'mock' | 'open-meteo';
+
 export interface ServerConfig {
   host: string;
   port: number;
@@ -17,6 +23,8 @@ export interface ServerConfig {
   sceneAnalyzer: AdapterKind;
   referenceProvider: AdapterKind;
   makeupEngine: AdapterKind;
+  /** 天气源:open-meteo(无 key 实拉,缺省)| mock(离线示意兜底)。 */
+  weatherProvider: WeatherProviderKind;
 }
 
 /** 若存在 .env 文件则把它读入 process.env(已有的环境变量优先,不覆盖)。 */
@@ -39,6 +47,11 @@ function asAdapterKind(value: string | undefined, fallback: AdapterKind): Adapte
   return fallback;
 }
 
+function asWeatherKind(value: string | undefined, fallback: WeatherProviderKind): WeatherProviderKind {
+  if (value === 'mock' || value === 'open-meteo') return value;
+  return fallback;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   return {
     host: env.HOST ?? '127.0.0.1',
@@ -49,5 +62,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     sceneAnalyzer: asAdapterKind(env.SCENE_ANALYZER, 'mock'),
     referenceProvider: asAdapterKind(env.REFERENCE_PROVIDER, 'mock'),
     makeupEngine: asAdapterKind(env.MAKEUP_ENGINE, 'mock'),
+    // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。
+    weatherProvider: asWeatherKind(env.WEATHER_PROVIDER, 'open-meteo'),
   };
 }

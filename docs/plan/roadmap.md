@@ -6,7 +6,7 @@
 > 本文件是**给协作者的代码任务板**：按 `server/src/modules/*` 拆模块，任务可直接认领、做完跑门禁即可。
 > 产品叙事 / 观众画像 / 提交材料叙事不入此文件；赛道背景与红线见文末「红线（写进验收）」。
 >
-> 状态（2026-09-09）：server 已按模块拆好、typecheck + 45 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
+> 状态（2026-09-10）：server 已按模块拆好、typecheck + 74 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
 > 接口留作接缝。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
 
 ---
@@ -16,11 +16,17 @@
 ```bash
 cd server
 npm run typecheck   # tsc --noEmit
-npm test            # 45 用例全绿
+npm test            # 74 用例全绿
 # 动了 HTTP / 流水线语义时,另做一次真实 e2e:
 #   PORT=3199 DATA_DIR=./data-e2e npm run dev
 #   curl -F "face=@../vue/public/demo/demo-photo.svg" -F 'meta={"occasion":"interview","skinTone":"tan",...}' http://127.0.0.1:3199/api/jobs
 #   → 轮询 /api/jobs/:id 到 done;GET /api/jobs/:id/result 取回成品图字节
+#   账号:POST /api/users 注册 → POST /api/users/login 核对 → GET /api/users/:id;
+#     重名 409 / 密码错 401 / 昵称密码不合规 422 / id 不存在 404,各来一发
+#   天气:GET /api/weather?city=北京 与 ?lat=39.9&lon=116.4;
+#     没地点 422 / 城名查不到 404 / 上游挂 502;再以 WEATHER_PROVIDER=mock 起一次确认 source=mock
+#   · Windows/Git Bash:curl -d 带中文会按本地编码发,Content-Length 对不上而报
+#     "Request body size did not match Content-Length"——改用 --data-binary @utf8.json
 cd ../vue && npm run build   # 只改了前端才需要
 ```
 
@@ -39,8 +45,8 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
     ├── references/        参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
-    ├── user/              [空壳] 用户账号:User 实体 + UserRepository 契约(登录未做,见 §10)
-    ├── weather/           [空壳] 天气拉取端口(骨架未 wire)
+    ├── user/              账号:昵称+密码(scrypt 哈希) · 注册/登录核对/查档案 · JSON 落盘(无登录态,见 §10)
+    ├── weather/           当日天气:open-meteo 实拉(无 key) + WMO 码映射 + mock 兜底
     └── recommendations/   [空壳] 平价同款推荐端口(骨架未 wire)
 ```
 
@@ -62,7 +68,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 | 场景理解 → 视觉大模型 | `understanding/infrastructure/scene-analyzer/mock-scene-analyzer.ts` | `understanding/domain/ports/scene-analyzer.ts` | `understanding/compose.ts` |
 | 参考检索 → 网页 / 图库 | `references/infrastructure/reference-provider/mock-reference-provider.ts` | `references/domain/ports/reference-provider.ts` | `references/compose.ts` |
 | 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（`config.makeupEngine`） |
-| 天气实拉 → 免费源 | （空壳无 mock） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts` + `src/index.ts` 接入 |
+| 天气实拉 → 换源 | `weather/infrastructure/weather-provider/mock-weather-provider.ts`（离线示意） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts`（`config.weatherProvider`） |
 | 平价推荐 → 规则引擎 | （空壳无 mock） | `recommendations/domain/ports/recommender.ts` | `recommendations/compose.ts` + `src/index.ts` 接入 |
 
 ---
@@ -107,7 +113,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 - **现状 [x]**：`Engine` 端口（`name` + `generate(EngineInput)→EngineResult{ resultFilePath, mimeType, look }`）；`look` = `Look{ style, palette, zones }`；`engine-output.validator` 把关外部产物（路径/类型存在、坐标/比例 0..1、RGB 0..255、opacity 0..1、blur ≥0，非法 → `INTERNAL_ERROR`）；`MockEngine` 按 **occasion 基准风格 × skinTone 调深浅**（深肤色档加深、缺省 medium，不默认浅肤色审美）；`application/narration.ts` 组装「为什么这套」文案。
 - **待办 [ ]（wow 的唯一来源 = 上妆像本人、且自然）**：
-  - [ ] **拍板（阻塞下面两项）**：① 自研参数化渲染（关键点 + 局部调色合成，可控、原创强） vs ② 第三方上妆图像 API（快而稳，需核授权、原创叙事弱）。
+  - [ ] **拍板（阻塞下面两项）**：① 自研参数化渲染（关键点 + 局部调色合成，可控、原创强） vs ② 第三方上妆图像 API（快而稳，需核授权、原创叙事弱）。**选型方向 + 真实 API 实测规范见 `docs/plan/ai-engine-api-spike.md`（可整单派人）**——先按那里以 Perfect Corp Copy Makeup 为主（个人免企业、¥0 免费单元够 hackathon；美图需企业认证已放弃为主选），再回来勾这一项。
   - [ ] **人脸关键点检测 / 对齐**：真实照片 → 五官关键点（mediapipe 等），坐标才算得准。定位：`makeup` 新 infra（或独立子目录），产出喂给渲染；仍走 `Engine` 端口，`compose.ts` 分发，业务层不感知。
   - [ ] **参数化渲染**：把妆容画到照片像素（唇 / 眼影 / 底妆调色合成），保「素颜真实度」，不做夸张滤镜；实现后产物仍交 `engine-output.validator` 把关。
   - [ ] **保留 mock 分支作离线兜底**：演示永不因引擎崩掉（`config.makeupEngine` 分发，`mock` 常驻可选）。
@@ -124,12 +130,14 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 8. weather（空壳 → 接线）
+## 8. weather（当日天气实拉 · 已接线）
 
-- **现状 [~]**：端口 `WeatherProvider{ name, fetch(WeatherQuery)→Promise<WeatherInfo> }` 已声明；`weather/compose.ts` 返回 `provider: null`，**未在 `src/index.ts` 接入**；`brief.weather` 目前由前端手动预设回显。
+- **现状 [x]**（2026-09-10）：上游 **open-meteo**（无 key、免企业认证）：城市名 → `geocoding-api` 解析坐标 → `api/forecast` 取当日实况 + 当日 UV；`wmo.ts` 把 WMO 码转中文；`GET /api/weather?city=北京` 或 `?lat=&lon=` 返回 `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`；`WEATHER_PROVIDER=open-meteo|mock` 分发（`weather/compose.ts`）；错误码 `LOCATION_REQUIRED` 422 / `CITY_NOT_FOUND` 404 / `WEATHER_UNAVAILABLE` 502 已进 `shared` 映射表。
+- **失败口径（红线 1 的落法）**：拿不到就 502，**绝不返回编造的天气冒充实时**；前端据此静默回落手动预设，不阻塞提交。`mock` 只能在**知情**的离线演示里用，响应带 `source:"mock"` 供 UI 标注「离线示意」。
+- **前端接入 [x]**（2026-09-10）：`vue/src/api/weather.js` 调 `/weather`；上传页「当天天气」加了城市输入 + 「拉取实时」按钮，返回值只取天气四字段填 `brief.weather`（`place`/`source` 是回显元信息，**不进 meta**——后端 weather schema 是 `.strict()`，多键会 422）；`source:"mock"` 或拉取失败只在说明行标提示色，**保留当前预设、不阻塞提交**，点任一预设即回 `manual` 态。mock 模式下不联网、回本地示意值。
 - **待办 [ ]**：
-  - [ ] 实现一个免费天气源 provider（无 key 优先，如 open-meteo；**离线 mock 兜底**），在 `weather/compose.ts` 返回实例、`src/index.ts` 接入，让 `brief.weather` 从「手动预设」升级为「自动拉取」。
-  - [ ] 前端：上传页可带城市 / 定位 → 调后端填 `brief.weather`；天气源挂了仍回落到手动预设（不阻塞提交）。
+  - [ ] 演示前把 `WEATHER_PROVIDER` 写进现场 `.env`（有网 `open-meteo` / 无网 `mock`），别临场改代码。
+  - [ ] （可选）按日期取非当日天气：`WeatherQuery.date` 已预留，当前只取当日实况。
 
 ---
 
@@ -143,14 +151,16 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 
 ---
 
-## 10. user（空壳占位 · 用户系统起点）
+## 10. user（账号 + 密码 · 已接线）
 
-- **现状 [~]**：`User` 实体 + `UserRepository` 契约已立（`domain/entities/user.ts` / `domain/ports/user-repository.ts`）；`user/compose.ts` 返回 `{ repository: null }`，**未接入** `src/index.ts`。本轮只做账号本身，无端点 / 错误码 / HTTP 映射。
+- **现状 [x]**（2026-09-10）：`User{ id, nickname, passwordHash, createdAt }`；用例 `RegisterUser` / `AuthenticateUser` / `GetUser`；端点 `POST /api/users`（201）· `POST /api/users/login`（200）· `GET /api/users/:id`；错误码 `USER_NOT_FOUND` 404 / `NICKNAME_TAKEN` 409 / `INVALID_CREDENTIALS` 401 已进 `shared` 映射表；`JsonUserRepository` 落 `DATA_DIR/users/users.json`；`ScryptPasswordHasher` 存 `scrypt$<salt>$<key>`（明文不落库）。
+- **已拍板（2026-09-10）**：**账号 + 密码**，不做轻量无密码身份；**但不做登录态**——登录只核对、返回 `UserView`，**不签发 token / 不建会话**，前端拿 `id` 自己存。
+- **明确不做（本轮）**：找回密码 / 改密 / 注销 / 多机同步 / 账号与任务联动。
+- **已知代价（要还再还）**：JSON 单文件是**全表读-改-写**，昵称唯一靠「先查后写」——并发注册会覆盖、且无数据库级唯一约束。要补就新实现一个 `UserRepository`（Node ≥22 可零依赖用 `node:sqlite`）在 `compose.ts` 换掉，用例/校验/路由/测试都不用动。
 - **接缝（将来）**：
-  - [ ] **任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史（动 jobs schema/实体/DTO 三处）。
-  - [ ] **账号用例/端点**：注册 / 改档案用例放 `application`；`POST /api/users` 放 `presentation`。
+  - [ ] **任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史（动 jobs schema/实体/DTO 三处，**本轮未动 jobs**）。
+  - [ ] **登录态**：要 token 就在 `AuthenticateUser` 里补签发（核对逻辑不动），守卫放 `presentation`。
   - [ ] **偏好并入档案**：skinType/skinTone/常用 occasion 预设、已拥有品清单 → 喂上传预填与 `recommendations`。
-- **待拍板（阻塞账号用例开工）**：做真登录（密码哈希 + token）还是轻量无密码身份（nickname 即身份）？演示与隐私取舍（见 §12 红线 4/5）。
 
 ---
 
@@ -172,7 +182,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；不抓网络图。参考素材必须 自绘 / 自有 / 可授权。
 3. **肤色 / 肤质包容**：`skinTone` 5 档、缺省 `medium`（中间档），**不默认浅肤色审美**；上妆与推荐都按真实肤色走。
 4. **肖像与隐私**：演示只用**已授权人物**；现场临时自拍采集最小化、即用即删、口头同意即可；不做任何真实用户数据的留存与上传。
-5. **账号边界**：`user` 模块为**空壳占位**（账号模型 + 仓库契约已立，2026-09-09 起）；完整登录鉴权**未做、待定**——若做须密码哈希不存明文。仍**不做**：多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
+5. **账号边界**：`user` 模块已有**账号 + 密码**（2026-09-10 起）——密码只存 scrypt 凭据，**明文永不落盘 / 进日志 / 回视图**；登录只核对、**不签发 token、不建会话**。仍**不做**：找回密码 / 改密 / 注销、多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
 
 ---
 

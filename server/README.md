@@ -32,8 +32,8 @@ src/
     ├── references/          # 参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/              # 上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
-    ├── user/                # [空壳] 用户账号:User 实体 + UserRepository 契约(登录未做,接缝见 roadmap §10)
-    ├── weather/             # [空壳] 天气拉取端口(骨架未 wire)
+    ├── user/                # 账号:昵称+密码(scrypt 哈希,不存明文) / 注册·登录核对·查档案 + JSON 落盘
+    ├── weather/             # 当日天气:open-meteo 实拉(无 key)+ WMO 码映射 + mock 兜底 + 查询校验
     └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire)
 ```
 
@@ -88,6 +88,10 @@ src/
 | `POST /api/jobs` | multipart：`face`(1 张，必填)、`scene`(0..6，可选氛围参考图)、`meta`(JSON 简报，字符串标量)。`brief` 含 `occasion` 或 `sceneText` 至少其一 → **202** `{ id, status, progress, step }` |
 | `GET /api/jobs/:id` | 任务视图 `JobView`，轮询到 `status: done`；`inputs` 回显 `brief`，含 `scene` / `references` / `result` |
 | `GET /api/jobs/:id/result` | 成品图片字节流（带 Content-Type）。骨架 mock 引擎把本人照片原样收编为产物并返回 `resultUrl`；纯浏览器 mock（无后端）的 `resultUrl` 为空，预览由前端按 `look.zones` CSS 叠加 |
+| `POST /api/users` | JSON `{ nickname, password }` → **201** `UserView{ id, nickname, createdAt }`(昵称唯一；密码只存 scrypt 凭据) |
+| `POST /api/users/login` | JSON `{ nickname, password }` → **200** `UserView`；不符 → 401 `INVALID_CREDENTIALS`。**只核对，不签发 token**（登录态未做） |
+| `GET /api/users/:id` | 账号档案 `UserView`(响应**永不含密码/凭据**) |
+| `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端拿到后填进 `POST /jobs` 的 `meta.weather` |
 | `GET /api/health` | 存活检查 `{ ok, name, uptimeSec, now }` |
 
 ### 错误体（与错误码 → HTTP 映射）
@@ -101,7 +105,13 @@ src/
 | `FACE_REQUIRED` | 422 | 未上传本人照片 |
 | `CONTEXT_REQUIRED` | 422 | 既无 occasion 也无自由文字 |
 | `SCENES_MAX_EXCEEDED` | 422 | 氛围参考图 >6 |
-| `VALIDATION_ERROR` | 422 | meta JSON 非法 / 枚举越界 / face>1 等 |
+| `LOCATION_REQUIRED` | 422 | 天气查询既没给 city 也没给 lat/lon |
+| `CITY_NOT_FOUND` | 404 | 城市名解析不到坐标 |
+| `WEATHER_UNAVAILABLE` | 502 | 上游天气源超时 / 断网 / 返回体不合预期（前端据此回落手动预设，不阻塞提交） |
+| `USER_NOT_FOUND` | 404 | 账号 id 不存在 |
+| `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
+| `INVALID_CREDENTIALS` | 401 | 昵称或密码不正确（两者共用，不泄露账号是否存在） |
+| `VALIDATION_ERROR` | 422 | meta JSON 非法 / 枚举越界 / face>1 / 昵称密码不合规等 |
 | `INTERNAL_ERROR` | 500 | 引擎输出不过关等内部错误 |
 | 框架级（如文件超限） | 保留原状态码(413) | — |
 
@@ -116,6 +126,17 @@ curl -s -F "face=@../vue/public/demo/demo-photo.svg" \
 
 > `face` 必填；`scene` 可省；`meta` 可省 `occasion`，但至少要带 `sceneText`（或用文字关键词）。curl 不带 `Content-Type` 时会按扩展名兜底推断为图片类型。
 
+账号（JSON 体，注意 `Content-Type: application/json`）：
+
+```bash
+curl -s -X POST http://localhost:3000/api/users -H 'Content-Type: application/json' \
+     -d '{"nickname":"小美","password":"hunter2"}'        # → 201 { id, nickname, createdAt }
+curl -s -X POST http://localhost:3000/api/users/login -H 'Content-Type: application/json' \
+     -d '{"nickname":"小美","password":"hunter2"}'        # → 200 同一视图；密码错 → 401
+```
+
+> 密码**不做 trim**（空格是密码的一部分），昵称会 trim，清洗后 2–32 字；密码 6–128 位。
+
 ## 配置（env）
 
 `.env.example` → `.env`（已 ignore）：
@@ -124,10 +145,11 @@ curl -s -F "face=@../vue/public/demo/demo-photo.svg" \
 | --- | --- | --- |
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
-| `DATA_DIR` | `./data` | 任务记录 + 输入/产物文件目录 |
+| `DATA_DIR` | `./data` | 任务记录、输入/产物文件与账号表（`users/users.json`）的根目录 |
 | `MAKEUP_ENGINE` | `mock` | `mock`（未来 `parametric`/`third-party`） |
 | `SCENE_ANALYZER` | `mock` | `mock`（或 `off`） |
 | `REFERENCE_PROVIDER` | `mock` | `mock`（或 `off`） |
+| `WEATHER_PROVIDER` | `open-meteo` | `open-meteo`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**） |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
 
 ## 命令
@@ -149,6 +171,8 @@ npm test           # vitest run
 - `schemas.test.ts` — 纯形状（结构/格式/长度/严格模式）
 - `validator.test.ts` — 输入业务规则码（含 CONTEXT_REQUIRED / meta JSON） + 输出几何/颜色把关
 - `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取 medium
+- `user.test.ts` — 注册/重名/登录成败/查档案 + 真实 JSON 仓库与 scrypt 凭据（守「明文不落库、视图不含凭据」）
+- `weather.test.ts` — WMO 码映射 / 查询校验 / 用例错误翻译 + open-meteo 适配器（**打桩 fetch，单测不联网**）
 
 ## 换真实引擎怎么做
 
@@ -156,6 +180,8 @@ npm test           # vitest run
 
 - 真实上妆引擎：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关；
 - 真实场景理解：实现 `modules/understanding/domain/ports/scene-analyzer.ts`（视觉大模型），输入里带着 `brief`；
-- 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`。
+- 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`；
+- 换账号存储 / 换哈希算法：实现 `modules/user/domain/ports/user-repository.ts` 或 `password-hasher.ts`，在 `user/compose.ts` 换实现（用例与路由不变）；
+- 换天气源：实现 `modules/weather/domain/ports/weather-provider.ts`，在 `weather/compose.ts` 按 `kind` 分发 + `config.weatherProvider` 开一个环境变量。拿不到数据要抛 `WeatherUpstreamError`（→ 502 让前端回落手动预设），**不要返回假天气**。
 
 > **素材红线**：参考样本当前为自绘演示示意，license 诚实标注、`sourceUrl` 置空；正式稿须替换为可授权素材并逐张回填来源，不抓取网络图。

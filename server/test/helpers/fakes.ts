@@ -15,6 +15,15 @@ import type { JobQueue, JobRepository } from '../../src/modules/jobs/index.js';
 import type { Engine, EngineInput, EngineResult } from '../../src/modules/makeup/index.js';
 import type { SceneAnalyzer, SceneAnalyzerInput } from '../../src/modules/understanding/index.js';
 import type { ReferenceProvider } from '../../src/modules/references/index.js';
+import type {
+  PasswordHasher,
+  User,
+  UserRepository,
+} from '../../src/modules/user/index.js';
+import type {
+  WeatherProvider,
+  WeatherResult,
+} from '../../src/modules/weather/index.js';
 
 export function memFile(
   originalName = 'me.png',
@@ -133,6 +142,50 @@ export class FakeEngine implements Engine {
         zones: [],
       },
     };
+  }
+}
+
+/** 固定返回值(或固定抛错)的天气源,用来测用例的错误翻译。 */
+export class FakeWeatherProvider implements WeatherProvider {
+  readonly name = 'fake';
+  calls = 0;
+
+  constructor(private readonly outcome: WeatherResult | Error) {}
+
+  async fetch(): Promise<WeatherResult> {
+    this.calls += 1;
+    if (this.outcome instanceof Error) throw this.outcome;
+    return this.outcome;
+  }
+}
+
+export class FakeUserRepository implements UserRepository {
+  private map = new Map<string, User>();
+
+  async save(user: User): Promise<void> {
+    this.map.set(user.id, user);
+  }
+  async findById(id: string): Promise<User | null> {
+    return this.map.get(id) ?? null;
+  }
+  async findByNickname(nickname: string): Promise<User | null> {
+    return [...this.map.values()].find((u) => u.nickname === nickname) ?? null;
+  }
+  /** 断言辅助:取原始记录(含凭据)。 */
+  get(id: string): User | undefined {
+    return this.map.get(id);
+  }
+}
+
+/** 测试用「哈希」:不真算,把明文原样编码,便于断言调用链是否真的过了哈希。 */
+export class FakePasswordHasher implements PasswordHasher {
+  static readonly PREFIX = 'fake-hash:';
+
+  async hash(plain: string): Promise<string> {
+    return `${FakePasswordHasher.PREFIX}${plain}`;
+  }
+  async verify(plain: string, encoded: string): Promise<boolean> {
+    return encoded === `${FakePasswordHasher.PREFIX}${plain}`;
   }
 }
 

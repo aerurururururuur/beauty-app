@@ -1,7 +1,10 @@
 # modules/user/application —— 应用层
 
-本层放「用户账号的独立用例/服务」。
+放「账号用例」：`usecases/register-user.ts`（注册）、`authenticate-user.ts`（登录核对）、`get-user.ts`（查档案），
+外加 `mapping/user-view.mapper.ts`（实体 → 对外视图，凭据在这一步剥掉）。
 
-- **现状**：空（空壳模块，未 wire）。账号行为尚未实现。
-- **将来放什么**：账号用例（建档/改档案/皮肤与已拥有品偏好更新；若做登录则含注册/校验流程），由 `compose.ts` 装配、`presentation` 承接 HTTP。核心规则（如昵称清洗、偏好校验）放这里可独立单测。
-- **起点**：先想清楚要不要真登录（密码哈希）还是轻量身份（无密码），再决定用例形状。
+- **现状**：已实现并接线。
+- **写法**：用例只做编排——调 `domain/validators` 校验入参、经端口(`UserRepository` / `PasswordHasher`)读写，
+  自己不写校验规则、不认识 scrypt、不认识 HTTP。明文密码只在用例方法栈内存在，哈希完即丢。
+- **加新用例**：改密 / 注销 / 偏好更新都放这里；跨模块要用到的类型经 `../index.ts` 导出。
+- **别做**：别在这里签发 token、别把 `passwordHash` 带进返回值（对外一律经 `toUserView`）。

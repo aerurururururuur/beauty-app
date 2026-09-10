@@ -10,6 +10,8 @@ import { createUnderstandingModule } from './modules/understanding/index.js';
 import { createReferencesModule } from './modules/references/index.js';
 import { createMakeupModule } from './modules/makeup/index.js';
 import { createJobsModule } from './modules/jobs/index.js';
+import { createUserModule } from './modules/user/index.js';
+import { createWeatherModule } from './modules/weather/index.js';
 import { buildApp } from './app.js';
 
 async function main(): Promise<void> {
@@ -31,8 +33,14 @@ async function main(): Promise<void> {
     engine,
   });
 
+  // 账号表落 dataDir/users/users.json;密码只存 scrypt 凭据,不存明文。
+  const user = createUserModule({ dataDir: config.dataDir });
+
+  // 当日天气:缺省 open-meteo 实拉,WEATHER_PROVIDER=mock 切离线示意。
+  const weather = createWeatherModule({ kind: config.weatherProvider });
+
   // —— web shell ——
-  const app = await buildApp({ config, jobs });
+  const app = await buildApp({ config, jobs, user, weather });
 
   try {
     await app.listen({ host: config.host, port: config.port });

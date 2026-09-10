@@ -20,7 +20,10 @@ export type SkinType = (typeof SKIN_TYPES)[number];
 export const SKIN_TONES = ['light', 'light_medium', 'medium', 'tan', 'deep'] as const;
 export type SkinTone = (typeof SKIN_TONES)[number];
 
-/** 日期天气(免费源实拉是 W2 的事;骨架由前端带确定默认,结构先行)。 */
+/**
+ * 日期天气。实拉见 `weather` 模块(GET /api/weather,open-meteo);
+ * 前端拿到后填进这里,拿不到就回落到手动预设——本结构对两种来源一视同仁。
+ */
 export interface WeatherInfo {
   condition?: string; // 晴 / 多云 / 雨 …
   temperatureC?: number;

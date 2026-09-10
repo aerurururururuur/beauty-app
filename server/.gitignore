@@ -1,6 +1,8 @@
 node_modules/
 dist/
 data/
+# 门禁里的真实 e2e 用 DATA_DIR=./data-e2e,跑完不该变成待提交文件
+data-e2e/
 *.local
 
 # 本地环境变量(由 .env.example 复制而来)
