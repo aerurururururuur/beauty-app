@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMakeupStore } from '@/stores/makeup'
 import { createMakeupJob, useMock } from '@/api/makeup'
+import { fetchWeather } from '@/api/weather'
 import { DEMO_PORTRAIT } from '@/api/mock'
 import {
   OCCASION_OPTIONS,
@@ -45,7 +46,23 @@ function pickSkinTone(v) {
   store.skinTone = v
 }
 function pickWeather(p) {
-  store.weather = { ...p.value }
+  store.useWeatherPreset(p.value)
+}
+
+// ---- 天气实拉：失败只提示、绝不清空已填的天气，也绝不阻塞提交 ----
+const weatherLoading = ref(false)
+
+async function pullWeather() {
+  const city = store.weatherCity.trim()
+  if (!city || weatherLoading.value) return
+  weatherLoading.value = true
+  try {
+    store.applyWeather(await fetchWeather({ city }))
+  } catch (e) {
+    store.setWeatherFailure(e?.message || '天气拉取失败')
+  } finally {
+    weatherLoading.value = false
+  }
 }
 
 // ---- 可选风景参考图（不参与成片判定，仅回显） ----
@@ -190,20 +207,42 @@ async function submit() {
         placeholder="例：藏青西装 / 米色连衣裙"
       />
 
-      <label class="field-label caps">当天天气（可选，先手动）</label>
+      <label class="field-label caps" for="weather-city">当天天气（可选）</label>
+      <div class="city-row">
+        <input
+          id="weather-city"
+          v-model="store.weatherCity"
+          class="text-input city-input"
+          maxlength="32"
+          placeholder="城市，例：北京"
+          @keyup.enter="pullWeather"
+        />
+        <button
+          class="btn btn-ghost city-btn"
+          type="button"
+          :disabled="!store.weatherCity.trim() || weatherLoading"
+          @click="pullWeather"
+        >
+          {{ weatherLoading ? '拉取中…' : '拉取实时' }}
+        </button>
+      </div>
+      <p v-if="store.weatherNote" class="field-tip" :class="{ warn: store.weatherWarn }">
+        {{ store.weatherNote }}
+      </p>
+
       <div class="weather-row">
         <button
           v-for="p in WEATHER_PRESETS"
           :key="p.label"
           type="button"
           class="weather-chip"
-          :class="{ on: store.weather.condition === p.value.condition && store.weather.temperatureC === p.value.temperatureC }"
+          :class="{ on: store.weatherSource === 'manual' && store.weather.condition === p.value.condition && store.weather.temperatureC === p.value.temperatureC }"
           @click="pickWeather(p)"
         >
           {{ p.label }}
         </button>
       </div>
-      <p class="field-tip">天气自动拉取是后续里程碑；先用预设即可体验。</p>
+      <p class="field-tip">拉不到也没关系——上面任一预设都行，天气不影响提交。</p>
     </section>
 
     <!-- ④ 可选：氛围参考图 -->
@@ -367,11 +406,33 @@ async function submit() {
   font-weight: 600;
 }
 
-/* ---- 天气预设 ---- */
+/* ---- 天气：城市实拉 + 预设 ---- */
+.city-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.city-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.city-btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.city-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .weather-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-top: 10px;
 }
 
 .weather-chip {

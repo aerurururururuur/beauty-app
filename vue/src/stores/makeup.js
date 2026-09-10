@@ -25,7 +25,14 @@ export const useMakeupStore = defineStore('makeup', () => {
   const skinType = ref('') // SkinType | ''(未选)
   const skinTone = ref('medium') // SkinTone(默认中间档,不以浅肤色为默认)
   const dress = ref('') // 穿搭一句话(风格 + 主色)
+
+  // ---- 天气:预设手动 / 后端实拉,二者互斥地写同一个 weather ----
   const weather = ref({ ...DEFAULT_WEATHER })
+  const weatherCity = ref('') // 用户输入的城市(拉取用)
+  const weatherPlace = ref('') // 拉取回来的地点回显(如「北京 · 中国」)
+  const weatherSource = ref('manual') // manual | open-meteo | mock
+  const weatherNote = ref('') // 给用户看的一行说明
+  const weatherWarn = ref(false) // 该说明是否要提示色(离线示意 / 拉取失败)
 
   // ---- 任务 ----
   const jobId = ref('')
@@ -70,6 +77,43 @@ export const useMakeupStore = defineStore('makeup', () => {
     sceneText.value = text
   }
 
+  /**
+   * 把 GET /weather 的响应填进 brief.weather。
+   * 只收天气字段——place/source 是回显用的元信息,**不进 meta**(后端 weather schema 是 strict 的)。
+   */
+  function applyWeather(view) {
+    const next = {}
+    if (view?.condition) next.condition = view.condition
+    if (typeof view?.temperatureC === 'number') next.temperatureC = view.temperatureC
+    if (typeof view?.humidityPct === 'number') next.humidityPct = view.humidityPct
+    if (typeof view?.uvIndex === 'number') next.uvIndex = view.uvIndex
+    weather.value = next
+
+    weatherPlace.value = view?.place || ''
+    weatherSource.value = view?.source === 'mock' ? 'mock' : 'open-meteo'
+    weatherWarn.value = weatherSource.value === 'mock'
+    const where = weatherPlace.value ? ` · ${weatherPlace.value}` : ''
+    weatherNote.value =
+      weatherSource.value === 'mock'
+        ? `离线示意${where}——不是实况，仅作演示`
+        : `已按实时天气填入${where}`
+  }
+
+  /** 拉取失败:保留当前天气(手动预设),只把原因说清楚,不阻塞提交。 */
+  function setWeatherFailure(message) {
+    weatherWarn.value = true
+    weatherNote.value = `${message}——已保留当前天气，可直接提交`
+  }
+
+  /** 手动预设:回到 manual 态,清掉拉取回显。 */
+  function useWeatherPreset(value) {
+    weather.value = { ...value }
+    weatherSource.value = 'manual'
+    weatherPlace.value = ''
+    weatherNote.value = ''
+    weatherWarn.value = false
+  }
+
   function startSubmit() {
     submitting.value = true
   }
@@ -96,6 +140,11 @@ export const useMakeupStore = defineStore('makeup', () => {
     skinTone.value = 'medium'
     dress.value = ''
     weather.value = { ...DEFAULT_WEATHER }
+    weatherCity.value = ''
+    weatherPlace.value = ''
+    weatherSource.value = 'manual'
+    weatherNote.value = ''
+    weatherWarn.value = false
     jobId.value = ''
     submitting.value = false
   }
@@ -119,6 +168,11 @@ export const useMakeupStore = defineStore('makeup', () => {
     skinTone,
     dress,
     weather,
+    weatherCity,
+    weatherPlace,
+    weatherSource,
+    weatherNote,
+    weatherWarn,
     brief,
     jobId,
     submitting,
@@ -128,6 +182,9 @@ export const useMakeupStore = defineStore('makeup', () => {
     addScene,
     removeScene,
     setSceneText,
+    applyWeather,
+    setWeatherFailure,
+    useWeatherPreset,
     startSubmit,
     finishSubmit,
     failSubmit,
