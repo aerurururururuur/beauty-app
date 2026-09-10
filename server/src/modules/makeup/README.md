@@ -8,7 +8,7 @@
 | --- | --- |
 | `domain/entities/look.ts` | `Look`（引擎私有契约，对流水线不透明）+ `MakeupZone`（归一化叠加区，供前端 CSS 渲染） |
 | `domain/entities/result-text.ts` | `ResultText`：`{ analysis, explain, tips }`（本模块持有，贴近 look/文案） |
-| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, scenes, brief, sceneAnalysis?, references? }` |
+| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, scenes, brief, scene?, references? }` |
 | `domain/validators/engine-output.validator.ts` | `validateEngineResult`：把关外部引擎产物（路径/类型存在、坐标 0..1、RGB 0..255、opacity 0..1、blur≥0，非法 → `INTERNAL_ERROR`） |
 | `application/narration.ts` | `buildNarrative`：纯函数组装「为什么这套」（场合 formality × 肤质持妆 × 肤色选色 × 穿搭/天气 tip） |
 | `infrastructure/engine/mock-engine.ts` | `MockEngine`：occasion 基准风格 × skinTone 调深浅，产物 = 本人照片原样收编 + `zones/palette` 供前端叠加 |
@@ -17,7 +17,7 @@
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared`（类型）、`understanding` / `references`（`SceneAnalysis`/`ReferenceImage` 类型）。
+- 依赖：`shared`（`SceneDescriptor` 等类型）、`references`（`ReferenceImage` 类型）。
 - 被依赖：`jobs`（注入 `engine`，产物交 `validateEngineResult` 把关）。
 
 ## 现状与改法（决定性待办）

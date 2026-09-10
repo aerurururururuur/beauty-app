@@ -1,8 +1,8 @@
 /**
  * api/mock.js —— 演示模式的假后端。
  * 不联网即复刻真实 HTTP 契约(JobView / UserView / CosmeticItemView),使前端可离线完整体验。
- * 判定与 server 的 mock 适配器**同源**:场合判定直调 `@scene-rules` 里那个纯函数
- * (就是 `MockSceneAnalyzer` 调的同一个人),不再在本文件抄一份关键词表。
+ * 判定与 server **同源**:场合判定直调 `@scene-rules` 里那个纯函数
+ * (就是后端 `run-pipeline` 调的同一个人),不再在本文件抄一份关键词表。
  * 风格文案 + 色板仍按 brief.skinTone 调——呼应「按真实肤色、不默认浅肤色审美」。
  *
  * 开关 `useMock` 在 `./use-mock.js`(那儿小,能被首屏链安全引用);
@@ -23,7 +23,7 @@ const DEMO_BRIEF = {
 }
 
 // ---------------- 场合判定:直接调后端的单一源,不再自己抄一份 ----------------
-// `describeScene` 就是 `MockSceneAnalyzer` 调的那个纯函数(经 vite alias `@scene-rules`
+// `describeScene` 就是后端 `run-pipeline` 调的那个纯函数(经 vite alias `@scene-rules`
 // 直读 server/src/modules/shared/domain/scene-rules.ts)。此前这里抄了一整套
 // 关键词表 + 方向 + 标签,改后端忘了改前端时,浏览器 mock 模式会**静默**给出另一个答案。
 // 现在两侧逐字一致,包括自由文字的修饰词叠加。
@@ -219,7 +219,7 @@ export async function mockGetJob(id) {
     }
   }
 
-  // 与后端 MockSceneAnalyzer 调的是同一个纯函数(单一源 @scene-rules)。
+  // 与后端 run-pipeline 调的是同一个纯函数(单一源 @scene-rules)。
   const scene = describeScene(rec.brief)
   if (elapsed >= STEP_AT[1].at) view.scene = scene
   if (elapsed >= STEP_AT[2].at) view.references = buildReferences(scene.label)

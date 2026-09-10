@@ -1,38 +1,31 @@
 /**
- * understanding.test.ts —— 场景理解模块单测。
+ * scene-rules.test.ts —— 妆容方向规则的单测(原 understanding.test.ts)。
  * 守三条:① 场合判定行为不变(显式 occasion → 关键词命中 → daily 兜底);
- *        ② **自由文字真的进方向**——选了场合也不再被整个丢掉(本轮修的就是这个短路);
- *        ③ 判定规则是前后端共享的单一源,所以既验「纯函数与适配器一致」,
- *           也把共享文件本身的硬约束(零运行时 import)钉住。
+ *        ② **自由文字真的进方向**——选了场合也不再被整个丢掉;
+ *        ③ 判定规则是前后端共享的单一源,所以把共享文件本身的硬约束(零运行时 import、
+ *           前端确实指着它)钉住。
+ *
+ * 曾经还有一组「适配器」用例,比 MockSceneAnalyzer 与纯函数的输出一致 ——
+ * 那个模块连同它的两个适配器已于 2026-09-10 删除,`describeScene` 由流水线直接调用,
+ * 不再存在「纯函数与适配器会不会漂移」这个问法。
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_OCCASION,
   OCCASIONS,
   SCENE_MATCH_ORDER,
   SCENE_RULES,
   describeScene,
 } from '../src/modules/shared/index.js';
-import { MockSceneAnalyzer, OffSceneAnalyzer } from '../src/modules/understanding/index.js';
 
 const RULES_PATH = fileURLToPath(
   new URL('../src/modules/shared/domain/scene-rules.ts', import.meta.url),
 );
 
-/** 造一个最小的 analyzer 输入(analyze 只用 brief,图片字段给占位)。 */
-const input = (brief: Parameters<typeof describeScene>[0]) => ({
-  face: { filePath: '/tmp/face.svg', mimeType: 'image/svg+xml' },
-  scenes: [],
-  brief: brief ?? {},
-});
-
 describe('describeScene —— 场合判定(行为不变)', () => {
   it('显式 occasion 直接采用', () => {
-    const s = describeScene({ occasion: 'stage' });
-    expect(s.label).toBe('stage');
-    expect(s.source).toBe('mock');
+    expect(describeScene({ occasion: 'stage' }).label).toBe('stage');
   });
 
   it('无 occasion 时按自由文字关键词命中', () => {
@@ -144,12 +137,13 @@ describe('单一源完整性', () => {
     }
   });
 
-  it('★ 判定结果里没有 confidence(它是硬写的常量,不含信息,已删——别加回来)', () => {
-    // 曾经的 0.92/0.72/0.4/0.3 完全由「用户点没点 chip」决定,而调用方本来就知道这件事。
-    // 判不出来时该看 `source: 'off'`,不是一个恒定的置信度。
+  it('★ 判定结果只有 { label, direction, tags }(多出来的字段都是硬写常量,别加回来)', () => {
+    // 曾经有两个字段都不是「算出来的」,而是按分支硬写的常量,已先后删掉:
+    //   · `confidence`(0.92/0.72/0.4/0.3)—— 由「用户点没点 chip」决定,调用方本就知道;
+    //   · `source`(恒为 'mock',删模块前是 'mock' | 'off')—— 只有一个生产者,读不出信息。
     // 真接了视觉模型、分数变成真的了,再连同这条测试一起改。
     for (const brief of [{}, { occasion: 'stage' }, { sceneText: '面试' }] as const) {
-      expect(Object.keys(describeScene(brief))).not.toContain('confidence');
+      expect(Object.keys(describeScene(brief)).sort()).toEqual(['direction', 'label', 'tags']);
     }
   });
 
@@ -167,24 +161,5 @@ describe('单一源完整性', () => {
     );
     expect(viteConfig).toContain('scene-rules');
     expect(viteConfig).toContain('fs'); // server.fs.allow 放行 server/ 目录
-  });
-});
-
-describe('适配器', () => {
-  it('MockSceneAnalyzer 的判定就是 describeScene 的判定(infra 没有偷偷加料)', async () => {
-    const brief = { occasion: 'family', sceneText: '见家长,想温婉一点' } as const;
-    const viaInfra = await new MockSceneAnalyzer().analyze(input(brief));
-    expect(viaInfra).toEqual(describeScene(brief));
-    expect(viaInfra.source).toBe('mock');
-  });
-
-  it('OffSceneAnalyzer 不做任何推断:即使 brief 里写了场合也不采纳', async () => {
-    const viaOff = await new OffSceneAnalyzer().analyze(input({ occasion: 'stage' }));
-    expect(viaOff).toEqual({
-      label: DEFAULT_OCCASION,
-      direction: SCENE_RULES[DEFAULT_OCCASION].direction,
-      tags: [], // 不拿场合基准 tags 冒充推断结果
-      source: 'off', // ★ 「没推断」的诚实标记就是它,别只看 label
-    });
   });
 });

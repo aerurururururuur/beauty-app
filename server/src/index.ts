@@ -6,7 +6,6 @@
  */
 import { loadConfig, loadDotEnvIfPresent } from './modules/shared/infrastructure/config.js';
 import { createAssetsModule } from './modules/assets/index.js';
-import { createUnderstandingModule } from './modules/understanding/index.js';
 import { createReferencesModule } from './modules/references/index.js';
 import { createMakeupModule } from './modules/makeup/index.js';
 import { createJobsModule } from './modules/jobs/index.js';
@@ -21,19 +20,19 @@ async function main(): Promise<void> {
   const config = loadConfig();
 
   // —— 各模块组合 ——
-  // SCENE_ANALYZER / REFERENCE_PROVIDER 已真正接通(在各自 compose.ts 里按 kind 分发)。
+  // REFERENCE_PROVIDER 已真正接通(在 references/compose.ts 里按 kind 分发)。
   // ★ MAKEUP_ENGINE 仍**故意**没接:`off` 对「上妆引擎」没有意义——流水线没有引擎就出不了
   //   成品,硬接一个 off 分支只会得到又一个假开关,而那正是本轮要修掉的东西。
   //   接真实引擎时它的 kind 会扩成 'mock' | 'param' | 'api' 之类,那时再接。
+  // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
+  //   里的纯查表函数,由 run-pipeline 直接调用。它没有可换的实现,所以不该有开关。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  const { sceneAnalyzer } = createUnderstandingModule({ kind: config.sceneAnalyzer });
   const { referenceProvider } = createReferencesModule({ kind: config.referenceProvider });
   const { engine } = createMakeupModule();
 
   const jobs = createJobsModule({
     dataDir: config.dataDir,
     artifactStore,
-    sceneAnalyzer,
     referenceProvider,
     engine,
   });

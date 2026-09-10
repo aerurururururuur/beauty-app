@@ -6,9 +6,11 @@
 > 本文件是**给协作者的代码任务板**：按 `server/src/modules/*` 拆模块，任务可直接认领、做完跑门禁即可。
 > 产品叙事 / 观众画像 / 提交材料叙事不入此文件；赛道背景与红线见文末「红线（写进验收）」。
 >
-> 状态（2026-09-10）：server 已按模块拆好、typecheck + 121 用例 + 真实 e2e 全绿；场景理解 / 参考检索 / 上妆引擎均为 mock，
-> 接口留作接缝（`SCENE_ANALYZER` / `REFERENCE_PROVIDER` 的开关已真接通，`MAKEUP_ENGINE` 待接引擎时再接）。
-> 场合语义已单源化到 `shared/domain/scene-rules.ts`，前后端共享同一份判定。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
+> 状态（2026-09-10）：server 已按模块拆好、typecheck + 120 用例 + 真实 e2e 全绿；参考检索 / 上妆引擎为 mock，
+> 接口留作接缝（`REFERENCE_PROVIDER` 的开关已真接通，`MAKEUP_ENGINE` 待接引擎时再接）。
+> 场合语义已单源化到 `shared/domain/scene-rules.ts`，前后端共享同一份判定；
+> **「场景理解」模块已删除**——它只是包着那个纯函数的一层壳（一个 `sleep` + 一次转发 + 一个假开关），
+> 方向现由 `run-pipeline` 直接调 `describeScene(brief)`。以下 `[x]` 为已完成，`[ ]` 为可认领的剩余工作。
 
 ---
 
@@ -17,7 +19,7 @@
 ```bash
 cd server
 npm run typecheck   # tsc --noEmit
-npm test            # 121 用例全绿
+npm test            # 120 用例全绿
 # 动了 HTTP / 流水线语义时,另做一次真实 e2e:
 #   PORT=3199 DATA_DIR=./data-e2e npm run dev
 #   curl -F "face=@../vue/public/demo/demo-photo.svg" -F 'meta={"occasion":"interview","skinTone":"tan",...}' http://127.0.0.1:3199/api/jobs
@@ -31,9 +33,10 @@ npm test            # 121 用例全绿
 #     没地点 422 / 城名查不到 404 / 上游挂 502;再以 WEATHER_PROVIDER=mock 起一次确认 source=mock
 #   · Windows/Git Bash:curl -d 带中文会按本地编码发,Content-Length 对不上而报
 #     "Request body size did not match Content-Length"——改用 --data-binary @utf8.json
-#   场景理解:POST 带 occasion=interview + sceneText=想显得专业但低调 → scene.tags 同时含
+#   妆容方向:POST 带 occasion=interview + sceneText=想显得专业但低调 → scene.tags 同时含
 #     场合标签与「低调」、direction 有「;按你的要求…」后缀;再发一次只带 sceneText=面试
-#     (无 occasion) → label 仍判 interview;SCENE_ANALYZER=off 起一次 → source=off、tags=[]
+#     (无 occasion) → label 仍判 interview。scene 对象只该有 { label, direction, tags } 三个键
+#     (不再有 source——那是个恒定字段,随 understanding 模块一起删了)
 cd ../vue && npm run build   # 只改了前端才需要
 #   ★ 动过 shared/domain/scene-rules.ts、vite alias 或 server.fs.allow 时,必须再 npm run dev
 #     实开一次并打开页面:跨根引用只在 dev 暴露,build 过得去不代表 dev 过得去
@@ -50,17 +53,15 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 └── src/modules/
     ├── shared/            地基:brief 枚举单源 · scene-rules(场合语义·前后端单一源) · AppError(无业务)
     ├── assets/            图片存取:ArtifactStore 端口 + 本地文件系统实现
-    ├── understanding/     场景理解:SceneAnalysis + 分析器端口 + mock/off(判定实现在 shared/scene-rules)
     ├── references/        参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/            上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/              Job 生命周期 + 流水线编排:状态机/仓库/队列/用例/控制器/JobView DTO
     ├── user/              账号:昵称+密码(scrypt 哈希) · 注册/登录核对/查档案 · JSON 落盘(无登录态,见 §10)
     ├── cabinet/           衣橱:用户自记化妆品(名称 + 自定义特性)· 归属校验 · JSON 落盘(见 §11)
-    ├── weather/           当日天气:open-meteo 实拉(无 key) + WMO 码映射 + mock 兜底
-    └── recommendations/   [空壳] 平价同款推荐端口(骨架未 wire)
+    └── weather/           当日天气:open-meteo 实拉(无 key) + WMO 码映射 + mock 兜底
 ```
 
-依赖方向：`shared` 只被依赖；`assets / understanding / references / makeup` 相互独立、都被 `jobs` 编排。
+依赖方向：`shared` 只被依赖；`assets / references / makeup` 相互独立、都被 `jobs` 编排（妆容方向不是模块，见 §4）。
 跨模块协作**只经各模块 `index.ts`(public barrel)**，禁止直达模块内部文件；依赖图保持无环。
 
 **跨模块「问一句」的规矩**（cabinet 起的头，以后照这个来）：cabinet 要确认 `userId` 指向真实用户，
@@ -68,7 +69,7 @@ src/index.ts         组装根:loadConfig → 各 createXxxModule → buildApp �
 `domain/ports`（`userExists`），实现由 **组装根 `src/index.ts`** 把 user 的 `getUser` 包一层传进
 `createCabinetModule`。依赖图仍无环，模块间仍零 import。
 
-**唯一的跨「端」共享**（understanding 起的头）：场合语义在 `shared/domain/scene-rules.ts`，
+**唯一的跨「端」共享**：场合语义在 `shared/domain/scene-rules.ts`，
 前端经 vite alias `@scene-rules` **直接执行后端这个源文件**（浏览器 mock 模式必须与真实后端
 给出同一个判定，各抄一份会静默漂移）。代价是那个文件必须**零运行时依赖**（只许 `import type`），
 `vue/vite.config.js` 需要 alias + `server.fs.allow` 放行 `../server`（本项目没有 workspace，
@@ -87,11 +88,11 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 
 | 想接真实能力 | 现有 mock（位置） | 要实现的端口 | 接线点 |
 | --- | --- | --- | --- |
-| 场景理解 → 视觉大模型 | `understanding/infrastructure/scene-analyzer/mock-scene-analyzer.ts` + 判定在 `shared/domain/scene-rules.ts` | `understanding/domain/ports/scene-analyzer.ts` | `understanding/compose.ts`（**已接通** `config.sceneAnalyzer`；`kind` 扩成 `'mock'\|'vision'\|'off'`，**留 `off` 当逃生门**） |
+| 场景理解 → 视觉大模型 | 无 mock，只有 `shared/domain/scene-rules.ts` 的纯函数 `describeScene` | **本项目现在没有这条缝**（见 §4） | 接模型时要**新建**模块 + 端口 + 开关，并同时留 `off` 逃生门 |
 | 参考检索 → 网页 / 图库 | `references/infrastructure/reference-provider/mock-reference-provider.ts` | `references/domain/ports/reference-provider.ts` | `references/compose.ts`（**已接通** `config.referenceProvider`；`off` = 返回空列表且不声称来源） |
 | 上妆引擎 → 参数化 / 第三方 API | `makeup/infrastructure/engine/mock-engine.ts` | `makeup/domain/ports/engine.ts`（2 成员：`name`/`generate`） | `makeup/compose.ts`（**尚未接线**：`createMakeupModule()` 还不收参数。`off` 对引擎没意义——没引擎就出不了成品，接真实引擎时再接） |
 | 天气实拉 → 换源 | `weather/infrastructure/weather-provider/mock-weather-provider.ts`（离线示意） | `weather/domain/ports/weather-provider.ts` | `weather/compose.ts`（`config.weatherProvider`） |
-| 平价推荐 → 规则引擎 | （空壳无 mock） | `recommendations/domain/ports/recommender.ts` | `recommendations/compose.ts` + `src/index.ts` 接入 |
+| 推荐 / 品牌参考 → 规则引擎 | 无实现（原空壳已于 2026-09-10 删） | **本项目现在没有这条缝**（见 §9） | 要做时**新建**模块 + 端口：`compose.ts` 装配，`src/index.ts` 把 cabinet 的 `listByUser` 粘进来 |
 | 衣橱存储 → 数据库 | `cabinet/infrastructure/json/`（无 mock，真实实现） | `cabinet/domain/ports/cosmetic-repository.ts` | `cabinet/compose.ts`（`config.dataDir`，同 user 的做法） |
 
 ---
@@ -99,12 +100,12 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 ## 2. shared（地基）
 
 - **现状 [x]**：`domain/entities/brief.ts` = 枚举单源——`OCCASIONS`(interview/date/stage/family/daily) · `SKIN_TYPES`(5) · `SKIN_TONES`(light/light_medium/medium/tan/deep **5 档,缺省 `medium` 中间档**) · `WeatherInfo` · `MakeupBrief`；`ImageRef` + `EngineSourceImage`；`AppError`/`ErrorCode`。
-- **现状 [x]**（场景语义单源）：`domain/scene-rules.ts` = 场合语义的**前后端单一源**——`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。它被 `understanding`（mock 分析器）、`makeup`（narration 取中文名）、**前端 `vue/src/api/mock.js`** 三处消费，消灭了此前各抄一份的漂移。
+- **现状 [x]**（场景语义单源）：`domain/scene-rules.ts` = 场合语义的**前后端单一源**——`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。它被 `jobs`（`run-pipeline` 直接调它算方向）、`makeup`（narration 取中文名）、**前端 `vue/src/api/mock.js`** 三处消费，消灭了此前各抄一份的漂移。
 - **关键文件**：`brief.ts` · `scene-rules.ts` · `image.ts` · `app-error.ts` · `infrastructure/config.ts`（.env 读取，属组装关心，不进 barrel）· `presentation/error-handler.ts`。
 - **待办 [ ]**：
   - [ ] 未来若要新增维度（如妆品风格偏好），先在 `brief.ts` 加枚举 + 同步 zod schema/validator/测试——**枚举只在这里定义一处**。
   - [ ] 加减**场合**时是两处：`brief.ts` 的 `OCCASIONS` + `scene-rules.ts` 的 `SCENE_RULES`/`SCENE_MATCH_ORDER`（漏配会编译不过 / 测试红），前端 `constants/options.js` 的 `OCCASION_OPTIONS` 也要跟着加（纯展示，无编译期保护）。
-  - [ ] `scene-rules.ts` 是唯一跨端共享资产，**禁止加运行时 import / 顶层副作用**（前端会直接执行它）。`understanding.test.ts` 有正则扫源码钉住这条。
+  - [ ] `scene-rules.ts` 是唯一跨端共享资产，**禁止加运行时 import / 顶层副作用**（前端会直接执行它）。`scene-rules.test.ts` 有正则扫源码钉住这条。
   - 无其它结构性待办（地基稳定，勿在 shared 放业务逻辑——`scene-rules` 是例外，见其上文件头说明：场合语义独立于引擎，且枚举本就单源于此）。
 
 ---
@@ -117,15 +118,34 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 
 ---
 
-## 4. understanding（场景理解 —— 保「稳」优先）
+## 4. 妆容方向（原 understanding 模块 —— **已删除**）
 
-- **现状 [x]**：`SceneAnalyzer` 端口；判定本身在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)`——`brief.occasion` 优先 → 否则 `sceneText` 关键词命中 → 否则 `daily` 兜底。`MockSceneAnalyzer` 只是包一层 `sleep(250)`（让前端轮询看到进度），`OffSceneAnalyzer` 不推断（`source:'off'`）。**`config.sceneAnalyzer` 已真接通** `mock` / `off`。
-- **现状 [x]**（本轮修的短路）：此前 `if (brief.occasion)` 会把 `sceneText` **整个丢掉**——用户写满需求，只要点了场合 chip，方向就固定不动。现在两者同时生效：场合定基调，自由文字里的**修饰词**（低调/加浓/利落/温柔/提气色）追加 `tags` 并在 `direction` 后接一句；场合基准已有的标签整条跳过，不发散。**只改文案与 chip，不改 `label`、不动色板 → 妆效与从前一致。**
+> ★ **这一节没有模块了**（2026-09-10）。`understanding` 已整个删掉，连同 `SceneAnalyzer` 端口、
+> `MockSceneAnalyzer` / `OffSceneAnalyzer`、`createUnderstandingModule`、`config.sceneAnalyzer`
+> 与 `SCENE_ANALYZER` 开关。**这里不再是可认领的任务区**，留着是为了记住为什么删、以及要接视觉模型时该做什么。
+
+- **为什么删**：那个模块的全部内容是「一个 `sleep(250)` + 一次转发 + 一个只能拨到 mock 的开关」。
+  真正的判定从来在 `shared/domain/scene-rules.ts` 的纯函数 `describeScene(brief)` 里——**它没有可替换的实现**，
+  所以既不该有端口，也不该有开关。此外 `SceneAnalysis` 与 shared 的 `SceneDescriptor` 是同一个形状声明了两遍
+  （后者存在的唯一理由是 shared 不能 import 业务模块的类型），模块一删这个理由就没了。现在只剩**一个** `SceneDescriptor`。
+- **现状 [x]**：`brief.occasion` 优先 → 否则 `sceneText` 关键词命中 → 否则 `daily` 兜底。
+  `run-pipeline.ts` 直接调 `describeScene(brief)`（流水线的 `scene_understand` 这一步就是它；
+  步骤名与 progress 20 是**契约**，没跟着改）。
+- **现状 [x]**（修的短路）：此前 `if (brief.occasion)` 会把 `sceneText` **整个丢掉**——用户写满需求，只要点了场合 chip，方向就固定不动。现在两者同时生效：场合定基调，自由文字里的**修饰词**（低调/加浓/利落/温柔/提气色）追加 `tags` 并在 `direction` 后接一句；场合基准已有的标签整条跳过，不发散。**只改文案与 chip，不改 `label`、不动色板 → 妆效与从前一致。**
 - **现状 [x]**：红线钉进测试——修饰词表**刻意不收「显白」**（红线 §13-3）；用户写了也不迎合，`narration` 另有一句正面回应。改修饰词表前先回去读红线。
-- **测试**：`server/test/understanding.test.ts`（此前该模块零测试）。
+- **测试**：`server/test/scene-rules.test.ts`（原 `understanding.test.ts`，删掉了里面的「适配器」用例）。
+- **删掉的那个 `off` 逃生门（重要）**：它当初唯一的用途是给**尚不存在**的视觉模型留退路。
+  删模块后 `off` 只剩「不推断」——不出 `direction`、不出 `tags`，结果页那张卡片就空了。
+  给一个能跑的系统留一个只会让输出变空的开关，正是本轮要清掉的假开关。
 - **待办 [ ]**：
-  - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片 / 氛围图提升场景判定置信度。它出错可能让现场 demo 翻车，须默认 off；接缝在 `domain/ports/scene-analyzer.ts` + `understanding/compose.ts`（`kind` 扩成 `'mock' | 'vision' | 'off'`），**保留 `off` 当逃生门**。
-  - ~~`SceneAnalysis.confidence`~~ **已删**（2026-09-10）：它零消费者，而且那四个值（0.92/0.72/0.4/0.3）是按分支硬写的常量，**不含任何测量信息**——调用方本来就知道用户点没点 chip。判不出来时看 `source: 'off'` 就够了。**真接了视觉模型、分数变成真的了再连同测试一起加回来**；在那之前别重新引入一个恒定字段（`understanding.test.ts` 有一条断言它不存在）。
+  - [ ] （**可开关加分项，默认关**）视觉大模型读图：由真实照片提升方向判定的准确度。
+    它出错可能让现场 demo 翻车，须默认 off。**接缝要重建**（不再有现成的端口与开关可扩）：
+    新建模块 → 在它自己的 `domain/ports` 声明端口 → `compose.ts` 按 `config` 分发 →
+    `run-pipeline.ts` 改为调端口（保留 `describeScene` 作为 mock 实现）。
+    ★ **重建时务必同时把 `off` 逃生门加回来**——那正是它唯一的用途。
+  - ~~`SceneAnalysis.confidence`~~ **已删**（2026-09-10）：零消费者，而且那四个值（0.92/0.72/0.4/0.3）是按分支硬写的常量，**不含任何测量信息**——调用方本来就知道用户点没点 chip。**真接了视觉模型、分数变成真的了再连同测试一起加回来**。
+  - ~~`SceneDescriptor.source`~~ **也已删**（同日）：同为恒定字段（只有一个生产者，值恒为 `'mock'`）。
+    **别重新引入任何恒定字段**——`scene-rules.test.ts` 有一条断言判定结果只有 `{label,direction,tags}` 三个键。
   - 注意：风景/氛围参考图**不驱动成片**，只作回显，任何改动不得让它变回风格主输入。
 
 ---
@@ -174,18 +194,37 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 
 ---
 
-## 9. recommendations（空壳 → 接线 · 省钱普惠）
+## 9. 推荐 / 品牌参考位（原 recommendations 模块 —— **已删除，本节重新开工**）
 
-- **现状 [~]**：端口 `recommender.ts` 已声明；`recommendations/compose.ts` 返回 `provider: null`，未接线。
-- **输入建模 [x]（2026-09-10 拍板）**：用户「已拥有产品」= **cabinet 衣橱**（见 §11），不是硬编码列表、
-  也不塞进 user 档案。推荐真正需要的只是「按 userId 查已拥有品」这一个能力，cabinet 的 `listByUser` 就是那个接缝。
-  **代价要认**：衣橱的「特性」是完全自定义的自由键值，**没有稳定的「品类」锚点**——所以「缺什么补什么」这一句
-  暂时只能靠 `brief.occasion + 肤质/肤色` 推，不能可靠断言「你已经有唇部了」。取舍理由见 `server/src/modules/cabinet/README.md`。
-- **待办 [ ]**：
-  - [ ] 规则引擎：`occasion + 肤质/肤色 + 已有品（cabinet.listByUser）` →「缺什么补什么」——**优先已有品，缺的推平价线**；输出诚实标注「品牌参考」，UI 不渲染成广告位。
-  - [ ] 定 `RecommendationsProvider` 入参出参形状：入参加「已拥有品」（形状就取 cabinet 的 `CosmeticItemView[]`）；
-    **出参要扩** —— `RecommendationItem` 现在只有 `{ id, name, note }`，撑不起「品牌参考 + 为什么推它」。本轮未动 `recommendations` 代码。
-  - [ ] `compose.ts` 返回实例、`src/index.ts` 接入（拿 cabinet 的 `listByUser` 喂进来，粘法同 §1「跨模块问一句」）；前端结果页展示推荐区。
+> ★ **2026-09-10 两件事都发生了，按顺序读**：
+> ① 那天先**删掉了** `recommendations` 整个模块（`Recommender` 端口 + `createRecommendationsModule`）——
+> 因为它是**没有消费者的端口**，且形状已被同日决定作废（详见下「删掉的那份形状」）。
+> ② 同一天又**拍板广告/品牌参考位要做**（红线 §13-6），于是这一节**重新变成可认领的任务区**：
+> 结果页需要一块由「场合 + 衣橱」推出来的推荐，而**不是**硬贴一个推广位。
+> **删的是那份实现和那份错的形状，不是这个需求。**
+
+- **输入建模 [x]（2026-09-10 拍板，未变）**：用户「已拥有产品」= **cabinet 衣橱**（见 §11），
+  不是硬编码列表、也不塞进 user 档案。推荐真正需要的只是「按 userId 查已拥有品」这一个能力，
+  cabinet 的 `listByUser` 就是那个接缝——**能力在，模块没了**。
+  **代价要认**：衣橱的「特性」是完全自定义的自由键值，**没有稳定的「品类」锚点**——所以「缺什么补什么」
+  暂时只能靠 `brief.occasion + 肤质/肤色` 推，不能可靠断言「你已经有唇部了」。
+  取舍理由见 `server/src/modules/cabinet/README.md`。
+- **待办 [ ]（全部从零起，别照搬删掉的那份）**：
+  - [ ] 新建模块（`compose.ts` 是模块内唯一装配点），端口**重新声明**。
+  - [ ] **规则引擎**：`occasion + 肤质/肤色 + 已有品（cabinet.listByUser）` →「缺什么补什么」——
+    **优先已有品，缺的推对应产品**。典型例：夏日海岛 + 高湿度 → 缺「高防水防晒 / 定妆喷雾」。
+  - [ ] **自有产品特性表**（本次新增，是 ⑤「提前存彩妆特性」的落法）：只收**赞助方（欧莱雅）旗下**产品，
+    一条 = 品类 / 名称 / 能解决什么（控油、滋润、防水防晒、持妆…）/ 适用肤质。**静态常量表**，
+    放新模块的 `domain/`；**不接淘宝等购物记录**（红线 §13-5 没变），**不抓网络图**（红线 §13-2 没变）。
+    规模控制在「覆盖 5 个场合 × 常见缺口」这个量级，别做成商品库。
+  - [ ] 定入参出参形状：入参带「已拥有品」（形状取 cabinet 的 `CosmeticItemView[]`）；
+    **出参要能装下「推的是什么 + 为什么推它 + 是品牌参考」**。
+  - [ ] `src/index.ts` 把 cabinet 的 `listByUser` 粘进来（粘法同 §1「跨模块问一句」），前端结果页展示推荐区。
+  - [ ] **呈现守红线 §13-6**：标注「品牌参考 / 赞助」、**匹配逻辑不为推广让路**（宁可空着也不编需求）、
+    不接第三方 ad SDK / 不做画像。
+- **删掉的那份形状（教训，别重犯）**：`RecommendationItem{ id, name, note }` 撑不起「品牌参考 + 为什么推它」；
+  `look?: Record<string, unknown>` 也没复用真正的 `Look`。**一个形状不对的端口，比没有端口更容易误导下一个读者**——
+  这是当时删它的理由，也仍然成立。
 
 ---
 
@@ -198,7 +237,7 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 - **接缝（将来）**：
   - [ ] **任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史（动 jobs schema/实体/DTO 三处，**本轮未动 jobs**）。
   - [ ] **登录态**：要 token 就在 `AuthenticateUser` 里补签发（核对逻辑不动），守卫放 `presentation`。
-  - [ ] **偏好并入档案**：skinType/skinTone/常用 occasion 预设、已拥有品清单 → 喂上传预填与 `recommendations`。
+  - [ ] **偏好并入档案**：skinType/skinTone/常用 occasion 预设 → 喂上传预填。**已拥有品不在这里**——它归 cabinet 衣橱（§11 拍板 3）。
 
 ---
 
@@ -223,7 +262,7 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 - **前端 [x]**：`pages/CabinetView.vue`（名称 + 动态增删的特性行 + 常用标签 chip；列表可改可删，
   删除是两步确认）· `stores/cabinet.js` · `api/cabinet.js`；入口在主页 `HomeView` 的按钮。
 - **接缝（将来）**：
-  - [ ] **喂给推荐**：`src/index.ts` 把 `listByUser` 接到 recommendations（见 §9 待办）。
+  - [ ] **喂给推荐**：将来做平价推荐时，在 `src/index.ts` 把 `listByUser` 粘过去（§9 现在只有设计约束，没有模块）。
   - [ ] **存储换数据库**：新实现一个 `CosmeticRepository`，在 `cabinet/compose.ts` 换掉，用例 / 校验 / 路由 / 测试都不动。
   - [ ] **品类锚点**（若 §9 非做不可）：加一个**约定标签**常量（不是枚举），或让用户显式选品类——届时再拍一次。
 
@@ -245,7 +284,7 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
   mock 模式回一份样例值并标 `source:'mock'`，UI 明写「离线示意」。
 - **场合判定改调共享源 [x]**（2026-09-10）：`api/mock.js` 原先把后端的场合判定**又抄了一遍**（自己的
   `KEYWORD_RULES` + `OCC` 的 cn/direction/tags），改一边另一边静默漂移。现在 `detectScene()` 整个删掉，
-  改调 `describeScene(brief)`——就是 `MockSceneAnalyzer` 调的同一个人，经 vite alias `@scene-rules`
+  改调 `describeScene(brief)`——与后端 `run-pipeline` 调的是同一个人，经 vite alias `@scene-rules`
   直读 `server/src/modules/shared/domain/scene-rules.ts`。配套：`vue/vite.config.js` 加 alias +
   `server.fs.allow: ['..']`（本项目无 workspace，dev server 默认根是 `vue/`，不放行取不到 `../server`）。
   ★ **构建过 ≠ dev 过**：这类跨根引用只在 dev 才暴露，改完必须 `npm run dev` 实开一次。
@@ -253,6 +292,10 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
   - [ ] `api/mock.js` 里 `ENGINE_SPECS[x].base` 与 `TONE_MIX` **仍是 `MockEngine` 色板的拷贝**（知情保留）：色板是**引擎实现细节**，提进 `@scene-rules` 会让 shared 里躺一份「将来换真引擎就没人用」的死数据。正确时机是接真实引擎时由 `MockEngine` 导出快照，**不要**再去 shared 里加一张表。
   - [ ] **本地「妆造间」**：把生成历史存本地（localStorage / IndexedDB），“下次大事再备”；与账户 / 后端历史无关。
   - [ ] **分享卡导出**：canvas → PNG 导出成品对比图，作 demo 收尾彩蛋。
+  - [ ] **推荐 / 品牌参考位**（2026-09-10 拍板要做，见 §9）：结果页一块由「场合 + 衣橱缺口」推出来的推荐，
+    **必须标「品牌参考」**；空着也比硬贴强（红线 §13-6）。
+  - [ ] **外部教程入口**（2026-09-10 拍板要做）：按妆造关键词生成**外链**（小红书 / B 站 / 抖音的搜索或话题页），
+    **纯前端拼 URL、零后端、零内容库**——不搬运、不内嵌第三方图文视频、不抓图（红线 §13-2 / §13-6）。
   - [ ] （可选加分）**语音讲解**「为什么给你推这套」——赛道「AI 能听能说」点题；成本可控再上（浏览器 SpeechSynthesis 起步）。
   - [ ] **演示照 2~3 张**（不同肤色 / 性别 / 光线）一键载入 + 全空态文案 + 离线兜底。
   - [ ] 接真实上妆后：结果页由 `zones` CSS 叠加平滑演进为「真图为主、zones 为辅」，两条路（浏览器 mock / 后端真引擎）都要通。
@@ -265,7 +308,12 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；不抓网络图。参考素材必须 自绘 / 自有 / 可授权。
 3. **肤色 / 肤质包容**：`skinTone` 5 档、缺省 `medium`（中间档），**不默认浅肤色审美**；上妆与推荐都按真实肤色走。
 4. **肖像与隐私**：演示只用**已授权人物**；现场临时自拍采集最小化、即用即删、口头同意即可；不做任何真实用户数据的留存与上传。
-5. **账号边界**：`user` 模块已有**账号 + 密码**（2026-09-10 起）——密码只存 scrypt 凭据，**明文永不落盘 / 进日志 / 回视图**；登录只核对、**不签发 token、不建会话**。仍**不做**：找回密码 / 改密 / 注销、多机同步、PostgreSQL / 队列削峰 / 云存储、教程内容库、购物记录导入、化妆品拍照识别、电商广告位；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
+5. **账号边界**：`user` 模块已有**账号 + 密码**（2026-09-10 起）——密码只存 scrypt 凭据，**明文永不落盘 / 进日志 / 回视图**；登录只核对、**不签发 token、不建会话**。仍**不做**：找回密码 / 改密 / 注销、多机同步、PostgreSQL / 队列削峰 / 云存储、购物记录导入、化妆品拍照识别；生产级工程化（鉴权、可观测性、配额）降级为「够干净够稳即可」。
+6. **商业内容边界**（2026-09-10 起，**推翻了原先的「不做广告位 / 不做教程库」**）：推广是产品的一部分——结果页可以有**品牌参考位**（推欧莱雅旗下产品），也可以给**外部教程入口**。但下面四条不许破：
+   - **匹配逻辑不为推广让路**：推什么仍由「场合 + 肤质/肤色 + 衣橱缺口」决定；广告位只在**场景真的缺这个能力**时填充。宁可这一格空着，也不编一个需求出来塞货。
+   - **推广必须可辨认**：标注「品牌参考 / 赞助」，不得伪装成用户口碑或中立评测。
+   - **不接第三方广告网络**：只放**自有产品位**，不引 ad SDK、不做用户画像、不加追踪像素（红线 1 的 demo 稳 + 红线 4 的隐私）。
+   - 教程只做**外链**（按妆造关键词生成跳转/搜索入口），**不搬运、不内嵌第三方图文视频、不抓图**（红线 2 不变）。
 
 ---
 
@@ -274,3 +322,12 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 - [ ] 渲染方案 ① 自研参数化 vs ② 第三方 API（本周半天验证后拍板 → 决定 §6 的人脸关键点 / 渲染两单怎么派）。
 - [ ] 参考素材替换来源与授权范围（谁能贡献自绘 / 可授权图）。
 - [ ] （已完成）肤色档数 = 5 档、缺省 medium —— 不再改。
+- [ ] （**2026-09-10 新开**）**数字妆造间存哪**：本地（`localStorage` / IndexedDB，零后端零隐私面，§12 原意）
+  vs 后端（跨设备，但「无鉴权的 userId ↔ 人像妆造记录」会落在服务器上，顶红线 §13-4）。**建议本地**。
+- [ ] （**2026-09-10 新开**）**肤质档位改不改**：现为 `dry/oily/combination/sensitive/neutral`；
+  提案是 油皮 / 混油 / 混干 / 干皮 四档。改 = 动 `brief.ts` 枚举 + zod + 前端 chips + 测试（§2 说好枚举只定义一处），
+  但 `sensitive` 得有个去处。
+- [ ] （**2026-09-10 新开**）**场合加不加「旅行」**：加一个场合固定三处（§2 待办），成本可控；
+  「自定义」不必新增——现有 `daily` + `sceneText` 就是它。
+- [ ] （**2026-09-10 新开**，阻塞 §9 开工）**自有产品特性表由谁编、覆盖到什么程度**：
+  只收欧莱雅旗下、覆盖「5 个场合 × 常见缺口」量级，需要一个人把品类 / 名称 / 解决什么 / 适用肤质填出来。

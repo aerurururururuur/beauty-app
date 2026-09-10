@@ -7,14 +7,14 @@
  * 与 `MockReferenceProvider` 的区别不在形状,在**它不声称任何来源** ——
  * 空列表没有 license 要标,也没有「自绘演示素材」这种占位话术要还。
  */
-import type { SceneAnalysis } from '../../../understanding/index.js';
+import type { SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage } from '../../domain/entities/reference.js';
 import type { ReferenceProvider } from '../../domain/ports/reference-provider.js';
 
 export class OffReferenceProvider implements ReferenceProvider {
   readonly name = 'off';
 
-  async fetch(_scene: SceneAnalysis): Promise<ReferenceImage[]> {
+  async fetch(_scene: SceneDescriptor): Promise<ReferenceImage[]> {
     return [];
   }
 }

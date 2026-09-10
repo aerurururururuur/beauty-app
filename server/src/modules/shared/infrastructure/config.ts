@@ -20,7 +20,6 @@ export interface ServerConfig {
   /** 数据目录(任务记录 + 输入/产物文件都在这下面)的绝对路径。 */
   dataDir: string;
   maxUploadMb: number;
-  sceneAnalyzer: AdapterKind;
   referenceProvider: AdapterKind;
   makeupEngine: AdapterKind;
   /** 天气源:open-meteo(无 key 实拉,缺省)| mock(离线示意兜底)。 */
@@ -59,7 +58,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     logLevel: env.LOG_LEVEL ?? 'info',
     dataDir: path.resolve(env.DATA_DIR ?? './data'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 25),
-    sceneAnalyzer: asAdapterKind(env.SCENE_ANALYZER, 'mock'),
     referenceProvider: asAdapterKind(env.REFERENCE_PROVIDER, 'mock'),
     makeupEngine: asAdapterKind(env.MAKEUP_ENGINE, 'mock'),
     // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。

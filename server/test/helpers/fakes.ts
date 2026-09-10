@@ -2,9 +2,8 @@
  * test/helpers/fakes.ts —— 用例单测用的内存假端口。
  */
 import { Readable } from 'node:stream';
-import type { ImageRef } from '../../src/modules/shared/index.js';
+import type { ImageRef, SceneDescriptor } from '../../src/modules/shared/index.js';
 import type { JobRecord } from '../../src/modules/jobs/index.js';
-import type { SceneAnalysis } from '../../src/modules/understanding/index.js';
 import type { ReferenceImage } from '../../src/modules/references/index.js';
 import type {
   ArtifactStore,
@@ -13,7 +12,6 @@ import type {
 } from '../../src/modules/assets/index.js';
 import type { JobQueue, JobRepository } from '../../src/modules/jobs/index.js';
 import type { Engine, EngineInput, EngineResult } from '../../src/modules/makeup/index.js';
-import type { SceneAnalyzer, SceneAnalyzerInput } from '../../src/modules/understanding/index.js';
 import type { ReferenceProvider } from '../../src/modules/references/index.js';
 import type {
   PasswordHasher,
@@ -111,24 +109,9 @@ export class FakeQueue implements JobQueue {
   }
 }
 
-export class FakeSceneAnalyzer implements SceneAnalyzer {
-  readonly name = 'fake';
-  async analyze(input: SceneAnalyzerInput): Promise<SceneAnalysis> {
-    const brief = input.brief ?? {};
-    const label =
-      brief.occasion ?? (brief.sceneText?.includes('面试') ? 'interview' : 'daily');
-    return {
-      label,
-      direction: '测试方向',
-      tags: ['测试'],
-      source: 'fake',
-    };
-  }
-}
-
 export class FakeReferenceProvider implements ReferenceProvider {
   readonly name = 'fake';
-  async fetch(scene: SceneAnalysis): Promise<ReferenceImage[]> {
+  async fetch(scene: SceneDescriptor): Promise<ReferenceImage[]> {
     return [{ id: 'r1', title: `参考:${scene.label}`, license: '自绘测试素材', sourceUrl: '' }];
   }
 }
@@ -140,7 +123,7 @@ export class FakeEngine implements Engine {
       resultFilePath: 'mem://rendered.png',
       mimeType: 'image/png',
       look: {
-        style: input.sceneAnalysis?.direction ?? '默认',
+        style: input.scene?.direction ?? '默认',
         skinTone: input.brief?.skinTone,
         palette: [],
         zones: [],

@@ -2,8 +2,7 @@
  * domain/entities/job.ts —— Job 聚合的核心领域逻辑:状态机、流水线步骤、进度。
  * 全部为纯函数/纯数据,无 IO、无框架。仓库端口只负责持久化这里产生的记录。
  */
-import type { ImageRef, MakeupBrief } from '../../../shared/index.js';
-import type { SceneAnalysis } from '../../../understanding/index.js';
+import type { ImageRef, MakeupBrief, SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage } from '../../../references/index.js';
 import type { Look, ResultText } from '../../../makeup/index.js';
 import type { JobError } from './error.js';
@@ -38,7 +37,7 @@ export interface JobResult extends ResultText {
   engine: string;
   /** 下载地址,形如 /jobs/<id>/result。 */
   resultUrl: string;
-  scene: SceneAnalysis;
+  scene: SceneDescriptor;
   look: Look;
   references: ReferenceImage[];
 }
@@ -72,7 +71,7 @@ export interface JobRecord {
   startedAt?: string;
   completedAt?: string;
   /** 阶段 1(scene_understand)的产物,也回显进 result。 */
-  scene?: SceneAnalysis;
+  scene?: SceneDescriptor;
   /** 阶段 2(reference_gather)的产物,供轮询/引擎使用。 */
   references?: ReferenceImage[];
   result?: JobResult;
@@ -134,7 +133,7 @@ export function advanceTo(rec: JobRecord, step: PipelineStep): JobRecord {
 }
 
 /** 挂上阶段 1 的场景分析产物。 */
-export function recordScene(rec: JobRecord, scene: SceneAnalysis): JobRecord {
+export function recordScene(rec: JobRecord, scene: SceneDescriptor): JobRecord {
   assertRunning(rec, '记录场景');
   return { ...rec, scene };
 }

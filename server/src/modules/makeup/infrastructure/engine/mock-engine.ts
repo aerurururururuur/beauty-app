@@ -97,7 +97,7 @@ export class MockEngine implements Engine {
     // 模拟“渲染”耗时,让前端轮询能看到进度。
     await sleep(450);
     const tone = input.brief?.skinTone ?? DEFAULT_TONE;
-    const { style, palette } = specFor(input.sceneAnalysis?.label, tone);
+    const { style, palette } = specFor(input.scene?.label, tone);
 
     const zones: MakeupZone[] = ZONES.map((z) => ({
       role: z.role,

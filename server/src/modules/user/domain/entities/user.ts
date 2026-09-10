@@ -5,7 +5,7 @@
  * 领域层只当作不透明凭据搬运,不做校验也不解析——校验属密码校验器的事。
  * 未来扩展点(先注释,别把当前形状走死):
  *  - 皮肤/场合偏好(skinType/skinTone/常用 occasion 预设) → 上传时预填 brief
- *  - 已拥有化妆品清单(owned products) → 供 recommendations 模块「缺什么补什么」
+ *  - 已拥有化妆品清单:已拍板**不塞进档案**,归 cabinet 衣橱(roadmap §9)
  *  - 妆容历史归属:JobRecord 加可选 userId(「我的妆造间」)——见模块 README 接缝
  *  - 登录态:本轮只做「账号 + 密码」的核对,不签发 token / 不建会话
  */

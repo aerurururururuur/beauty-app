@@ -6,7 +6,7 @@
  * 本 mock 只给出「场合化的示意标题」,license 诚实标注为自绘演示素材;
  * 正式稿须替换为可授权参考素材并回填真实 license/sourceUrl。
  */
-import type { SceneAnalysis } from '../../../understanding/index.js';
+import type { SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage } from '../../domain/entities/reference.js';
 import type { ReferenceProvider } from '../../domain/ports/reference-provider.js';
 
@@ -54,7 +54,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export class MockReferenceProvider implements ReferenceProvider {
   readonly name = 'mock';
 
-  async fetch(scene: SceneAnalysis): Promise<ReferenceImage[]> {
+  async fetch(scene: SceneDescriptor): Promise<ReferenceImage[]> {
     // 模拟一次外部检索耗时,让进度可视化。
     await sleep(200);
     const samples = SAMPLES[scene.label] ?? FALLBACK_SAMPLES;

@@ -1,7 +1,7 @@
 /**
  * modules/jobs —— 任务模块(public barrel)。
  * Job 生命周期 + 异步流水线编排。是骨架的「编排者」:依赖 shared / assets /
- * understanding / references / makeup 的公开端口与工具;依赖方向保持单向、无环。
+ * references / makeup 的公开端口与工具;依赖方向保持单向、无环。
  */
 
 // ---- 领域实体 / 状态机(纯函数,供用例与测试复用) ----

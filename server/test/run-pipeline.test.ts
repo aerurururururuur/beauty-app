@@ -13,7 +13,6 @@ import {
   FakeJobRepository,
   FakeQueue,
   FakeReferenceProvider,
-  FakeSceneAnalyzer,
   ThrowingEngine,
   memFile,
 } from './helpers/fakes.js';
@@ -23,12 +22,10 @@ function setup(engine = new FakeEngine()) {
   const artifactStore = new FakeArtifactStore();
   const queue = new FakeQueue();
   const submitJob = new SubmitJob({ jobs, artifactStore, queue });
-  const sceneAnalyzer = new FakeSceneAnalyzer();
   const referenceProvider = new FakeReferenceProvider();
   const runPipeline = new RunPipeline({
     jobs,
     artifactStore,
-    sceneAnalyzer,
     referenceProvider,
     engine,
   });

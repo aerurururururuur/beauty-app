@@ -7,8 +7,7 @@
  * 说明:引擎收到的是已解析到本机磁盘的图片路径;将来若换云存储/把图片转交远端 API,
  * 由上层用例在调用处解析/适配,端口形状可保持不变。
  */
-import type { EngineSourceImage, MakeupBrief } from '../../../shared/index.js';
-import type { SceneAnalysis } from '../../../understanding/index.js';
+import type { EngineSourceImage, MakeupBrief, SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage } from '../../../references/index.js';
 import type { Look } from '../entities/look.js';
 
@@ -18,7 +17,8 @@ export interface EngineInput {
   scenes: EngineSourceImage[];
   /** 用户需求简报:occasion / 肤质肤色 / 穿搭 / 天气 / 自由文字。 */
   brief: MakeupBrief;
-  sceneAnalysis?: SceneAnalysis; // 场景阶段开启并成功时传入
+  /** 流水线算出的妆容方向(场合 label 驱动 style/palette 基准)。 */
+  scene?: SceneDescriptor;
   references?: ReferenceImage[]; // 参考图阶段开启时传入
 }
 

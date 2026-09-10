@@ -25,7 +25,7 @@ function sampleResult(): JobResult {
   return {
     engine: 'mock',
     resultUrl: '/jobs/job-1/result',
-    scene: { label: 'interview', direction: '正式得体', tags: ['正式'], source: 'mock' },
+    scene: { label: 'interview', direction: '正式得体', tags: ['正式'] },
     look: { style: '正式得体' },
     references: [],
     analysis: 'a',
@@ -42,8 +42,8 @@ describe('Job 状态机', () => {
     expect(rec.scene).toBeUndefined();
     expect(rec.startedAt).toBeDefined();
 
-    const sceneAnalysis = { label: 'interview', direction: '正式得体', tags: ['正式'], source: 'mock' };
-    rec = recordScene(advanceTo(rec, 'scene_understand'), sceneAnalysis);
+    const scene = { label: 'interview', direction: '正式得体', tags: ['正式'] } as const;
+    rec = recordScene(advanceTo(rec, 'scene_understand'), scene);
     expect(rec.step).toBe('scene_understand');
     expect(rec.progress).toBe(20);
 

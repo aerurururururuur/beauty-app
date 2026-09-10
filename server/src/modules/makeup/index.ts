@@ -1,6 +1,6 @@
 /**
  * modules/makeup —— 上妆引擎模块(public barrel)。
- * 依赖 shared;引擎端口还引用 understanding(场景)与 references(参考图)的类型。
+ * 依赖 shared;引擎端口还引用 references(参考图)的类型。
  * 业务「文案组装 narration」与「引擎输出校验」也归本模块(都贴近 look/引擎契约)。
  */
 export type { Look, MakeupZone } from './domain/entities/look.js';

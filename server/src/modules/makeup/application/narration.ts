@@ -4,9 +4,8 @@
  * 输入附加 MakeupBrief(occasion / 肤质肤色 / 穿搭 / 天气),拼出「为什么这套」——
  * 呼应 roadmap:场合 formality 决定风格、肤质决定持妆选择、肤色决定色板(不默认浅肤色审美)。
  */
-import type { MakeupBrief, SkinTone, SkinType } from '../../shared/index.js';
+import type { MakeupBrief, Occasion, SceneDescriptor, SkinTone, SkinType } from '../../shared/index.js';
 import { SCENE_RULES } from '../../shared/index.js';
-import type { SceneAnalysis } from '../../understanding/index.js';
 import type { Look } from '../domain/entities/look.js';
 import type { ResultText } from '../domain/entities/result-text.js';
 
@@ -14,13 +13,12 @@ import type { ResultText } from '../domain/entities/result-text.js';
  * 场合英文 label → 中文名。
  *
  * 单一源在 `shared/domain/scene-rules.ts` —— 这里不再自己抄一份(曾经有第三份,
- * 与前端 constants 和 understanding 的规则表各写一遍,加减场合时会漏改)。
- * `scene.label` 的静态类型是 `string`(将来接视觉模型可能给出非枚举标签),
- * 所以按字符串查表,**认不出就原样回显**,不编一个中文名出来。
+ * 与前端 constants 各写一遍,加减场合时会漏改)。`Record<Occasion, …>` 保证查得到,
+ * 所以不需要「认不出就回显」那条回落路——那是给「将来接视觉模型可能给出非枚举标签」
+ * 留的,而 `SceneDescriptor.label` 现在就是枚举本身。
  */
-function occasionCn(label: string): string {
-  const rule = (SCENE_RULES as Record<string, { cn: string }>)[label];
-  return rule ? rule.cn : label;
+function occasionCn(label: Occasion): string {
+  return SCENE_RULES[label].cn;
 }
 
 const SKIN_TYPE_CN: Record<SkinType, string> = {
@@ -49,7 +47,7 @@ const TYPE_STRATEGY: Record<SkinType, string> = {
 };
 
 export function buildNarrative(
-  scene: SceneAnalysis,
+  scene: SceneDescriptor,
   engineName: string,
   look: Look,
   brief?: MakeupBrief,

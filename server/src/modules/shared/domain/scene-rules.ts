@@ -10,10 +10,15 @@
  *   2. **改这里 = 同时改前后端行为**。浏览器 mock 模式与真实后端必须给出同一个答案,
  *      这正是本文件存在的理由(此前两边各抄了一份,会静默漂移)。
  *
- * 为什么放 `shared` 而不是 `understanding`:这些是**独立于上妆引擎**的场合语义,
- * 换任何引擎都成立;而 `shared/domain/entities/brief.ts` 本就是枚举单源的家。
- * 把 `OCCASIONS` 的每个取值连同它的中文名 / 方向 / 标签 / 关键词收在一处,
- * 加减场合时 `Record<Occasion, SceneStyle>` 会把「漏配」变成**编译错误**。
+ * 为什么放 `shared`:这些是**独立于上妆引擎**的场合语义,换任何引擎都成立;而
+ * `shared/domain/entities/brief.ts` 本就是枚举单源的家。把 `OCCASIONS` 的每个取值连同
+ * 它的中文名 / 方向 / 标签 / 关键词收在一处,加减场合时 `Record<Occasion, SceneStyle>`
+ * 会把「漏配」变成**编译错误**。
+ *
+ * ★ 这里**不再有**一个 `understanding` 模块包着 `describeScene`(2026-09-10 删)。那个模块
+ *   的全部内容是「一个 sleep + 一次转发 + 一个只能拨到 mock 的开关」,而它是全链路唯一
+ *   假装在做模型推断的地方 —— 方向本来就是一个**纯查表**,索性让 `run-pipeline` 直接调。
+ *   接视觉模型时再来建接缝(届时记得同时恢复一个 `off` 逃生门,那正是它当初唯一的用途)。
  */
 import type { MakeupBrief, Occasion } from './entities/brief.js';
 
@@ -128,16 +133,21 @@ const MODIFIER_RULES: readonly ModifierRule[] = [
 ];
 
 /**
- * 场合理解的产物形状。
+ * 妆容方向 —— 全链路唯一的形状。
  *
- * 与 `understanding/domain/entities/scene.ts` 的 `SceneAnalysis` 结构一致,但**不能在
- * shared 里 import 那个类型**——shared 是地基,不依赖任何业务模块。两边靠结构化类型对齐。
+ * 曾经有两份:这里的 `SceneDescriptor` 与 `understanding/domain/entities/scene.ts` 的
+ * `SceneAnalysis`。后者存在的唯一理由是「shared 是地基,不能 import 业务模块的类型」;
+ * 模块删掉后那个理由消失,两份并成一份。HTTP 里的 `JobView.scene` 就是这个形状。
+ *
+ * ★ 这里**曾经**还有一个 `source: string`(值恒为 `'mock'`,删模块前是 `'mock' | 'off'`)。
+ *   和更早删掉的 `confidence` 同一个病:只有一个生产者、值恒定的字段,调用方读不出信息。
+ *   它当初的用途是标记 `off`,而 `off` 保护的那个模型并不存在,一并删了。
  */
 export interface SceneDescriptor {
+  /** 判出来的场合。只有一个生产者了,所以是枚举而不是 string —— 这是实话。 */
   label: Occasion;
   direction: string;
   tags: string[];
-  source: string;
 }
 
 /** 命中修饰词时 `direction` 的接法:基准方向 + 「;按你的要求…」。 */
@@ -149,16 +159,15 @@ function appendModifiers(base: string, suffixes: string[]): string {
 /**
  * 把用户需求简报翻译成妆容方向 —— **纯函数**、无 IO、无计时。
  *
- * 前后端都调它:`MockSceneAnalyzer` 包一层 sleep(只为让前端轮询看到进度),
- * 浏览器 mock 模式直接调。所以这里的每一条判断,两侧行为完全一致。
+ * 后端由 `jobs/application/usecases/run-pipeline.ts` 直接调用(流水线的 `scene_understand`
+ * 这一步就是它),前端浏览器 mock 模式直接调。所以这里的每一条判断,两侧行为完全一致。
  *
  * 判定顺序:显式 `occasion` → 自由文字命中关键词 → `daily` 兜底。
  * 之后**无论走哪条**都再叠一层修饰词。
  *
- * ★ 这里**曾经**返回一个 `confidence: number`(0.92/0.72/0.4/0.3),已删:那四个值是按
- *   分支硬写的常量,不含任何测量信息 —— 调用方本来就知道用户点没点 chip。真正的诚实标记
- *   是 `source`(判不出来时 `'off'`,`OffSceneAnalyzer` 给)。要接视觉模型时,分数才有意义,
- *   那时再加回来。
+ * ★ 这里曾经返回过一个 `confidence: number`(2026-09-10 删)和一个恒定的 `source`。两者都是
+ *   按分支硬写的常量、零消费者,拿它们做 UI 等于把常量包装成测量值。要接视觉模型时,
+ *   分数才真的含有信息,那时再连同接缝一起加回来。
  */
 export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
   const text = (brief.sceneText ?? '').toLowerCase();
@@ -185,6 +194,5 @@ export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
     label,
     direction: appendModifiers(style.direction, suffixes),
     tags,
-    source: 'mock',
   };
 }

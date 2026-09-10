@@ -1,7 +1,7 @@
 /**
  * modules/user —— 用户模块(public barrel)。
  * 账号 = 昵称 + 密码(只存哈希,不存明文);提供注册 / 登录核对 / 按 id 查档案。
- * 本轮不做登录态(不签发 token、不建会话),也尚未与 jobs / recommendations 联动
+ * 本轮不做登录态(不签发 token、不建会话),也尚未与 jobs 联动
  * (任务归属 userId 是未来接缝,见模块 README)。跨模块协作只经由这里。
  */
 

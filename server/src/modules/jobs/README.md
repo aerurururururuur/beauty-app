@@ -20,11 +20,12 @@
 | `infrastructure/json/job-repository.ts` | 临时 JSON 仓库 + rename 原子写 |
 | `infrastructure/queue/in-memory-queue.ts` | 进程内串行队列（重启丢） |
 | `index.ts` | public barrel（jobs 是编排者，跨模块注入都在 `jobs/compose.ts` 收口） |
-| `compose.ts` | `createJobsModule({ dataDir, artifactStore, sceneAnalyzer, referenceProvider, engine })` → `{ jobs, queue, runPipeline, … }` |
+| `compose.ts` | `createJobsModule({ dataDir, artifactStore, referenceProvider, engine })` → `{ jobs, queue, runPipeline, … }` |
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared` / `assets` / `understanding` / `references` / `makeup`（全部经 barrel，`shared` 的 config/error-handler 由 `src/index.ts` 深路径取用）。
+- 依赖：`shared` / `assets` / `references` / `makeup`（全部经 barrel，`shared` 的 config/error-handler 由 `src/index.ts` 深路径取用）。
+- ★ **例外：妆容方向不走端口。** `run-pipeline.ts` 直接调 `shared` 的纯函数 `describeScene(brief)`——它算的是场合语义，与引擎无关，没有可替换的实现，所以既没有「理解」端口也没有开关（2026-09-10 删掉了那个模块）。
 - 被依赖：无（最外层编排者，被 `src/index.ts` 直接装配）。
 
 ## 现状与改法

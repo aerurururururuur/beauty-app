@@ -13,11 +13,10 @@ async function run(occasion: string, skinTone: string): Promise<EngineResult> {
     face: { filePath: 'mem://face.png', mimeType: 'image/png' },
     scenes: [],
     brief: { occasion: occasion as 'interview', skinTone: skinTone as 'light' },
-    sceneAnalysis: {
+    scene: {
       label: occasion,
       direction: 'x',
       tags: [],
-      source: 'mock',
     },
   };
   return eng.generate(input);
@@ -49,7 +48,7 @@ describe('MockEngine', () => {
       face: { filePath: 'mem://face.png', mimeType: 'image/png' },
       scenes: [],
       brief: { occasion: 'daily' },
-      sceneAnalysis: { label: 'daily', direction: 'x', tags: [], source: 'mock' },
+      scene: { label: 'daily', direction: 'x', tags: [] },
     };
     const out = await eng.generate(input);
     expect((out.look as { skinTone: string }).skinTone).toBe('medium');

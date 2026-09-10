@@ -1,14 +1,14 @@
 /**
  * modules/jobs/compose.ts —— 组合根。
  * 把持久化(JsonJobRepository)、队列(InMemoryJobQueue)与四个用例装起来:
- * RunPipeline 收到队列出队 → 用外部注入的资产/理解/参考/引擎端口跑完流水线;
+ * RunPipeline 收到队列出队 → 用外部注入的资产/参考/引擎端口跑完流水线
+ * (妆容方向那一步不走端口:它是 `shared` 里的纯函数,流水线直接调);
  * SubmitJob / GetJob / GetJobResult 暴露给 web shell。换队列/仓库在此换实现。
  */
 import path from 'node:path';
 import type { ArtifactStore } from '../assets/index.js';
 import type { Engine } from '../makeup/index.js';
 import type { ReferenceProvider } from '../references/index.js';
-import type { SceneAnalyzer } from '../understanding/index.js';
 
 import { RunPipeline } from './application/usecases/run-pipeline.js';
 import { SubmitJob } from './application/usecases/submit-job.js';
@@ -23,7 +23,6 @@ export interface JobsModuleOptions {
   /** 数据根目录绝对路径;任务记录落在其下 jobs/ 子目录。 */
   dataDir: string;
   artifactStore: ArtifactStore;
-  sceneAnalyzer: SceneAnalyzer;
   referenceProvider: ReferenceProvider;
   engine: Engine;
 }
@@ -43,7 +42,6 @@ export function createJobsModule(options: JobsModuleOptions): JobsModuleServices
   const runPipeline = new RunPipeline({
     jobs,
     artifactStore: options.artifactStore,
-    sceneAnalyzer: options.sceneAnalyzer,
     referenceProvider: options.referenceProvider,
     engine: options.engine,
   });

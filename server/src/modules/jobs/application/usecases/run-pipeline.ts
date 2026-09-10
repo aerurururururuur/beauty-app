@@ -2,15 +2,18 @@
  * application/usecases/run-pipeline.ts —— 异步 worker 用例(流水线)。
  * 步骤:scene_understand → reference_gather → makeup_generate → store_result,
  * 每完成一步原子地推进 JobRecord(domain 状态机约束),任一步失败则标记 failed。
- * 四个端口全部来自 domain/ports,具体实现由组装根注入。
+ *
+ * 第一步的「妆容方向」不是外接能力,而是 `shared/domain/scene-rules.ts` 的**纯函数**
+ * `describeScene(brief)` —— 全链路唯一的风格信号来源。所以它在这里直接调用,不经端口
+ * (2026-09-10 前它绕道一个 understanding 模块,而那个模块里只有一个 sleep 和一次转发)。
+ * 其余端口(资产/参考/引擎)来自 domain/ports,具体实现由组装根注入。
  */
-import { AppError, ErrorCode } from '../../../shared/index.js';
+import { AppError, ErrorCode, describeScene } from '../../../shared/index.js';
 import type { EngineSourceImage, ImageRef } from '../../../shared/index.js';
 import type { ArtifactStore } from '../../../assets/index.js';
 import type { Engine } from '../../../makeup/index.js';
 import { buildNarrative, validateEngineResult } from '../../../makeup/index.js';
 import type { ReferenceProvider } from '../../../references/index.js';
-import type { SceneAnalyzer } from '../../../understanding/index.js';
 import { advanceTo, failJob, finishJob, recordReferences, recordScene, startJob } from '../../domain/entities/job.js';
 import type { JobResult } from '../../domain/entities/job.js';
 import type { JobRepository } from '../../domain/ports/job-repository.js';
@@ -20,7 +23,6 @@ export class RunPipeline {
     private readonly deps: {
       jobs: JobRepository;
       artifactStore: ArtifactStore;
-      sceneAnalyzer: SceneAnalyzer;
       referenceProvider: ReferenceProvider;
       engine: Engine;
     },
@@ -44,9 +46,9 @@ export class RunPipeline {
       const face = await toSource(rec.inputs.face);
       const scenes = await Promise.all(rec.inputs.scenes.map((ref) => toSource(ref)));
 
-      // ① 场景理解(brief:occasion/自由文字 → 妆容方向)
+      // ① 妆容方向(brief:occasion/自由文字 → 方向)——纯查表,无 IO、无耗时
       const brief = rec.inputs.brief ?? {};
-      const scene = await this.deps.sceneAnalyzer.analyze({ face, scenes, brief });
+      const scene = describeScene(brief);
       rec = await this.deps.jobs.update(jobId, (prev) =>
         recordScene(advanceTo(prev, 'scene_understand'), scene),
       );
@@ -63,7 +65,7 @@ export class RunPipeline {
         face,
         scenes,
         brief,
-        sceneAnalysis: scene,
+        scene,
         references,
       });
       // 输出校验:引擎是外部适配器,进入流水线前必须保证产物路径/类型与 look 几何合法。

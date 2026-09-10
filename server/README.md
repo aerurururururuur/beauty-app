@@ -1,6 +1,6 @@
 # 场合美妆后端（server/）
 
-TypeScript + **模块化清洁架构**的后端：`src/modules/*` 按功能拆模块，模块内部走 domain ← application ← presentation、`infrastructure` 只实现模块内 `domain/ports`；模块间只经各模块 `index.ts`(public barrel)协作。目前场景理解 / 参考检索 / 上妆引擎均为 mock，接口留作接缝，换真实实现不改业务层。
+TypeScript + **模块化清洁架构**的后端：`src/modules/*` 按功能拆模块，模块内部走 domain ← application ← presentation、`infrastructure` 只实现模块内 `domain/ports`；模块间只经各模块 `index.ts`(public barrel)协作。目前参考检索 / 上妆引擎均为 mock，接口留作接缝，换真实实现不改业务层。
 
 产品定位（赛道 3 · 无界体验家）：为「重要场合」配得体妆容——输入是**本人照片 + 需求简报 brief**（occasion 场合 / 肤质 / 肤色 / 穿搭 / 天气 / 自由文字）。0..6 张「氛围参考图」保留但**降级为可选、不驱动成片**，仅回显。
 
@@ -28,19 +28,17 @@ src/
 └── modules/                 # ★ 按功能拆模块;模块内部 domain/application/presentation/infrastructure
     ├── shared/              # 地基:brief 枚举单源 / scene-rules(场合语义·前后端单一源) / AppError(+ compose)
     ├── assets/              # 图片存储:ArtifactStore 端口 + 本地文件系统实现
-    ├── understanding/       # 场景理解:SceneAnalysis + 分析器端口 + mock/off(判定实现在 shared/scene-rules)
     ├── references/          # 参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
     ├── makeup/              # 上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
     ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
     ├── user/                # 账号:昵称+密码(scrypt 哈希,不存明文) / 注册·登录核对·查档案 + JSON 落盘
     ├── weather/             # 当日天气:open-meteo 实拉(无 key)+ WMO 码映射 + mock 兜底 + 查询校验
-    ├── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
-    └── recommendations/     # [空壳] 平价同款推荐端口(骨架未 wire);「已拥有品」将来取自 cabinet
+    └── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
 ```
 
 每个模块 = `index.ts`(public barrel,跨模块协作只走它) + `compose.ts`(`createXxxModule` 组合根) + 模块内四层；
-`shared` 只被依赖;`jobs` 是编排者,依赖 assets / understanding / references / makeup 的公开端口与工具。
-**每个模块下都有 `README.md`**：一句话职责、目录/依赖、现状、怎么改（含空壳模块的待办），接手前先读。
+`shared` 只被依赖;`jobs` 是编排者,依赖 assets / references / makeup 的公开端口与工具（妆容方向那一步例外：它是 `shared` 里的纯函数，流水线直接调用，不经端口）。
+**每个模块下都有 `README.md`**：一句话职责、目录/依赖、现状、怎么改（含「接缝（将来）」一节记着还没做的那步），接手前先读。
 
 ### brief —— 输入的唯一结构化载体
 
@@ -78,10 +76,12 @@ src/
 | `makeup_generate` | 70 |
 | `store_result` | 100(done) |
 
-流水线语义：`SceneAnalyzer` 按 `brief.occasion`（或 `brief.sceneText` 关键词命中，否则 `daily` 兜底）定 `label`，**再叠一层自由文字里的修饰词**（低调 / 加浓 / 利落 / 温柔 / 提气色 → 追加 tags + 在 `direction` 后接一句），产出 `SceneAnalysis{ label, direction, tags, source }`（**没有 `confidence`**——它是按分支硬写的常量、零消费者，2026-09-10 删掉；「没推断」的标记是 `source: 'off'`）；`ReferenceProvider` 按 label 取场合样本；`Engine` 按 **occasion 基准风格 × skinTone 调深浅** 生成 `Look`（含 `zones` 供前端 CSS 叠加）。标识符沿用 `scene` 词（中文「场景/场合」皆可），语义已场合化。
+流水线语义：第一步的妆容方向不是外接能力，而是 `shared/domain/scene-rules.ts` 的**纯函数** `describeScene(brief)`——按 `brief.occasion`（或 `brief.sceneText` 关键词命中，否则 `daily` 兜底）定 `label`，**再叠一层自由文字里的修饰词**（低调 / 加浓 / 利落 / 温柔 / 提气色 → 追加 tags + 在 `direction` 后接一句），产出 `SceneDescriptor{ label, direction, tags }`；`ReferenceProvider` 按 label 取场合样本；`Engine` 按 **occasion 基准风格 × skinTone 调深浅** 生成 `Look`（含 `zones` 供前端 CSS 叠加）。标识符沿用 `scene` 词（中文「场景/场合」皆可），语义已场合化。
 
 > 修饰词**只改 `direction`/`tags`（文案与前端 chip），不改 `label`、不动色板** —— 判定结果与妆效与从前一致。
-> 判定规则是前后端单一源（`shared/domain/scene-rules.ts`），前端浏览器 mock 模式直读同一份。详见 `modules/shared/README.md` 与 `modules/understanding/README.md`。
+> 判定规则是前后端单一源（`shared/domain/scene-rules.ts`），前端浏览器 mock 模式直读同一份。详见 `modules/shared/README.md`。
+>
+> **没有「场景理解」模块**（2026-09-10 删）：方向是一个纯查表函数，它没有可替换的实现，所以既不该有端口，也不该有开关。曾经包着它的那个模块的全部内容是「一个 `sleep` + 一次转发 + 一个只能拨到 mock 的开关」。接视觉大模型时再来建接缝。
 
 ## HTTP 契约（全部挂 `/api` 前缀）
 
@@ -160,7 +160,6 @@ curl -s -X POST http://localhost:3000/api/users/login -H 'Content-Type: applicat
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
 | `MAKEUP_ENGINE` | `mock` | **尚未接线**（`createMakeupModule()` 还不收参数）：`off` 对「上妆引擎」没有意义——没有引擎就出不了成品，硬接只会得到又一个假开关。接真实引擎时再接。 |
-| `SCENE_ANALYZER` | `mock` | `mock` 或 `off`(**已接通**,见 `understanding/compose.ts`)。`off` = **不推断**（返回 `source:'off'`、空 tags），不是关掉这一棒（流水线强依赖 `scene`） |
 | `REFERENCE_PROVIDER` | `mock` | `mock` 或 `off`(**已接通**,见 `references/compose.ts`)。`off` 返回空列表且**不声称任何来源** |
 | `WEATHER_PROVIDER` | `open-meteo` | `open-meteo`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**） |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
@@ -186,7 +185,7 @@ npm test           # vitest run
 - `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取 medium
 - `user.test.ts` — 注册/重名/登录成败/查档案 + 真实 JSON 仓库与 scrypt 凭据（守「明文不落库、视图不含凭据」）
 - `weather.test.ts` — WMO 码映射 / 查询校验 / 用例错误翻译 + open-meteo 适配器（**打桩 fetch，单测不联网**）
-- `understanding.test.ts` — 场合判定行为不变（四条分支 + 优先级表）+ **自由文字真的进方向**（修掉的短路）+ 修饰词去重不发散 + **红线:「显白」不被采纳** + 单一源完整性（`SCENE_RULES`/`SCENE_MATCH_ORDER` 覆盖 `OCCASIONS` 全集、共享文件**零运行时 import**、前端 alias 确实指向它、**判定结果里没有 `confidence`**）+ mock 与 off 适配器
+- `scene-rules.test.ts` — 场合判定行为不变（四条分支 + 优先级表）+ **自由文字真的进方向**（修掉的短路）+ 修饰词去重不发散 + **红线:「显白」不被采纳** + 单一源完整性（`SCENE_RULES`/`SCENE_MATCH_ORDER` 覆盖 `OCCASIONS` 全集、共享文件**零运行时 import**、前端 alias 确实指向它、**判定结果只有 `{label,direction,tags}`**——多出来的常量字段别加回来）
 - `cabinet.test.ts` — 衣橱边界（空名 / 超长 / 特性重名 / 控制字符 / 空更新）+ 用例（用户不存在 → `USER_NOT_FOUND`、超上限 → `CABINET_FULL`）+ **越权改删 → 报 404 且原数据一个字没动** + 真实 JSON 仓库 `mkdtemp` 验「重启后还在」
 
 ## 换真实引擎怎么做
@@ -194,10 +193,11 @@ npm test           # vitest run
 任选其一实现对应 port，再到所属模块的 `compose.ts` 里换实现即可，无需改动模块内的业务层：
 
 - 真实上妆引擎：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关；
-- 真实场景理解：实现 `modules/understanding/domain/ports/scene-analyzer.ts`（视觉大模型），输入里带着 `brief`；在 `understanding/compose.ts` 把 `kind` 扩成 `'mock' | 'vision' | 'off'`。**留着 `off` 当逃生门**——现场模型翻车时一个环境变量就能退回「不推断」；
 - 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`；
 - 换账号存储 / 换哈希算法：实现 `modules/user/domain/ports/user-repository.ts` 或 `password-hasher.ts`，在 `user/compose.ts` 换实现（用例与路由不变）；
 - 换天气源：实现 `modules/weather/domain/ports/weather-provider.ts`，在 `weather/compose.ts` 按 `kind` 分发 + `config.weatherProvider` 开一个环境变量。拿不到数据要抛 `WeatherUpstreamError`（→ 502 让前端**省掉这次天气**，不阻塞提交），**不要返回假天气**；
 - 换衣橱存储：实现 `modules/cabinet/domain/ports/cosmetic-repository.ts`，在 `cabinet/compose.ts` 换实现。换到有并发保障的存储后，把「件数上限 / 归属判断」从用例下沉到仓库层兜底（端口契约不变）。
+
+> **视觉大模型（想做时的说明）**：`describeScene` 是纯函数，没有端口可换——接视觉模型不是「换个实现」，而是**新建一个模块**：在它自己的 `domain/ports` 里声明端口、在 `compose.ts` 里按 `config` 分发，由 `run-pipeline.ts` 代替直接调 `describeScene`。**届时务必同时留一个 `off` 逃生门**（模型现场翻车时退回纯查表），那正是已删的 `OffSceneAnalyzer` 唯一的用途。另：它默认必须关闭，且**不得让氛围参考图重新变成风格主输入**（红线 §13-1 / §13-3）。
 
 > **素材红线**：参考样本当前为自绘演示示意，license 诚实标注、`sourceUrl` 置空；正式稿须替换为可授权素材并逐张回填来源，不抓取网络图。

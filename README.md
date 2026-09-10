@@ -71,20 +71,20 @@ src/
 └── modules/
     ├── shared/          地基:brief 枚举单源 / 图片值对象 / AppError
     ├── assets/          图片存取:ArtifactStore 端口 + 本地文件系统实现
-    ├── understanding/   场景理解:端口 + mock(occasion/关键词 → 方向)
     ├── references/      参考妆面:端口 + mock(自绘授权诚实)
     ├── makeup/          上妆引擎:Engine 端口 + 输出校验 + mock 引擎
     ├── jobs/            Job 生命周期 + 流水线编排(编排方)
-    ├── user/            [空壳] 用户账号:User 实体 + 仓库契约(登录未做)
-    ├── weather/         [空壳] 天气端口
-    └── recommendations/ [空壳] 平价推荐端口
+    ├── user/            账号:昵称+密码(scrypt,不存明文) / 注册·登录核对·查档案
+    ├── cabinet/         衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属
+    └── weather/         当日天气:open-meteo 实拉 + 查询校验
 ```
 
 每个模块 = `index.ts`(public barrel，跨模块只走它) + `compose.ts`(组合根) + 模块内 `domain ← application ← presentation`、`infrastructure` 只实现模块内 `domain/ports`。各「类别」（entities/schemas/validators/ports/errors/api）都落在各自所属模块内。
 
 > **schema vs validator**：schema 只描述「长什么样」（形状单源）；validator 才是被上层调用、做校验动作的对象——跨字段业务规则、语义错误码、输出（引擎产物几何/颜色）把关都在这层。
 
-**换真实实现只换 adapter**：真实上妆引擎、视觉大模型场景理解、真实网页/图库参考检索、天气、推荐，都只需实现对应模块的 port，业务与 HTTP 层不感知（见 `docs/plan/roadmap.md` 的「接缝地图」）。
+**换真实实现只换 adapter**：真实上妆引擎、真实网页/图库参考检索、天气，都只需实现对应模块的 port，业务与 HTTP 层不感知（见 `docs/plan/roadmap.md` 的「接缝地图」）。
+视觉大模型场景理解（§4）与推荐 / 品牌参考位（§9）**当前都没有对应模块**：两处的空壳都在 2026-09-10 删掉了（空壳端口比没有更容易误导），要做时在 `docs/plan/roadmap.md` 里按那两节**重建**接缝。
 
 ## 文档
 
@@ -101,4 +101,6 @@ cd server && npm test    # Vitest,内存假端口 + validator 用例
 
 ## 当前是骨架：不做 / 留作接缝
 
-真实妆容渲染引擎、视觉大模型场合理解、真实参考图检索（须逐张回填授权来源，不抓网络图）、天气自动拉取、user 模块(空壳,账号模型+仓库契约已立,登录鉴权未做)、削峰队列与多机/云存储。
+**不做**：真实妆容渲染引擎（当前是 `MockEngine`）、视觉大模型场合理解、真实参考图检索（素材须逐张回填授权来源，不抓网络图）、登录态（账号 + 密码已做，但**不签发 token / 不建会话**）、购物记录导入、化妆品拍照识别、削峰队列与多机 / 云存储。
+
+**已拍板要做、尚未开工**：推荐 / **品牌参考位**（只推赞助方旗下产品，匹配逻辑不为推广让路——见 `docs/plan/roadmap.md` §9 与红线 §13-6）、**外部教程入口**（纯外链，不搬运不内嵌）、**数字妆造间**（存哪待拍板，见 §12）。

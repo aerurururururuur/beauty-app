@@ -4,8 +4,7 @@
  * application 只负责把领域对象映射过来(见 application/mapping)。
  * 不引入网络/框架类型,保持纯数据。
  */
-import type { MakeupBrief } from '../../../shared/index.js';
-import type { SceneAnalysis } from '../../../understanding/index.js';
+import type { MakeupBrief, SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage } from '../../../references/index.js';
 import type { Look, ResultText } from '../../../makeup/index.js';
 import type { JobError } from '../entities/error.js';
@@ -22,7 +21,7 @@ export interface JobInputsView {
 export interface JobResultView extends ResultText {
   engine: string;
   resultUrl: string; // 形如 /jobs/<id>/result
-  scene: SceneAnalysis;
+  scene: SceneDescriptor;
   look: Look;
   references: ReferenceImage[];
 }
@@ -35,7 +34,7 @@ export interface JobView {
   step: PipelineStep;
   error: JobError | null;
   inputs: JobInputsView;
-  scene?: SceneAnalysis;
+  scene?: SceneDescriptor;
   references?: ReferenceImage[];
   result?: JobResultView;
 }

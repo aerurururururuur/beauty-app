@@ -7,7 +7,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `domain/entities/reference.ts` | `ReferenceImage`：`{ id, title, license, sourceUrl }`（license 必填） |
-| `domain/ports/reference-provider.ts` | `ReferenceProvider` 端口（本模块持契约）：`fetch(SceneAnalysis) → ReferenceImage[]` |
+| `domain/ports/reference-provider.ts` | `ReferenceProvider` 端口（本模块持契约）：`fetch(SceneDescriptor) → ReferenceImage[]` |
 | `infrastructure/reference-provider/mock-reference-provider.ts` | `MockReferenceProvider`：按场景 label 返回自绘示意样本，license 诚实标注、sourceUrl 置空 |
 | `infrastructure/reference-provider/off-reference-provider.ts` | `OffReferenceProvider`：`REFERENCE_PROVIDER=off` 时返回**空列表**——结果页的参考区是 `v-if="references.length"`，所以这是个**真能用的开关**；与 mock 的区别是它**不声称任何来源** |
 | `index.ts` | public barrel |
@@ -15,11 +15,11 @@
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared`（类型）、`understanding`（`SceneAnalysis` 类型）。
+- 依赖：`shared`（`SceneDescriptor` 等类型）。
 - 被依赖：`jobs`（注入 `referenceProvider`）。
 
 ## 现状与改法
 
-- **现状**：mock 自绘样本可用；`config.referenceProvider` 的 `mock` / `off` **已真接通**（与 `SCENE_ANALYZER` 同款做法）。
+- **现状**：mock 自绘样本可用；`config.referenceProvider` 的 `mock` / `off` **已真接通**（做法与 `WEATHER_PROVIDER` 相同）。
 - **待办（替换素材，阻塞性）**：逐张换成 自绘/自有/可授权 来源并回填 `license` + 真实 `sourceUrl`。**不抓网络图、不用 example.com**（主办明文：侵犯第三方知识产权直接出局）。
 - **可选扩展**：参考妆面按 `skinTone`/场合分层，让参考对深肤色用户同样有代表性——需先扩展 `ReferenceImage` + port 形状，评估后再动。
