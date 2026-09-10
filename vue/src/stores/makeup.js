@@ -91,12 +91,10 @@ export const useMakeupStore = defineStore('makeup', () => {
 
     weatherPlace.value = view?.place || ''
     weatherSource.value = view?.source === 'mock' ? 'mock' : 'open-meteo'
+    // 具体数值与地点由视图直接渲染 weather / weatherPlace;
+    // 这里只留「需要提醒一句」的情况——正常拉成功就不必再啰嗦一行字。
     weatherWarn.value = weatherSource.value === 'mock'
-    const where = weatherPlace.value ? ` · ${weatherPlace.value}` : ''
-    weatherNote.value =
-      weatherSource.value === 'mock'
-        ? `离线示意${where}——不是实况，仅作演示`
-        : `已按实时天气填入${where}`
+    weatherNote.value = weatherWarn.value ? '离线示意——不是实况，仅作演示' : ''
   }
 
   /** 拉取失败:保留当前天气(手动预设),只把原因说清楚,不阻塞提交。 */

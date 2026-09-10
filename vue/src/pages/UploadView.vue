@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMakeupStore } from '@/stores/makeup'
 import { createMakeupJob, useMock } from '@/api/makeup'
@@ -64,6 +64,20 @@ async function pullWeather() {
     weatherLoading.value = false
   }
 }
+
+// ---- 生效中的天气回显:让用户看得见「提交上去的到底是什么」 ----
+const WEATHER_SOURCE_CN = { manual: '预设', 'open-meteo': '实时', mock: '离线示意' }
+const weatherSourceLabel = computed(() => WEATHER_SOURCE_CN[store.weatherSource] || '预设')
+
+const weatherSummary = computed(() => {
+  const w = store.weather
+  const parts = []
+  if (w.condition) parts.push(w.condition)
+  if (typeof w.temperatureC === 'number') parts.push(`${w.temperatureC}°C`)
+  if (typeof w.humidityPct === 'number') parts.push(`湿度${w.humidityPct}%`)
+  if (typeof w.uvIndex === 'number') parts.push(`UV${w.uvIndex}`)
+  return parts.join(' · ')
+})
 
 // ---- 可选风景参考图（不参与成片判定，仅回显） ----
 function addSceneFiles(fileList) {
@@ -226,6 +240,12 @@ async function submit() {
           {{ weatherLoading ? '拉取中…' : '拉取实时' }}
         </button>
       </div>
+      <div class="weather-now" :class="{ warn: store.weatherWarn }">
+        <span class="weather-now-tag caps">{{ weatherSourceLabel }}</span>
+        <span class="weather-now-val">{{ weatherSummary || '未设置' }}</span>
+        <span v-if="store.weatherPlace" class="weather-now-place">{{ store.weatherPlace }}</span>
+      </div>
+
       <p v-if="store.weatherNote" class="field-tip" :class="{ warn: store.weatherWarn }">
         {{ store.weatherNote }}
       </p>
@@ -426,6 +446,49 @@ async function submit() {
 .city-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* 生效中的天气:把「提交上去的到底是什么」摆在眼前,而不是只给一句「已填入」 */
+.weather-now {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  background: var(--c-surface-2);
+}
+
+.weather-now.warn {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+
+.weather-now-tag {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: var(--c-surface);
+  color: var(--c-ink-soft);
+}
+
+.weather-now.warn .weather-now-tag {
+  color: var(--c-accent-deep);
+}
+
+.weather-now-val {
+  font-size: 12px;
+  color: var(--c-ink);
+}
+
+.weather-now-place {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--c-ink-faint);
 }
 
 .weather-row {
