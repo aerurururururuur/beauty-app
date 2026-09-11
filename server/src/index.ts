@@ -27,7 +27,13 @@ async function main(): Promise<void> {
   // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
   //   里的纯查表函数,由 run-pipeline 直接调用。它没有可换的实现,所以不该有开关。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  const { referenceProvider } = createReferencesModule({ kind: config.referenceProvider });
+  // 参考源:缺省 mock(离线即用);REFERENCE_PROVIDER=bing 走外部检索,
+  // 站点基址经 REFERENCE_BASE_URL 配(部署环境出站策略不同,换站点不该改代码)。
+  const { referenceProvider } = createReferencesModule({
+    kind: config.referenceProvider,
+    baseUrl: config.referenceBaseUrl,
+    timeoutMs: config.referenceTimeoutMs,
+  });
   const { engine } = createMakeupModule();
 
   const jobs = createJobsModule({

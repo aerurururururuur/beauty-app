@@ -47,7 +47,16 @@ describe('Job 状态机', () => {
     expect(rec.step).toBe('scene_understand');
     expect(rec.progress).toBe(20);
 
-    const refs = [{ id: 'r1', title: '参考', license: 'cc0', sourceUrl: 'https://x' }];
+    const refs = [
+      {
+        id: 'r1',
+        title: '参考',
+        imageUrl: 'https://x/a.jpg',
+        sourceUrl: 'https://x',
+        role: '唇',
+        retrievedAt: '2026-09-11T00:00:00.000Z',
+      },
+    ];
     rec = recordReferences(advanceTo(rec, 'reference_gather'), refs);
     expect(rec.step).toBe('reference_gather');
     expect(rec.progress).toBe(40);

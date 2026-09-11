@@ -112,7 +112,16 @@ export class FakeQueue implements JobQueue {
 export class FakeReferenceProvider implements ReferenceProvider {
   readonly name = 'fake';
   async fetch(scene: SceneDescriptor): Promise<ReferenceImage[]> {
-    return [{ id: 'r1', title: `参考:${scene.label}`, license: '自绘测试素材', sourceUrl: '' }];
+    return [
+      {
+        id: 'r1',
+        title: `参考:${scene.label}`,
+        imageUrl: 'https://example.invalid/r1.jpg',
+        sourceUrl: 'https://example.invalid/page-1',
+        role: '唇',
+        retrievedAt: '2026-09-11T00:00:00.000Z',
+      },
+    ];
   }
 }
 

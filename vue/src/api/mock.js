@@ -98,22 +98,48 @@ function buildLook(label, tone) {
   }
 }
 
-// ---------------- 参考素材(自绘示意,授权诚实;红线:不抓网络图) ----------------
+// ---------------- 参考素材 ----------------
+// 浏览器 mock 模式手上没有真图,所以**不给 imageUrl**(留空串)—— 编一个假地址只会渲染出裂图。
+// 结果页据此回落到「只显示标题 + 部位」,这条回落路径真实抓取也会走到。
+// 形状须与 server 的 ReferenceImage 保持一致(那边是唯一契约真源)。
 const REFS = {
-  interview: ['正式面试妆 · 哑光大地色(参考)', '低饱和豆沙唇妆(参考)', '眉目利落的通勤妆示范(参考)'],
-  date: ['约会温柔粉调妆(参考)', '水光感腮红晕染(参考)', '暖调玫瑰唇妆示范(参考)'],
-  stage: ['上台演讲 · 哑光高显色底妆(参考)', '立体眉眼轮廓示范(参考)', '镜头友好唇色示范(参考)'],
-  family: ['见家长 · 温婉得体妆(参考)', '自然提气色腮红(参考)', '豆沙调温柔唇妆示范(参考)'],
-  daily: ['日常通勤百搭淡妆(参考)', '自然伪素颜底妆示范(参考)', '通勤豆沙唇妆(参考)']
+  interview: [
+    { title: '正式面试妆 · 哑光大地色(参考)', role: '眼影' },
+    { title: '低饱和豆沙唇妆(参考)', role: '唇' },
+    { title: '眉目利落的通勤妆示范(参考)', role: '眉' }
+  ],
+  date: [
+    { title: '约会温柔粉调妆(参考)', role: '颊' },
+    { title: '水光感腮红晕染(参考)', role: '颊' },
+    { title: '暖调玫瑰唇妆示范(参考)', role: '唇' }
+  ],
+  stage: [
+    { title: '上台演讲 · 哑光高显色底妆(参考)', role: '底妆' },
+    { title: '立体眉眼轮廓示范(参考)', role: '眼影' },
+    { title: '镜头友好唇色示范(参考)', role: '唇' }
+  ],
+  family: [
+    { title: '见家长 · 温婉得体妆(参考)', role: '底妆' },
+    { title: '自然提气色腮红(参考)', role: '颊' },
+    { title: '豆沙调温柔唇妆示范(参考)', role: '唇' }
+  ],
+  daily: [
+    { title: '日常通勤百搭淡妆(参考)', role: '底妆' },
+    { title: '自然伪素颜底妆示范(参考)', role: '底妆' },
+    { title: '通勤豆沙唇妆(参考)', role: '唇' }
+  ]
 }
 
 function buildReferences(label) {
   const list = REFS[label] || REFS.daily
-  return list.map((title, i) => ({
+  const retrievedAt = new Date().toISOString()
+  return list.map((s, i) => ({
     id: `ref-${label}-${i + 1}`,
-    title,
-    license: '自绘演示素材 · 正式稿替换为可授权来源并回填授权信息',
-    sourceUrl: ''
+    title: s.title,
+    imageUrl: '',
+    sourceUrl: '',
+    role: s.role,
+    retrievedAt
   }))
 }
 

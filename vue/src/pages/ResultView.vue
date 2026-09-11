@@ -47,6 +47,15 @@ function zoneStyle(z) {
   }
 }
 
+/** 来源页 → 域名，用于参考图下方标注出处（去掉协议与 www，只留能认人的部分）。 */
+function sourceHost(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
 async function poll() {
   try {
     const v = await fetchMakeupJob(jobId)
@@ -257,13 +266,27 @@ function restart() {
       <!-- 参考妆 -->
       <section v-if="references.length" class="card">
         <div class="caps card-kicker">REFERENCE</div>
-        <p class="card-sub">AI 参考了这些妆面处理方式（自绘演示示意）：</p>
+        <p class="card-sub">按部位检索到的妆面参考（出处标在图下方）：</p>
         <ol class="ref-list">
           <li v-for="r in references" :key="r.id" class="ref-item">
             <span class="ref-idx">{{ references.indexOf(r) + 1 }}</span>
+            <!-- 没有图片地址时只渲染文字：mock 拿不到真图，真实抓取也会遇到没有可用图地址的条目 -->
+            <img
+              v-if="r.imageUrl"
+              class="ref-thumb"
+              :src="r.imageUrl"
+              :alt="r.title"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
             <div class="ref-body">
-              <div class="ref-title">{{ r.title }}</div>
-              <div class="ref-license">{{ r.license }}</div>
+              <div class="ref-head">
+                <span v-if="r.role" class="ref-role">{{ r.role }}</span>
+                <span class="ref-title">{{ r.title }}</span>
+              </div>
+              <div v-if="sourceHost(r.sourceUrl)" class="ref-source">
+                {{ sourceHost(r.sourceUrl) }}
+              </div>
             </div>
           </li>
         </ol>
@@ -522,12 +545,40 @@ function restart() {
   flex-shrink: 0;
 }
 
+.ref-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+}
+
+.ref-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 部位标签：与结果页色板里的 role 用的是同一套词（唇/颊/眼影/底妆/眉） */
+.ref-role {
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+  flex-shrink: 0;
+}
+
 .ref-title {
   font-size: 13px;
   line-height: 1.6;
 }
 
-.ref-license {
+.ref-source {
   font-size: 11px;
   color: var(--c-ink-faint);
   margin-top: 2px;
