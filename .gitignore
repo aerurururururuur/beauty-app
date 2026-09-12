@@ -10,6 +10,9 @@ Thumbs.db
 .vscode/
 *.swp
 
+# 第三方参考实现（OpenMakeupSDK，自带独立 git 仓库，只作本地对照）
+tespro/
+
 # server 后端
 server/node_modules/
 server/dist/

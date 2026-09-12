@@ -92,6 +92,10 @@ src/
 - [server/README.md](server/README.md) — 后端分层、HTTP 契约、错误码、命令、测试
 - [vue/README.md](vue/README.md) — 前端页面、mock 与联调、目录
 - [docs/plan/roadmap.md](docs/plan/roadmap.md) — 开发路线图：按 `server/src/modules/*` 拆的模块任务板（可派单 + 接缝地图 + 红线）
+- [docs/plan/ai-engine-api-spike.md](docs/plan/ai-engine-api-spike.md) — 上妆引擎选型与 API 实测规范（**⚠️ 主选 2026-09-12 已作废，选型重新打开，见其 §0**；§4 的实测方法论仍通用）
+- [docs/plan/ai-engine-makeup-models.md](docs/plan/ai-engine-makeup-models.md) — **上妆引擎重开选型调研记录（2026-09-12）**：主选作废后的候选盘点，**无拍板、调研中途中止（后经打捞补回）**，证据分级见其 §0
+- [docs/plan/ai-engine-selfhost-review.md](docs/plan/ai-engine-selfhost-review.md) — 自建上妆引擎可行性复核：为何不进主链路 + 一份在 8 GB 显存上真跑得起来的实施方案
+- [docs/plan/reference-fetch-feasibility.md](docs/plan/reference-fetch-feasibility.md) — 参考图外部检索的可行性与合规代价
 
 ## 测试
 
