@@ -26,6 +26,7 @@
 | `application/brief-description.ts` | 把"agent 现在知道什么"讲成一行字。★ 值**原样透出**，不建中文标签表（那会是第三份，见 `narration.ts` 记的教训） |
 | `application/render-state-description.ts` | 把"出图走到哪一步了"讲成一行字（照片在不在 / 出过几张 / **此刻有没有确认框在等**）。★ 与视图的 `pendingRender` **同源**（都用 `danglingToolUses`），免得两边一个说有、一个说没有——模型会照提示词行事 |
 | `application/tools/` | 工具的注册表（注册表**同时就是白名单**）。**没配产品库是四个，配了是六个**；`render-look.ts` 另导出 `renderConfirmationSummary`——确认框那句话的**唯一**来源 |
+| `application/look-state-description.ts` | 把"妆面定下来没有"讲成一行字。★ 比"有没有 `lookSpec`"多报一件事：**上一次 `propose_look` 被拒了没有**——`propose-look.ts` 的失败文案只管当轮，模型若用正文把妆面讲完就收尾，下一轮得有人告诉它"那不算数"（见文件头 v11） |
 | `application/usecases/` | `StartSession` / `GetSession` / `SendMessage` / `AttachPhoto` / `ConfirmRender` / `GetRender` / `PurgeExpiredSessions` |
 | `application/mapping/` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在） |
 | `infrastructure/llm/dashscope-llm.ts` | 阿里云百炼适配器（**实测夹具**为形状依据，不是读文档来的） |

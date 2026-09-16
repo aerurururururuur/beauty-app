@@ -38,6 +38,7 @@ import {
   createSession,
   createToolRegistry,
   describeBrief,
+  describeLookState,
   describeRenderState,
 } from '../src/modules/agent/index.js';
 import type {
@@ -635,6 +636,110 @@ describe('系统提示', () => {
       // 模型永远收不到那次返回。写成"返回之后"就是一句它做不到的指令。
       expect(buildSystemPrompt(session())).not.toContain('返回了「已把出图请求交给用户确认」');
       expect(RENDER_LOOK.description).not.toContain('返回了「已把出图请求交给用户确认」');
+    });
+  });
+
+  // ── 妆面那一行的状态(v11) ────────────────────────────────────────────────
+  //
+  // ⚠️ 修的是**跨轮**那一段:`propose-look.ts` 的失败文案只管当轮(实测有效,
+  //    模型确实会在同一回合里重试),可模型若用正文讲完就收尾,
+  //    下一轮提示里只剩「当前还没有提出过妆面」——读不出"你被拒了""正文写了不算"。
+  describe('妆面定下来没有(v11)', () => {
+    /** 造一条「`propose_look` 的 `tool_use` + 它的结果」的消息对。 */
+    const proposeTurn = (isError: boolean) => [
+      {
+        role: 'assistant' as const,
+        content: [{ type: 'tool_use' as const, id: 'p1', name: TOOL_NAMES.proposeLook, input: {} }],
+      },
+      {
+        role: 'user' as const,
+        content: [{ type: 'tool_result' as const, toolUseId: 'p1', content: '…', isError }],
+      },
+    ];
+
+    it('★★ 一次都没调过 `propose_look` → 也要说清"正文里描述过不算数"', () => {
+      // ★ 这一格是 **v11 首轮真实模型实测**逼出来的:**首轮它一次 `propose_look` 都没调,
+      //   正文里却把一整套妆面讲完了**(「底妆遮瑕度4…眼影砖红…」),`lookSpec` 空着。
+      //   那种形状下**没有失败的结果块**,只写"被拒了"那半句够不着它。
+      const line = describeLookState(session());
+
+      expect(line).toContain('当前还没有提出过妆面');
+      expect(line).toContain('正文里描述过妆面不算数');
+      // 但它**不是**一条"赶紧去提"的义务——空格上只说明这一格认什么,不催。
+      expect(line).not.toContain('再调一次');
+    });
+
+    it('★★ 上一次被拒 → 必须说清"正文里讲成定下来的不算数"', () => {
+      // 这就是实测翻车的原话形状:模型在正文里把妆面讲完了,`lookSpec` 却是空的。
+      const line = describeLookState(session({ messages: proposeTurn(true) }));
+
+      expect(line).toContain('当前还没有提出过妆面');
+      expect(line).toContain('被拒了');
+      expect(line).toContain('正文里把妆面讲成已经定下来的不算数');
+      expect(line).toContain('再调一次');
+    });
+
+    it('⚠️ 先失败后成功 = 重试过了 → **不许**再报失败(那是假警报)', () => {
+      // 取的是**最后一次**结果,不是"有没有失败过"。模型重试成功是正常路径。
+      const line = describeLookState(
+        session({
+          lookSpec: SAMPLE_LOOK,
+          messages: [
+            ...proposeTurn(true),
+            {
+              role: 'assistant',
+              content: [{ type: 'tool_use', id: 'p2', name: TOOL_NAMES.proposeLook, input: {} }],
+            },
+            {
+              role: 'user',
+              content: [{ type: 'tool_result', toolUseId: 'p2', content: '已记下', isError: false }],
+            },
+          ],
+        }),
+      );
+
+      expect(line).toContain('当前已提出的妆面');
+      expect(line).not.toContain('被拒了');
+    });
+
+    it('★★ 已经有一套、改的那次被拒 → 要明说"改动没记下、老的还在"', () => {
+      // 这一支最容易漏:只按 `lookSpec` 有没有来分支的写法会显示成"一切正常",
+      // 而模型上一条工具结果说的是"这次没记下"——两个说法对不上,
+      // 它可能就跟用户说"改好了",而渲染用的仍是老妆面。
+      const line = describeLookState(
+        session({ lookSpec: SAMPLE_LOOK, messages: proposeTurn(true) }),
+      );
+
+      expect(line).toContain('当前已提出的妆面');
+      expect(line).toContain('改动的部分一个字都没记下');
+      expect(line).toContain('老的还留着');
+    });
+
+    it('欠的是**别的**工具不算 —— 判据是按名字挑,不是"有没有报错"', () => {
+      const line = describeLookState(
+        session({
+          messages: [
+            {
+              role: 'assistant',
+              content: [{ type: 'tool_use', id: 'x1', name: TOOL_NAMES.renderLook, input: {} }],
+            },
+            {
+              role: 'user',
+              content: [{ type: 'tool_result', toolUseId: 'x1', content: '没有照片', isError: true }],
+            },
+          ],
+        }),
+      );
+
+      expect(line).not.toContain('被拒了');
+      expect(line).not.toContain('改动的部分');
+    });
+
+    it('★ 系统提示里真的带了这一行(不是只写了个没人调的函数)', () => {
+      const s = session({ messages: proposeTurn(true) });
+
+      expect(buildSystemPrompt(s)).toContain(describeLookState(s));
+      expect(buildSystemPrompt(s)).toContain('正文里把妆面讲成已经定下来的不算数');
     });
   });
 

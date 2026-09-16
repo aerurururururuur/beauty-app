@@ -130,6 +130,7 @@ export type {
 export { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from './application/system-prompt.js';
 export { describeBrief } from './application/brief-description.js';
 export { describeRenderState } from './application/render-state-description.js';
+export { describeLookState } from './application/look-state-description.js';
 export { StartSession } from './application/usecases/start-session.js';
 export { GetSession } from './application/usecases/get-session.js';
 export { SendMessage } from './application/usecases/send-message.js';

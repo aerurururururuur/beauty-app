@@ -20,9 +20,9 @@
  *   所以现在规则 6 是**有前提的**,而且当前状态里有一行专讲出图走到哪了
  *   (见 `render-state-description.ts`)。**句式、前提、状态,三样缺一样就会被绕过去。**
  */
-import { describeLook } from '../../makeup/index.js';
 import type { Session } from '../domain/entities/session.js';
 import { describeBrief } from './brief-description.js';
+import { describeLookState } from './look-state-description.js';
 import { describeRenderState } from './render-state-description.js';
 
 /**
@@ -186,8 +186,42 @@ import { describeRenderState } from './render-state-description.js';
  *   · `v9` 刚立的"不许复述工具名"当场被破(同一轮:「等你点头再调 `render_look` 哦」)。
  *   ⇒ 这两条都属于**"请求模型别说"已经用到头**的形状。**再加第五、第六句禁令,
  *   预期收益接近于零**;真要拦,只有动输出或让那件事不再需要它说。
+ * - `v11` ——(2026-09-16,同一天)**妆面的失败也要跨轮活下来。**
+ *   ⚠️ **这一版不是措辞改动,是补状态**——加了一个 `describeLookState()`
+ *   (文件在 `look-state-description.ts`),`## 当前状态` 里那一行"妆面"从此由它出。
+ *
+ *   起因是 `v5` 那天记下的那个 bug**又露面了**:`propose_look` 被拒之后模型没重试,
+ *   在正文里把一套妆面讲成已定,`lookSpec` 空着。`v5` 当时修的是**工具自己那句失败文案**
+ *   (「★ 这次**没有记下任何妆面** …请修正后**再调用一次**」),事后诊断证明**它在当轮有效**
+ *   ——有一次实测里模型确实在**同一个回合内**重试并成功了。
+ *
+ *   ★★ **它漏掉的是"这一轮之后"**:那句提醒只活在当轮的工具结果里。
+ *   模型若照旧用正文讲完就收尾,**下一轮的系统提示只有一句「当前还没有提出过妆面」**
+ *   ——准确,但读不出"你上轮被拒了"和"**正文里写了不算**"这两件事。
+ *   于是它以为自己提过了,再也不会去调那个工具,而用户手上什么都没有。
+ *   ⇒ 与出图那边(`describeRenderState` / `NO_CONFIRMATION_NOTICE`)同一个道理:
+ *     **关于状态的事实,要放在每一轮都读得到的地方,不能只放在当场那句回执里。**
+ *
+ *   ⚠️ 这一行**在 `lookSpec` 有值时也会报失败**(形状:定稿成功 → 用户要改 → 改的那次被拒,
+ *   会话里留着的还是**老的那套**)。只按 `lookSpec` 有没有来分支的写法会给模型显示
+ *   "一切正常",而它上一条工具结果说的是"这次没记下"——**两个说法对不上,它就可能跟用户说
+ *   "改好了",而渲染用的仍是老妆面**。所以那一支要明说"老的还留着"。
+ *
+ *   ⚠️ **写完这一版后立刻跑了一轮真实模型,当场改了两处,记在这里**(判据"跑过就得另起一版"
+ *   对的是**已定稿并发出去**的版本;这一版还没合入,所以是**就地补**):
+ *   · 实测首轮出现的是**另一种形状**:模型**一次 `propose_look` 都没调**,
+ *     正文里却把一整套妆面讲完了(`lookSpec` 空)。那一支**没有失败的结果块**,
+ *     所以"上一次被拒了"那半句**够不着它**——于是空格那一支也补了
+ *     「★ 这一格只认 `propose_look` 成功——**正文里描述过妆面不算数**」。
+ *     ★ 两次实测里它**都只调了 `patch_brief`**:需求那一步进得了状态,妆面那一步进不了。
+ *   · 同轮第二轮:模型 `propose_look` **报错后重试成功**(与更早那次诊断一致),
+ *     说明**当轮那条失败文案确实在起作用**——v11 补的只是它够不到的那一段。
+ *
+ *   ★ **判据仍是"这一支还会不会复现"**:若模型还是在正文里把妆面讲成已定,
+ *   下一步是**在循环里拦**(一圈终了时 `lookSpec` 仍空、而正文描述了妆面 → 不让收尾),
+ *   而不是第四次改措辞。这条留给"要不要动代码"那个决定。
  */
-export const SYSTEM_PROMPT_VERSION = 'v10';
+export const SYSTEM_PROMPT_VERSION = 'v11';
 
 export interface SystemPromptOptions {
   /**
@@ -204,10 +238,9 @@ export interface SystemPromptOptions {
 }
 
 export function buildSystemPrompt(session: Session, options: SystemPromptOptions = {}): string {
-  const look = session.lookSpec
-    ? `当前已提出的妆面:${describeLook(session.lookSpec)}`
-    : '当前还没有提出过妆面。';
-
+  // ★ 妆面那一行的出处见 `look-state-description.ts` 的文件头:
+  //   它多报一件事——**上一次 `propose_look` 有没有被拒**(v11)。
+  const look = describeLookState(session);
   // 免费工具的名单按实际注册的写。★ 多列一个不存在的工具,比少列一个更坏(见 options 的注释)。
   const freeTools = ['`patch_brief`', '`propose_look`', '`list_cabinet`'];
   if (options.hasProducts) freeTools.push('`list_products`', '`read_product`');
