@@ -8,6 +8,9 @@ const routes = [
   { path: '/upload', name: 'upload', component: () => import('@/pages/UploadView.vue') },
   { path: '/result', name: 'result', component: () => import('@/pages/ResultView.vue') },
   { path: '/cabinet', name: 'cabinet', component: () => import('@/pages/CabinetView.vue') },
+  // 对话定妆。★ 与其余主页面一样**没有** `meta.public` ⇒ 走登录守卫:
+  //   会话挂在 userId 上,没登录进去也只是一个拉不到东西的空壳。
+  { path: '/agent', name: 'agent', component: () => import('@/pages/AgentView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
 

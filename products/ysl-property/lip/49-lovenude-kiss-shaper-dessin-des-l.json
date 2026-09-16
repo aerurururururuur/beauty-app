@@ -1,0 +1,19 @@
+{
+  "id": "49-lovenude-kiss-shaper-dessin-des-l",
+  "number": 49,
+  "name": "YSL 塑形唇线笔（Lovenude Kiss Shaper / Dessin Des Lèvres）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "质地柔滑的哑光唇线笔，12小时持久妆效。一笔三用：精准勾勒唇线、作为唇部底霜增加持色力、塑造光影效果。",
+    "ingredients": "蜡质基底，含霍霍巴油等润肤成分。",
+    "skinTypes": "适合所有唇部状况。深唇纹用户可先用唇线笔打底平滑唇纹。",
+    "occasions": "全季节。12小时持久。",
+    "warnings": "含香精；不含薄荷醇；蜡质基底在极干燥唇部可能不够滋润。",
+    "feedback": "YSL全球彩妆师Sam Visser将其列为“不可或缺的三大产品”之一。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

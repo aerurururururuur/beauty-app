@@ -1,0 +1,15 @@
+{
+  // scripts/ 自己的项目。存在的理由有两个,都不是洁癖:
+  //   1. 根 tsconfig 的 include 只有 src,scripts/ 落在**任何项目之外** ——
+  //      编辑器只好用推断项目打开它,连 `node:fs` / `process` 都认不出来,一屏红波浪。
+  //   2. 顺带让脚本**真的被类型检查**。它此前是零检查的,`npm run typecheck` 覆盖不到。
+  // 关键取向:**noEmit**。脚本不该进 dist/,`npm run build` 与它无关。
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // 根配置的 rootDir 是 src;这里要连 src 一起看,得放开到上一级,否则报 TS6059。
+    "rootDir": "..",
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts"]
+}

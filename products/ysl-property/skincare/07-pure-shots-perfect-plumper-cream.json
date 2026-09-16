@@ -1,0 +1,18 @@
+{
+  "id": "07-pure-shots-perfect-plumper-cream",
+  "number": 7,
+  "name": "YSL 悦享青春面霜（Pure Shots Perfect Plumper Cream）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "丰厚乳酪质地，上脸后立显丰润奶油肌。涂抹时如滋养弹润的膏体，随后转化为轻薄易吸收的薄膜。",
+    "ingredients": "珍贵摩洛哥橙花、98%纯抗氧化糖、云母和二氧化钛（即时美白视觉效果）。日复一日使用可改善细纹、皱纹、下垂和暗黄。",
+    "skinTypes": "适合所有肌肤。油皮可用的面霜，补水抗氧化神器。",
+    "occasions": "全季节。夜间作为护肤最后一步使用。",
+    "warnings": "含云母和二氧化钛（即时视觉效果，非实际美白）；含香精。",
+    "feedback": "“补水抗氧化神器，油皮可用的面霜”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

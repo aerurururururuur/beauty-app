@@ -1,0 +1,19 @@
+{
+  "id": "38-touche-clat",
+  "number": 38,
+  "name": "YSL 明彩笔（Touche Éclat / 超模聚焦明彩笔）",
+  "category": "concealer",
+  "dimensions": {
+    "texture": "传奇笔状遮瑕/高光产品，始于1992年。瞬间为肌肤带来透明感和立体感，赋予自然明亮光泽。",
+    "ingredients": "光反射色素，无闪片或珠光。经典版质地轻薄细腻，无暇版更适合瑕疵皮。",
+    "skinTypes": "适用于所有肌肤类型。经典版适合平滑肌肤、轻度瑕疵；无暇版适合瑕疵皮。",
+    "occasions": "全季节。妆前妆后均可使用。",
+    "warnings": "成分相对温和。经典版含少量香精。敏感肌可用。",
+    "feedback": "“一枝明彩笔在手，不论作遮瑕或高光，妆效都非常自然不突兀。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

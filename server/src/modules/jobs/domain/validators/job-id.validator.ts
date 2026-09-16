@@ -5,7 +5,7 @@
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { jobIdSchema } from '../schemas/job-id.js';
-import { zodIssuesMessage } from './validate.js';
+import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 校验任务 id,合法则原样返回,非法抛 AppError。 */
 export function validateJobId(raw: unknown): string {

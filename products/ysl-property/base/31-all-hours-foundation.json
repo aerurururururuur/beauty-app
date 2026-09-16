@@ -1,0 +1,19 @@
+{
+  "id": "31-all-hours-foundation",
+  "number": 31,
+  "name": "YSL 恒久粉底液（恒颜无瑕持妆粉底液 / All Hours Foundation）",
+  "category": "base",
+  "dimensions": {
+    "texture": "轻薄水感乳霜质地，延展性好，上脸后快速成膜。雾面哑光/柔雾哑光，遮瑕力中等偏上。",
+    "ingredients": "透明质酸、茉莉花瓣萃取、植物牛磺酸、摩洛哥坚果油。配方中未添加酒精。采用“微网球科技”。",
+    "skinTypes": "官方定位油性及混合性肤质。大油皮、瑕疵油皮、混油皮评价极高。干皮夏季可用，秋冬需搭配保湿妆前。",
+    "occasions": "高温高湿环境的最强底妆选项。适合夏日长时间出游、户外活动、湿热地区全天通勤。防水抗汗能力较好。",
+    "warnings": "无酒精配方；含香精。",
+    "feedback": "“在我心中油皮粉底液只有两种，一种是YSL恒久，另一种是其他”。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

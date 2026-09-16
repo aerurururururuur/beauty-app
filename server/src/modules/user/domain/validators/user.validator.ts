@@ -17,7 +17,7 @@ import {
   credentialsSchema,
   userIdSchema,
 } from '../schemas/user.js';
-import { zodIssuesMessage } from './validate.js';
+import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 通过校验、可交给用例使用的账号凭据(密码仍是明文,仅在内存中流转)。 */
 export interface Credentials {

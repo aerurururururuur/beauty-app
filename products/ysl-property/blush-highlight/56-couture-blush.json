@@ -1,0 +1,19 @@
+{
+  "id": "56-couture-blush",
+  "number": 56,
+  "name": "YSL 恒久完美透肤烟染腮红（Couture Blush）",
+  "category": "blush-highlight",
+  "dimensions": {
+    "texture": "YSL Beauty首款湿技术灵感腮红。提供两款质地：高奢柔雾和炫耀灿光。粉质细密，闪粉颗粒处理得隐形，不会显毛孔粗大。",
+    "ingredients": "湿技术灵感配方。",
+    "skinTypes": "所有肤质。液态腮红适合干皮和追求水光感者；粉状腮红适合油皮和追求柔雾妆效者。",
+    "occasions": "粉状腮红适合夏季高温潮湿天气；液态腮红适合干燥季节。",
+    "warnings": "含滑石粉（粉状款）；含香精。",
+    "feedback": "44号玫紫色珠光腮红“光泽好，不凸显毛孔”，57号西柚橘调适合暖皮。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.cheek"
+    ]
+  }
+}

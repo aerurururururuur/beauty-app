@@ -1,0 +1,16 @@
+{
+  "id": "52-lash-clash",
+  "number": 52,
+  "name": "YSL Lash Clash 睫毛膏（非防水版）",
+  "category": "eye",
+  "dimensions": {
+    "texture": "提供+400%极致可叠加浓密效果，超大双锥形刷头，适合日常妆容和需要轻松卸除的场景。",
+    "ingredients": "蜡质基底，含透明质酸、鸢尾花根提取物、维生素B5等养护成分。",
+    "skinTypes": "适合所有眼部状况，敏感眼也可使用。",
+    "occasions": "全季节日常通勤。不适合雨天、游泳或大量出汗场景。",
+    "warnings": "含香精；非防水版更易卸除，对睫毛摩擦更小。"
+  },
+  "derived": {
+    "lookSpecSlots": []
+  }
+}

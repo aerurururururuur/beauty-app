@@ -1,0 +1,19 @@
+{
+  "id": "44-loveshine-candy-glaze",
+  "number": 44,
+  "name": "YSL Loveshine Candy Glaze 唇釉/唇膏",
+  "category": "lip",
+  "dimensions": {
+    "texture": "高光泽、糖果般镜面效果。含78%护肤基底成分，提供长达8小时保湿。",
+    "ingredients": "石榴果提取物、冷榨芒果油、透明质酸、椰子油、抗氧化剂和维生素复合物。",
+    "skinTypes": "适合干燥唇部、唇纹较深的唇部。油痘肌用户需注意：合成酯类成分可能增加闭口风险。",
+    "occasions": "干燥季节、空调房、秋冬季节的润泽唇妆。",
+    "warnings": "含香精；含合成酯类；不含薄荷醇。",
+    "feedback": "“上嘴水润轻薄不粘腻，但是过一会儿就会感觉干了，好在我叠了润唇膏。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

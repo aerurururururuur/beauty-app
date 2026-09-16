@@ -1,0 +1,561 @@
+{
+  "id": "ysl-property",
+  "name": "YSL 全产品知识库（天气×肤质推荐引擎 · 第一库 · 性质库）",
+  "brand": "YSL",
+  "source": {
+    "file": "source/YSL 全产品性质知识库(1).docx",
+    "sha256": "cdc06070714c4c9ae2edda54d129e7a54932d88c182a8384155e107bb5adb7a1",
+    "importedAt": "2026-09-16T09:38:17.515Z",
+    "importer": "scripts/import-products.ts"
+  },
+  "dimensions": [
+    {
+      "key": "texture",
+      "label": "质地/妆效"
+    },
+    {
+      "key": "ingredients",
+      "label": "核心成分"
+    },
+    {
+      "key": "skinTypes",
+      "label": "适用肤质"
+    },
+    {
+      "key": "occasions",
+      "label": "适用天气/场景"
+    },
+    {
+      "key": "warnings",
+      "label": "成分预警"
+    },
+    {
+      "key": "feedback",
+      "label": "社交平台用户反馈摘要",
+      "optional": true
+    }
+  ],
+  "categories": [
+    {
+      "id": "skincare",
+      "label": "护肤类",
+      "order": 1,
+      "statedCount": 21,
+      "actualCount": 22,
+      "lookSpecSlots": [],
+      "series": [
+        {
+          "title": "Pure Shots 悦享青春系列",
+          "note": "该系列是YSL针对快节奏生活下（压力、疲劳、睡眠不足等）的暗沉、粗糙、干燥等肌肤问题研发的护肤系列，中文官网称“悦享青春系列”，适合年轻及轻熟龄肌肤。产品采用替换芯设计，瓶身可回收。"
+        },
+        {
+          "title": "OR Rouge 藏金奢妍系列",
+          "note": "该系列是YSL最高端护肤线，核心成分为摩洛哥阿特拉斯高原的藏红花雌蕊提取物。藏红花每年只在秋天开花一次，花期无法预测，富含聚糖成分，YSL拥有11项聚糖相关专利。系列采用“青春赋活新生科技”，与哈佛医学院炎症领域权威合作研发。"
+        },
+        {
+          "title": "Pure Shots Reload 系列（2026年新品）",
+          "note": "YSL于2026年秋季推出全新Pure Shots Reload系列，包含化妆水、精华、面霜三款产品，主打“化妆映”肌肤概念，着眼于“V型胶原蛋白”，配合品牌独创成分“Luminous 3D Complex”，从“平滑度、立体感、透明感”三大维度打造适合上妆的肌肤底子。8月26日先行发售，9月4日全国发售。"
+        }
+      ]
+    },
+    {
+      "id": "sunscreen",
+      "label": "防晒类",
+      "order": 2,
+      "statedCount": 2,
+      "actualCount": 2,
+      "lookSpecSlots": [],
+      "series": []
+    },
+    {
+      "id": "primer",
+      "label": "妆前类",
+      "order": 3,
+      "statedCount": 4,
+      "actualCount": 4,
+      "lookSpecSlots": [],
+      "series": []
+    },
+    {
+      "id": "base",
+      "label": "底妆类",
+      "order": 4,
+      "statedCount": 8,
+      "actualCount": 8,
+      "lookSpecSlots": [
+        "base"
+      ],
+      "series": []
+    },
+    {
+      "id": "concealer",
+      "label": "遮瑕类",
+      "order": 5,
+      "statedCount": 2,
+      "actualCount": 2,
+      "lookSpecSlots": [
+        "base"
+      ],
+      "series": []
+    },
+    {
+      "id": "setting",
+      "label": "定妆类",
+      "order": 6,
+      "statedCount": 3,
+      "actualCount": 3,
+      "lookSpecSlots": [],
+      "series": []
+    },
+    {
+      "id": "lip",
+      "label": "唇部彩妆",
+      "order": 7,
+      "statedCount": 8,
+      "actualCount": 8,
+      "lookSpecSlots": [
+        "zones.lip"
+      ],
+      "series": []
+    },
+    {
+      "id": "eye",
+      "label": "眼部彩妆",
+      "order": 8,
+      "statedCount": 6,
+      "actualCount": 6,
+      "lookSpecSlots": [
+        "zones.eyeshadow",
+        "zones.brow"
+      ],
+      "series": []
+    },
+    {
+      "id": "blush-highlight",
+      "label": "腮红与高光修容",
+      "order": 9,
+      "statedCount": 2,
+      "actualCount": 2,
+      "lookSpecSlots": [
+        "zones.cheek"
+      ],
+      "series": []
+    }
+  ],
+  "matchingGuide": {
+    "columns": [
+      "天气/场景条件",
+      "首选护肤",
+      "首选底妆",
+      "首选定妆",
+      "唇部推荐",
+      "避开品类"
+    ],
+    "rows": [
+      {
+        "condition": "高温+高湿（夏季湿热/梅雨季）",
+        "cells": [
+          "夜皇后洁面+调肤水+维C精华+水盾面霜轻盈版",
+          "恒久粉底液 / 黑气垫 / 羽毛粉底液",
+          "恒久无瑕蜜粉",
+          "小金条 / 奢华印记锁吻雾唇釉",
+          "粉气垫、亮颜丝缎妆前乳、藏金系列"
+        ]
+      },
+      {
+        "condition": "高温+干燥（夏季干热）",
+        "cells": [
+          "调肤水+玻尿酸精华+悦享青春面霜",
+          "粉气垫 / 超模粉底液 / 恒久光润粉底液",
+          "恒久无瑕蜜粉轻薄层",
+          "Candy Glaze",
+          "黑气垫、羽毛粉底液"
+        ]
+      },
+      {
+        "condition": "低温+干燥（秋冬）",
+        "cells": [
+          "藏金洁面+藏金水+藏金精华乳+藏金面霜",
+          "粉气垫 / 亮颜丝缎妆前乳+粉气垫 / 逆龄粉底液",
+          "恒久无瑕蜜粉少量 / 名模肌密保湿持妆喷雾",
+          "Candy Glaze / 小金条+润唇打底",
+          "恒久粉底液、黑气垫、羽毛粉底液、水盾面霜轻盈版"
+        ]
+      },
+      {
+        "condition": "换季敏感期",
+        "cells": [
+          "夜皇后洁面+精萃乳+悦享青春面霜",
+          "恒久完美补水遮瑕蜜+粉气垫 / 逆龄粉底液",
+          "恒久无瑕蜜粉",
+          "小金条 / 奢华印记锁吻雾唇釉",
+          "夜皇后精华、调肤水、藏金水、含香精唇釉、丰唇系列"
+        ]
+      },
+      {
+        "condition": "长时间户外/暴汗",
+        "cells": [
+          "高能小滴管防晒乳",
+          "恒久粉底液+恒久遮瑕蜜 / 羽毛粉底液",
+          "恒久无瑕蜜粉",
+          "小金条 / 奢华印记锁吻雾唇釉",
+          "粉气垫、水雾唇釉、Lash Clash非防水版"
+        ]
+      },
+      {
+        "condition": "油痘肌日常",
+        "cells": [
+          "夜皇后洁面+调肤水+维C精华",
+          "恒久粉底液 / 黑气垫 / 羽毛粉底液",
+          "恒久无瑕蜜粉",
+          "小金条",
+          "含合成酯类唇釉、含异丙基肉豆蔻酸酯产品"
+        ]
+      },
+      {
+        "condition": "敏感眼/隐形眼镜",
+        "cells": [
+          "—",
+          "—",
+          "—",
+          "—",
+          "高定眼影盘、绒密睫毛膏"
+        ]
+      },
+      {
+        "condition": "熟龄肌/抗老需求",
+        "cells": [
+          "藏金洁面+藏金水+藏金精华乳+藏金面霜+藏金眼霜",
+          "逆龄粉底液 / 藏金粉霜待补",
+          "名模肌密保湿持妆喷雾",
+          "奢华印记锁吻雾唇釉",
+          "羽毛粉底液"
+        ]
+      },
+      {
+        "condition": "熬夜暗沉/妆前急救",
+        "cells": [
+          "夜皇后精华+调肤水+夜皇后眼霜",
+          "粉气垫 / 超模粉底液 / 恒久光润粉底液",
+          "—",
+          "—",
+          "—"
+        ]
+      },
+      {
+        "condition": "城市污染/高倍防晒",
+        "cells": [
+          "高能小滴管防晒乳",
+          "名模肌密光幻防护妆前乳+粉气垫",
+          "—",
+          "—",
+          "—"
+        ]
+      },
+      {
+        "condition": "化妆映肌/底妆不服帖",
+        "cells": [
+          "Reload化妆水+Reload精华+Reload面霜",
+          "—",
+          "—",
+          "—",
+          "—"
+        ]
+      },
+      {
+        "condition": "美白淡斑需求",
+        "cells": [
+          "美白精华（白天）+维C精华",
+          "—",
+          "—",
+          "—",
+          "—"
+        ]
+      },
+      {
+        "condition": "紧致轮廓需求",
+        "cells": [
+          "胜肽精华",
+          "—",
+          "—",
+          "—",
+          "—"
+        ]
+      }
+    ]
+  },
+  "notes": [
+    {
+      "label": "色号剥离",
+      "text": "本知识库刻意剥离了所有色号信息（如B10、BR20、LN1等），AI在匹配产品时仅依据上述属性标签进行品类级推荐。后续如需与用户肤色匹配，应通过独立的色号映射模块处理，与本知识库解耦。"
+    },
+    {
+      "label": "产品覆盖范围",
+      "text": "本知识库已涵盖YSL护肤线（Pure Shots悦享青春系列13款、OR Rouge藏金奢妍系列6款、Pure Shots Reload系列3款）、防晒类（2款）、妆前类（4款）、底妆类（8款）、遮瑕类（2款）、定妆类（3款）、唇部彩妆（8款）、眼部彩妆（6款）、腮红与高光修容（2款），共57款产品。"
+    },
+    {
+      "label": "藏金粉霜",
+      "text": "目前公开信息有限，建议后续通过YSL官方渠道获取完整参数后补充入库。"
+    },
+    {
+      "label": "含酸产品注意事项",
+      "text": "夜皇后精华含3.4%复合酸、调肤水含复合酸体系、藏金水含辛酰水杨酸。敏感肌需建立耐受后再使用。"
+    },
+    {
+      "label": "含变性乙醇产品",
+      "text": "藏金水、藏金面霜、高能小滴管防晒乳、金致奢华赋活防晒隔离乳、Reload化妆水、Reload精华含变性乙醇。敏感肌换季期需谨慎使用。"
+    },
+    {
+      "label": "护肤线与彩妆库的联动",
+      "text": "护肤线产品对底妆服帖度有直接影响。藏金面霜早上使用后粉底服帖度高，夜皇后水盾面霜轻盈版混油挚爱，悦享青春面霜油皮可用，Reload系列专为“化妆映肌”设计。AI在推荐彩妆时，应将护肤线产品作为妆前打底的重要参考因素。"
+    }
+  ],
+  "health": {
+    "statedVsActual": {
+      "perCategory": [
+        {
+          "id": "skincare",
+          "label": "护肤类",
+          "stated": 21,
+          "actual": 22,
+          "ok": false
+        },
+        {
+          "id": "sunscreen",
+          "label": "防晒类",
+          "stated": 2,
+          "actual": 2,
+          "ok": true
+        },
+        {
+          "id": "primer",
+          "label": "妆前类",
+          "stated": 4,
+          "actual": 4,
+          "ok": true
+        },
+        {
+          "id": "base",
+          "label": "底妆类",
+          "stated": 8,
+          "actual": 8,
+          "ok": true
+        },
+        {
+          "id": "concealer",
+          "label": "遮瑕类",
+          "stated": 2,
+          "actual": 2,
+          "ok": true
+        },
+        {
+          "id": "setting",
+          "label": "定妆类",
+          "stated": 3,
+          "actual": 3,
+          "ok": true
+        },
+        {
+          "id": "lip",
+          "label": "唇部彩妆",
+          "stated": 8,
+          "actual": 8,
+          "ok": true
+        },
+        {
+          "id": "eye",
+          "label": "眼部彩妆",
+          "stated": 6,
+          "actual": 6,
+          "ok": true
+        },
+        {
+          "id": "blush-highlight",
+          "label": "腮红与高光修容",
+          "stated": 2,
+          "actual": 2,
+          "ok": true
+        }
+      ],
+      "statedTotals": [
+        {
+          "line": 2,
+          "value": 55
+        },
+        {
+          "line": 430,
+          "value": 57
+        }
+      ],
+      "actualTotal": 57
+    },
+    "missingDimensions": [
+      {
+        "id": "36-or-rouge",
+        "number": 36,
+        "missing": [
+          "texture",
+          "ingredients",
+          "skinTypes",
+          "occasions",
+          "warnings"
+        ]
+      },
+      {
+        "id": "40-setting",
+        "number": 40,
+        "missing": [
+          "ingredients"
+        ]
+      }
+    ],
+    "missingOptionalDimensions": [
+      {
+        "id": "20-pure-shots-reload-lotion",
+        "number": 20,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "21-pure-shots-reload-serum",
+        "number": 21,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "22-pure-shots-reload-cream",
+        "number": 22,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "36-or-rouge",
+        "number": 36,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "43-lip",
+        "number": 43,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "52-lash-clash",
+        "number": 52,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "53-volume-effet-faux-cils",
+        "number": 53,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "54-dessin-des-sourcils",
+        "number": 54,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "55-lines-liberated-eyeliner",
+        "number": 55,
+        "missing": [
+          "feedback"
+        ]
+      },
+      {
+        "id": "57-all-hours-hyper-luminize",
+        "number": 57,
+        "missing": [
+          "feedback"
+        ]
+      }
+    ],
+    "suspectedDuplicates": [
+      {
+        "a": "04-pure-shots-light-up-serum-c",
+        "b": "13-pure-shots-brightening-serum",
+        "similarity": 0.8,
+        "sameDimensions": 1
+      },
+      {
+        "a": "15-or-rouge-le-serum",
+        "b": "17-or-rouge-la-creme-essentielle",
+        "similarity": 0.67,
+        "sameDimensions": 4
+      },
+      {
+        "a": "06-pure-shots-lines-away-anti-aging",
+        "b": "12-pure-shots-pro-xylane-serum",
+        "similarity": 0.62,
+        "sameDimensions": 2
+      },
+      {
+        "a": "42-rouge-pur-couture-the-slim-matte",
+        "b": "43-lip",
+        "similarity": 0.51,
+        "sameDimensions": 0
+      }
+    ],
+    "shadeLeakage": [
+      {
+        "id": "47-the-inks-matte",
+        "hits": [
+          "610"
+        ],
+        "where": "feedback"
+      },
+      {
+        "id": "56-couture-blush",
+        "hits": [
+          "44号",
+          "57号",
+          "44"
+        ],
+        "where": "feedback"
+      }
+    ],
+    "missingEnglishName": [
+      {
+        "id": "29-base",
+        "number": 29,
+        "name": "YSL 粉气垫（粉皮革明彩粉光气垫 / 粉星气垫）"
+      },
+      {
+        "id": "30-base",
+        "number": 30,
+        "name": "YSL 黑气垫（黑皮革轻透无重羽毛气垫）"
+      },
+      {
+        "id": "34-base",
+        "number": 34,
+        "name": "YSL 超模粉底液（新版明彩精萃水粉霜）"
+      },
+      {
+        "id": "40-setting",
+        "number": 40,
+        "name": "YSL 皮革蜜粉饼 / 大白饼（恒久无瑕皮革蜜粉饼）"
+      },
+      {
+        "id": "43-lip",
+        "number": 43,
+        "name": "YSL 细管丝绒纯口红（小金条丝绒版）"
+      },
+      {
+        "id": "46-lip",
+        "number": 46,
+        "name": "YSL 水雾唇釉（水光/水雾系列）"
+      }
+    ]
+  }
+}

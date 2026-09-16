@@ -1,0 +1,17 @@
+{
+  "id": "20-pure-shots-reload-lotion",
+  "number": 20,
+  "name": "YSL 悦享青春Reload化妆水（Pure Shots Reload Lotion）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "化妆水级即刻效果，具有美容液级别的即时功效。水润触感渗透至肌肤每个角落，为底妆提供光滑的肌底，提升底妆贴合度与光泽感。",
+    "ingredients": "Luminous 3D Complex（棕榈酰三肽-1、棕榈酰四肽-7、羟丙基四氢吡喃三醇、鸢尾根提取物、鸢尾花提取物）。高浓度独创成分，针对干燥、暗沉、毛孔明显等问题快速起效。",
+    "skinTypes": "所有肤质。特别适合因疲劳导致肌肤暗沉、毛孔粗大、底妆不服帖的人群。",
+    "occasions": "全季节。化妆前使用可显著提升底妆的平滑度和贴合度。适合需要“化妆映肌”的日常妆前护肤场景。",
+    "warnings": "含变性乙醇；含香精。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots Reload 系列（2026年新品）"
+  }
+}

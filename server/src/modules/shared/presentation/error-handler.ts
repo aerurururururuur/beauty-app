@@ -25,6 +25,10 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   CABINET_ITEM_NOT_FOUND: 404,
   // 单用户件数上限:JSON 单表是整表读改写,不设上限会越写越慢。
   CABINET_FULL: 409,
+  // 会话的「不存在」与「不是你的」共用 404,同 CABINET_ITEM_NOT_FOUND 的理由。
+  SESSION_NOT_FOUND: 404,
+  // 会话是我的、但这个序号的图不在:同样是"取的东西不存在"。
+  RENDER_NOT_FOUND: 404,
   VALIDATION_ERROR: 422,
   INTERNAL_ERROR: 500,
 };

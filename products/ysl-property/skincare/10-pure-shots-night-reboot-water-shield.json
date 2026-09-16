@@ -1,0 +1,18 @@
+{
+  "id": "10-pure-shots-night-reboot-water-shield",
+  "number": 10,
+  "name": "YSL 夜皇后水盾面霜 · 滋润版（Pure Shots Night Reboot Water Shield Cream Rich）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "高饱和水光质地，氛围满格。质地丰盈，上脸即融，形成肌肤锁水膜。干皮挚爱。",
+    "ingredients": "神经酰胺（修护肌肤屏障）、98%纯核糖、摩洛哥橙花精萃。",
+    "skinTypes": "干性肤质、混干皮。干皮挚爱。",
+    "occasions": "秋冬干燥季节、干冷天气。",
+    "warnings": "含香精。质地较丰盈，油皮夏季需谨慎。",
+    "feedback": "“奶油质地，很轻盈，在空调房里用刚刚好，一晚上皮肤没有出油，早上起来平滑润泽”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

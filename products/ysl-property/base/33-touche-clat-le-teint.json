@@ -1,0 +1,19 @@
+{
+  "id": "33-touche-clat-le-teint",
+  "number": 33,
+  "name": "YSL 妍活青春/逆龄粉底液（Touche Éclat Le Teint）",
+  "category": "base",
+  "dimensions": {
+    "texture": "YSL首款逆龄保养粉底液。运用3大先进科技和5种植物精萃，100%取代水分与酒精。妆效为奶油肌，滋润度极好。",
+    "ingredients": "甘油+透明质酸双重保湿体系，5种植物精萃，护肤精华基底。无水分、无酒精配方。",
+    "skinTypes": "混干皮、干皮首选。对毛孔痘印和脸部泛红有较好遮盖效果。",
+    "occasions": "秋冬干燥季节的最佳底妆选择。",
+    "warnings": "不含水分与酒精，是YSL底妆线中对敏感肌较友好的配方之一；含香精。",
+    "feedback": "“粉质比较轻薄，也很服帖，上脸以后非常自然，清透感十足”。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

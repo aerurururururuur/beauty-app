@@ -96,7 +96,12 @@
 /login 登录 ──► / 首页 ──► /upload 上传(填需求简报) ──► /result 结果(进度→前后对比)
                                                               ▲
                                           /cabinet 衣橱(用户自己的化妆品，独立支线)
+                                          /agent   对话定妆(聊着把妆面定下来 → 确认出图)
 ```
+
+★ `/agent` 是**第二条独立的出图路径**，也是唯一一条**没有 mock 轨**的：照片与每一句话都真的
+发给后端，最后那一下「确认出图」是**全项目唯一真的会花钱**的动作（要用户点一次确认才发生）。
+所以它在 `VITE_USE_MOCK=true` 下**整个不可用**——见 §6.3 与 §7.2。
 
 `/upload` 收的**需求简报 brief** 是全局最有价值的数据结构，它直接等于提交给后端的 `meta`：
 
@@ -181,7 +186,7 @@ pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
 vue/src/
 ├── main.js                    # createApp + pinia + router + 两份全局 css
 ├── App.vue                    # 只有 .app-shell + <router-view> + 页面淡入过渡
-├── router/index.js            # 6 条路由 + 一条 beforeEach 登录门禁（★ 不是安全边界，见 §8）
+├── router/index.js            # 7 条路由 + 一条 beforeEach 登录门禁（★ 不是安全边界，见 §8）
 ├── api/
 │   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE
 │   ├── use-mock.js            # ★ 只有一行环境变量判断，刻意独立成文件（见 §6）
@@ -189,15 +194,17 @@ vue/src/
 │   ├── weather.js             # GET /weather（mock 模式回离线示意值）
 │   ├── users.js               # POST /users · POST /users/login
 │   ├── cabinet.js             # 衣橱 CRUD 四个端点
+│   ├── agent.js               # ★ 对话定妆六条端点。**唯一没有 mock 分支**的模块（见 §6.3）
 │   └── mock.js                # ★ 整个假后端（判定/调色/假流水线/本地衣橱）。只准惰性引入
 ├── stores/
 │   ├── makeup.js              # 需求简报表单 + 本人照 + 任务 id。★ 全项目最核心的 store
 │   ├── user.js                # 「这次演示用的是哪个账号」——不是登录态
-│   └── cabinet.js             # 衣橱列表与增删改
+│   ├── cabinet.js             # 衣橱列表与增删改
+│   └── agent.js               # 对话定妆：服务端视图（权威）+ 本地气泡。★ api 只能惰性引（见 §6.3）
 ├── constants/options.js       # 场合/肤质/肤色选项 + 中文名映射（纯展示，判定逻辑不在这里）
 ├── utils/color.js             # rgbToHex / rgbCss / rgbLuminance
 ├── components/                # 5 个共享组件（见 §5）
-├── pages/                     # 5 个页面，每个都是「一个大文件」（196~630 行）
+├── pages/                     # 6 个页面，每个都是「一个大文件」（196~630 行）
 └── assets/styles/
     ├── tokens.css             # CSS 变量：颜色/字体/圆角/阴影
     └── main.css               # reset + 全局类（.page/.card/.btn/.caps/.tag …）
@@ -298,13 +305,17 @@ props:  tips: Array = []     每项形如 { text }
 | `.card` + `.card-title` `.card-sub` | 卡片 |
 | `.caps` | 小号大写字母标签（`10px` + 字距），栏目 kicker 用 |
 | `.btn` + `.btn-primary` `.btn-ghost` `.btn-block` | 按钮 |
-| `.text-link` / `.tag` / `.hint` | 文字链接 / 小标签 / 脚注 |
-| `.spacer` | flex 弹簧（把后面的元素推到右边） |
+| `.text-link` / `.tag` | 文字链接 / 小标签 |
 
-> **⚠️ 已知重复（待办，不是禁令）**：`.text-input`、`.field-label`、`.field-tip`（含 `.warn`）
-> 在 `LoginView` / `UploadView` / `CabinetView` **各抄了一份**（共 3 份）。
-> **加新页面时不要再抄第 4 份**——要么先把它们提进 `main.css`（三处一起删，属小重构），
-> 要么直接复用现有页面的写法并将就。`.hint` 同样在 3 个文件里各有一份。
+> **⚠️ 不在全局的那几个（别照这张表去找）**：`.hint`（脚注）、`.text-input`、`.field-label`、
+> `.field-tip`（含 `.warn`）**都不在 `main.css` 里**，而是各页面 `scoped` 样式里各有一份——
+> 到 2026-09-16 为止 `.hint` 与 `.text-input` **各 4 份**，`.field-label` / `.field-tip` **各 3 份**。
+> `.spacer` 同理：全局只有 `.page-header .spacer` 一条，页面里单用的 `.spacer` 是页内自己定义的。
+>
+> **加新页面时不要再抄下一份**——要么先把它们提进 `main.css`（几处一起删，属小重构），
+> 要么用页内自己的类名。`AgentView` 走的是后一条：它的多行输入框叫 `.draft`、脚注叫 `.foot-note`，
+> 与那几份**形状相近但刻意不同名**——同名会让人以为它们是同一套控件。
+> **把它们提进 `main.css` 是单独一件事，别混进功能改动里做。**
 
 ---
 
@@ -318,6 +329,13 @@ props:  tips: Array = []     每项形如 { text }
 
 > **任何 `api/*.js` 里的 mock 分支，必须写成 `await import('./mock')` 惰性引入。禁止静态 `import`。**
 > 同理，`stores/user.js` 里 `@/api/users` 也是惰性引入的（否则 axios 被拽进首屏）。
+> ★ **同一根绳子的另一头**：`stores/agent.js` 也**不许静态 `import '@/api/agent'`**——
+> `stores/user.js` 会静态引 agent store 来做 `logout()` 清理，而 `user.js` 在首屏链上。
+> 它照 `user.js` 引 `@/api/users` 的先例，在 `agentApi()` 里惰性引。反过来它**也不许引
+> `stores/user.js`**（成环），所以 `userId` 一律由页面逐次传进去。
+> ⚠️ **这条没有任何工具能查出来**（本目录零 lint、零测试）：`npm run build` 的产物里
+> `index-*.js` 与 `api-*.js` 是**两个分块**（axios 不在首屏那块）就是它还活着的证据；
+> 哪天它们并成一块了，就是有人写成了静态 `import`。
 
 ### 6.2 场合判定的**唯一源**
 
@@ -341,6 +359,11 @@ props:  tips: Array = []     每项形如 { text }
 
 ### 6.3 其他 mock 规矩
 
+- ★ **`api/agent.js` 是全项目唯一没有 mock 分支的 api 模块——这是有意的，不是漏的。**
+  对话的状态在服务端一个真实的 `messages[]` 上，而「确认出图」是一条**真的会花钱**的 HTTP 路由；
+  在浏览器里复刻一份，复刻出来的既不是那条路由、也不检验那条循环，只会让"看起来能用"与
+  "真的能用"分不清。所以 `VITE_USE_MOCK=true` 时**页面明确显示「对话功能需要真实后端」**，
+  不给假对话（`AgentView.vue` 顶部那道 `isMock` 判断）。**别为了"统一"给它补一个 mock。**
 - `api/mock.js` 返回的对象必须与真实 HTTP 响应的**形状逐字段一致**（`JobView` / `UserView` / `CosmeticItemView`）。
 - 演示模式**不校验密码**——没有后端就没有 scrypt 表。它刻意不存明文密码、也不做假校验。
 - 演示模式的衣橱存 `localStorage`（键 `beauty-app.mock-cabinet`），复刻「刷新后还在」的行为。
@@ -375,6 +398,12 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 | `GET /cabinet/items?userId=` | — | **200** `{ items: [...] }` |
 | `PATCH /cabinet/items/:id` | `{ userId, name?, attributes? }`（二者至少给一个） | **200** `CosmeticItemView` |
 | `DELETE /cabinet/items/:id?userId=` | — | **204** 无响应体 |
+| `POST /agent/sessions` | `{ userId }` | **201** `AgentSessionView`（新会话里**一条消息都没有**）。★ 用户不存在 → **404**（服务端 2026-09-16 起校验），`stores/agent.js` 不特判、如实报错——它意味着**这台浏览器存着的登录在服务端已查无此人** |
+| `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView`；会话不在 / 不属于你 → **404**（不区分，免得能被枚举） |
+| `POST /agent/sessions/:id/messages` | `{ userId, text }`（≤1000 字） | **200** `AgentTurnView`（含 `stopReason` + `events`） |
+| `POST /agent/sessions/:id/photo` | multipart：`face`(1 张，字段名就是 `face`)、`userId` | **200** `AgentSessionView` |
+| `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView`；★ **全项目唯一真的会花钱的端点**；没挂待确认的出图请求时 **422** |
+| `GET /agent/sessions/:id/renders/:seq?userId=` | — | **200** 图片字节流（`renders[].url` 指向它） |
 | `GET /health` | — | **200** `{ ok, name, uptimeSec, now }` |
 
 ### 7.2 DTO 形状（JS 视角）
@@ -404,7 +433,66 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 // UserView（★ 永不含密码/凭据）        { id, nickname, createdAt }
 // CosmeticItemView                    { id, userId, name, attributes:[{label,value}], createdAt, updatedAt? }
 // WeatherView                         { condition?, temperatureC?, humidityPct?, uvIndex?, place?, source }
+
+// AgentSessionView —— 开会话 / 取会话 / 传照片都回这一个（对话页那一屏的权威状态）
+{
+  sessionId, userId,
+  brief: { sceneText?, occasion?, skinType?, skinTone?, dress?, weather? },
+  lookSpec?, lookDescription?,          // 妆面单 + describeLook() 那句人话 ★ 原样展示，别自己再拼
+  hasFace: false,                       // ★ 只给布尔：不给路径、不给字节
+  renders: [{ seq, url, lookDescription, createdAt }],   // url 形如 '/agent/sessions/<id>/renders/<seq>'
+  consultedProducts: [{ id, name, categoryLabel }],   // ★ 恒在的数组（空就是 []）；模型读过资料的产品，按首次读到的顺序
+  pendingRender?: { toolUseId, summary },// ★ 有动作在等你点确认时才有（summary 同上，原样展示）
+  createdAt, updatedAt
+}
+
+// AgentTurnView = 上面那一份 + 本轮这两项（只有 /messages 与 /render 回它，GET 会话**不回**）
+{
+  ...AgentSessionView,
+  stopReason: 'end_turn'|'awaiting_confirmation'|'max_iterations'|'max_tokens'|'refusal'|'llm_unavailable'|'timeout',
+  events: [{ type:'text_delta', text }
+         | { type:'tool_start', toolUseId, name }
+         | { type:'tool_end', toolUseId, name, isError }
+         | { type:'tool_pending', toolUseId, name, summary }
+         | { type:'turn_end', reason, iterations }]
+}
 ```
+
+**对话契约里前端必须记住的几条：**
+
+- ★ **`stopReason` 里只有 `awaiting_confirmation` 是"轮到你了"**，其余六种**都是收束，不是错误**：
+  服务端已经往历史里补了一句人话，那句会**作为助手正文**出现在 `events` 的 `text_delta` 里。
+  **不要再叠一个红色报错**——那是同一件事说两遍。只有**网络 / HTTP 层失败**才该显示错误行。
+  ★ **六种全都补，一个例外都没有**（`refusal` 也从 2026-09-16 起补了：只在模型一个字都没给时补，
+  它自己解释了为什么拒答就不补——那句话就是回答）。**前端不许再自己兜一句**：
+  先前那段 `closingNote` 已删除，留着的话服务端补完前端再补，就是**同一件事说两遍**。
+- ★ **一轮的 `events[]` 是一次性给的**（还不是 SSE）。`text_delta` 每轮**只有一条、内容是整段**；
+  `tool_start` / `tool_end` 拿到时**早就跑完了**。**别把它们演成"正在进行"**——那是假进度。
+- ★ **确认出图不是一条对话消息，是一条独立路由**（`POST …/render`）。而且它**不传任何出图参数**：
+  要出的就是屏幕上那一套，那一套已经在会话里了。**没挂待确认时回 422**，含义是"这个确认框过期了"
+  → 重新 `GET` 一次会话视图即可（**不按 code 分支**，见 §7.3）。
+- ★ **待确认时用户发任何一句话，那一轮会被按 `declined` 自动了结**。所以「先不出图」的实现就是
+  **发一条普通消息**（`stores/agent.js` 的 `DECLINE_TEXT`），而不是把卡片藏起来——藏起来的话
+  服务端那条欠账还挂着，刷新后卡片会**又冒出来**。
+- ★ **刷新恢复的只有服务端有的那部分**（妆面 / 有没有照片 / 已出的图 / 待确认框 / 参考过的产品）。
+  **聊天原文服务端刻意不给**（不透出 `messages[]`）⇒ **不回放、也别偷着塞 localStorage**（§8）。页面要**如实说**。
+- ★ **`consultedProducts` 是"读过"的集合，不是"推荐了"的清单。** 模型可能读了 6 条只推 2 条，
+  所以页面上的措辞只能是「**这次参考了**这几支」，**不能说成"为你推荐了这几支"**——那是替模型说话。
+  ★ **角标「品牌参考」由前端写死，不由模型生成**（红线 §8-5）：模型那次怎么措辞不能决定它出不出现。
+  **只有真收了钱才该写「赞助」**——少标一个字只是不够显眼，多标一个字是**虚假披露**。
+- ★★ **这块是"用户开口了才有"的：卡里出现东西，就说明用户这一轮问了产品（或答应了模型那一句）。**
+  产品推荐**不是妆容做完的收尾动作**——触发条件钉在提示词和两个工具的描述里（后端 `v4`）。
+  所以**用户没开口时这块不该出现**，前端**也不许**为了"内容更饱满"去引导用户问、
+  或者在 `consultedProducts` 为空时补一句推荐文案（那就是 §8-5 说的「硬贴」）。
+  ⚠️ 注意"模型问一句要不要推荐"是**允许**的（后端明确可以挑话头），
+  但那句话是**气泡里的正文**，**不是这块卡片**——**问 ≠ 读**，卡片只跟"读过"走。
+- ★ **这几条请求必须单独给 `timeout`（`api/agent.js` 的 `AGENT_TIMEOUT_MS`，90 秒 > 实例缺省的 30 秒）**：
+  服务端单轮墙钟预算是 60 秒，而**掐掉 `render` 请求退不了钱**——图已经出了，前端却只能报"失败"。
+  宁可多等，不可错报。
+- `renders[].url` 是**路径式**的，要补 `API_BASE` **再补 `?userId=`**（取图靠查询串判归属）——
+  用 `api/agent.js` 的 `renderImageHref()`，别自己拼。
+- **`VITE_USE_MOCK=true` 时这条链路整个不可用**（它是唯一没有 mock 分支的模块）。页面要**明确说**，
+  不给假对话。理由写在 `api/agent.js` 文件头。
 
 **几个前端必须记住的细节：**
 
@@ -467,22 +555,38 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
    `api/users.js` 拿到 `UserView` 后**没有任何凭证可存**——后端不签发 token、不建会话。
 
 3. **照片即用即删，身份边界就是现场照片的边界。**
-   `logout()` **必须**调 `useMakeupStore().reset()`——不靠人记得手动清。
+   `logout()` **必须**同时调 `useMakeupStore().reset()` 与 `useAgentStore().reset()`——不靠人记得手动清。
+   （对话那边更要紧：agent store 里的 `sessionId` 指向服务端一份**存着本人照片**的会话，
+   它还被写进 `localStorage`（刷新后接回用，键 `beauty-app.agent-session`，只是个不透明 id）。
+   ★ **那条 id 是唯一允许落盘的对话痕迹，会话内容一律不许落盘**——见下面第 7 条。）
    任何 `URL.createObjectURL()` 都要有对应的 `revokeObjectURL()`（`stores/makeup.js` 的 `revoke()` 已封装，
-   加新的预览 URL 时记得接上；`reset()` 里也要收）。
+   加新的预览 URL 时记得接上；`reset()` 里也要收。`stores/agent.js` 的 `facePreviewUrl` 就是照它做的）。
 
 4. **天气不编造。**
    拉不到就**整个省掉 `weather`**，不许有「手动预设天气」的回落路（曾经有过，已删）。
    mock 模式回的那份样例值**必须带 `source: 'mock'`**，且 UI 要标「离线示意——不是实况」。
 
 5. **商业内容可辨认、不搬运。**
-   结果页的推荐位（待做）**必须标「品牌参考 / 赞助」**，空着也比硬贴强；
+   对话页的「参考产品卡」（`AgentView.vue`，2026-09-16 落地）**角标文案由前端写死**——
+   `「品牌参考」`，模型什么时候推、怎么推都不影响它出不出现。
+   **空着也比硬贴强**：`consultedProducts` 为空时整块不渲染，不显示一个空标题。
+   ⚠️ **只有真收了钱才写「赞助」**：少标一个字只是不够显眼，**多标一个字是虚假披露**。
+   资料里那句「社交平台用户反馈摘要」**摘自品牌资料，不是我们采集的口碑**——
+   转述时必须说清出处，**不许讲成用户口碑或中立评测**（后端系统提示规则 7 钉着这条）。
    外部教程入口只做**外链**，不搬运、不内嵌第三方图文视频、不抓图。
 
 6. **登录门禁不是安全边界。**
    `router/index.js` 的 `beforeEach` 只看本地那份 `{ id, nickname }`，**拦不住也不该假装能拦住谁**。
    真正的把关是后端的归属校验（改/删不认别人）。**别把这段代码写成「安全」的样子**，
    更别基于它做任何「用户只能看到自己的数据」的假设。
+
+7. **对话内容不落盘，也不假装有记录。**
+   会话内容——用户说了什么、照片、成品图——**一律不进 `localStorage`/`sessionStorage`/IndexedDB**
+   （设计文档 §9 已拍板「会话内容存服务端，不是浏览器 localStorage」）。唯一允许落盘的是一条
+   **不透明的会话 id**（`beauty-app.agent-session`，服务端还要 `userId` 才认它），`reset()` 时收掉。
+   ★ 刷新之后**聊天原文就是没有的**（服务端刻意不透出 `messages[]`，要什么给什么）——
+   页面**要如实说**「聊天原文没有回放」，**不许**用假记录、假开场白或"正在恢复…"把它糊过去，
+   也**不许**为了"体验好一点"把它缓存进浏览器（那就是上面那条禁令）。
 
 ---
 
@@ -515,15 +619,36 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 > `brief.ts` 的 `OCCASIONS` 与 `scene-rules.ts` 的 `SCENE_RULES`/`SCENE_MATCH_ORDER` 都要加
 > （`Record<Occasion, …>` 漏配会**编译不过**，这是保护），前端 `constants/options.js` 也要跟着加（**无保护**）。
 
+### 「参考产品卡」这一块（`AgentView.vue`，2026-09-16 落地）
+
+**没有自动化测试，只能手工走。** 前提是服务端**配了产品库**（`PRODUCTS_DIR` 指到 `products/ysl-property`
+或它的上级目录），且 `AGENT_LLM=dashscope`（mock 那段脚本**不会**调 `list_products`）。
+
+1. ★★ **先验「用户没答应之前不读库」。** 走完「需求 → 妆面」，让模型把妆定下来、
+   继续调一两轮妆。**它主动问一句「要不要给你挑两支」是允许的**（可以挑话头），
+   但只要你**没答应** → **卡片不该出现**，正文里也不该冒出品牌产品名。
+   这是最容易退化的地方：模型会想"读了不一定推，先备着总没错"。
+2. **然后**答应它、或自己问一句（如「那我该买什么？」）→ 模型调 `list_products` /
+   `read_product` → **妆面卡下方出现「这次参考了」卡**，角标写「品牌参考」。
+3. **列表里每个名字都是库里真有的**（对照 `products/ysl-property/` 下的文件名/id）——
+   出现库里没有的产品就是模型在编，**要报**（后端系统提示规则 7 管这个）。
+4. **模型读了但没推的那几支也该在卡里**（卡是"读过"的超集）——这是**预期行为**，不是 bug。
+5. **没问产品的那一轮，这块不出现**（空清单不渲染，§8-5）。
+6. 刷新页面 → 卡片**还在**（`consultedProducts` 随会话视图回来）。
+7. ★ 把 `PRODUCTS_DIR` 指向一个不存在的路径重启服务 → 卡片**永远不出现**，其余动线一点不变。
+
 ### 其他
 
 | 改动 | 牵动 |
 | --- | --- |
 | 加一个接口 | `api/<域>.js` 加函数（含 mock 分支，**惰性 import**）→ `api/mock.js` 补同形状假实现 → store 里包一层 → 页面调用 |
-| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由 → 需要门禁就别加 `meta.public` |
+| ★ 那条链**在浏览器里复刻不了**（要服务端真实状态 / 会花钱） | **不要**给它加 mock 分支，改成页面明确说「不可用」——`api/agent.js` 是先例（见 §6.3） |
+| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由 → 需要门禁就别加 `meta.public`。★ 页面**可以**静态引 `api/*` 的纯函数（`ResultView` 引 `resultImageHref`、`AgentView` 引 `renderImageHref`/`MAX_AGENT_TEXT`）——**store 不行**（见 §6.1） |
+| 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 `api/*`**（首屏链，见 §6.1） |
 | 加一个图标 | `Icon.vue` 的 `paths`（24×24，`currentColor`） |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
 | 动 `scene-rules.ts` | **= 同时改前后端行为**。改完 `cd server && npm test`，且前端 dev 实开 |
+| 加一个会话视图字段（如 `consultedProducts`） | 服务端：实体 → `turn-view.mapper.ts` 的 `toSessionView` → 端口/工具按需。前端：`stores/agent.js` 加一个 computed（照 `renders` 恒在数组的写法）→ 页面取用。★ **视图没有 zod schema**，所以前端多读一个不存在的键只会静默拿到 `undefined`——**没有编译期保护，只能手工看** |
 | 加组件 | 放 `components/`，props/emit/slot 契约更新进 §5.1；**不 import store / api** |
 
 ---
@@ -550,7 +675,18 @@ npm run typecheck
 ## 11. 已知状态（别当成 bug 去「顺手修」）
 
 - **`TipBanner.vue` 零引用**（见 §5.1）。
-- **`.text-input` / `.field-label` / `.field-tip` / `.hint` 在 3 个页面各一份**（见 §5.2）。
+- **`.hint` / `.text-input` / `.field-label` / `.field-tip` 各页面各一份**（见 §5.2）。
+- ★ **前端零测试基建**：`package.json` 里没有 vitest，全仓没有一个前端测试文件。
+  所以**任何一个页面（含 `/agent`）的回归只有「手工走一遍」这一条路**——
+  改动前后别声称"测过了"。这不是这次的欠债，是本目录一直的状态；**要建它是单独一件事**。
+- **`AGENT_TIMEOUT_MS`（`api/agent.js`）与后端的 `DEFAULT_TURN_TIMEOUT_MS` 是一对**，要一起改。
+  理由：掐掉一条**已经花了钱**的 `render` 请求退不了钱，所以客户端超时必须**严格大于**服务端最坏情况。
+- **`stores/agent.js` 的 `PHOTO_BUBBLE_TEXT` 是服务端 `agent/domain/tools/observations.ts` 里那个常量的副本**，
+  两侧**必须逐字一致**（服务端那份有测试钉着，前端这份**没有任何东西拦着**）。改一边要同时改另一边。
+- **`/agent` 一轮的 `events[]` 是一次性返回的（服务端还没上 SSE）**，
+  所以那一屏只显示"正在想"，**不演工具进度**——想让它变真，先做 SSE，别在前端假播。
+- **`renders[].url` 要带 `?userId=` 才能取到图** ⇒ 那个 URL 会进浏览器历史与缓存。
+  已知、可接受（`GET` 不指望请求体），但**别把它当成"服务端会替你保密"**。
 - **`api/mock.js` 的色板是 `MockEngine` 的知情拷贝**（见 §6.2）——接真引擎时才清理。
 - **结果页轮询是 650ms 固定间隔 + 30s axios 超时**（`ResultView.vue:79`）。接真实引擎后单任务可能变几十秒，
   那时要回头核对这里的等待体验——这是 roadmap 里挂着的一条。

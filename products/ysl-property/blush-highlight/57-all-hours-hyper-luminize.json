@@ -1,0 +1,16 @@
+{
+  "id": "57-all-hours-hyper-luminize",
+  "number": 57,
+  "name": "YSL All Hours Hyper Luminize 高光",
+  "category": "blush-highlight",
+  "dimensions": {
+    "texture": "高光粉饼，含合成氟金云母、二氧化钛、云母、玻璃微珠、氮化硼等。提供12小时持妆。",
+    "ingredients": "合成氟金云母、玻璃微珠、氮化硼、烟酰胺和透明质酸。",
+    "skinTypes": "所有肤质。烟酰胺和透明质酸添加使其对干皮更友好。",
+    "occasions": "适合需要提亮面部立体感的场合，日常通勤和晚宴均可。",
+    "warnings": "含滑石粉。成分相对安全。"
+  },
+  "derived": {
+    "lookSpecSlots": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "48-the-inks-vinyl-cream",
+  "number": 48,
+  "name": "YSL 奢华印记锁心光唇釉（The Inks Vinyl Cream）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "YSL经典热卖光唇釉，以玻璃光唇为卖点，3秒成膜立即锁光持色。高光泽镜面效果。",
+    "ingredients": "成膜剂基底。",
+    "skinTypes": "适合平滑唇部，追求玻璃光泽感。深唇纹用户：光泽感有视觉填充效果，但成膜后可能积线。",
+    "occasions": "适合需要极致光泽感妆效的场合。",
+    "warnings": "含香精；成膜剂可能对极干燥唇部造成拔干感；不含薄荷醇。",
+    "feedback": "“以玻璃光唇直接美到心里，3秒成膜立即锁光持色。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

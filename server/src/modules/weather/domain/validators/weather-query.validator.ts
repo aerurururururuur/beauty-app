@@ -9,7 +9,7 @@
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { WeatherQuery } from '../ports/weather-provider.js';
 import { weatherQuerySchema } from '../schemas/weather-query.js';
-import { zodIssuesMessage } from './validate.js';
+import { zodIssuesMessage } from '../../../shared/index.js';
 
 function parseCoord(raw: string, label: string, min: number, max: number): number {
   const value = Number(raw);

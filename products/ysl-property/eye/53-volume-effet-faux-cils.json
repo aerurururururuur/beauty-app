@@ -1,0 +1,16 @@
+{
+  "id": "53-volume-effet-faux-cils",
+  "number": 53,
+  "name": "YSL 绒密睫毛膏（Volume Effet Faux Cils）",
+  "category": "eye",
+  "dimensions": {
+    "texture": "YSL标志性睫毛膏，以戏剧性浓密效果著称。9倍浓密效果，24小时持久。三重膜复合物配方，尼龙纤维刷头由不同直径纤维组成。",
+    "ingredients": "三重膜复合物，尼龙纤维刷头。",
+    "skinTypes": "适合所有眼部状况，追求极致浓密妆效的用户。敏感眼用户需谨慎。",
+    "occasions": "全季节。24小时持久适合长时间活动、晚宴、派对。",
+    "warnings": "含香精。敏感眼用户建议先测试。"
+  },
+  "derived": {
+    "lookSpecSlots": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "46-lip",
+  "number": 46,
+  "name": "YSL 水雾唇釉（水光/水雾系列）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "轻薄如水彩，比同品牌黑管唇釉更薄更持妆。上嘴水润轻薄不粘腻。",
+    "ingredients": "合成酯类基底。",
+    "skinTypes": "适合平滑唇部。深唇纹用户需注意：水雾质地可能积线。",
+    "occasions": "适合需要轻薄持久唇妆的场景。",
+    "warnings": "可能含酒精；含香精；有拔干风险。",
+    "feedback": "“像水彩一样轻轻铺开”“水雾更薄更持妆”。但拔干和积线问题被多次提及。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

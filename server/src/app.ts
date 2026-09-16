@@ -17,6 +17,8 @@ import type { WeatherModuleServices } from './modules/weather/index.js';
 import { registerWeatherRoutes } from './modules/weather/index.js';
 import type { CabinetModuleServices } from './modules/cabinet/index.js';
 import { registerCabinetRoutes } from './modules/cabinet/index.js';
+import type { AgentModuleServices } from './modules/agent/index.js';
+import { registerAgentRoutes } from './modules/agent/index.js';
 
 export interface AppDeps {
   config: ServerConfig;
@@ -24,6 +26,7 @@ export interface AppDeps {
   user: UserModuleServices;
   weather: WeatherModuleServices;
   cabinet: CabinetModuleServices;
+  agent: AgentModuleServices;
 }
 
 /**
@@ -80,6 +83,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         listCosmetics: deps.cabinet.listCosmetics,
         updateCosmetic: deps.cabinet.updateCosmetic,
         removeCosmetic: deps.cabinet.removeCosmetic,
+      });
+
+      // 对话 agent(普通 JSON;SSE 推流还没做,见控制器文件头)。
+      registerAgentRoutes(scoped, {
+        startSession: deps.agent.startSession,
+        getSession: deps.agent.getSession,
+        sendMessage: deps.agent.sendMessage,
+        attachPhoto: deps.agent.attachPhoto,
+        // ★ 唯一会让引擎花钱的入口。它在这里被接到路由上,除此之外没有别的调用点。
+        confirmRender: deps.agent.confirmRender,
+        getRender: deps.agent.getRender,
+        maxRenders: deps.agent.maxRenders,
       });
     },
     { prefix: API_PREFIX },

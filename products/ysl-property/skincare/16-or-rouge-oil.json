@@ -1,0 +1,18 @@
+{
+  "id": "16-or-rouge-oil",
+  "number": 16,
+  "name": "YSL 藏金奢妍精华油（OR Rouge Oil）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "奢香轻润的精华油质地。",
+    "ingredients": "藏红花雌蕊提取物、植物油脂复合体系。",
+    "skinTypes": "干性至混合性熟龄肌肤。油皮需谨慎。",
+    "occasions": "秋冬干燥季节、极干冷环境。适合需要在面霜前叠加精华油以增强保湿和抗老效果的场景。",
+    "warnings": "含香精。油痘肌需注意闭口风险。",
+    "feedback": "“珍稀极萃，奢香轻润”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "OR Rouge 藏金奢妍系列"
+  }
+}

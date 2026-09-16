@@ -19,7 +19,7 @@ import {
   type MetaScalar,
   type UploadFileMeta,
 } from '../schemas/job-submit.js';
-import { zodIssuesMessage } from './validate.js';
+import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 通过校验、可交给用例/仓库使用的输入标量。 */
 export interface SubmitJobInput {

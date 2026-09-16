@@ -1,0 +1,18 @@
+{
+  "id": "19-or-rouge-cleanser",
+  "number": 19,
+  "name": "YSL 藏金奢妍洁面（OR Rouge Cleanser / 洁面啫喱）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "啫喱质地，洗后微润感，深层清洁毛孔，可卸淡妆。",
+    "ingredients": "藏红花提取物、温和清洁体系。",
+    "skinTypes": "干皮至混干皮。洗后不紧绷，保持肌肤水润感。",
+    "occasions": "全季节。",
+    "warnings": "含香精。",
+    "feedback": "“洗后微润感，深层清洁毛孔，可卸淡妆”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "OR Rouge 藏金奢妍系列"
+  }
+}

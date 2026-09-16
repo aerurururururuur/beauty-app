@@ -10,14 +10,16 @@
  *   domain/validator/job-submit.validator.ts,这里不做动作、不写 refine/transform。
  */
 import { z } from 'zod';
-import { OCCASIONS, SKIN_TONES, SKIN_TYPES } from '../../../shared/index.js';
+import { briefFields } from '../../../shared/index.js';
 
 /** 风景参考图上限(形状参数之一;可选,不驱动风格)。 */
 export const MAX_SCENES = 6;
-/** 自由文字(场景文字)上限(字)。 */
-export const MAX_SCENE_TEXT = 2000;
-/** 穿搭一句话描述上限(字)。 */
-export const MAX_DRESS = 80;
+/**
+ * 自由文字(场景文字)上限(字)。
+ * ★ **值在 `shared`**(`domain/schemas/brief-fields.ts`),这里只是转发:
+ *   两条入口(表单 / 对话)必须受同一个上限,见那个文件头。
+ */
+export { MAX_DRESS, MAX_SCENE_TEXT } from '../../../shared/index.js';
 /** meta JSON 原文上限(含 sceneText 等,给足余量)。 */
 export const MAX_META_RAW = 8000;
 
@@ -33,14 +35,16 @@ const fileInfoSchema = z
   })
   .strict();
 
-/** 需求简报的形状(occasion/肤质/肤色/穿搭/天气/自由文字)。 */
+/**
+ * 需求简报的形状(occasion/肤质/肤色/穿搭/天气/自由文字)。
+ *
+ * ★ 前五个字段**不在这里定义**,从 `shared` 的 `briefFields` 展开——
+ *   它们与对话那条路(`patch_brief`)共用同一份规则,见 `brief-fields.ts` 文件头。
+ *   本文件只添自己的成员:`weather`(表单能带上实拉的天气,对话那条路不传)。
+ */
 export const metaSchema = z
   .object({
-    occasion: z.enum(OCCASIONS).optional(),
-    sceneText: z.string().max(MAX_SCENE_TEXT, `场景文字最多 ${MAX_SCENE_TEXT} 字`).optional(),
-    skinType: z.enum(SKIN_TYPES).optional(),
-    skinTone: z.enum(SKIN_TONES).optional(),
-    dress: z.string().max(MAX_DRESS, `穿搭描述最多 ${MAX_DRESS} 字`).optional(),
+    ...briefFields,
     weather: z
       .object({
         condition: z.string().max(20, '天气描述最多 20 字').optional(),

@@ -43,7 +43,10 @@ export type { JobIdScalar } from './domain/schemas/job-id.js';
 // ---- validators(校验行为,语义错误码)----
 export { validateJobId } from './domain/validators/job-id.validator.js';
 export { validateSubmitJob } from './domain/validators/job-submit.validator.js';
-export { zodIssuesMessage } from './domain/validators/validate.js';
+// ★ 这里原先还导出一份 `zodIssuesMessage`（本模块自己那份 `validate.ts`）。
+//   2026-09-16 四份副本上提 `shared` 之后，本模块**不再持有**这个函数，
+//   这条转发就只剩"同一个符号的第二条路"——**没有任何消费者**（实现里直接从 shared 引）。
+//   所以删掉，不留在 barrel 上冒充本模块的能力。
 
 // ---- 对外 API 契约 / DTO ----
 export type {

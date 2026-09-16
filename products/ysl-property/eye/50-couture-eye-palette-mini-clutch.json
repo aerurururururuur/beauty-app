@@ -1,0 +1,19 @@
+{
+  "id": "50-couture-eye-palette-mini-clutch",
+  "number": 50,
+  "name": "YSL 高定眼影盘（Couture Eye Palette / Couture Mini Clutch）",
+  "category": "eye",
+  "dimensions": {
+    "texture": "高显色度，易晕染。提供四种质地：哑光、缎光、金属光、珠光。长效持妆配方，粉质轻盈无重感。",
+    "ingredients": "滑石粉、云母、合成氟金云母、铝淀粉辛烯基琥珀酸酯、聚二甲基硅氧烷、玉米淀粉、硬脂酸锌。含甜杏仁油、咖啡籽油、生育酚等护肤成分。",
+    "skinTypes": "官方标注适合所有肤质。敏感眼用户需谨慎：未标注眼科医生测试或适合敏感眼。",
+    "occasions": "全季节。哑光质地适合日常通勤，金属光和珠光适合晚宴、派对。",
+    "warnings": "含滑石粉；未标注敏感眼测试；含云母和合成氟金云母。",
+    "feedback": "高显色度和易晕染是主要正面评价。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.eyeshadow"
+    ]
+  }
+}

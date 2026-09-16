@@ -10,7 +10,7 @@
 | `domain/entities/error.ts` | `JobError`（jobs 持有，与 makeup 的 ResultText 分开归属） |
 | `domain/schemas/job-submit.ts` | ★ 形状 SSOT：`jobSubmitSchema`（face/scene/metaRaw）+ `metaSchema`（brief 形状：occasion/肤质肤色/穿搭/天气/自由文字，`.strict()`）+ 上限常量 |
 | `domain/schemas/job-id.ts` | `jobIdSchema`（`:id` 形状） |
-| `domain/validators/*` | **校验行为**：`validateSubmitJob`(meta JSON 解析+业务码+清洗→`SubmitJobInput`) · `validateJobId` · `validate.ts`(zodIssuesMessage) |
+| `domain/validators/*` | **校验行为**：`validateSubmitJob`(meta JSON 解析+业务码+清洗→`SubmitJobInput`) · `validateJobId`。★ 原先这里还有一份 `validate.ts`(`zodIssuesMessage`)，**2026-09-16 已上提到 `shared`**（四份逐字相同的副本合成一份，本模块不再持有） |
 | `domain/ports/job-repository.ts` / `job-queue.ts` | 仓库 / 队列端口（本模块持契约） |
 | `domain/api/job-view.ts` | ★ 对外契约 DTO：`JobView/SubmitJobResponse/ErrorBody…`（联调唯一真源） |
 | `application/usecases/*` | `SubmitJob` / `RunPipeline` / `GetJob` / `GetJobResult` |

@@ -1,0 +1,18 @@
+{
+  "id": "18-or-rouge-eye-creme",
+  "number": 18,
+  "name": "YSL 藏金奢妍眼霜（OR Rouge Eye Creme）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "滋润修护眼霜，专为熟龄眼周设计。",
+    "ingredients": "藏红花雌蕊提取物、玻色因、咖啡因复合成分。",
+    "skinTypes": "适合所有肤质，尤其适合有眼周细纹、松弛问题的熟龄肌肤。",
+    "occasions": "全季节。早晚在精华后使用。",
+    "warnings": "含香精。",
+    "feedback": "“藏红花玻色因淡纹改善暗沉紧致提升”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "OR Rouge 藏金奢妍系列"
+  }
+}

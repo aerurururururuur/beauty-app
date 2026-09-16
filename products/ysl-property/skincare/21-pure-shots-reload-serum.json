@@ -1,0 +1,17 @@
+{
+  "id": "21-pure-shots-reload-serum",
+  "number": 21,
+  "name": "YSL 悦享青春Reload精华（Pure Shots Reload Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "柔软凝胶质地，接触肌肤瞬间融化般融入，渗透至角质层深处。针对细纹、暗沉、弹力不足等老化迹象。",
+    "ingredients": "高浓度Luminous 3D Complex（棕榈酰三肽-1、棕榈酰四肽-7、羟丙基四氢吡喃三醇、鸢尾根提取物、鸢尾花提取物）。着眼于V型胶原蛋白，采用“先回补胶原蛋白投资”概念，从源头预防胶原蛋白流失。",
+    "skinTypes": "所有肤质。适合有初老迹象、需要改善暗沉和弹力不足的肌肤。",
+    "occasions": "早晚化妆水后使用，2泵涂抹于全脸和颈部。适合需要提升妆效的日常护肤。",
+    "warnings": "含变性乙醇；含香精。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots Reload 系列（2026年新品）"
+  }
+}

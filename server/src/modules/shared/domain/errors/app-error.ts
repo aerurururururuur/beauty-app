@@ -17,6 +17,15 @@ export const ErrorCode = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   CABINET_ITEM_NOT_FOUND: 'CABINET_ITEM_NOT_FOUND',
   CABINET_FULL: 'CABINET_FULL',
+  /** 对话会话不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */
+  SESSION_NOT_FOUND: 'SESSION_NOT_FOUND',
+  /**
+   * 会话是本人的,但里面没有这个序号的图。
+   * ★ 与 `SESSION_NOT_FOUND` **分开**:归属校验在前(那一步报的是会话不存在),
+   * 走到这里说明"会话确实是我的,只是我没有第 3 张图"——这是两件不同的事,
+   * 合成一个码会让排查的人分不清是越权还是序号写错了。
+   */
+  RENDER_NOT_FOUND: 'RENDER_NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

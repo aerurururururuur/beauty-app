@@ -1,0 +1,18 @@
+{
+  "id": "04-pure-shots-light-up-serum-c",
+  "number": 4,
+  "name": "YSL 维C美白精华 / 提亮精华乳（Pure Shots Light Up Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "淡粉色乳液质地，清爽不油腻，吸收特别快。添加即时提亮的珠光成分（肤色校正微珍珠），用完气色看着特别好。",
+    "ingredients": "天然锦葵精萃、维生素CG、377、LHA、透明质酸。微乳质地清润好吸收，即刻焕亮，均匀肤色，4周焕变。",
+    "skinTypes": "所有肤质，尤其适合需要美白提亮、淡化痘印的肌肤。含珠光成分，不喜欢即时提亮效果的用户需注意。",
+    "occasions": "白天使用。适合紫外线较强季节的美白防护。适合需要即时提亮气色的日常场景和妆前打底。",
+    "warnings": "含珠光提亮成分；含LHA（温和酸类）；含香精。",
+    "feedback": "“网传名字是可涂抹的美白针”“即时提亮效果很好”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

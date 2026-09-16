@@ -1,0 +1,18 @@
+{
+  "id": "13-pure-shots-brightening-serum",
+  "number": 13,
+  "name": "YSL 美白精华（Pure Shots Brightening Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "微乳质地，清润好吸收。即刻焕亮，均匀肤色。4周焕变。",
+    "ingredients": "维生素CG、摩洛哥锦葵精萃。",
+    "skinTypes": "所有肤质，尤其适合需要美白淡斑、均匀肤色的肌肤。",
+    "occasions": "白天使用。适合紫外线较强季节的美白防护。",
+    "warnings": "含香精。",
+    "feedback": "“抑黑，提亮”“即刻焕亮，均匀肤色”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

@@ -84,6 +84,32 @@ export class FakeArtifactStore implements ArtifactStore {
     return entry ? { stream: Readable.from(entry.data), mimeType: entry.mimeType } : null;
   }
 
+  /**
+   * ★ 真删两个区。**按前缀删**,所以 `id` 带嵌套层(`<sessionId>/r1`)时,
+   * `remove(sessionId)` 连带把 `<sessionId>/r1/…` 一起删掉——与文件系统实现同一口径。
+   */
+  async remove(id: string): Promise<void> {
+    for (const key of [...this.files.keys()]) {
+      // `inputs/<id>/…` 或 `results/<id>/…`(含更深的嵌套)。
+      // ★ 两边的斜杠都要:只匹配 `s1/` 会连 `s10/` 一起删掉。
+      if (key.includes(`/${id}/`)) this.files.delete(key);
+    }
+  }
+
+  /**
+   * ★ 列出登记过的顶层 id(与文件系统实现同口径:只到第一段,`s1/r1` 报 `s1`)。
+   * 内存实现里没有"目录"这个概念,所以从 `inputs/<id>/…` / `results/<id>/…`
+   * 这两条键的形状里把 id 切出来。
+   */
+  async listIds(): Promise<string[]> {
+    const ids = new Set<string>();
+    for (const key of this.files.keys()) {
+      const [, id] = key.split('/');
+      if (id) ids.add(id);
+    }
+    return [...ids];
+  }
+
   /** 断言辅助:已登记文件数。 */
   fileCount(): number {
     return this.files.size;

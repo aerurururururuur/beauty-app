@@ -1,0 +1,19 @@
+{
+  "id": "37-all-hours-concealer",
+  "number": 37,
+  "name": "YSL 恒久完美补水遮瑕蜜（All Hours Concealer）",
+  "category": "concealer",
+  "dimensions": {
+    "texture": "柔滑补水质地，哑致妆效。与恒久粉底液同系列，具备高效持妆力。能隐藏瑕疵与细纹，提亮暗沉，遮盖敏感泛红，不卡纹不脱妆。",
+    "ingredients": "水、十一烷、二甲硅油、甘油、十三烷、聚甘油-4异硬脂酸酯、戊二醇等。含向日葵籽油和生育酚。无酒精。",
+    "skinTypes": "官方标注敏感肌肤同样适用。经皮肤科测试、眼科医生测试、非致痘性。",
+    "occasions": "高温潮湿环境持妆表现好，适合夏季户外、长时间活动时局部遮瑕。",
+    "warnings": "成分相对温和，无酒精，敏感肌友好；成分表末尾含极少量香精。",
+    "feedback": "“不卡纹不脱妆”“和恒久粉底液搭配使用效果最佳”。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

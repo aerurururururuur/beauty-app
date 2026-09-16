@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useMakeupStore } from '@/stores/makeup'
+import { useAgentStore } from '@/stores/agent'
 
 /**
  * user store —— 只回答一个问题:「这次演示用的是哪个账号(id + 昵称)」。
@@ -81,12 +82,19 @@ export const useUserStore = defineStore('user', () => {
    * 顺带把上传页的状态一起 reset——**身份边界就是现场照片的边界**:
    * 不清的话,换个人登录后进上传页,上一个人的本人照还留在内存里。
    * 红线 4 要求现场采集的照片即用即删,这条不能靠"记得手动清"。
+   *
+   * ★ 对话那条路是**同一条边界**:agent store 里挂着会话 id(那个 id 指向服务端
+   *   一份**存着本人照片**的会话),还有本地那份 objectURL 缩略图。不清就是换个人
+   *   登录后仍指着上一个人的会话。它比 makeup 更要紧的一点:会话 id 还写在
+   *   localStorage 里(只用来刷新后接回),`reset()` 会一并收掉。
+   *   (那个 import 不会把 axios 拽进首屏包——`stores/agent.js` 对 api 是惰性引,见其文件头。)
    */
   function logout() {
     id.value = ''
     nickname.value = ''
     error.value = ''
     useMakeupStore().reset()
+    useAgentStore().reset()
     try {
       localStorage.removeItem(STORAGE_KEY)
     } catch {

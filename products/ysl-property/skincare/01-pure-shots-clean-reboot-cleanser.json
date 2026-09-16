@@ -1,0 +1,18 @@
+{
+  "id": "01-pure-shots-clean-reboot-cleanser",
+  "number": 1,
+  "name": "YSL 夜皇后洁面（Pure Shots Clean Reboot Cleanser / 洁面慕斯）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "YSL首款适合都市环境的乳霜转泡沫洁面乳。乳霜质地接触水后转化为柔软泡沫，温和去除彩妆残留、多余油脂和都市生活杂质，洗后不拔干、不假滑、不膜感。",
+    "ingredients": "高级清洁表面活性剂，富含来自YSL Ourika社区花园的植物提取物。配方温和，尊重皮肤屏障完整性。",
+    "skinTypes": "所有肤质，尤其适合油皮至混油皮。官方标注可用于早晚清洁，经证明对皮肤屏障温和。",
+    "occasions": "全季节日常清洁。都市污染较重环境下使用可有效清除PM2.5等污染物残留。适合作为早晚护肤流程的第一步。",
+    "warnings": "配方温和，无特殊预警。含香精。",
+    "feedback": "油皮至混油皮用户评价“洗后不拔干、不假滑、不膜感”，香味复古清新。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

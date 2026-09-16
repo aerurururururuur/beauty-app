@@ -6,8 +6,8 @@
 
 - Vue 3（Composition API + `<script setup>`）
 - Vite 8
-- Vue Router（3 个页面：首页 / 上传 / 结果）
-- Pinia（跨页面状态：`stores/makeup.js`）
+- Vue Router（6 个页面：首页 / 上传 / 结果 / 衣橱 / 登录 / 对话定妆）
+- Pinia（跨页面状态：`stores/{makeup,user,cabinet,agent}.js`）
 - Axios（HTTP）
 - 无 UI 组件库，自定义杂志感设计（暖象牙底 + 浆果红，见 `assets/styles/tokens.css`）
 
@@ -35,6 +35,9 @@ npm run dev
 
 首页 `/` → 上传 `/upload`（本人照片必填 + 选场合或写一句需求，可再补肤质肤色穿搭天气与可选氛围图）→ 结果 `/result`（任务进度 + 输入回显 + 原图 vs 妆容对比）
 
+另一条独立的出图路径：首页 → 对话定妆 `/agent`（与 agent 聊着把妆面定下来 → 传一张本人照 →
+**点一次「确认出图」才真的出图**）。★ 这条**不走 mock**（见下），且它是全项目唯一真的会花钱的动作。
+
 上传页选项常量集中在 `src/constants/options.js`，value 与后端 `meta` 契约的枚举一致：
 
 - **场合 5 个**：`interview` 面试 / `date` 约会 / `stage` 上台 / `family` 见家长 / `daily` 日常
@@ -53,6 +56,13 @@ npm run dev
 开发时代理已配置：`/api` → `http://localhost:3000`（见 `vite.config.js`）。
 
 Mock 模式下：
+
+> ★ **例外：`/agent`（对话定妆）没有 mock。** 其余接口都有浏览器内假后端，对话这条路**刻意没有**——
+> 它的状态在服务端一个真实的会话上，而「确认出图」是一条真的会花钱的路由，在浏览器里复刻一份只会
+> 让"看起来能用"与"真的能用"分不清。所以 `VITE_USE_MOCK=true` 时对话页**明确显示「对话功能需要真实后端」**。
+> 要试它：起后端（缺省 `AGENT_LLM=mock` + `MAKEUP_ENGINE=mock` 就是**离线、不花钱**的演示脚本），
+> 再把 `.env` 里的 `VITE_USE_MOCK` 设成 `false`。契约见 `AGENTS.md` §7.2。
+
 - 假流水线 `src/api/mock.js` 复刻上述 JobView 契约：按 `brief.occasion`（或文字关键词，兜底 daily）选场合，`skinTone` 调深浅——与 server mock 适配器同源。
 - 妆容预览：前端用 `look.zones/palette` 做 CSS `mix-blend-mode: multiply` 叠加（`resultUrl` 为空时）；真实引擎返回 `resultUrl` 成品图时直接展示。
 - 示例素材：`public/demo/demo-photo.svg`（示例人像）。氛围参考图非必填，示例可在结果回显中省去。
@@ -61,12 +71,12 @@ Mock 模式下：
 
 ```
 src/
-├── api/            # axios 实例、接口封装（makeup.js）、假后端（mock.js）
+├── api/            # axios 实例、接口封装（makeup.js / cabinet.js / agent.js…）、假后端（mock.js）
 ├── components/     # PhotoUploader / CompareSlider / TipBanner / LoadingOverlay / Icon
 ├── constants/      # options.js：场合/肤质/肤色/天气可选项与中文名
-├── pages/          # HomeView / UploadView / ResultView
+├── pages/          # HomeView / UploadView / ResultView / CabinetView / LoginView / AgentView
 ├── router/
-├── stores/         # makeup 全局状态（本人照片/brief 表单/任务）
+├── stores/         # makeup（本人照片/brief 表单/任务）、user、cabinet、agent（对话）
 ├── utils/          # 颜色工具
 └── assets/styles/  # 设计令牌 + 全局样式
 ```

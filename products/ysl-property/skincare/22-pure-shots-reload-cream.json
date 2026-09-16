@@ -1,0 +1,17 @@
+{
+  "id": "22-pure-shots-reload-cream",
+  "number": 22,
+  "name": "YSL 悦享青春Reload面霜（Pure Shots Reload Cream）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "天鹅绒般柔滑质地，温柔包裹肌肤，锁住美容成分和水分。针对弹力下降和肌肤松弛等老化迹象。",
+    "ingredients": "Luminous 3D Complex、保湿复合体系。",
+    "skinTypes": "所有肤质。适合需要提升弹力和紧致度的肌肤。",
+    "occasions": "全季节。作为护肤流程最后一步使用。适合需要打造上妆肌底的日常护理。",
+    "warnings": "含香精。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots Reload 系列（2026年新品）"
+  }
+}

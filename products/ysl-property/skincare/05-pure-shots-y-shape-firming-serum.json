@@ -1,0 +1,18 @@
+{
+  "id": "05-pure-shots-y-shape-firming-serum",
+  "number": 5,
+  "name": "YSL 胜肽精华 / 紧致精华（Pure Shots Y Shape Firming Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "轻盈水精华质地。以“水塑型科技”促进肌肤多醣体活化并平滑肌肤，注入“胜肽紧实浓缩”，长时间向上紧致脸部Y轮廓，塑造紧实弹润的光泽小脸。",
+    "ingredients": "摩洛哥巴贝里无花果萃取、胜肽紧实浓缩、水塑型科技。",
+    "skinTypes": "所有肤质，尤其适合需要紧致轮廓、改善松弛的轻熟龄肌肤。",
+    "occasions": "全季节。适合需要提升面部轮廓紧致感的日常护理。早晚在精华水后使用。",
+    "warnings": "含香精。",
+    "feedback": "“长时间向上紧致脸部Y轮廓，塑造紧实弹润的光泽小脸”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

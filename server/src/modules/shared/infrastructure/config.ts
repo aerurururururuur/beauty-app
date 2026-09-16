@@ -5,8 +5,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-export type AdapterKind = 'mock' | 'off';
-
 /**
  * 天气源开关。与 `weather/compose.ts` 的 WeatherProviderKind 同形(那边独立声明,
  * 免得业务模块反向依赖组装层);两处要一起改。
@@ -16,10 +14,35 @@ export type WeatherProviderKind = 'mock' | 'open-meteo';
 /**
  * 参考源开关。与 `references/compose.ts` 的同名 union 同形,两处要一起改。
  *
- * ★ **刻意不复用 `AdapterKind`**：那个 union 由 `referenceProvider` 与 `makeupEngine` 共用，
- *   往里加 `'bing'` 会顺带让 `MAKEUP_ENGINE=bing` 变成一个语法合法但语义荒谬的取值。
+ * ★ **刻意不复用别的 union**：曾经的 `AdapterKind` 由 `referenceProvider` 与 `makeupEngine`
+ *   共用，往里加 `'bing'` 会顺带让 `MAKEUP_ENGINE=bing` 变成一个语法合法但语义荒谬的取值。
+ *   2026-09-16 引擎接线时把那个共用 union 拆掉了——现在每类开关各有一个。
  */
 export type ReferenceProviderKind = 'mock' | 'off' | 'bing';
+
+/**
+ * 上妆引擎开关。与 `makeup/compose.ts` 的同名 union 同形,两处要一起改。
+ *
+ * ★ **刻意没有 `off`。** 这一条从 `server/README.md` 到 `src/index.ts` 已经写过三遍:
+ *   流水线没有引擎就出不了成品,**接一个 off 分支只会得到又一个假开关**。
+ *
+ * ★ **`replay` 不是"离线兜底",是"CI 模式"**(§5.4):它只回放录好的夹具,
+ *   **未命中就报错**。所以它既不联网、也不出账单、**也不假装能处理任意输入**——
+ *   这三件事与 `mock` 都不同,别把两者当同一类东西。
+ */
+export type MakeupEngineKind = 'mock' | 'qwen' | 'replay';
+
+/**
+ * 对话 agent 的 LLM 开关。与 `agent/compose.ts` 的同名 union 同形,两处要一起改。
+ *
+ * ★ **刻意没有 `off`**:对话 agent 没有 LLM 就什么也做不了——这跟 `weather` 那种
+ *   "接不上就降级为空列表"的增强项不同。离线要兜底就用 `mock`。
+ *
+ * ★ **缺省是 `mock`**,与 `weatherProvider` 缺省 `open-meteo` 的选择相反,理由是**花钱**:
+ *   天气实拉是免费公开接口,模型调用按 token 计费。**缺省值必须是"不会意外产生账单"的那个**,
+ *   要用真实模型就显式写 `AGENT_LLM=dashscope`。
+ */
+export type AgentLlmKind = 'mock' | 'dashscope';
 
 export interface ServerConfig {
   host: string;
@@ -33,9 +56,64 @@ export interface ServerConfig {
   referenceBaseUrl: string;
   /** 参考检索超时毫秒;仅 referenceProvider='bing' 用。 */
   referenceTimeoutMs: number;
-  makeupEngine: AdapterKind;
+  /** 上妆引擎:mock(骨架,缺省)| qwen(真实生图,计费)| replay(回放夹具,CI)。 */
+  makeupEngine: MakeupEngineKind;
+  /** 生图模型名。缺省 `qwen-image-edit-plus`(§4.4 的四次实测全部基于它)。 */
+  makeupModel: string;
+  /** 生图模型端点基址(与对话模型共用 DASHSCOPE_API_HOST,但可单独覆盖)。 */
+  makeupApiHost: string;
+  /** 引擎成品图的落盘目录。 */
+  makeupOutDir: string;
+  /**
+   * record/replay 夹具目录。`qwen` 时给了就**录**,`replay` 时**必填**(缺了启动即失败)。
+   * ★ 缺省不设:与所有开关同一条规矩——缺省值必须没有意外副作用,这里的副作用是**写盘**。
+   */
+  makeupFixturesDir?: string;
   /** 天气源:open-meteo(无 key 实拉,缺省)| mock(离线示意兜底)。 */
   weatherProvider: WeatherProviderKind;
+  /** 对话 agent 的模型来源:mock(离线兜底,缺省)| dashscope(真实模型,按 token 计费)。 */
+  agentLlm: AgentLlmKind;
+  /** 对话模型名。实测可用的候选见 `scripts/probe-tool-calling.ts`。 */
+  agentModel: string;
+  /** 对话模型端点基址。默认由 DASHSCOPE_API_HOST 拼出兼容模式路径。 */
+  agentBaseUrl: string;
+  /**
+   * §10 `[I3]`:单个会话最多出几张图。`0` 表示**不限制**。
+   * 上限存在的理由不是省钱(单张才几分钱),是**失控**:
+   * 没有上限时,一个循环里的模型可以连续要求出图,而每一次都要用户点确认——
+   * 用户点烦了就会开始闭眼点,那时候"每次确认"这道闸门就已经失效了。
+   */
+  agentMaxRenders: number;
+  /**
+   * §10 `[I8]`:会话空闲多少小时算过期(到期**真删**照片与成品图,见 `[I8]` 隐私红线)。
+   * 取值见 `.env.example` 那段说明;填 0 无意义(`asPositiveInt` 会回落到缺省)。
+   */
+  agentSessionTtlHours: number;
+  /**
+   * 产品库内容目录(`products/<库>/`)的绝对路径。缺省 `server/../products`。
+   *
+   * ★ **这是全项目唯一一个「指向不存在 = 关掉功能」的配置项**,所以它的解析方式
+   *   也和其他目录**刻意不同**:`makeupFixturesDir` 走 `optionalAbsDir`
+   *   (空串 = 没给 = 变成 `undefined`),这里**永远返回一个路径**,不存在就让它不存在。
+   *
+   *   区别的理由:夹具目录"没给"和"给了但不存在"是两件事(前者是正常,后者是配错);
+   *   而产品库的**"不存在"本身就是那个开关**——`products/compose.ts` 靠它决定
+   *   agent 注不注册产品工具。若这里也做 `optionalAbsDir`,就没人能表达
+   *   "我确实不想装产品库"了。回归测试指向一个不存在的路径,靠的正是这一点。
+   */
+  productsDir: string;
+}
+
+/**
+ * ★ **读 key 的函数,而不是 `ServerConfig` 的一个字段。**
+ *
+ * 理由:`ServerConfig` 会被传进 `buildApp` 并长期挂在 `app` 上,任何一次
+ * `app.log.info(config)` 式的调试都会把整个配置对象打进日志。
+ * **secret 不进那个对象**是最省事的防线——不需要靠"记得别打印它"来保证。
+ * (同类先例:用户密码从不进 config,只存 scrypt 凭据。)
+ */
+export function readDashScopeApiKey(env: NodeJS.ProcessEnv = process.env): string {
+  return (env.DASHSCOPE_API_KEY ?? '').trim();
 }
 
 /** 若存在 .env 文件则把它读入 process.env(已有的环境变量优先,不覆盖)。 */
@@ -53,8 +131,11 @@ export function loadDotEnvIfPresent(file = '.env'): void {
   }
 }
 
-function asAdapterKind(value: string | undefined, fallback: AdapterKind): AdapterKind {
-  if (value === 'mock' || value === 'off') return value;
+function asMakeupEngineKind(
+  value: string | undefined,
+  fallback: MakeupEngineKind,
+): MakeupEngineKind {
+  if (value === 'mock' || value === 'qwen' || value === 'replay') return value;
   return fallback;
 }
 
@@ -71,13 +152,36 @@ function asReferenceKind(
   return fallback;
 }
 
+function asAgentLlmKind(value: string | undefined, fallback: AgentLlmKind): AgentLlmKind {
+  if (value === 'mock' || value === 'dashscope') return value;
+  return fallback;
+}
+
+/** 可选目录:空串/空白视同**没给**(而不是"当前目录"),其余解析成绝对路径。 */
+function optionalAbsDir(value: string | undefined): string | undefined {
+  const dir = (value ?? '').trim();
+  return dir === '' ? undefined : path.resolve(dir);
+}
+
 /** 正整数毫秒;非法值回落到缺省,不抛错(与其它开关同一口径)。 */
 function asPositiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+/**
+ * 非负整数。与 `asPositiveInt` **只差在允不允许 0**——
+ * 出图上限的 `0` 是一个有意义的取值("不限制"),而 TTL 的 `0` 没有意义,
+ * 所以两者不能共用一个函数:共用就得在一处把 0 悄悄改成 1,那是撒谎。
+ */
+function asNonNegativeInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
+  const makeupFixturesDir = optionalAbsDir(env.MAKEUP_FIXTURES_DIR);
+
   return {
     host: env.HOST ?? '127.0.0.1',
     port: Number(env.PORT ?? 3000),
@@ -89,8 +193,40 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     referenceProvider: asReferenceKind(env.REFERENCE_PROVIDER, 'mock'),
     referenceBaseUrl: env.REFERENCE_BASE_URL ?? 'https://cn.bing.com',
     referenceTimeoutMs: asPositiveInt(env.REFERENCE_TIMEOUT_MS, 5000),
-    makeupEngine: asAdapterKind(env.MAKEUP_ENGINE, 'mock'),
+    // 引擎缺省**仍是 mock**:它不联网、不出账单,是"不会意外花钱"的那一个
+    // (与 AGENT_LLM 缺省 mock 同一条理由)。
+    makeupEngine: asMakeupEngineKind(env.MAKEUP_ENGINE, 'mock'),
+    // 四次实测(§4.4)全部基于 -plus;`-max` / `-2.0-pro` 值不值得换,本文没有对比数据(§14.1)。
+    makeupModel: env.QWEN_IMAGE_MODEL ?? 'qwen-image-edit-plus',
+    // 与对话模型共用一个域名开关(一个 key 打通两层,§7.5),但允许单独覆盖。
+    makeupApiHost: env.DASHSCOPE_API_HOST ?? 'https://dashscope.aliyuncs.com',
+    // 引擎的中间产物放 dataDir 下:**它现在没有任何地方清理**(见 makeup/README 的待办,
+    // 属 §10 [I8] 那条"会话 TTL 到期照片与产物被真实删除"的同一笔债)。
+    makeupOutDir: path.join(env.DATA_DIR ?? './data', 'engine-out'),
+    // 夹具目录缺省**不设**(见 ServerConfig 里那条注释:缺省不能有写盘副作用)。
+    ...(makeupFixturesDir ? { makeupFixturesDir } : {}),
     // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。
     weatherProvider: asWeatherKind(env.WEATHER_PROVIDER, 'open-meteo'),
+    // 对话模型缺省 mock:不联网、不出账单(理由见 AgentLlmKind 的注释)。
+    agentLlm: asAgentLlmKind(env.AGENT_LLM, 'mock'),
+    // qwen-flash 实测 847ms 能跑完整两轮工具调用,是这三项里最快的一档。
+    agentModel: env.AGENT_MODEL ?? 'qwen-flash',
+    // 复用 DASHSCOPE_API_HOST(与生图脚本同一个域名开关),只是接上兼容模式路径;
+    // 端点整体可被 AGENT_BASE_URL 覆盖(换自建代理时不必动代码)。
+    agentBaseUrl:
+      env.AGENT_BASE_URL ??
+      `${env.DASHSCOPE_API_HOST ?? 'https://dashscope.aliyuncs.com'}/compatible-mode/v1`,
+    // ★ 缺省 3 与 `agent/application/tools/render-look.ts` 的 `DEFAULT_MAX_RENDERS`
+    //   是**同一个数**,两处要一起改(同上面那几个 union 的规矩)。
+    agentMaxRenders: asNonNegativeInt(env.AGENT_MAX_RENDERS, 3),
+    // ★ 缺省 24 与 `agent/application/usecases/purge-expired-sessions.ts` 的
+    //   `DEFAULT_SESSION_TTL_HOURS` 是同一个数,两处要一起改。
+    //   这个数**不是调优参数**:它同时是"用户本人的照片在服务端留多久"这个承诺,
+    //   改它等于改隐私条款,不该在没有告知的情况下悄悄放大。
+    agentSessionTtlHours: asPositiveInt(env.AGENT_SESSION_TTL_HOURS, 24),
+    // 缺省指向仓库里真实存在的 `products/`(cwd 按 server/ 算),开箱即有产品库。
+    // **不校验存在性**:目录不在 = 关掉产品库,是合法形态(见 ServerConfig 里那条注释);
+    // 而"目录在但内容坏"由 `products/compose.ts` 启动即失败,那才是要拦的那种错。
+    productsDir: path.resolve(env.PRODUCTS_DIR ?? '../products'),
   };
 }

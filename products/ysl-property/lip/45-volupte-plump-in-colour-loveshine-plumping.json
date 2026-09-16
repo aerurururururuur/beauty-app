@@ -1,0 +1,19 @@
+{
+  "id": "45-volupte-plump-in-colour-loveshine-plumping",
+  "number": 45,
+  "name": "YSL 丰唇唇釉/唇膏（Volupte Plump-in-Colour / Loveshine Plumping）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "含薄荷油，上唇有轻微凉感和丰唇刺激效果。",
+    "ingredients": "薄荷油、椰子油、透明质酸、姜油、胡椒油。",
+    "skinTypes": "唇炎用户严格避免。适合唇部健康、追求丰唇效果的用户。",
+    "occasions": "无需特定天气，但唇炎高发季节应避免使用。",
+    "warnings": "含薄荷油，唇炎用户禁用；含姜油、胡椒油，刺激性成分，唇部敏感者慎用；含香精。",
+    "feedback": "用户反馈凉感明显，丰唇效果因人而异。唇部敏感用户反馈“嘴唇边缘开始微微发烫”。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

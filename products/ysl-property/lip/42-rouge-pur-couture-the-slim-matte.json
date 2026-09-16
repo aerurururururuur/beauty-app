@@ -1,0 +1,19 @@
+{
+  "id": "42-rouge-pur-couture-the-slim-matte",
+  "number": 42,
+  "name": "YSL 小金条口红（细管纯口红 / Rouge Pur Couture The Slim Matte）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "丝绒柔滑哑光质地，极雾显色，妆效持久，色泽饱和。膏体斜角切割，便于勾勒唇形。唇纹友好。",
+    "ingredients": "67%养护基底，神经酰胺、玫瑰果油、霍霍巴油。含聚二甲基硅氧烷、氢化聚异丁烯、滑石粉等。",
+    "skinTypes": "适合所有唇部状况。深唇纹用户评价正面。干燥唇部需提前做好唇部打底。无薄荷醇/凉感成分，唇炎用户相对友好。",
+    "occasions": "全季节适用。秋冬干燥季节搭配润唇膏使用。",
+    "warnings": "含香精；不含薄荷醇/凉感剂；含滑石粉。",
+    "feedback": "“哑光但不干绷，抿一下反而更贴合，有种越用越像自己唇色的奇妙感。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

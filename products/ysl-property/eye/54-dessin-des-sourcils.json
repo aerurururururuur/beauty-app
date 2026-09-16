@@ -1,0 +1,18 @@
+{
+  "id": "54-dessin-des-sourcils",
+  "number": 54,
+  "name": "YSL 眉笔（Dessin Des Sourcils）",
+  "category": "eye",
+  "dimensions": {
+    "texture": "双头设计，笔芯+刷头，精准勾勒、塑形和晕染眉毛。质地顺滑。",
+    "ingredients": "微晶蜡、氢化棕榈仁甘油酯、巴西棕榈蜡、氢化棕榈甘油酯。含氧化铁着色剂。",
+    "skinTypes": "眼科医生测试，适合敏感眼和隐形眼镜佩戴者。",
+    "occasions": "全季节，全天候。防水配方适合夏季和运动场景。",
+    "warnings": "成分安全性高，无特殊预警。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.brow"
+    ]
+  }
+}

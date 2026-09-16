@@ -1,0 +1,18 @@
+{
+  "id": "12-pure-shots-pro-xylane-serum",
+  "number": 12,
+  "name": "YSL 玻色因精华（Pure Shots Pro-Xylane Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "丰润凝露、一抹化水。4周焕变。",
+    "ingredients": "高浓度玻色因、香根鸢尾精萃、鼠李糖+玻尿酸。",
+    "skinTypes": "全肤质。适合有抗初老需求、需要淡化细纹的肌肤。",
+    "occasions": "全季节。适合日常抗初老护理。",
+    "warnings": "含香精。",
+    "feedback": "“淡纹+饱满，肤感清爽”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "06-pure-shots-lines-away-anti-aging",
+  "number": 6,
+  "name": "YSL 玻尿酸精华 / 淡纹精华（Pure Shots Lines Away Anti-Aging Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "轻盈精华液质地。直击细纹，弹润充盈。丰润凝露、一抹化水，4周焕变。",
+    "ingredients": "高浓度玻色因（Pro-Xylane，促进胶原蛋白合成，淡化细纹、硬核抗初老）、香根鸢尾精萃、鼠李糖+玻尿酸。",
+    "skinTypes": "所有肤质，尤其适合有细纹、干燥缺水问题的肌肤。",
+    "occasions": "全季节。秋冬干燥季节搭配面霜使用效果更佳。",
+    "warnings": "含香精。",
+    "feedback": "“直击细纹，弹润充盈”“促进胶原蛋白合成，硬核抗初老”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "Pure Shots 悦享青春系列"
+  }
+}

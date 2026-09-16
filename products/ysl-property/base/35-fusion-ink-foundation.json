@@ -1,0 +1,19 @@
+{
+  "id": "35-fusion-ink-foundation",
+  "number": 35,
+  "name": "YSL 羽毛粉底液（Fusion Ink Foundation）",
+  "category": "base",
+  "dimensions": {
+    "texture": "质地轻盈薄透，流动性极强，上妆非常服帖。主打轻薄清透、雾面零妆感。哑光雾面，持久不暗沉不脱妆，超过8小时。",
+    "ingredients": "微分散色素粒子吸收油脂，防汗抗水，保持皮肤水油平衡。",
+    "skinTypes": "油皮、混油皮、大油田。被称为“油皮亲妈”。",
+    "occasions": "夏季高温、潮湿天气的日常通勤。",
+    "warnings": "含香精；含酒精部分版本。",
+    "feedback": "“作为油皮亲妈，控油效果不言而喻，修饰毛孔、遮盖细纹、不干不油、长效持久”。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

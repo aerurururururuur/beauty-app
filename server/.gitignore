@@ -3,6 +3,14 @@ dist/
 data/
 # 门禁里的真实 e2e 用 DATA_DIR=./data-e2e,跑完不该变成待提交文件
 data-e2e/
+# 实验脚本(qwen-image-makeup 等)的产物:生成图 + 参数存档,属于本地素材,不进版本库
+out/
+# scripts/assets/ 下的人像素材是从网上抓的,按 tespro/learn/blend/README.md 的红线段
+# **只能本地学习用**:别提交、别进演示素材。忽略图片、留住说明文字,免得下一个人以为这里该放素材。
+scripts/assets/*.webp
+scripts/assets/*.jpg
+scripts/assets/*.jpeg
+scripts/assets/*.png
 *.local
 
 # 本地环境变量(由 .env.example 复制而来)

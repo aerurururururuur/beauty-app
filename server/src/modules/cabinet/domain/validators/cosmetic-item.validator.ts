@@ -19,7 +19,7 @@ import {
   ownerQuerySchema,
   updateItemSchema,
 } from '../schemas/cosmetic-item.js';
-import { zodIssuesMessage } from './validate.js';
+import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 清洗后的一条特性。 */
 export interface CleanAttribute {

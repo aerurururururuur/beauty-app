@@ -1,0 +1,19 @@
+{
+  "id": "34-base",
+  "number": 34,
+  "name": "YSL 超模粉底液（新版明彩精萃水粉霜）",
+  "category": "base",
+  "dimensions": {
+    "texture": "质地轻薄，延展性不错。柔雾哑光带一点光泽感，上脸自带微微珠光，是“从肌底透出来的柔焦光泽”。",
+    "ingredients": "明彩精萃水感加持。",
+    "skinTypes": "混合皮、干皮。遮瑕力度比逆龄好一些。",
+    "occasions": "全季节适用，尤其适合需要自然光泽感妆效的场景。",
+    "warnings": "含香精。",
+    "feedback": "“上脸那一刻真的有种被打了光的感觉，像是自带柔光滤镜。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  }
+}

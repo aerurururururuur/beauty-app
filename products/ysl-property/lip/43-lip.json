@@ -1,0 +1,18 @@
+{
+  "id": "43-lip",
+  "number": 43,
+  "name": "YSL 细管丝绒纯口红（小金条丝绒版）",
+  "category": "lip",
+  "dimensions": {
+    "texture": "丝绒柔滑质地，哑光妆效。",
+    "ingredients": "聚二甲基硅氧烷、氢化霍霍巴油、生育酚、香叶天竺葵花/叶/茎提取物。",
+    "skinTypes": "与小金条类似，唇纹友好，哑光妆效。",
+    "occasions": "全季节适用。",
+    "warnings": "与小金条类似，含香精，不含薄荷醇。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  }
+}

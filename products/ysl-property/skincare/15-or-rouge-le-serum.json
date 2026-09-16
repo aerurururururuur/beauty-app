@@ -1,0 +1,18 @@
+{
+  "id": "15-or-rouge-le-serum",
+  "number": 15,
+  "name": "YSL 藏金奢妍精华乳（OR Rouge Le Serum）",
+  "category": "skincare",
+  "dimensions": {
+    "texture": "精华乳质地，浓缩藏红花雌蕊提取物，深层修护。",
+    "ingredients": "摩洛哥高阿特拉斯山藏红花雌蕊提取物、玻色因、腺苷、神经酰胺NP、透明质酸钠、摩洛哥坚果油、积雪草提取物、乙酰基二肽-1鲸蜡酯。",
+    "skinTypes": "适合所有肤质，尤其适合需要提高肌肤弹性和明亮度的熟龄肌肤。",
+    "occasions": "秋冬干燥季节、夜间修护。",
+    "warnings": "含变性乙醇；含香精。",
+    "feedback": "“从源头上解决抗老问题”“YSL进军世界顶级护肤的野心之作”。"
+  },
+  "derived": {
+    "lookSpecSlots": [],
+    "series": "OR Rouge 藏金奢妍系列"
+  }
+}

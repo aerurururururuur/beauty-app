@@ -1,0 +1,16 @@
+{
+  "id": "55-lines-liberated-eyeliner",
+  "number": 55,
+  "name": "YSL 敢爱自由眼线笔 / 哑致长效眼线笔（Lines Liberated Eyeliner）",
+  "category": "eye",
+  "dimensions": {
+    "texture": "高度显色，轻松晕染。24小时不脱妆，防水防晕染。提供哑光、缎面哑光和镀铬妆效。",
+    "ingredients": "蜡质与霍霍巴油平衡配方。含氧化铁着色剂。",
+    "skinTypes": "适合所有眼部状况。防水防晕染，适合敏感眼和易流泪的眼部。",
+    "occasions": "夏季高温出汗、雨天、游泳等需要极致防水防汗的场景。",
+    "warnings": "成分相对温和，含霍霍巴油；含少量着色剂。"
+  },
+  "derived": {
+    "lookSpecSlots": []
+  }
+}
