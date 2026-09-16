@@ -278,6 +278,18 @@ npm run typecheck  # tsc --noEmit
 npm test           # vitest run
 ```
 
+> ⚠️ **中文 Windows 的 PowerShell（5.1）里日志会是乱码**（`[products] 宸插姞杞?…`）。
+> **日志本身没错**，写出去的是正确的 UTF-8；是**终端按 936（GBK）在解它**——
+> 所以别去改日志的编码，那是把错怪在没做错的一边。让这个窗口改读 UTF-8：
+>
+> ```powershell
+> chcp 65001 > $null
+> [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+> ```
+>
+> 每次开窗都要敲，所以真要顺就写进 `$PROFILE`。★ PowerShell 7 默认 UTF-8，没这问题；
+> Git Bash / CI 也没这问题——**它只咬「中文 Windows + PS 5.1」这一个组合**。
+
 ## 测试
 
 > ⚠️ **`test/` 不被任何 tsconfig 覆盖**（根 `tsconfig.json` 的 `include` 只有 `["src"]`，
