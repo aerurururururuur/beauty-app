@@ -30,10 +30,15 @@ const userIdOnlySchema = z
 export const startSessionSchema = userIdOnlySchema;
 
 /**
- * 确认出图。
+ * 出图。
  * ★ **一个出图参数都不收**——尤其不收 `LookSpec`。理由见 `definitions.ts` 的
  * `RENDER_LOOK`:能改参数就等于让用户"确认"一份他还没看过的妆面单。
  * 要出的是**他刚才在屏幕上看到的那一套**,而那一套已经在会话里了。
+ *
+ * ✏️ 2026-09-16:这条路由现在有**两个入口**(批准模型提的请求 / 点界面上那条
+ * 「确认生成」),但入参**照样只有 `userId`** —— 两个入口要出的都是"屏幕上那一套",
+ * 没有任何一个入口需要多说一个字。★ 所以那个"幂等键"的洞没有为它破例,见
+ * `confirm-render.ts` 文件头的「残余空洞」。
  */
 export const confirmRenderSchema = userIdOnlySchema;
 

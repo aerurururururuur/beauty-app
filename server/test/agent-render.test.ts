@@ -34,7 +34,9 @@ import {
   PurgeExpiredSessions,
   RenderLookTool,
   StartSession,
+  TOOL_NAMES,
   appendMessages,
+  assistantMessage,
   createSession,
   danglingToolUses,
   indexTools,
@@ -43,14 +45,18 @@ import {
   mockToolCall,
   patchBrief,
   renderConfirmationSummary,
+  renderReadiness,
   setFaceRef,
   setLookSpec,
   textMessage,
+  textOf,
   toSessionView,
+  toolUsesOf,
 } from '../src/modules/agent/index.js';
 import type {
   PhotoUpload,
   Session,
+  ToolResultBlock,
   ToolUseBlock,
   SessionArtifacts,
   Tool,
@@ -173,6 +179,20 @@ class ThrowingArtifacts extends FakeSessionArtifacts {
 class BlindArtifacts extends FakeSessionArtifacts {
   override async listStored(): Promise<string[]> {
     throw new Error('读不了目录');
+  }
+}
+
+/**
+ * 数 `save` 次数的会话存储。
+ * ★ 入口 B 要**代递**一条提议(见 `confirm-render.ts`),而那条提议**只许在整趟末尾
+ *   跟着结果一起落一次库**——中途多存一次,用户刷新就会看到一个模型从没提过的确认框。
+ *   这条不变量没有别的观测点:`save` 次数是它唯一的外显。
+ */
+class CountingSessionStore extends InMemorySessionStore {
+  saves = 0;
+  override async save(session: Session): Promise<void> {
+    this.saves += 1;
+    return super.save(session);
   }
 }
 
@@ -735,7 +755,21 @@ describe('ConfirmRender', () => {
     });
   });
 
-  it('★ 没有待确认的出图请求就**不跑循环**——重复点击不能白烧一轮 LLM', async () => {
+  /**
+   * ⚠️ **这条用例的名字与理由都改过(2026-09-16),别照旧读它。**
+   *
+   * 它以前叫「没有待确认的出图请求就不跑循环——重复点击不能白烧一轮 LLM」,
+   * 守的是"没有待确认项 ⇒ 422"。**那句话现在不再成立**:妆面照片齐、也没有欠账时,
+   * 这一次点击是**正当的新请求**(入口 B,见下一个 describe),会真的出一张图。
+   * ★ 于是"重复点击"那件事**只剩两条防线**(界面上的禁用 + 进程内 in-flight 锁),
+   *   而不是靠这条 422 —— 那是"一次点击就花钱"的固有代价,如实记在
+   *   `confirm-render.ts` 文件头的「残余空洞」里。
+   *
+   * 这条断言仍绿,但**守的东西变了**:它现在守的是**缺妆面**那一支
+   * (这里的 `baseSession()` 既没妆面也没照片 ⇒ 报的是"还没有妆面")。
+   * 不改名的话,下一个人会以为 422 还在管"没有待确认项"。
+   */
+  it('★ 缺妆面(也没有待确认的提议)→ 422 且**不跑循环**', async () => {
     const { store, usecase } = await setup([mockText('我不该被调用')], []);
     await store.create(baseSession());
 
@@ -772,6 +806,184 @@ describe('ConfirmRender', () => {
     const saved = await store.find('s1');
     expect(danglingToolUses(saved?.messages ?? [])).toEqual([]);
     expect(saved?.renders).toHaveLength(1);
+  });
+});
+
+// ── ③-B ★ ConfirmRender 的入口 B:用户点界面上那条消息 ───────────────────────
+
+/**
+ * ✏️ 2026-09-16 新增。**这一组就是"用户要图不必再由模型转达"那条改动的落点**:
+ * 妆面照片齐、也没有任何提议欠着时,用户点一下界面上那条带按钮的消息,
+ * 服务端**代递**一条 `render_look` 提议,同一次请求里真出图。
+ *
+ * ⚠️ 全部是假引擎 + 假存储:**不联网、不花钱**。真机才暴露的那三个问题
+ * (供应商认不认 `manual-` 这个不是它发的 id、模型拿到一条自己没产出过的 assistant 轮
+ * 会怎么接话、历史里有了它之后会不会反复提议)靠**一次付费实测 + 人工验收**——
+ * **这一组全绿不等于那条路已经验过。**
+ */
+describe('ConfirmRender —— 入口 B(用户点界面上那条消息)', () => {
+  async function setupB(over: { maxRenders?: number; engine?: Engine } = {}) {
+    const engine = over.engine ?? new RecordingEngine();
+    const artifacts = new FakeSessionArtifacts();
+    const store = new CountingSessionStore();
+    const loop = new AgentLoop({
+      // 一条脚本就够:代递的那条提议是**服务端合成**的、不经过模型,
+      // 模型只被用来接最后那句收束语(同入口 A 重放完之后的 1 次调用)。
+      llm: new MockLlm([mockText('图出好了,你看看这张行不行。')]),
+      tools: indexTools([
+        new RenderLookTool({ engine, artifacts, maxRenders: over.maxRenders ?? 3 }),
+      ]),
+    });
+    return { engine, artifacts, store, usecase: new ConfirmRender({ sessions: store, loop }) };
+  }
+
+  it('★ 没有欠账、妆面照片齐 → 代递一条提议,**同一次请求里真出图**', async () => {
+    const { engine, artifacts, store, usecase } = await setupB();
+    await store.create(readySession());
+
+    const done = await usecase.execute('s1', 'u1');
+
+    // 引擎真被调了一次,拿的是那份妆面与那张照片(不是空的)。
+    expect(engine.inputs).toHaveLength(1);
+    expect(engine.inputs[0]?.lookSpec).toEqual(SAMPLE_LOOK);
+    expect(engine.inputs[0]?.face.filePath).toBe('mem://s1/face.png');
+    expect(done.session.renders).toHaveLength(1);
+    expect(done.session.renders[0]?.seq).toBe(1);
+    expect(artifacts.putRenders).toEqual([
+      { sessionId: 's1', seq: 1, sourceFilePath: 'mem://rendered.png' },
+    ]);
+
+    const saved = (await store.find('s1'))!;
+    // ★ 历史里留下的是"提议 → 批准"**一对**,而不是"没人调工具却出了图"——
+    //   后者正是 v5–v11 那一串翻车的同一个病灶(模型手上没有状态,只能猜)。
+    const calls = saved.messages.flatMap((m) => toolUsesOf(m));
+    expect(calls.map((c) => c.name)).toEqual([TOOL_NAMES.renderLook]);
+    expect(calls[0]?.id.startsWith('manual-')).toBe(true);
+    expect(danglingToolUses(saved.messages)).toEqual([]);
+    // ★ 合成的那条提议**一个字的正文都没有**:正文是"模型说的话",服务端不替它写。
+    const proposal = saved.messages.find((m) => toolUsesOf(m).length > 0)!;
+    expect(textOf(proposal)).toBe('');
+    // ★ 它**只落了一次库**。中途多存一次,用户刷新就会看到一个模型从没提过的确认框。
+    expect(store.saves).toBe(1);
+  });
+
+  it('★ 引擎失败:合成的那条提议**不会留在历史里当"模型提过"**', async () => {
+    const { store, usecase } = await setupB({
+      engine: new RecordingEngine(new Error('生图超时')),
+    });
+    await store.create(readySession());
+
+    await usecase.execute('s1', 'u1');
+
+    const saved = (await store.find('s1'))!;
+    expect(saved.renders).toEqual([]);
+    // 欠账照样还清 ⇒ 用户**再点一次是有意义的**(重试),而不是撞上一个幽灵确认框。
+    expect(danglingToolUses(saved.messages)).toEqual([]);
+  });
+
+  it('★ 缺妆面 → 422 且**点名妆面**(不是"没有待确认项"),引擎一次都不调', async () => {
+    const { engine, store, usecase } = await setupB();
+    await store.create(setFaceRef(baseSession(), FACE_REF));
+
+    await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: expect.stringContaining('妆面'),
+    });
+    expect(engine.inputs).toHaveLength(0);
+  });
+
+  it('★ 缺照片 → 422 且点名照片', async () => {
+    const { engine, store, usecase } = await setupB();
+    await store.create(setLookSpec(baseSession(), SAMPLE_LOOK));
+
+    await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: expect.stringContaining('照片'),
+    });
+    expect(engine.inputs).toHaveLength(0);
+  });
+
+  it('★ 欠着的是**别的**工具 → 422(那是"上一轮崩在中间"的畸形状态,不叠一条提议)', async () => {
+    const { engine, store, usecase } = await setupB();
+    await store.create(
+      appendMessages(readySession(), [assistantMessage([call('c1', 'patch_brief')])]),
+    );
+
+    await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+    });
+    expect(engine.inputs).toHaveLength(0);
+  });
+
+  it('★ 额度用尽 → 不调引擎、会话里不多图,而且**如实告诉用户**(不是静默失败)', async () => {
+    const { engine, store, usecase } = await setupB({ maxRenders: 1 });
+    await store.create(
+      setFaceRef(
+        setLookSpec(
+          baseSession({
+            renders: [
+              {
+                seq: 1,
+                ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+                lookDescription: 'x',
+                createdAt: 'x',
+              },
+            ],
+          }),
+          SAMPLE_LOOK,
+        ),
+        FACE_REF,
+      ),
+    );
+
+    const done = await usecase.execute('s1', 'u1');
+
+    // ★ 入口 B **没有"提议阶段"**,所以只剩 `render()` 里那第二遍额度检查在挡。
+    expect(engine.inputs).toHaveLength(0);
+    expect(done.session.renders).toHaveLength(1);
+    // 这一轮照常收束(不抛),而模型拿到的那条结果明说要如实告诉用户——
+    // 用户点了却出不了图,绝不能什么都不说。
+    const results = done.session.messages
+      .flatMap((m) => m.content)
+      .filter((b): b is ToolResultBlock => b.type === 'tool_result');
+    expect(results.some((r) => r.isError === true && r.content.includes('用完'))).toBe(true);
+  });
+
+  it('★ 并发重复点击:两个请求只有一个真的跑(进程内 in-flight 锁)', async () => {
+    const { engine, store, usecase } = await setupB();
+    await store.create(readySession());
+
+    const settled = await Promise.allSettled([
+      usecase.execute('s1', 'u1'),
+      usecase.execute('s1', 'u1'),
+    ]);
+
+    expect(settled.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = settled.filter((r) => r.status === 'rejected');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({ code: ErrorCode.VALIDATION_ERROR });
+
+    // ★ 要紧的是这两条:**引擎只被调了一次**、会话里只有一张图。
+    //   没有锁的话两个请求会各调一次引擎、各算出 `seq: 1`,出两张图扣两次钱、
+    //   而会话里只留得下一条记录。
+    expect(engine.inputs).toHaveLength(1);
+    expect((await store.find('s1'))?.renders).toHaveLength(1);
+  });
+
+  it('★ 锁**一定要放开**:一次失败之后,下一次点击照常能出图', async () => {
+    const { store, usecase } = await setupB();
+    await store.create(setLookSpec(baseSession(), SAMPLE_LOOK)); // 缺照片 ⇒ 第一次抛
+
+    await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+    });
+
+    // 补上照片再点。锁漏放的话这里会一直报"正在出图",而那个会话**再也出不了图**。
+    const withFace = setFaceRef((await store.find('s1'))!, FACE_REF);
+    await store.save(withFace);
+
+    const done = await usecase.execute('s1', 'u1');
+    expect(done.session.renders).toHaveLength(1);
   });
 });
 
@@ -1056,6 +1268,23 @@ describe('GetRender', () => {
 
 // ── ⑦ 对外视图 ──────────────────────────────────────────────────────────────
 
+/**
+ * ★ 三个读者共用的一份判据:工具(说给模型)、`ConfirmRender`(说给用户)、
+ *   视图(决定摆不摆那条出图消息)。**判据只此一处,文案各写各的。**
+ */
+describe('renderReadiness —— 缺什么才算不能出图', () => {
+  it('三态各报各的', () => {
+    expect(renderReadiness(readySession())).toBe('ready');
+    expect(renderReadiness(setFaceRef(baseSession(), FACE_REF))).toBe('no_look');
+    expect(renderReadiness(setLookSpec(baseSession(), SAMPLE_LOOK))).toBe('no_face');
+  });
+
+  it('两样都缺时报 `no_look`(顺序是定的:先说妆面,再说照片)', () => {
+    // ★ 这不是随便排的:妆面是**先决**——没有妆面时"请用户传照片"是白让用户做一步。
+    expect(renderReadiness(baseSession())).toBe('no_look');
+  });
+});
+
 describe('会话视图', () => {
   it('★ 有待确认时才出现 `pendingRender`,那句话与工具用的是**同一句**', () => {
     const paused = appendMessages(readySession(), [
@@ -1075,6 +1304,101 @@ describe('会话视图', () => {
     const view = toSessionView(readySession(), { maxRenders: 3 });
     expect('pendingRender' in view).toBe(false);
     expect(view.renders).toEqual([]);
+  });
+
+  // ── ✏️ 2026-09-16 新增:那条由**界面按状态自己摆**的出图消息 ─────────────────
+
+  it('★ 妆面照片齐、没有待确认 → 出现 `renderOffer`,那句话与工具用的是**同一句**', () => {
+    const session = readySession();
+    const view = toSessionView(session, { maxRenders: 3 });
+
+    expect(view.renderOffer).toEqual({
+      summary: renderConfirmationSummary(session, 3),
+      left: 3,
+      max: 3,
+      alreadyRendered: false,
+    });
+    expect('pendingRender' in view).toBe(false);
+  });
+
+  it('★ 有提议在等确认时**只有** `pendingRender` —— 界面上只该有一个出图入口', () => {
+    // 两个都出现的话,同一屏上就有两个按钮指向同一次花钱(其中一个必然 422)。
+    const paused = appendMessages(readySession(), [
+      assistantMessage([call('c1', TOOL_NAMES.renderLook)]),
+    ]);
+
+    const view = toSessionView(paused, { maxRenders: 3 });
+
+    expect(view.pendingRender).toBeDefined();
+    expect('renderOffer' in view).toBe(false);
+  });
+
+  it('★ 缺妆面 / 缺照片 → 不摆那条消息(点下去必然失败的动作不该出现在屏幕上)', () => {
+    const noLook = toSessionView(setFaceRef(baseSession(), FACE_REF), { maxRenders: 3 });
+    const noFace = toSessionView(setLookSpec(baseSession(), SAMPLE_LOOK), { maxRenders: 3 });
+
+    expect('renderOffer' in noLook).toBe(false);
+    expect('renderOffer' in noFace).toBe(false);
+  });
+
+  it('★ 出过这一套 ⇒ `alreadyRendered` 为真(按钮据此改口);妆面一改就变回假', () => {
+    // 这条消息**不会**在出完图之后消失(妆面照片还在、额度也还有),所以按钮会停在那里。
+    // 出完还写着「确认生成」读起来像"刚才那件事还没做完",诱着用户再点一次——那一次是真花钱。
+    const rendered = setFaceRef(
+      setLookSpec(
+        baseSession({
+          renders: [
+            {
+              seq: 1,
+              ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+              // ★ 与 `describeLook(session.lookSpec)` 逐字同源(服务端出图时就是这么记的)。
+              lookDescription: describeLook(SAMPLE_LOOK),
+              createdAt: 'x',
+            },
+          ],
+        }),
+        SAMPLE_LOOK,
+      ),
+      FACE_REF,
+    );
+    expect(toSessionView(rendered, { maxRenders: 3 }).renderOffer?.alreadyRendered).toBe(true);
+
+    // 只改了唇色 ⇒ 已经不是那一套了,按钮该回到「确认生成」。
+    const changed = setLookSpec(rendered, {
+      ...SAMPLE_LOOK,
+      zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'berry', finish: 'matte', intensity: 3 } },
+    });
+    expect(toSessionView(changed, { maxRenders: 3 }).renderOffer?.alreadyRendered).toBe(false);
+  });
+
+  it('★ 额度用尽时那条消息**照旧在**,只是 `left` 为 0(前端据它不给按钮)', () => {
+    // 妆面定了、照片也有了,用户当然会想"那图呢"——一片空白什么都不说,比说一句"次数用完了"更像坏了。
+    const spent = setFaceRef(
+      setLookSpec(
+        baseSession({
+          renders: [
+            { seq: 1, ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' }, lookDescription: 'x', createdAt: 'x' },
+          ],
+        }),
+        SAMPLE_LOOK,
+      ),
+      FACE_REF,
+    );
+
+    const view = toSessionView(spent, { maxRenders: 1 });
+
+    expect(view.renderOffer?.left).toBe(0);
+    expect(view.renderOffer?.max).toBe(1);
+    expect(view.renderOffer?.summary).toContain('还可以出 0 张');
+  });
+
+  it('★ 不限量(`maxRenders = 0`)时 `left` 是 `null`,**不是 0**', () => {
+    // 照 `rendersLeft()` 原样透出的话这里恒为 0,前端会把"随便出"读成"用完了",
+    // 然后把一个能用的按钮藏起来。
+    const view = toSessionView(readySession(), { maxRenders: 0 });
+
+    expect(view.renderOffer?.left).toBeNull();
+    expect(view.renderOffer?.max).toBe(0);
   });
 
   it('出过的图:url 是**本模块**的取图路由,lookDescription 是历史说法', () => {

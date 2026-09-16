@@ -89,11 +89,21 @@ export async function uploadAgentPhoto({ sessionId, userId, file }) {
 }
 
 /**
- * ★ **确认出图**——全项目唯一会真的花钱的一次调用。
+ * ★ **出图**——全项目唯一会真的花钱的一次调用。
  *
  * 它**一个出图参数都不传**:要出的就是用户在屏幕上看到的那一套,而那一套已经在会话里了。
- * 后端没挂待确认的出图请求时会回 **422**,含义是"这个确认框过期了"——
- * 调用方应当重新拉一次会话视图、把卡片换成最新的那份(见 `stores/agent.js`)。
+ *
+ * ✏️ **2026-09-16:这条路由有两个入口,前端一个都不用区分**——
+ *   ① 模型提了请求、在等用户点头(界面上那条消息由 `pendingRender` 摆出来);
+ *   ② 模型一次都没提,用户点的是**界面按状态自己摆**的那条(`renderOffer`)。
+ *   两个都由服务端按会话状态分派,请求体**逐字相同**。
+ *   ★ 所以这里**不新增函数、不新增路由**:同样的东西写两份,迟早只会改一份。
+ *
+ * 后端回 **422** 时有三个真实原因(都是"这一次这个动作不成立"):
+ *   ① 没有妆面;② 没有照片;③ 上一轮欠着的**不是**出图请求(那是"崩在中间"的畸形状态)。
+ *   message 本身就是人话,调用方**不按 code 分支**,重新拉一次会话视图即可
+ *   (见 `stores/agent.js` 的 `confirmRender`)。★ 还有一种是并发连点:同一个会话
+ *   正在出图时也回 422("正在出图")——那是服务端的进程内锁,`AGENT.md` §7.1 有记。
  */
 export async function confirmAgentRender({ sessionId, userId }) {
   return api.post(`/agent/sessions/${encodeURIComponent(sessionId)}/render`, { userId }, longRequest)

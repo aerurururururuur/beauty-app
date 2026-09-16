@@ -4,17 +4,24 @@
  * GET  /agent/sessions/:id?userId=        读会话 → 200
  * POST /agent/sessions/:id/messages       发一句话(跑一整轮)→ 200
  * POST /agent/sessions/:id/photo          上传本人照片(multipart,字段 face)→ 200
- * POST /agent/sessions/:id/render         ★ 确认出图(会花钱)→ 200
+ * POST /agent/sessions/:id/render         ★ 出图(会花钱)→ 200
  * GET  /agent/sessions/:id/renders/:seq   取一张成品图(?userId=)→ 200(字节)
  *
  * 控制器很薄(同 `cabinet.controller.ts`):校验入参 → 调用用例 → 映成视图。
  * 所有业务判断都在用例与 `agent-loop` 里;错误统一抛 `AppError`,
  * 由 `shared` 的错误处理器映射成状态码。
  *
- * ★ **确认出图是独立一条路由,不是一个工具参数。** 理由见 `definitions.ts` 的
+ * ★ **出图是独立一条路由,不是一个工具参数。** 理由见 `definitions.ts` 的
  *   `RENDER_LOOK`:花钱那个决定必须由**人的一次 HTTP 动作**表达,
  *   不能由模型在对话里"替用户点"。所以本文件里 `confirmRender` 那条
- *   **是全项目唯一会让引擎花钱的入口**——前端把确认框接到它上面。
+ *   **是全项目唯一会让引擎花钱的入口**。
+ *
+ * ✏️ **2026-09-16 起这条路由有两个入口**(判据在用例里,路由本身一字未改):
+ *   ① 批准模型提的那条请求(状态是"历史里欠着一条 `render_look`");
+ *   ② 用户在对话里点那条**界面按状态自己摆**的「确认生成」消息
+ *      ——那时没有任何提议欠着,服务端代递一条再跑。
+ *   两条都在这一个 handler 上,因为"两份写在一起的东西迟早会只改一份"是同一句话
+ *   (见 `agent-http.ts` 的 `confirmRenderSchema`)。
  *
  * ⚠️ **阶段 2 是"一轮跑完一次性返回"的普通 JSON,不是 SSE。**
  * §7.3 第 6 条要的流式要到阶段 3 才做(那时才有耗时 6.5s 的 `render_look` 值得推流)。
@@ -107,6 +114,8 @@ export function registerAgentRoutes(app: FastifyInstance, deps: AgentDeps): void
 
   // ★ 全项目唯一会花钱的入口。**它不读任何出图参数**——要出的就是用户在屏幕上
   //   看到的那一套,而那一套已经在会话里(见 `confirmRenderSchema`)。
+  //   ✏️ 花钱的扳机 = **用户点了对话里那条出图消息上的按钮**(那条消息由界面按状态摆,
+  //   不是模型说的;模型自己提的那条也接到这同一条路由上)。两个入口的判据在用例里。
   app.post('/agent/sessions/:id/render', async (request) => {
     const id = validateSessionId((request.params as { id?: unknown }).id);
     const body = validateConfirmRender(request.body ?? {});

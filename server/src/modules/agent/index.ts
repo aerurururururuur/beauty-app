@@ -59,9 +59,15 @@ export {
   setFaceRef,
   addRender,
   addConsultedProduct,
+  renderReadiness,
   rendersLeft,
 } from './domain/entities/session.js';
-export type { Session, RenderRecord, ConsultedProduct } from './domain/entities/session.js';
+export type {
+  Session,
+  RenderRecord,
+  ConsultedProduct,
+  RenderReadiness,
+} from './domain/entities/session.js';
 export {
   assistantMessage,
   danglingToolUses,
@@ -124,6 +130,7 @@ export type {
   AgentSessionView,
   AgentTurnView,
   ConsultedProductView,
+  RenderOfferView,
   RenderView,
   SessionViewOptions,
 } from './application/mapping/turn-view.mapper.js';

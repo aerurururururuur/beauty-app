@@ -183,3 +183,26 @@ export function addConsultedProduct(session: Session, input: ConsultedProduct): 
 export function rendersLeft(session: Session, maxRenders: number): number {
   return Math.max(0, maxRenders - session.renders.length);
 }
+
+/** 出图**还缺什么**。`ready` = 妆面与照片都在。 */
+export type RenderReadiness = 'ready' | 'no_look' | 'no_face';
+
+/**
+ * ★ **"缺什么才算不能出图"只此一份。**
+ *
+ * 三个读者各写各的文案,但**判据只能有这一个**:
+ *   · `RenderLookTool` 的两个失败分支(`render-look.ts`)——说给**模型**听;
+ *   · `ConfirmRender` 的入口判断(`confirm-render.ts`)——说给**用户**看;
+ *   · 对外视图决定要不要摆那条出图消息(`turn-view.mapper.ts`)。
+ * 三处各写一遍 `lookSpec ? … : faceRef ? …`,迟早只改一处——
+ * 而漂开的后果是**界面上摆出一个点下去必然失败的动作**(最坏的一种交互)。
+ *
+ * ⚠️ **它不含额度。** 额度是"用完了"、不是"缺东西",而且它有一条**时机**要求:
+ *   提议与确认之间隔着一次用户往返,所以必须在工具里查两遍(见 `render-look.ts` 文件头)。
+ *   把它并进来的话,那个"查两遍"就变成"两个地方各查几遍"了。
+ */
+export function renderReadiness(session: Session): RenderReadiness {
+  if (!session.lookSpec) return 'no_look';
+  if (!session.faceRef) return 'no_face';
+  return 'ready';
+}

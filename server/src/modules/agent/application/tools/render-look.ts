@@ -17,11 +17,19 @@
  *   前端因此也拿不到一个点下去必然失败的确认框。
  *   ⚠️ 但 `'approved'` 分支**仍然再查一遍额度**:提议与确认之间隔着一次用户往返,
  *   期间他完全可能又出了一张。这第二遍不是冗余。
+ *
+ * ✏️ **2026-09-16 起,出图还有第二条入口**(`ConfirmRender` 的入口 B,见那个文件头):
+ *   用户点的是**界面按状态自己摆的那条消息**,服务端**合成**一条提议后直接按批准执行。
+ *   那一支**没有"提议阶段"**——它一进来就是 `'approved'`,所以那三查(缺妆面 / 缺照片 /
+ *   超额)里只有 `render()` 里那第二遍额度检查会跑到。
+ *   ★ 这不违背上面那条规矩:用户点下去的前提是**界面已经确认过 `readiness` 与额度**
+ *   (视图的 `renderOffer` 只在齐备时才摆出来,额度用尽时连按钮都不给),
+ *   所以"点了才说不行"那种形状不会出现。**两处判据同源**(`renderReadiness` / `rendersLeft`)。
  */
 import { AppError } from '../../../shared/index.js';
 import { describeLook, validateEngineResult } from '../../../makeup/index.js';
 import type { Engine, EngineInput } from '../../../makeup/index.js';
-import { addRender, rendersLeft } from '../../domain/entities/session.js';
+import { addRender, renderReadiness, rendersLeft } from '../../domain/entities/session.js';
 import type { Session } from '../../domain/entities/session.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import { RENDER_LOOK } from '../../domain/tools/definitions.js';
@@ -92,18 +100,27 @@ export class RenderLookTool implements Tool {
     void input;
 
     const { session } = context;
-    const spec = session.lookSpec;
-    if (!spec) {
+
+    // ★ **缺什么才算不能出图,由 `renderReadiness` 判一次**——同一份判据还要被
+    //   `ConfirmRender`(决定让不让这次出图)与视图(决定摆不摆那条出图消息)读,
+    //   三处各写一遍 `lookSpec ? … : faceRef ? …` 迟早只改一处。
+    //   下面两支只负责**说给谁听**:这里读它的是模型。
+    const readiness = renderReadiness(session);
+    if (readiness === 'no_look') {
       return failure(
         '现在还没有妆面可以出图。请先用 propose_look 提出一套妆面,和用户确认之后再调用本工具。',
       );
     }
-    if (!session.faceRef) {
+    if (readiness === 'no_face') {
       // ★ 就是这一支漏了末尾那句,模型于是说了「确认之后我就开始出图」(2026-09-16)。
       return failure(
         '还没有拿到用户的照片,出不了图。请先请用户上传一张本人的正面照片(正面、光线均匀、不戴墨镜)。',
       );
     }
+
+    // ★ 上面两关过了 ⇒ 妆面与照片都在。**这个非空断言跟着那份判断走**:
+    //   判据的唯一出处就是 `renderReadiness`,所以它不会和它漂开(同 `render()` 里那句 `faceRef!`)。
+    const spec = session.lookSpec!;
 
     // ── 三态 ──
     if (context.confirmation === undefined) {

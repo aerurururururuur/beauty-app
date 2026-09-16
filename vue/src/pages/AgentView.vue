@@ -35,6 +35,19 @@ import { MAX_AGENT_TEXT, renderImageHref } from '@/api/agent'
  *    ★ **收束话术全部由服务端给**(`agent-loop.ts` 的 `CLOSING_WORDS`),前端**一句都不补**。
  *    这里因此**没有 `stopReason` 分支可看**——那正是本条要的样子:
  *    前端若也按 `stopReason` 补一句,服务端补完前端再补,就是同一件事说两遍。
+ *
+ * 5. ★★ **出图那条消息是界面按状态自己摆的,不是模型说的**(✏️ 2026-09-16)。
+ *    妆面定了、照片有了、也没有提议欠着 ⇒ 服务端给 `renderOffer`,本页就在对话末尾
+ *    摆一条带「确认生成」按钮的消息;用户点一下直接出图。
+ *    ⚠️ **为什么要有它**:在此之前,出图**只有一条链**——模型调 `render_look` →
+ *    服务端挂起 → 本页弹确认框。而"调不调那个工具"是**提示词级**的事:
+ *    实测里真实模型在用户**两轮明确要图**时一次都没调,于是界面上既没有图、
+ *    也没有任何入口(用户原话:「对话界面也没有生成图片的选项」)。
+ *    ★ 所以出图这件事**不再串在"模型愿不愿意开口"后面**——它现在是状态驱动的。
+ *    ⚠️ 代价说清楚:这是一次**点击就花钱**。所以费用与时长必须在点之前看得见
+ *    (那句话来自服务端**唯一一份** `renderConfirmationSummary`,本页一个字都不加),
+ *    而三道缓解是:出图期间按钮禁用 + 服务端按会话的进程内锁 + 出完改口叫「再生成一张」。
+ *    **它们是缓解,不是"已经安全了"**(见 `stores/agent.js` 的 `confirmRender`)。
  */
 const router = useRouter()
 const user = useUserStore()
@@ -81,8 +94,10 @@ async function scrollToBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
+// ★ 第三项盯着**出图那条消息**(`renderRequest` = 模型提的 + 界面自己摆的):
+//   它是这一屏最要紧的一下——它一出现用户就得看见,不然他根本不知道能出图。
 watch(
-  () => [store.messages.length, store.waiting, store.pendingRender && true],
+  () => [store.messages.length, store.waiting, !!store.renderRequest],
   () => {
     if (stickToBottom) scrollToBottom()
   }
@@ -157,16 +172,27 @@ function onFilePicked(e) {
 /** 页内瞬时提示(不属于 store 的跨页状态,见 `AGENTS.md` §3.3)。 */
 const errorNote = ref('')
 
-// ---- 出图确认 ----
+// ---- 出图那条消息 ----
 
+/**
+ * ★ 额度用尽(服务端说 `left === 0`)⇒ 那条消息只剩一行说明,**不给按钮**。
+ * 一个点下去必然失败的动作不该出现在屏幕上——判据来自服务端,不是本页自己数张数。
+ * ⚠️ `left === null` 是**不限量**(`AGENT_MAX_RENDERS=0`),别和"用完了"混起来:
+ *   混了就会把一个能用的按钮藏起来。
+ */
+const quotaOut = computed(() => store.renderOffer?.left === 0)
+
+/**
+ * ★ 页面上**唯一**那条出图请求上那一下 —— 全项目唯一会花钱的点击。
+ * ⚠️ **不再有第二个函数**:模型提的那条(`pendingRender`)与界面自己摆的那条
+ * (`renderOffer`)走的是**同一条路由、同一个请求体**,由服务端按会话状态分派。
+ * ★ 「先不出图」那个按钮**已经撤掉**了:模型提议待确认时,用户**继续说话**这条路
+ *   本来就会把那一轮按 `declined` 了结(`stores/agent.js` 与 `AGENTS.md` §7.2 都记着),
+ *   界面上只需要一个按钮——多一个"什么都不做"的按钮,反而像是出图的必经一步。
+ */
 function onConfirm() {
   follow()
   store.confirmRender(user.id)
-}
-
-function onDecline() {
-  follow()
-  store.declineRender(user.id)
 }
 
 // ---- 成品图地址 ----
@@ -282,26 +308,38 @@ function captionFor(seq) {
           </ul>
         </section>
 
+        <!-- ★★ 出图那条消息 —— 它是**界面自己摆的**,不是模型说的话(见文件头 5)。
+             ⚠️ 两个来源、同一个位置、**只有一条**:
+                · 模型提了请求在等确认 → `pendingRender`(那句话服务端早就写好了);
+                · 模型一次都没提、但条件齐了 → `renderOffer`(**这就是那条唯一的出图入口**)。
+             服务端保证两者不会同时出现,store 里 `renderRequest` 取先有的那个。
+             ⚠️ **视觉上必须一眼看出这不是助手气泡**:它没有气泡底色、没有指向谁的头像,
+                而是一块带走道的界面提示 + 一个按钮——它是界面在说话。
+                做成气泡就等于**替模型发言**(同文件头第 3 条"不伪造开场白")。
+             ⚠️ 文案**一个字的措辞都不自己加**:费用与时长那句来自服务端唯一一份
+                `renderConfirmationSummary`(不编金额,见那个函数)。 -->
+        <div v-if="store.renderRequest" class="offer">
+          <p class="offer-text">
+            {{ quotaOut ? `这个会话的出图次数已经用完了(上限 ${store.renderOffer.max} 张)。` : store.renderRequest.summary }}
+          </p>
+          <!-- ★ 额度用尽 ⇒ 只留一行说明,**不给按钮**(不让用户看到一个点下去必然失败的动作)。
+               那条消息本身照旧显示:妆面定了、照片也有了,用户当然会想"那图呢"——
+               一片空白什么都不说,比说一句"次数用完了"更像坏了。 -->
+          <p v-if="quotaOut" class="offer-note">想接着出图,新开一段对话就行。</p>
+          <!-- ★ 出图期间禁用:按下去就是花钱,不能让它在飞的时候还能再按第二下。
+               (第二道在服务端——按会话的进程内锁;两道都是缓解,不是"已经安全了"。) -->
+          <button v-else class="btn btn-primary offer-btn" :disabled="busy" @click="onConfirm">
+            <Icon name="sparkle" :size="15" />
+            <!-- ★ 出过这一套就改口:这条消息**不会**在出完图之后消失,
+                 出完还写着「确认生成」读起来像"刚才那件事还没做完",诱着用户再点一次。 -->
+            {{ store.renderRequest.alreadyRendered ? '再生成一张' : '确认生成' }}
+          </button>
+        </div>
+
         <p v-if="store.waiting" class="waiting">{{ store.waiting }}</p>
         <!-- 只有网络 / HTTP 层失败才出这一行(见文件头 4) -->
         <p v-else-if="store.error" class="error-line">{{ store.error }}</p>
       </div>
-
-      <!-- 确认卡:服务端说了什么就显示什么,一个字的措辞都不自己加 -->
-      <section v-if="store.pendingRender" class="card confirm-card">
-        <div class="caps">需要你确认</div>
-        <p class="confirm-text">{{ store.pendingRender.summary }}</p>
-        <div class="confirm-actions">
-          <!-- ★ 两个按钮都要在等待时禁用,不是只禁点下去的那个: -->
-          <!--   若在"一句话那一轮"还在飞的时候按下确认,那句话会先把待确认按 declined -->
-          <!--   了结掉,接着 render 就撞 422 —— 用户却以为自己在确认出图。 -->
-          <button class="btn btn-primary" :disabled="busy" @click="onConfirm">
-            <Icon name="sparkle" :size="15" />
-            确认出图
-          </button>
-          <button class="btn btn-ghost" :disabled="busy" @click="onDecline">先不出图</button>
-        </div>
-      </section>
 
       <div class="composer">
         <input ref="fileEl" type="file" accept="image/*" hidden @change="onFilePicked" />
@@ -532,27 +570,43 @@ function captionFor(seq) {
   line-height: 1.7;
 }
 
-/* ---------- 确认卡 ---------- */
-.confirm-card {
-  border-color: var(--c-accent);
-  padding: 16px;
+/* ---------- 出图那条消息 ---------- */
+/*
+ * ★★ **它长得必须不像助手气泡,这是功能性的,不是审美。**
+ *   助手的话是**没有框的纯文字**(`.bot-text`),用户的话是**右边的灰气泡**(`.bubble`);
+ *   这一块两者都不是,因为它是**界面在说话**:
+ *   左侧一条强调色细边 + 极浅底 + 一行小字 + 一个按钮(形状与 `.restore-note` 同族——
+ *   那一块也是界面的话)。
+ *   ⚠️ 别顺手给它加气泡的圆角与最大宽度,也别挪进 `.row-bot` 里:那会让它读起来
+ *   像是模型说的,而"这句话是谁说的"正是这一屏最不能含糊的一件事。
+ */
+.offer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--c-accent);
+  background: var(--c-surface-2);
 }
 
-.confirm-text {
-  margin: 8px 0 0;
+.offer-text {
+  margin: 0;
   font-size: 12.5px;
   line-height: 1.8;
+  color: var(--c-ink-soft);
 }
 
-.confirm-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
+.offer-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--c-ink-faint);
 }
 
-.confirm-actions .btn {
-  flex: 1;
-  padding: 0 12px;
+.offer-btn {
+  height: 36px;
+  padding: 0 16px;
 }
 
 /* ---------- 输入区 ---------- */

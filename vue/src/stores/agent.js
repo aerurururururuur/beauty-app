@@ -8,8 +8,10 @@ import { defineStore } from 'pinia'
  *
  * 1. **服务端视图**(`session`):妆面 `lookSpec` / `lookDescription`、有没有照片
  *    `hasFace`、已出的图 `renders`、读过资料的产品 `consultedProducts`、
- *    待确认的出图请求 `pendingRender`。
+ *    待确认的出图请求 `pendingRender`、**界面自己摆的那条出图消息** `renderOffer`。
  *    **这一份是权威**,本 store 从不自己造它的字段——刷新后也是靠它恢复的。
+ *    ✏️ 2026-09-16:后两个是**互斥**的两种出图入口(见下面那两个 computed);
+ *    以前只有 `pendingRender`,于是"用户想要成片"这件事必须由模型开口才成立。
  * 2. **本地气泡**(`messages`):用户与助手说过的话。
  *    ★ **它只活在内存里**,而且**服务端也给不出这一份**(后端刻意不返回 `messages[]`,
  *    见 `application/mapping/turn-view.mapper.ts` 文件头)。所以刷新之后
@@ -41,17 +43,6 @@ const STORAGE_KEY = 'beauty-app.agent-session'
  *   改服务端那句时要一起改这里。
  */
 const PHOTO_BUBBLE_TEXT = '(我传了一张本人的正面照片。)'
-
-/**
- * 「先不出图」发出去的那句话。
- *
- * ★ 它是一条**可见的用户消息**,不是"把卡片藏起来"——服务端收到任何一句话,
- *   都会把那条欠着的 `tool_use` 按 `declined` 了结(`agent-loop.ts` 的 ⓞ 段),
- *   于是待确认**真的被收掉**,刷新之后卡片不会又冒出来。
- * ★ 后半句「我们再调调妆面」是有意的:它把模型引回接着调妆,
- *   而不是怂恿它立刻再提议一次出图。
- */
-const DECLINE_TEXT = '这次先不出图,我们再调调妆面'
 
 /** 惰性取 api(理由见文件头硬约束 1)。 */
 async function agentApi() {
@@ -108,8 +99,27 @@ export const useAgentStore = defineStore('agent', () => {
    *   见 `AgentView.vue` 里那块展示区。
    */
   const consultedProducts = computed(() => session.value?.consultedProducts || [])
-  /** ★ 非空 = 有出图请求在等用户点确认(页面据此弹那张卡片)。 */
+  /** ★ 非空 = **模型**提了一条出图请求、在等用户点确认。 */
   const pendingRender = computed(() => session.value?.pendingRender || null)
+  /**
+   * ★ **界面按状态自己摆的那条出图消息**(✏️ 2026-09-16 新增)。
+   *
+   * 妆面定了、照片有了、也没有提议欠着 ⇒ 服务端给这一段,页面**自己**把它渲染成
+   * 对话里的一条消息 + 一个「确认生成」按钮。**它和模型说不说话无关** ——
+   * 这正是这次改动要的:出图不再串在"模型愿不愿意开口"后面。
+   *
+   * ⚠️ 它**不是"已经出了"的记录**:出完图之后它照旧在,只是 `alreadyRendered`
+   *   变成真、按钮改口叫「再生成一张」。额度用尽时它也在,`left` 是 0(那时不给按钮)。
+   * ⚠️ `left` 是 `null` 表示**不限量**(配置成 `AGENT_MAX_RENDERS=0`),
+   *   **别把 `null` 和 `0` 混起来**——一个是"随便出",一个是"用完了"。
+   */
+  const renderOffer = computed(() => session.value?.renderOffer || null)
+  /**
+   * ★ **页面上唯一的那条出图请求**。两者**不会同时有**(服务端保证),
+   *   所以这里取先有的那个就行——**界面上只该有一个出图入口**,
+   *   两个按钮指向同一次花钱的话,其中一个必然 422。
+   */
+  const renderRequest = computed(() => pendingRender.value || renderOffer.value)
   /** 妆面的人话。★ `describeLook` 的唯一渲染,**原样展示,不要自己再拼一遍**。 */
   const lookDescription = computed(() => session.value?.lookDescription || '')
   const brief = computed(() => session.value?.brief || {})
@@ -223,7 +233,7 @@ export const useAgentStore = defineStore('agent', () => {
         const api = await agentApi()
         adopt(await api.fetchAgentSession({ sessionId: pointer.sessionId, userId }))
         restoreNote.value =
-          '接回了上次的会话:妆面、已出的图、待确认的出图请求都还在。' +
+          '接回了上次的会话:妆面、已出的图、出图那条消息都还在。' +
           '聊天原文没有回放——那些话只存在当前这一屏里。'
         return true
       } catch {
@@ -251,24 +261,30 @@ export const useAgentStore = defineStore('agent', () => {
     )
   }
 
-  /** 「先不出图」——见 `DECLINE_TEXT` 上面那段。 */
-  async function declineRender(userId) {
-    return send(userId, DECLINE_TEXT)
-  }
-
   /**
-   * ★ **确认出图**——全项目唯一会花钱的一次点击。
+   * ★ **出图**——全项目唯一会花钱的一次点击。
    *
-   * ⚠️ 服务端会把那一整轮**重放一遍**再出图(见 `confirm-render.ts`),所以这一段
-   *   比普通一轮长:出图那几秒 + 一次 LLM 往返。等待文案要如实说,不能写"马上就好"。
+   * 触发它的是页面上**那唯一一条**出图请求(`renderRequest`):模型提的(`pendingRender`),
+   * 或界面自己摆的(`renderOffer`)。**两者走同一条路由、同一个请求体**,
+   * 由服务端按会话状态分派(见 `confirm-render.ts` 文件头的两条入口)——
+   * 所以这里**没有第二个 api 函数**。
    *
-   * 失败时**再拉一次会话视图**:后端在"没有待确认的出图请求"时回 422,
-   * 那条 message 本身就写着「可能已经确认过,或者已经被别的话顶掉了」——
-   * 它就是"确认框过期了"这句人话(前端不按 code 分支,见 `AGENTS.md` §7.3)。
-   * 顺手刷新一次,那张过期的卡片就消失了,而不是留在屏幕上继续诱人点。
+   * ⚠️ 服务端会把那一整轮**重放一遍**(入口 A)或**代递一条提议再跑**(入口 B),
+   *   所以这一段比普通一轮长:出图那几秒 + 一次 LLM 往返。等待文案要如实说。
+   *
+   * 失败时**再拉一次会话视图**:后端那 422 有三个真实原因(缺妆面 / 缺照片 /
+   * 上一轮欠着的不是出图请求,还有一种"正在出图"的并发连点),
+   * 那条 message 本身就是人话(前端**不按 code 分支**,见 `AGENTS.md` §7.3)。
+   * 顺手刷新一次,屏幕上那条**过期的**消息就换成最新的那份,而不是继续诱人点。
+   *
+   * ⚠️ 那道 `waiting` 守卫是**防连点的第一道**(它一按下去就置位,按钮同时被禁用);
+   *   第二道在服务端(按会话的进程内锁)。**两道都是缓解,不是"已经安全了"**:
+   *   响应在回程丢了、用户看着屏幕上那条消息又点一次,服务端会当成一个正当的新请求
+   *   再出一张。那要幂等键才关得掉,而幂等键要在这条"一个出图参数都不收"的路由上
+   *   加客户端输入——**不为这个洞破例**(见 `confirm-render.ts` 的「残余空洞」)。
    */
   async function confirmRender(userId) {
-    if (waiting.value || !pendingRender.value) return false
+    if (waiting.value || !renderRequest.value) return false
     const ok = await runTurn(userId, '正在出图,大约 7 秒…', (api) =>
       api.confirmAgentRender({ sessionId: sessionId.value, userId })
     )
@@ -391,6 +407,8 @@ export const useAgentStore = defineStore('agent', () => {
     renders,
     consultedProducts,
     pendingRender,
+    renderOffer,
+    renderRequest,
     lookDescription,
     brief,
     renderBySeq,
@@ -400,7 +418,6 @@ export const useAgentStore = defineStore('agent', () => {
     restore,
     refresh,
     send,
-    declineRender,
     confirmRender,
     attachPhoto,
     clearError,
