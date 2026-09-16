@@ -16,8 +16,26 @@
  * 而收益只有一个 7 行的字典。**记在 `README.md` 的待办里,等第三处出现时再合。**
  * (保留它的实际理由:命令行 `curl -F` 不带 Content-Type 时,
  * 不推断就会得到"未知类型"——而那条路正是本项目的冒烟路径。)
+ *
+ * ── ★★ 文件必须在**循环里**读干净(2026-09-16 修的 bug)─────────────────────────
+ *
+ * **`part.file` 一旦留到循环外面再读,大于 16 KB 的文件会永远挂住**(不报错、
+ * 不完成、连半截文件都不写)。实测:8192 字节过,16384 字节挂——阈值正好是
+ * 流内部缓冲的 16384。`curl` 的阈值测试与 `@fastify/multipart` 无关,
+ * 是 busboy 的规矩:**上一个 part 的流没被消费,它就不会继续解析下一个**,
+ * 于是出了循环之后那条流已经不再有人推数据,`pipeline` 永远等不到结尾。
+ * 后果是产品级的:**手机拍的任何一张照片都传不上去**(没有小于 16 KB 的)。
+ * ⚠️ 它此前一直没被发现,是因为 `test/` 里**没有任何一条 HTTP 层的上传用例**。
+ * 现在有了:`test/multipart-upload.test.ts`,大夹具用 **64 KB**(盖住真机上那条 16 KB 阈值)。
+ *
+ * 所以这里**在循环里 `toBuffer()`**,再把缓冲区包成 `Readable` 交出去
+ * (`Readable.from(buf)` 与原来的形状逐字相同,下游 `pipeline` 不用改)。
+ * 换来的代价是**一张照片会整份进内存**——有界(`MAX_UPLOAD_MB`,本路由只收一张),
+ * 而且顺带把"文件超限"从**永久挂住**变成 `part.toBuffer()` 抛的那条 413。
+ * ★ `jobs` 那份是同一个毛病、同一个改法,理由写在那边,别只修一处。
  */
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
 import type { PhotoUpload } from '../domain/ports/session-artifacts.js';
 
@@ -69,7 +87,10 @@ export async function parsePhotoRequest(request: FastifyRequest): Promise<Parsed
       out.file = {
         originalName,
         mimeType: inferImageMime(part.mimetype, originalName),
-        stream: part.file,
+        // ★★ **必须在这里读**(而不是把这个流交出去让用例晚点读):
+        //    留到循环外面读,>16 KB 的文件会死锁(理由与实测见文件头)。
+        //    `Readable.from(buffer)` 的形状与 `part.file` 一致,下游不用改。
+        stream: Readable.from(await part.toBuffer()),
       };
     } else if (part.fieldname === 'userId') {
       out.userId = String((part as { value?: unknown }).value ?? '');
