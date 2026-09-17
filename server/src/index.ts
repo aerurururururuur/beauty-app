@@ -247,7 +247,7 @@ async function main(): Promise<void> {
     fakes.push('上妆用假引擎:它把输入照片原样返回,不是真的上妆效果');
   }
   if (fakes.length > 0) {
-    app.log.info(`[agent] 当前为离线配置 —— ${fakes.join(';')}。详见 server/README.md 的配置一节`);
+    app.log.info(`[agent] 当前为离线配置 —— ${fakes.join(';')}。详见 server/README.md 与 .env.example`);
   }
 
   /**

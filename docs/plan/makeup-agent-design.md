@@ -1111,7 +1111,7 @@ modules/agent/
 - `server/scripts/README.md` —— 本文 §4、§5.3 的全部实测来源
 - `docs/plan/ai-engine-api-spike.md` §4.5（record/replay）· §4.4（评分表）——**按厂商无关写的，主选作废后原样可复用**
 - `docs/plan/roadmap.md` §6（上妆引擎待办）· §4（理解接缝，已删）· §13（红线）· §14（待拍板）
-- `server/README.md` —— 模块分层、错误码、`MAKEUP_ENGINE` 现状
+- `docs/architecture.md` —— 模块分层、错误码、`MAKEUP_ENGINE` 现状（✏️ 2026-09-17 从 `server/README.md` 析出；那份现在只讲怎么跑）
 - `server/src/modules/makeup/README.md` —— 本模块的现状与改法
 </content>
 </invoke>

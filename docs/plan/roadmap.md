@@ -42,7 +42,7 @@ cd ../vue && npm run build   # 只改了前端才需要
 #     实开一次并打开页面:跨根引用只在 dev 暴露,build 过得去不代表 dev 过得去
 ```
 
-错误码 → HTTP、契约字段、curl 示例的权威描述见 `server/README.md`，别在别处再维护一份。
+错误码 → HTTP、契约字段、curl 示例的权威描述见 `docs/architecture.md`（2026-09-17 从 `server/README.md` 析出；那份现在只讲怎么跑），别在别处再维护一份。
 
 ---
 

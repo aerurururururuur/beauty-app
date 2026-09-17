@@ -25,7 +25,7 @@
 
 | 目录 | 说明 |
 | --- | --- |
-| `server/` | 后端，TypeScript + **模块化清洁架构**：`src/modules/*` 按功能拆模块，模块内部再走四层（详见 [server/README.md](server/README.md)） |
+| `server/` | 后端，TypeScript + **模块化清洁架构**：`src/modules/*` 按功能拆模块，模块内部再走四层（怎么跑看 [server/README.md](server/README.md)，分层与契约详见 [docs/architecture.md](docs/architecture.md)） |
 | `vue/` | 前端，Vue 3 + Vite + Pinia（详见 [vue/README.md](vue/README.md)），内置离线 mock 演示 |
 
 ## 快速开始
@@ -89,7 +89,8 @@ src/
 ## 文档
 
 - [docs/环境搭建-Windows版.md](docs/环境搭建-Windows版.md) — Windows 小白装环境指南（Node.js/VS Code/Git）
-- [server/README.md](server/README.md) — 后端分层、HTTP 契约、错误码、命令、测试
+- [server/README.md](server/README.md) — **后端怎么跑**：快速开始、怎么填 API key、三种运行形态、命令、常见坑
+- [docs/architecture.md](docs/architecture.md) — 后端架构与契约：分层与目录、brief、Job 状态机、HTTP 契约、错误码、配置、测试清单
 - [vue/README.md](vue/README.md) — 前端页面、mock 与联调、目录
 - [docs/plan/roadmap.md](docs/plan/roadmap.md) — 开发路线图：按 `server/src/modules/*` 拆的模块任务板（可派单 + 接缝地图 + 红线）
 - [docs/plan/ai-engine-api-spike.md](docs/plan/ai-engine-api-spike.md) — 上妆引擎选型与 API 实测规范（**⚠️ 主选 2026-09-12 已作废，选型重新打开，见其 §0**；§4 的实测方法论仍通用）

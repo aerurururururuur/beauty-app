@@ -7,7 +7,7 @@
 > `docs/plan/roadmap.md` §13 红线 **>** 本文件 **>** `vue/README.md`（README 讲「怎么跑」，本文件讲「怎么改」）
 > **>** 代码注释（注释解释「为什么这样写」，是很好的补充，但不覆盖上述）。
 >
-> **适用范围**：`vue/` 下的一切。后端的事看 `server/README.md`；跨端共享资产看 `server/src/modules/shared/domain/scene-rules.ts` 的文件头。
+> **适用范围**：`vue/` 下的一切。后端**契约**看 `docs/architecture.md`、后端**怎么跑**看 `server/README.md`；跨端共享资产看 `server/src/modules/shared/domain/scene-rules.ts` 的文件头。
 >
 > **⚠️ 如果你是在聊天窗口里工作、手上只有对话上下文（读不到仓库文件）——先看 §0。**
 
@@ -48,7 +48,7 @@
 | 改样式 | `vue/src/assets/styles/tokens.css`、`main.css`，以及目标页面（样式多为页内 `scoped`，见 §5.2） |
 | 改动线 / 路由 | `vue/src/router/index.js`、相关页面、`vue/src/stores/user.js` |
 | 场合判定相关 | `server/src/modules/shared/domain/scene-rules.ts`（**要整份**，它不长，而且一个字都不能漏——见 §6.2） |
-| 核对契约 | `server/src/modules/jobs/domain/api/job-view.ts` 等 `domain/api/*.ts` + `server/README.md` |
+| 核对契约 | `server/src/modules/jobs/domain/api/job-view.ts` 等 `domain/api/*.ts` + `docs/architecture.md` §5 |
 
 > 两个大文件（`ResultView.vue` 622 行、`UploadView.vue` 630 行）可以只要**相关段落**，
 > 但必须说清是哪一段（「从 `<script setup>` 到 `</script>`」/「template 里 `PhotoUploader` 那一段」），
