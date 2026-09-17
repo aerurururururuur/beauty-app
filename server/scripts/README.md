@@ -124,7 +124,7 @@ npm run qwen:makeup -- --image ./me.jpg --ref ./look.png --n 3 --seed 42 --size 
 > 所以「**LLM 不写 prompt、模板只输出色/质地/浓度**」这条设计约束的实测依据在这里。
 
 > ⚠️ **这份文件与服务路径无关,别把它当成服务用的那份。**
-> 服务路径(`MAKEUP_ENGINE=qwen`)的措辞唯一来源是
+> 服务路径(`MAKEUP_ENGINE=image`)的措辞唯一来源是
 > `src/modules/makeup/infrastructure/engine/prompt-builder.ts`,它按 `LookSpec` 现拼,
 > **不读这个文件**。两者会漂 —— 改任一处都该看一眼另一处。
 > ★ 而且 `prompt-builder` 的输出**是本项目自己重新渲染的、尚未实测过**那一版
@@ -186,3 +186,38 @@ npm run probe:tools -- --models qwen-plus,deepseek-v3
 **2026-09-16 结果:7/7 全部通过**(`qwen-flash` 847ms / `qwen-plus` 1390ms / `deepseek-v3` 1838ms /
 `deepseek-v4-flash` 2434ms / `glm-5.3` 2639ms / `qwen3.8-max` 3767ms / `qwen3.5-plus` 7407ms),
 工具名与参数全部正确。**§7.5 原先那条阻塞项已关闭。**
+
+## `probe-agent-prompt.ts` —— 单变量验 system 提示词(★ 上一节的下半截)
+
+上一节证明的是「**端点 + 模型 + 喂到嘴边的 schema**」这一层行不行;
+本脚本问的是**另一件事**:接进真链路之后,**提示词**会不会让模型干脆不调工具。
+
+起因见 `docs/plan/makeup-agent-design.md` §14.1:真模型(`AGENT_LLM=dashscope`,
+`qwen-plus`)在真会话里**一个工具都不调**,把整套妆面用散文写出来 ⇒ `lookSpec` 永远空
+⇒ 界面那条出图入口摆不出来 ⇒ **用户拿不到图**。当时定位到 `system-prompt.ts` 的**规则 3**,
+但**每个变体只跑了 1 次**。本脚本是那一轮验证的可重复版本。
+
+```bash
+npm run probe:agent-prompt -- --dry-run              # 只看长度/概要,不发送、不花钱
+npm run probe:agent-prompt -- --verify v12d          # ★ 一次调用都不发:核对
+                                                     #   "代码里现在这一段 == 当时测的那一段"
+npm run probe:agent-prompt -- --variant all --reps 3 # 跑全部变体各 3 次(花钱)
+npm run probe:agent-prompt -- --variant v12d --reps 5
+```
+
+★★ **它跑的是真循环 + 真工具**(`AgentLoop` + 真注册表),记的不是 `tool_calls` 有几条,
+而是**会话里落没落下一份 `lookSpec`**。这个区别实测是决定性的:有一版变体"工具调用了、
+落下了妆面",而它是靠**替用户猜了肤色**换来的——`patch_brief` 里写死 `skinTone`,
+`propose_look` 被按肤色收窄的校验器打回,再靠模型读报错改一次才成立
+(工具序列:`propose_look✗ → propose_look✓`)。**只数 `tool_calls` 会把这个读成成功。**
+
+- 产物在 `./out/probe-agent-prompt/<时间戳>/`(**已 gitignore**):每次一行 `summary.json`
+  + 每个变体每轮一份完整 `messages[]`。**它是夹具**。
+- 替换规则 3 那一段是**按结构找的**(`3.` 开头到下一个编号规则),不是按原文找——
+  否则代码一改,脚本就在**最该还能跑的那一天**变成一句"找不到就退出"。
+- `--verify` 那一格存在的理由:提示词改过之后,"代码里这段 ≠ 当时测的那段"是个**静默**的错。
+  它必须**免费**——要花钱才能确认的话,没人会去确认。
+
+**2026-09-17 结果(每个变体 `n=3`,`qwen-plus`,同一句用户原话)**:
+`v11` 基线 **0/3** 落空;`v12a`/`v12c` 3/3 但**靠猜肤色**;`v12b` 2/3;
+★ **采用 `v12d`:2/3,且一次都没猜肤色**。取舍与全部理由写在 `system-prompt.ts` 的 `v12` 沿革里。

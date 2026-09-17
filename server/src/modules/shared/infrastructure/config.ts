@@ -29,8 +29,20 @@ export type ReferenceProviderKind = 'mock' | 'off' | 'bing';
  * ★ **`replay` 不是"离线兜底",是"CI 模式"**(§5.4):它只回放录好的夹具,
  *   **未命中就报错**。所以它既不联网、也不出账单、**也不假装能处理任意输入**——
  *   这三件事与 `mock` 都不同,别把两者当同一类东西。
+ *
+ * ★ **三个取值一律按「行为」命名,不按厂商**(2026-09-17 改)。
+ *   改之前是 `mock | qwen | replay` —— `mock` / `replay` 是按行为,`qwen` 却是按厂商,
+ *   一套枚举里混了两种命名法。而类名那边本来是对的(`MockEngine` / `ImageEngine` /
+ *   `ReplayEngine`,后者的注释里明写"类名刻意不带厂商"),所以这一处是**配置层
+ *   单方面把厂商名焊进了枚举**,读者会以为"真实出图"这件事本身就叫 qwen。
+ *   现在 `image` 与类名逐一对齐,**再接第二家生图 API 时不必动这个枚举**。
+ *
+ * ⚠️ **旧名 `qwen` 刻意不做兼容**(2026-09-17 定):它和任何拼错的值一样,
+ *   回落 `mock` 并打一声 `console.warn`(见 `asMakeupEngineKind`)。
+ *   不认识却**不喊**才是问题——服务照常启动、日志干净、出图那一步悄悄把原图交回来,
+ *   正是本项目反复点名的"假开关"。所以那声警告是这条路唯一的警报。
  */
-export type MakeupEngineKind = 'mock' | 'qwen' | 'replay';
+export type MakeupEngineKind = 'mock' | 'image' | 'replay';
 
 /**
  * 对话 agent 的 LLM 开关。与 `agent/compose.ts` 的同名 union 同形,两处要一起改。
@@ -56,7 +68,7 @@ export interface ServerConfig {
   referenceBaseUrl: string;
   /** 参考检索超时毫秒;仅 referenceProvider='bing' 用。 */
   referenceTimeoutMs: number;
-  /** 上妆引擎:mock(骨架,缺省)| qwen(真实生图,计费)| replay(回放夹具,CI)。 */
+  /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)| replay(回放夹具,CI)。 */
   makeupEngine: MakeupEngineKind;
   /** 生图模型名。缺省 `qwen-image-edit-plus`(§4.4 的四次实测全部基于它)。 */
   makeupModel: string;
@@ -65,7 +77,7 @@ export interface ServerConfig {
   /** 引擎成品图的落盘目录。 */
   makeupOutDir: string;
   /**
-   * record/replay 夹具目录。`qwen` 时给了就**录**,`replay` 时**必填**(缺了启动即失败)。
+   * record/replay 夹具目录。`image` 时给了就**录**,`replay` 时**必填**(缺了启动即失败)。
    * ★ 缺省不设:与所有开关同一条规矩——缺省值必须没有意外副作用,这里的副作用是**写盘**。
    */
   makeupFixturesDir?: string;
@@ -131,11 +143,25 @@ export function loadDotEnvIfPresent(file = '.env'): void {
   }
 }
 
+/**
+ * ★ **这一格的沉默是有代价的,所以它比同类函数多一句 `console.warn`。**
+ *
+ * 其余 `as*Kind`(`asWeatherKind` / `asReferenceKind` / `asAgentLlmKind`)不认识的取值
+ * 一律静默回落。对它们成立,是因为回落的都是**增强项或离线兜底**;
+ * 而 `makeupEngine` 回落成 `mock` 意味着**出图那一步开始返回原图**:
+ * 服务在跑、接口 200、日志干净,只有用户手上那张图不对。**这正是"假开关"。**
+ */
 function asMakeupEngineKind(
   value: string | undefined,
   fallback: MakeupEngineKind,
 ): MakeupEngineKind {
-  if (value === 'mock' || value === 'qwen' || value === 'replay') return value;
+  if (value === 'mock' || value === 'image' || value === 'replay') return value;
+  if (value !== undefined && value !== '') {
+    console.warn(
+      `[config] MAKEUP_ENGINE 不认识 "${value}",回落成 ${fallback}。` +
+        '合法取值:mock(骨架)/ image(真实出图)/ replay(回放夹具)。',
+    );
+  }
   return fallback;
 }
 

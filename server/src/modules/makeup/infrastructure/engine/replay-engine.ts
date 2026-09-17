@@ -56,7 +56,7 @@ export class ReplayEngine implements Engine {
         [
           `未录制的请求(夹具键 ${key})。`,
           `夹具目录:${this.opts.fixturesDir}`,
-          `要录这一条:设 MAKEUP_ENGINE=qwen 且 MAKEUP_FIXTURES_DIR 指向该目录,用同样的输入真跑一次。`,
+          `要录这一条:设 MAKEUP_ENGINE=image 且 MAKEUP_FIXTURES_DIR 指向该目录,用同样的输入真跑一次。`,
           `本次提示词:`,
           req.prompt,
         ].join('\n'),

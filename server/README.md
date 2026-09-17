@@ -182,7 +182,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 > 而是把响应收在 `stopReason="awaiting_confirmation"` 并且视图里带一个 `pendingRender`
 > （含着要给用户看的那句 `summary`）。前端据此弹确认框；用户点了才发上面那条 `render`。
 > **不点就是没花钱**——用户关掉页面、或者干脆不发这条请求，都不会产生费用。
-> 想看纯离线的一张假图，用 `MAKEUP_ENGINE=mock`（缺省）；`qwen` 才是真出图。
+> 想看纯离线的一张假图，用 `MAKEUP_ENGINE=mock`（缺省）；`image` 才是真出图。
 >
 > ★ **`AGENT_LLM=mock` 是一段脚本，不是模型。** 它读请求里的**状态**（定下妆面了没有、
 > 有照片了没有、上次出图成没成）决定下一步，所以**同一个进程里开个新会话就能从头再演一遍**。
@@ -211,9 +211,9 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
-| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `qwen`（真实出图，**按次计费**）/ `replay`（回放夹具，不联网）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `qwen` 会让**表单路径（`POST /api/jobs`）不可用**：真实引擎需要妆面单（`LookSpec`），而表单不传它（见下） |
+| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）/ `replay`（回放夹具，不联网）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 会让**表单路径（`POST /api/jobs`）不可用**：真实引擎需要妆面单（`LookSpec`），而表单不传它（见下）。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**，写 `qwen` 会回落 `mock` 并打一声 `warn`——那行警告是唯一的警报，别跳过启动日志） |
 | `MAKEUP_FIXTURES_DIR` | — | 录制/回放的夹具目录（绝对路径）。**不设就不录**——缺省值不能有意外副作用，这里的副作用是写盘。`replay` 时**必填** |
-| `QWEN_IMAGE_MODEL` | `qwen-image-edit-plus` | 仅 `qwen` 用。`qwen-image-edit`（无后缀）不认 `size`/`prompt_extend`，代码按模型能力归一化 |
+| `QWEN_IMAGE_MODEL` | `qwen-image-edit-plus` | 仅 `MAKEUP_ENGINE=image` 用（这是个**模型名**，与那个开关值不是一回事）。`qwen-image-edit`（无后缀）不认 `size`/`prompt_extend`，代码按模型能力归一化 |
 | `REFERENCE_PROVIDER` | `mock` | `mock` 或 `off`(**已接通**,见 `references/compose.ts`)。`off` 返回空列表且**不声称任何来源** |
 | `WEATHER_PROVIDER` | `open-meteo` | `open-meteo`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**） |
 | `AGENT_LLM` | `mock` | 对话 agent 的模型：`mock`（**脚本化演示**——离线、不花钱、**不是模型**，见上面那段注）或 `dashscope`（真实模型，**按 token 计费**）。★ 这里缺省**不是**实拉，与 `WEATHER_PROVIDER` 相反，理由是花钱——缺省值必须是「不会意外产生账单」的那个 |
@@ -222,7 +222,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | `AGENT_MAX_RENDERS` | `3` | 单会话最多出几张图（§10 `[I3]`），`0` = 不限制。★ 上限的理由**不是省钱**是**防失控**：没有它模型可以一直要，用户点烦了就会闭眼点，那时「每次确认」这道闸门就名存实亡 |
 | `AGENT_SESSION_TTL_HOURS` | `24` | 会话空闲多久算过期（§10 `[I8]`），到期**真删**照片与成品图。★ **它同时是「用户本人的照片在服务端最多留多久」这个承诺，改大它等于改隐私条款**。清理每小时扫一次（`src/index.ts` 的 `PURGE_INTERVAL_MS`），扫**两遍**：第二遍从盘上反查**没有会话认领的目录**并真删，所以**进程重启后上一轮留下的照片也会被删掉**（不是只在"没重启过"时才成立） |
 | `PRODUCTS_DIR` | `../products/ysl-property` | 产品库内容目录（绝对路径）。**用户主动问起产品时** agent 靠它推荐（★ 不是妆容做完就自动推，见下）。★ **三种加载结果口径不同，见下面那张表**——尤其是「坏数据启动即失败」这一条是**故意**的 |
-| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=dashscope` 或 `MAKEUP_ENGINE=qwen` 时**必填**（缺 key 启动即失败）。此前只有生图脚本读，现在服务路径也读 |
+| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=dashscope` 或 `MAKEUP_ENGINE=image` 时**必填**（缺 key 启动即失败）。此前只有生图脚本读，现在服务路径也读 |
 | `DASHSCOPE_API_HOST` | `https://dashscope.aliyuncs.com` | 上面两条路径共用的端点基址 |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
 
@@ -324,7 +324,7 @@ npm test           # vitest run
 
 任选其一实现对应 port，再到所属模块的 `compose.ts` 里换实现即可，无需改动模块内的业务层：
 
-- 真实上妆引擎：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关。**已接通**（`MAKEUP_ENGINE=qwen`，2026-09-16），★ 它的**唯一消费者是对话 agent**（§8.1）——表单那条路不传妆面单，所以 `qwen` 下不可用；
+- 真实上妆引擎：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关。**已接通**（`MAKEUP_ENGINE=image`，2026-09-16；该取值 2026-09-17 前叫 `qwen`），★ 它的**唯一消费者是对话 agent**（§8.1）——表单那条路不传妆面单，所以 `image` 下不可用；
 - 真实参考检索：实现 `modules/references/domain/ports/reference-provider.ts`（网页/图库），需遵守授权条款并回填 `license`/`sourceUrl`；
 - 换账号存储 / 换哈希算法：实现 `modules/user/domain/ports/user-repository.ts` 或 `password-hasher.ts`，在 `user/compose.ts` 换实现（用例与路由不变）；
 - 换天气源：实现 `modules/weather/domain/ports/weather-provider.ts`，在 `weather/compose.ts` 按 `kind` 分发 + `config.weatherProvider` 开一个环境变量。拿不到数据要抛 `WeatherUpstreamError`（→ 502 让前端**省掉这次天气**，不阻塞提交），**不要返回假天气**；

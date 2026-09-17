@@ -4,7 +4,7 @@
 
 ## 为什么是空的
 
-录一份夹具要**真花钱**调一次百炼(`MAKEUP_ENGINE=qwen` + `MAKEUP_FIXTURES_DIR` 指向这里),
+录一份夹具要**真花钱**调一次百炼(`MAKEUP_ENGINE=image` + `MAKEUP_FIXTURES_DIR` 指向这里),
 **这一步还没跑**。所以:
 
 > ⚠️ **阶段 1 那条验收(「引擎离线可验」)目前只满足一半。**
@@ -18,7 +18,7 @@
 
 ```bash
 # 1. .env 里填 DASHSCOPE_API_KEY,并设:
-#    MAKEUP_ENGINE=qwen
+#    MAKEUP_ENGINE=image
 #    MAKEUP_FIXTURES_DIR=<这个目录的绝对路径>
 # 2. 用**真实输入**跑一次出图(照片字节、妆面单、肤色都要跟以后回放时一致)
 # 3. 跑完这里会多出 <key>.json + <key>.png 两份

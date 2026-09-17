@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   // —— 各模块组合 ——
   // REFERENCE_PROVIDER 已真正接通(在 references/compose.ts 里按 kind 分发)。
   // ★ MAKEUP_ENGINE **2026-09-16 起也真的接通了**(在 makeup/compose.ts 里按 kind 分发):
-  //    mock(缺省,骨架)/ qwen(真出图,计费)/ replay(回放夹具,CI)。
+  //    mock(缺省,骨架)/ image(真出图,计费)/ replay(回放夹具,CI)。
   //    **仍然没有 off** —— 流水线没有引擎就出不了成品,硬接一个 off 分支只会得到
   //    又一个假开关,而那正是本轮要修掉的东西。
   // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
     baseUrl: config.referenceBaseUrl,
     timeoutMs: config.referenceTimeoutMs,
   });
-  // 上妆引擎。★ `MAKEUP_ENGINE=qwen` 时表单路径**不可用**(引擎需要妆面单,而表单不传它),
+  // 上妆引擎。★ `MAKEUP_ENGINE=image` 时表单路径**不可用**(引擎需要妆面单,而表单不传它),
   //   这是 §8.1「出图能力接给 agent」的直接后果——缺省 mock 因此不只是省钱,也是 `[I7]` 的兜底。
   const { engine } = createMakeupModule({
     kind: config.makeupEngine,

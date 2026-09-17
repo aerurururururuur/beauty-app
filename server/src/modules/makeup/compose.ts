@@ -27,8 +27,13 @@ import { ReplayEngine } from './infrastructure/engine/replay-engine.js';
  *   - `mock` 是**骨架**,任何输入都返回,用来让端到端流程能跑通;
  *   - `replay` 是**回放**,只认录过的输入,**未命中就报错**(§5.4)。
  *   两者都不联网、都不出账单,但 `mock` 会"假装成功",`replay` 不会——这正是它存在的意义。
+ *
+ * ★ **取值按「行为」命名,不按厂商**(2026-09-17:`qwen` → `image`)。
+ *   三个类本来就按行为命名(`MockEngine` / `ImageEngine` / `ReplayEngine`),
+ *   只有这个枚举是配置层单方面把厂商名焊了进去。理由与"旧值为什么不做兼容"
+ *   见 `shared/infrastructure/config.ts` 的同名 union。
  */
-export type MakeupEngineKind = 'mock' | 'qwen' | 'replay';
+export type MakeupEngineKind = 'mock' | 'image' | 'replay';
 
 export interface MakeupModuleOptions {
   /** 缺省 `mock`(不联网、不出账单)。 */
@@ -36,24 +41,31 @@ export interface MakeupModuleOptions {
   /** 成品图落盘目录(引擎写,调用方/ArtifactStore 收编)。 */
   outputDir: string;
   /**
-   * 生图模型名。`qwen` 与 `replay` **都要用**:
+   * 生图模型名。`image` 与 `replay` **都要用**:
    * replay 拿它算夹具键,所以**必须与录制时逐字相同**,否则永远未命中。
    */
   model: string;
   /**
-   * ★ **仅 `qwen` 用。`replay` 不需要 key——它不发请求。**
+   * ★ **仅 `image` 用。`replay` 不需要 key——它不发请求。**
    * 把这两件事分开是有意的:如果 replay 也要求 key,离线 CI 就得配一个假 key,
    * 而"CI 里挂一个从没被用到的 secret"迟早会被人当成真的在用。
    *
    * ⚠️ `apiKey` **不进 `ServerConfig`**(见 `config.ts` 里 `readDashScopeApiKey` 的注释):
    * 那个对象会被传进 `buildApp` 并挂在 `app` 上,任何一次调试式日志都会把它打出来。
+   *
+   * ★ **这个字段名留着厂商名,与 `kind` 的改名不冲突,是故意的。**
+   *   `kind` 回答的是"**做什么**"(用真实出图引擎),所以按行为叫 `image`;
+   *   而这个包里装的是"**当前那个实现要什么**"——它就是百炼的 key 与域名
+   *   (`index.ts` 里填的正是 `readDashScopeApiKey()` / `makeupApiHost`)。
+   *   接第二家时该多出的是**同级的第二个凭据包 + 一个选厂商的配置**,
+   *   而不是把这个包改名成 `image` 再往里面塞两家的字段。
    */
   qwen?: {
     apiKey: string;
     apiHost: string;
     timeoutMs?: number;
   };
-  /** 夹具目录:`qwen` 时给了就**录**,`replay` 时**必填**。 */
+  /** 夹具目录:`image` 时给了就**录**,`replay` 时**必填**。 */
   fixturesDir?: string;
 }
 
@@ -91,7 +103,7 @@ function buildEngine(options: MakeupModuleOptions): Engine {
   if (!qwen || !qwen.apiKey) {
     // 同一条规矩:启动即失败。
     throw new Error(
-      'MAKEUP_ENGINE=qwen 但没有拿到 DASHSCOPE_API_KEY。' +
+      'MAKEUP_ENGINE=image 但没有拿到 DASHSCOPE_API_KEY。' +
         '请在 .env 里填上,或把 MAKEUP_ENGINE 设回 mock 走骨架引擎。',
     );
   }

@@ -116,7 +116,7 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
     //   色板必须按 skinTone 与实测收窄(§6 规矩 4),而那份收窄表是占位、没有实测支撑;
     //   引擎自己造一份等于伪造一个"用户要求过的妆"。
     //   所以宁可明确失败。**这条后果是 §8.1 的直接产物**:`jobs` 表单路径从不传 LookSpec,
-    //   因此**表单路径在 `MAKEUP_ENGINE=qwen` 下不可用**(见 `modules/makeup/README.md`)。
+    //   因此**表单路径在 `MAKEUP_ENGINE=image` 下不可用**(见 `modules/makeup/README.md`)。
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
       '本引擎需要妆面单(LookSpec),而这次调用没有传。' +
