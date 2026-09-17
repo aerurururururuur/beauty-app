@@ -416,6 +416,26 @@ describe('list_products', () => {
     const out = await run(new ListProductsTool(fakeLibrary()), {}, session());
     expect(out.content).toContain('不是"不能用"');
   });
+
+  /**
+   * ★ 2026-09-17:这一条钉的是**版面**(顺序),不是内容。
+   *
+   * 真机实测里模型推产品时写成了「`33-touche-clat-le-teint`(妍活青春/逆龄粉底液)」——
+   * **id 被摆在了产品名的位置上**。根因是渲染时 id 占着行首那个位置,
+   * 模型写正文时照着版面复现了一遍(详见 `list-products.ts` 文件头)。
+   * 上面那两条 `toContain` 断言**看不出这件事**——它们在不在行首都成立。
+   */
+  it('★ 名称排在 id 前面 —— id 落在行首会被模型当成产品名抄进正文', async () => {
+    const out = await run(new ListProductsTool(fakeLibrary()), {}, session());
+    const line = out.content.split('\n').find((l) => l.includes('42-rouge')) ?? '';
+
+    expect(line).not.toBe('');
+    expect(line.indexOf('某细管口红')).toBeLessThan(line.indexOf('42-rouge'));
+    // 带 `id:` 标签,和名称/类目这些并列项一样有名字,不再是一个孤零零的串。
+    expect(line).toContain('id:`42-rouge`');
+    // ★ 给模型的那句说明也得跟着改口径:它说的位置就是模型去找 id 的地方。
+    expect(out.content).toContain('行尾');
+  });
 });
 
 describe('read_product', () => {
@@ -849,7 +869,26 @@ describe('系统提示', () => {
       const prompt = buildSystemPrompt(session(), { hasProducts: true });
 
       expect(prompt).toContain('不要复述给用户看');
-      expect(prompt).toContain('别把 id 缀在后面当注释');
+      // ★ `v13`:原来这里断的是「别把 id 缀在后面当注释」。那句**只堵了"后面"**,
+      //   而下一轮实测里 id 出现在**前面**(写在产品名位置上)——模型绕开了那个形状。
+      //   所以改成不带位置信息的封闭说法;断言也跟着从"某一句原文"改成"三个位置都点到"。
+      expect(prompt).toContain('一个字都不该出现在给用户看的正文里');
+      expect(prompt).toContain('放在前面当标签');
+      expect(prompt).toContain('缀在后面当注释');
+      expect(prompt).toContain('塞进括号里');
+    });
+
+    it('★ `v13`:推荐产品时不许交代取数过程,但话头那条义务要留着', () => {
+      // 实测原话:「我马上从库里给你挑几支真正适配你皮肤状态 + 面试需求的产品」
+      // —— 用户要的是产品,不是它的工作流程。根因在规则 7 那段话头本身
+      // (「你能按天气和肤质替她挑几支产品」被它原样学走,只是补了个来源),见 `v13` 沿革。
+      const prompt = buildSystemPrompt(session(), { hasProducts: true });
+
+      expect(prompt).toContain('不要交代你是从哪儿找的');
+      // ⚠️ 这一条是**防"修一个坏一个"**:新禁令紧挨着 `v8` 立的话头,
+      //   而 `v12b` 的教训正是两股相反的力会互相顶掉(掐掉不该掐的那一半)。
+      expect(prompt).toContain('是义务,不是许可');
+      expect(prompt).toContain('不冲突');
     });
 
     it('免费工具名单按实际注册的写(有产品库才列那两个)', () => {
