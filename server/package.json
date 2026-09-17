@@ -16,7 +16,8 @@
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "qwen:makeup": "tsx scripts/qwen-image-makeup.ts",
     "probe:tools": "tsx scripts/probe-tool-calling.ts",
-    "import-products": "tsx scripts/import-products.ts"
+    "import-products": "tsx scripts/import-products.ts",
+    "probe:agent-prompt": "tsx scripts/probe-agent-prompt.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11",
