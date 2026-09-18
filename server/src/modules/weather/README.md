@@ -42,8 +42,9 @@
 
 ## 开关与接线
 
-- `WEATHER_PROVIDER=open-meteo`（缺省，实拉）| `mock`（离线示意，演示断网前切）。
-  `mock` 的响应带 `source: "mock"`，**UI 要据此标注「离线示意」**，别当实况展示。
+- `WEATHER_PROVIDER=live`（缺省，实拉）| `mock`（离线示意，演示断网前切）。
+  ★ `source` 字段报的是**上游名**（实拉时为 `open-meteo`），不是开关取值 —— **UI 要据此标注**，
+  `mock` 时标「离线示意」，别当实况展示。
 - `web shell` 在 `src/app.ts` 挂 `/api/weather`；`brief.weather` 由**前端**调本端点后填进 `POST /jobs` 的 meta——
   jobs 不感知本模块（本轮未动 jobs 的 schema/编排）。
 

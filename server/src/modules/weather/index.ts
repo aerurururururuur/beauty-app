@@ -1,6 +1,6 @@
 /**
  * modules/weather —— 天气模块(public barrel)。
- * 当日天气实拉:open-meteo(无 key)/ mock(离线示意)二选一,由 config.weatherProvider 分发。
+ * 当日天气:live(无 key 实拉)/ mock(离线示意)二选一,由 config.weatherProvider 分发。
  * 对外只暴露端口与 GetWeather 用例;换源只改 compose.ts。
  */
 export type {

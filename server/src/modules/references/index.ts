@@ -10,7 +10,6 @@ export { BingReferenceProvider, DEFAULT_BASE_URL } from './infrastructure/refere
 export { parseBingHits } from './infrastructure/reference-provider/parse-bing.js';
 export type { BingHit } from './infrastructure/reference-provider/parse-bing.js';
 export { MockReferenceProvider } from './infrastructure/reference-provider/mock-reference-provider.js';
-export { OffReferenceProvider } from './infrastructure/reference-provider/off-reference-provider.js';
 export { createReferencesModule } from './compose.js';
 export type {
   ReferenceProviderKind,

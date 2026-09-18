@@ -9,8 +9,7 @@
  *   理由在调用方：`jobs/application/usecases/run-pipeline.ts` 是**裸调**本端口、
  *   外面只有流水线的大 try/catch —— 端口一旦抛错,整个上妆任务会被标成 failed,
  *   用户拿不到成品图,**只因为参考图没搜到**。而参考图是增强项:结果页参考区
- *   本来就是 `v-if="references.length"`,空数组是一条能走通的正常状态
- *   (`OffReferenceProvider` 就恒返回空)。
+ *   本来就是 `v-if="references.length"`,空数组是一条能走通的正常状态。
  *
  *   所以限流 / 超时 / 站点改版这类失败,应由实现**内部消化并记日志**,
  *   而不是升级成调用方的错误。

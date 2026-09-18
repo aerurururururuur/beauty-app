@@ -241,24 +241,24 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
-| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）/ `replay`（回放夹具，不联网）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 会让**表单路径（`POST /api/jobs`）不可用**：真实引擎需要妆面单（`LookSpec`），而表单不传它。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**，写 `qwen` 会回落 `mock` 并打一声 `warn`——那行警告是唯一的警报，别跳过启动日志） |
+| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）/ `replay`（回放夹具，不联网）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 会让**表单路径（`POST /api/jobs`）不可用**：真实引擎需要妆面单（`LookSpec`），而表单不传它。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**）。★ 2026-09-18：四个开关的取值一律**写错即启动失败**（报错列出合法取值），不再静默回落、也不再"喊一声继续跑" |
 | `MAKEUP_FIXTURES_DIR` | — | 录制/回放的夹具目录（绝对路径）。**不设就不录**——缺省值不能有意外副作用，这里的副作用是写盘。`replay` 时**必填** |
 | `QWEN_IMAGE_MODEL` | `qwen-image-edit-plus` | 仅 `MAKEUP_ENGINE=image` 用（这是个**模型名**，与那个开关值不是一回事）。`qwen-image-edit`（无后缀）不认 `size`/`prompt_extend`，代码按模型能力归一化 |
-| `REFERENCE_PROVIDER` | `mock` | `mock` 或 `off`(**已接通**,见 `references/compose.ts`)。`off` 返回空列表且**不声称任何来源** |
-| `WEATHER_PROVIDER` | `open-meteo` | `open-meteo`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**） |
-| `AGENT_LLM` | `mock` | 对话 agent 的模型：`mock`（**脚本化演示**——离线、不花钱、**不是模型**）或 `dashscope`（真实模型，**按 token 计费**）。★ 这里缺省**不是**实拉，与 `WEATHER_PROVIDER` 相反，理由是花钱——缺省值必须是「不会意外产生账单」的那个 |
-| `AGENT_MODEL` | `qwen-flash` | 仅 `dashscope` 用。实测候选（`flash` / `plus` / `max`）见 `scripts/probe-tool-calling.ts` |
-| `AGENT_BASE_URL` | 由 `DASHSCOPE_API_HOST` 拼出 | 仅 `dashscope` 用。走自建代理/网关时才设 |
+| `REFERENCE_PROVIDER` | `mock` | `mock`（离线兜底）或 `live`（外部检索，**已接通**，见 `references/compose.ts`）。✏️ 2026-09-18：`live` 原名 `bing`，同时删掉了 `off`——它只会得到又一个假开关 |
+| `WEATHER_PROVIDER` | `live` | `live`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**）。✏️ 2026-09-18：`live` 原名 `open-meteo`（那是**上游名**，现在的开关值一律按行为命名；响应里的 `source` 仍报上游名） |
+| `AGENT_LLM` | `mock` | 对话 agent 的模型：`mock`（**脚本化演示**——离线、不花钱、**不是模型**）或 `real`（真实模型，**按 token 计费**）。★ 这里缺省**不是**实拉，与 `WEATHER_PROVIDER` 相反，理由是花钱——缺省值必须是「不会意外产生账单」的那个。✏️ 2026-09-18：`real` 原名 `dashscope`（那是**厂商名**，与 `MAKEUP_ENGINE` 的 `image` 同一条命名规矩） |
+| `AGENT_MODEL` | `qwen-flash` | 仅 `real` 用。实测候选（`flash` / `plus` / `max`）见 `scripts/probe-tool-calling.ts` |
+| `AGENT_BASE_URL` | 由 `DASHSCOPE_API_HOST` 拼出 | 仅 `real` 用。走自建代理/网关时才设 |
 | `AGENT_MAX_RENDERS` | `3` | 单会话最多出几张图（§10 `[I3]`），`0` = 不限制。★ 上限的理由**不是省钱**是**防失控**：没有它模型可以一直要，用户点烦了就会闭眼点，那时「每次确认」这道闸门就名存实亡 |
 | `AGENT_SESSION_TTL_HOURS` | `24` | 会话空闲多久算过期（§10 `[I8]`），到期**真删**照片与成品图。★ **它同时是「用户本人的照片在服务端最多留多久」这个承诺，改大它等于改隐私条款**。清理每小时扫一次（`src/index.ts` 的 `PURGE_INTERVAL_MS`），扫**两遍**：第二遍从盘上反查**没有会话认领的目录**并真删，所以**进程重启后上一轮留下的照片也会被删掉**（不是只在"没重启过"时才成立） |
 | `PRODUCTS_DIR` | `../products/ysl-property` | 产品库内容目录（绝对路径）。**用户主动问起产品时** agent 靠它推荐（★ 不是妆容做完就自动推，见 §7）。★ **三种加载结果口径不同，见 §7**——尤其是「坏数据启动即失败」这一条是**故意**的 |
-| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=dashscope` 或 `MAKEUP_ENGINE=image` 时**必填**（缺 key 启动即失败） |
+| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=real` 或 `MAKEUP_ENGINE=image` 时**必填**（缺 key 启动即失败） |
 | `DASHSCOPE_API_HOST` | `https://dashscope.aliyuncs.com` | 上面两条路径共用的端点基址 |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
 
 ★ **缺省值的一贯规矩：缺省必须选不会意外产生副作用的那一个。**
 所以 `AGENT_LLM` 和 `MAKEUP_ENGINE` 都缺省 `mock`，副作用是账单；`MAKEUP_FIXTURES_DIR` 缺省不设，
-副作用是写盘。唯一相反的是 `WEATHER_PROVIDER` 缺省 `open-meteo`，因为那是免费公开接口，实拉没有代价。
+副作用是写盘。唯一相反的是 `WEATHER_PROVIDER` 缺省 `live`，因为那是免费公开接口，实拉没有代价。
 
 ⚠️ **`DASHSCOPE_API_KEY` 刻意不是 `ServerConfig` 的一个字段，而是 `readDashScopeApiKey()` 函数读的。**
 `ServerConfig` 会被传进 `buildApp` 并长期挂在 `app` 上，任何一次 `app.log.info(config)` 式的调试
@@ -335,8 +335,9 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   `BingReferenceProvider` 测的是降级契约——抓取失败必须回空数组，绝不抛错。
 - `cabinet.test.ts` — 衣橱边界：空名、超长、特性重名、控制字符、空更新。用例层验 `USER_NOT_FOUND`
   与 `CABINET_FULL`，越权改删报 404 且原数据一个字没动，真实 JSON 仓库用 `mkdtemp` 验「重启后还在」。
-- `config.test.ts` — `MAKEUP_ENGINE` 的取值解析：三个合法值静默通过，不认识的取值回落 `mock`
-  并打一声 `warn`。那声警告是这条路上唯一的警报。
+- `config.test.ts` — 四个开关的取值解析：合法值通过，**不认识的取值抛错**，报错里必须出现
+  环境变量名、收到的原值、全部合法取值与 `.env.example`。另钉住「留空/全空白 = 没给 = 走缺省，
+  不抛错」这条边界。★ 2026-09-18 之前钉的是"回落 `mock` 并打一声 `warn`"。
 - `multipart-upload.test.ts` — ★ 两个 multipart 解析器 `agent/` 与 `jobs/` 的上传回归。
   在此之前 `test/` 里没有任何 HTTP 层的上传用例，两条路走的都是假的上传流，
   真实字节流的坑在单测里看不见。

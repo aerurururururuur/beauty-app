@@ -16,8 +16,18 @@ import { conditionFromWmoCode } from './wmo.js';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 
-/** 默认超时:天气是提交前的辅助信息,慢到 5 秒还不回就该让前端走手动预设,别拖住用户。 */
-export const DEFAULT_TIMEOUT_MS = 5000;
+/**
+ * 上游超时(毫秒)。**每个 URL 各算一次** —— 城市名→坐标、坐标→实况是两次独立请求,
+ * 所以一次 `/api/weather` 的最坏耗时是这个数的**两倍**。
+ *
+ * ★ 2026-09-18 由 5000 提到 12000:实测本机 forecast 那一步**冷启动到过 10.3s**
+ *   (热的时候只要 651ms)。旧值会把第一次「拉取实时」直接判成 502,而这条路上
+ *   **没有重试**(`getJson` 单发),用户只能自己再点一次。
+ * ⚠️ 上限由 `vue/src/api/index.js` 那个 30s 的客户端超时定死:这里改到 15s,
+ *   两倍就正好撞上它,用户看到的会变成 axios 的 "timeout of 30000ms exceeded",
+ *   而不是下面这条能看懂的错误。
+ */
+export const DEFAULT_TIMEOUT_MS = 12000;
 
 interface GeocodeResponse {
   results?: Array<{

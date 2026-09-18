@@ -47,12 +47,12 @@ import { InMemorySessionStore } from './infrastructure/memory/session-store.js';
  * 但**现在写一个没人调用的空适配器,是一段没有实测支撑、也没人会发现的代码**——
  * 等真要换时再写,那时才有验证它的场合。
  */
-export type AgentLlmKind = 'mock' | 'dashscope';
+export type AgentLlmKind = 'mock' | 'real';
 
 export interface AgentModuleOptions {
   kind: AgentLlmKind;
-  /** 仅 `kind='dashscope'` 用。缺 key 时**启动即失败**,不留到第一次对话才炸。 */
-  dashscope: {
+  /** 仅 `kind='real'` 用。缺 key 时**启动即失败**,不留到第一次对话才炸。 */
+  real: {
     apiKey: string;
     baseUrl: string;
     model: string;
@@ -167,12 +167,12 @@ function buildLlm(options: AgentModuleOptions): Llm {
   //     而 `DemoLlm` 按**请求状态**求值,所以同一个进程里开新会话能重演一遍,不用重启。
   if (options.kind === 'mock') return new DemoLlm();
 
-  const { apiKey, baseUrl, model, timeoutMs } = options.dashscope;
+  const { apiKey, baseUrl, model, timeoutMs } = options.real;
   if (!apiKey) {
     // ★ 启动即失败,不留到运行时。理由同 §5.4 对 `.env.example` 那段过期注释的处置:
     //   **配置错了却"能启动",是最容易拖到演示当天才炸的一类问题。**
     throw new Error(
-      'AGENT_LLM=dashscope 但没有拿到 DASHSCOPE_API_KEY。' +
+      'AGENT_LLM=real 但没有拿到 DASHSCOPE_API_KEY。' +
         '请在 .env 里填上(见 .env.example 的 LLM 一节),或把 AGENT_LLM 设为 mock 走离线兜底。',
     );
   }

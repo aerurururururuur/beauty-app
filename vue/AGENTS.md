@@ -636,7 +636,7 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 ### 「参考产品卡」这一块（`AgentView.vue`，2026-09-16 落地）
 
 **没有自动化测试，只能手工走。** 前提是服务端**配了产品库**（`PRODUCTS_DIR` 指到 `products/ysl-property`
-或它的上级目录），且 `AGENT_LLM=dashscope`（mock 那段脚本**不会**调 `list_products`）。
+或它的上级目录），且 `AGENT_LLM=real`（mock 那段脚本**不会**调 `list_products`）。
 
 1. ★★ **先验「用户没答应之前不读库」。** 走完「需求 → 妆面」，让模型把妆定下来、
    继续调一两轮妆。**它主动问一句「要不要给你挑两支」是允许的**（可以挑话头），

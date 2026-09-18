@@ -21,8 +21,9 @@
 > 代码基线：`server/` 当前 HEAD（上妆引擎 = `MAKEUP_ENGINE`，`mock` 缺省 / `image` 真出图 / `replay` 回放，**已接线**）。
 > ✏️ 2026-09-17：那个真出图的取值**原名 `qwen`，现改名为 `image`**——理由是 `mock` / `replay` 按**行为**命名，
 > 只有它按**厂商**命名，而类名那边本来是对的（`ImageEngine`）。
-> ★ **旧值 `qwen` 刻意不兼容**：与拼错的值一样回落 `mock` 并打一声 `console.warn`——
-> 写 `qwen` 的 `.env` 会静默变成 mock 引擎（出图返回原图），那行警告是唯一的警报。
+> ★ **旧值 `qwen` 刻意不兼容**：与拼错的值一样**启动即失败**，报错里列出合法取值。
+> （2026-09-18 之前这里写的是"回落 `mock` 并打一声 `console.warn`"——那声警告拦不住，
+> 已被四个开关统一改成抛错，见 `config.test.ts` 与 `shared/infrastructure/config.ts` 的 `asKind`。）
 > **下面凡是引用该取值的地方都已改用 `image`；引用它的历史记录（如 §8.1 的沿革、§14.1 的关闭条目）保留原文。**
 >
 > **本文档只回答"分几层、每层的接缝开在哪、什么是不可协商的约束"，不回答"LLM 用哪个温度、模板里第几个词"。**
@@ -594,7 +595,8 @@ modules/agent/
 
 > ⚠️⚠️ **2026-09-16 晚补记：这条链本身是对的，但真机今天走不到它。**
 > 入口 A / 入口 B 都用**真实 1.1 MB 照片**跑通过（`seq` 1、2，额度递减正确），
-> 但那一遍跑在 `AGENT_LLM=mock` 下。换成**真模型**（`dashscope` + `AGENT_MODEL=qwen-plus`）之后，
+> 但那一遍跑在 `AGENT_LLM=mock` 下。换成**真模型**（`AGENT_LLM=real`（当时写作 `dashscope`）
+> + `AGENT_MODEL=qwen-plus`）之后，
 > **前一步"定妆面"就断**：模型一个工具都没调（`patch_brief` / `propose_look` 一次没进过），
 > `lookSpec` 永远空 ⇒ `renderReadiness !== 'ready'` ⇒ 界面那条 `renderOffer` **根本摆不出来**。
 > 卡住它的不在这一节，在**提示词的规则 3**——见 §7.5.1 的 ⚠️ 与 §14.1 那条待办。
@@ -633,7 +635,7 @@ modules/agent/
 
 > ⚠️⚠️ **2026-09-16 晚的限定条件：这张表证的是"端点 + 模型 + 喂到嘴边的 schema"这一层，
 > 不等于产品链路里工具真的会被调用。**
-> 把同一批模型接进**真会话**（`AGENT_LLM=dashscope`、`AGENT_MODEL=qwen-plus`；抓下来的请求体里
+> 把同一批模型接进**真会话**（`AGENT_LLM=real`、`AGENT_MODEL=qwen-plus`；抓下来的请求体里
 > 6 个工具全在、`tool_choice: auto`、system 2324 字），**它一个工具都没调**：
 > 用户给了场合 + 肤色 + 肤质，模型把整套妆面**用散文写了出来**（`coverage 3/5`、`matte`、`brick`…），
 > 而 `brief` / `lookSpec` 全空。
@@ -1027,7 +1029,7 @@ modules/agent/
       全部数据、取舍与仍然打开的 1/3 见 `server/src/modules/agent/application/system-prompt.ts` 的 `v12` 沿革。
       ⚠️ **下面那段"每个变体只跑了 1 次"的记录仍然有效**（它记的是**当时**那次，不是这一轮），
       但**结论以 `v12` 沿革里的 `n=3` 为准**；`v11` 的系统提示词长度仍然是那份 2324 字。
-      **现象**：`AGENT_LLM=dashscope` + `AGENT_MODEL=qwen-plus`，用户说「我下周有个面试，肤色偏深、
+      **现象**：`AGENT_LLM=real` + `AGENT_MODEL=qwen-plus`，用户说「我下周有个面试，肤色偏深、
       混油皮，帮我看看画什么妆」，模型回了一段**散文写的整套妆面**（`coverage 3/5`、`matte`、
       `brick`、`berry`、`satin`…），而 `brief = {}`、`lookSpec` 空
       —— **`patch_brief` / `propose_look` 一次都没调**。

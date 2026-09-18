@@ -260,9 +260,9 @@
 
 ## 开关与接线
 
-- `AGENT_LLM=mock`（**缺省**，离线、不出账单）| `dashscope`（真实模型，按 token 计费）。
-  ★ 缺省是 `mock` 而不是实拉，与 `WEATHER_PROVIDER` 缺省 `open-meteo` 相反，理由是**花钱**：
-  缺省值必须是"不会意外产生账单"的那个。现场演示要用真模型就显式写 `AGENT_LLM=dashscope`。
+- `AGENT_LLM=mock`（**缺省**，离线、不出账单）| `real`（真实模型，按 token 计费）。
+  ★ 缺省是 `mock` 而不是实拉，与 `WEATHER_PROVIDER` 缺省 `live` 相反，理由是**花钱**：
+  缺省值必须是"不会意外产生账单"的那个。现场演示要用真模型就显式写 `AGENT_LLM=real`。
   ★ **`mock` 走的是 `DemoLlm`——一段脚本化演示，不是"回一句演示模式"。**
   它读请求里的状态（定下妆面没有 / 有照片没有 / 上次出图成没成）决定下一步，
   于是能演完「需求 → 妆面 → 照片 → 确认出图」整条链，**包括确认框那一段**。
@@ -284,10 +284,10 @@
 - `AGENT_SESSION_TTL_HOURS`（缺省 24）：§10 `[I8]` 的会话寿命，到期**真删**照片与成品图。
   ★ 它不是调优参数，它同时是"用户本人的照片在服务端最多留多久"这个承诺，
   **改大它等于改隐私条款**。要让清理更勤是改 `src/index.ts` 的 `PURGE_INTERVAL_MS`，不是改这一项。
-- `DASHSCOPE_API_KEY` 为 `dashscope` 时必填，**缺 key 启动即失败**，不留到第一次对话才炸。
+- `DASHSCOPE_API_KEY` 为 `real` 时必填，**缺 key 启动即失败**，不留到第一次对话才炸。
   ★ key 不进 `ServerConfig`（见 `config.ts` 里 `readDashScopeApiKey` 的注释）——那个对象会被传进
   `buildApp` 并挂在 `app` 上，任何一次调试式日志都会把它打出来。
-  ★ 它**同时也是出图的 key**：`AGENT_LLM=dashscope` 与 `MAKEUP_ENGINE=image` 走同一个 key、同一个域名开关。
+  ★ 它**同时也是出图的 key**：`AGENT_LLM=real` 与 `MAKEUP_ENGINE=image` 走同一个 key、同一个域名开关。
 
 ## 照片与产物落在哪
 
@@ -324,7 +324,7 @@
 - [x] ~~`render_look` 工具 + 人在回路确认~~ —— **2026-09-16 完成**（工具 + 服务端确认回合 + 6 条路由）。
       前置的 `prompt-builder` + 引擎也已在 `makeup` 里落地，两边同时上的。
 - [x] ✅ **真模型一个工具都不调 —— 2026-09-17 修掉，提示词 `v12`，只动规则 3。**
-      现象（2026-09-16 记录在案）：`AGENT_LLM=dashscope` + `qwen-plus` 下，
+      现象（2026-09-16 记录在案）：`AGENT_LLM=real`（当时写作 `dashscope`）+ `qwen-plus` 下，
       用户给了场合+肤色+肤质，模型**一个工具都不调**，把整套妆面用散文写出来 ⇒
       `lookSpec` 永远空 ⇒ 界面上那条出图入口**摆不出来** ⇒ **真机上用户拿不到图**。
       根因是规则 3 的后半句「不知道就用一句话问清楚」——它把「偏深」判成"不知道是哪一档"，

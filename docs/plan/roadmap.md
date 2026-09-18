@@ -250,14 +250,14 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 
 ## 8. weather（当日天气实拉 · 已接线）
 
-- **现状 [x]**（2026-09-10）：上游 **open-meteo**（无 key、免企业认证）：城市名 → `geocoding-api` 解析坐标 → `api/forecast` 取当日实况 + 当日 UV；`wmo.ts` 把 WMO 码转中文；`GET /api/weather?city=北京` 或 `?lat=&lon=` 返回 `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`；`WEATHER_PROVIDER=open-meteo|mock` 分发（`weather/compose.ts`）；错误码 `LOCATION_REQUIRED` 422 / `CITY_NOT_FOUND` 404 / `WEATHER_UNAVAILABLE` 502 已进 `shared` 映射表。
+- **现状 [x]**（2026-09-10）：上游 **open-meteo**（无 key、免企业认证）：城市名 → `geocoding-api` 解析坐标 → `api/forecast` 取当日实况 + 当日 UV；`wmo.ts` 把 WMO 码转中文；`GET /api/weather?city=北京` 或 `?lat=&lon=` 返回 `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`；`WEATHER_PROVIDER=live|mock` 分发（`weather/compose.ts`；`live` 在 2026-09-18 前写作 `open-meteo`）；错误码 `LOCATION_REQUIRED` 422 / `CITY_NOT_FOUND` 404 / `WEATHER_UNAVAILABLE` 502 已进 `shared` 映射表。
 - **失败口径（红线 §13-1 的落法）**：拿不到就 502，**绝不返回编造的天气冒充实时**；前端据此**整个不带 `weather` 提交**，不阻塞提交。`mock` 只能在**知情**的离线演示里用，响应带 `source:"mock"` 供 UI 标注「离线示意」。
 - **前端接入 [x]**（2026-09-10）：`vue/src/api/weather.js` 调 `/weather`；上传页「当天天气」是城市输入 + 「拉取实时」按钮，返回值只取天气四字段填 `brief.weather`（`place`/`source` 是回显元信息，**不进 meta**——后端 weather schema 是 `.strict()`，多键会 422）；`source` 由后端**原样透传**给 UI 判断，前端不猜来源；拉取失败 / 标了 `mock` 只在说明行标提示色，**不阻塞提交**。mock 模式下不联网、回本地示意值。
 - **手动预设已删 [x]**（2026-09-10）：**没有「手动预设」这条回落路**（原 `WEATHER_PRESETS` / `useWeatherPreset` 已移除）。
   理由与失败口径是同一件事：既声明不编造天气，就不该再让人手挑一个假天气混进 `brief`。代价是断网演示时
   提交的 `brief` 里**没有天气**——这是诚实的空，不是缺件；有网就实拉，无网就按本节待办把 `WEATHER_PROVIDER=mock` 写进现场 `.env`，让 UI 明说「离线示意」。
 - **待办 [ ]**：
-  - [ ] 演示前把 `WEATHER_PROVIDER` 写进现场 `.env`（有网 `open-meteo` / 无网 `mock`），别临场改代码。
+  - [ ] 演示前把 `WEATHER_PROVIDER` 写进现场 `.env`（有网 `live` / 无网 `mock`），别临场改代码。
   - [ ] （可选）按日期取非当日天气：`WeatherQuery.date` 已预留，当前只取当日实况。
 
 ---
@@ -446,7 +446,7 @@ dev server 默认根是 `vue/`，不放行取不到）。**加共享文件前先
 2. **IP / 原创**：素材、参考图、模板字体逐张记录来源；~~不抓网络图~~。参考素材必须 自绘 / 自有 / 可授权。
 
    > **⚠️ 已知情变更（2026-09-11，`references` 模块）：「不抓网络图」这一句被主动推翻。**
-   > 用户明确选择 `REFERENCE_PROVIDER=bing` 走真实外部检索，知情接受与主办合规条款
+   > 用户明确选择 `REFERENCE_PROVIDER=live`（当时写作 `bing`）走真实外部检索，知情接受与主办合规条款
    > 「所有参赛代码、算法模型及方案必须确保原创性，不得侵犯第三方知识产权」冲突的后果。
    > 实测原始记录见 `docs/plan/reference-fetch-feasibility.md`，代价与待办见
    > `server/src/modules/references/README.md`。

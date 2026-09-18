@@ -6,8 +6,8 @@
  *   渲染出一个裂图 —— 那比「没有图」更糟。留空是实话：结果页据此回落到只显示标题。
  *   这条回落路径是**必需的**，不是只为 mock 服务：真实抓取也会遇到没有可用图地址的条目。
  *
- * 用途没变：**离线兜底**（与 `makeup` 的 MockEngine 同一思路），以及 `REFERENCE_PROVIDER=off`
- * 之外的第二种「整条链路照跑」的验证姿势。
+ * 用途没变：**离线兜底**（与 `makeup` 的 MockEngine 同一思路），以及**不联网**就能
+ * 「整条链路照跑」的验证姿势。
  */
 import type { SceneDescriptor } from '../../../shared/index.js';
 import type { ReferenceImage, ReferenceRole } from '../../domain/entities/reference.js';

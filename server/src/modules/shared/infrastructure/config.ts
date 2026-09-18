@@ -9,16 +9,16 @@ import path from 'node:path';
  * 天气源开关。与 `weather/compose.ts` 的 WeatherProviderKind 同形(那边独立声明,
  * 免得业务模块反向依赖组装层);两处要一起改。
  */
-export type WeatherProviderKind = 'mock' | 'open-meteo';
+export type WeatherProviderKind = 'mock' | 'live';
 
 /**
  * 参考源开关。与 `references/compose.ts` 的同名 union 同形,两处要一起改。
  *
  * ★ **刻意不复用别的 union**：曾经的 `AdapterKind` 由 `referenceProvider` 与 `makeupEngine`
- *   共用，往里加 `'bing'` 会顺带让 `MAKEUP_ENGINE=bing` 变成一个语法合法但语义荒谬的取值。
+ *   共用，往里加 `'live'` 会顺带让 `MAKEUP_ENGINE=live` 变成一个语法合法但语义荒谬的取值。
  *   2026-09-16 引擎接线时把那个共用 union 拆掉了——现在每类开关各有一个。
  */
-export type ReferenceProviderKind = 'mock' | 'off' | 'bing';
+export type ReferenceProviderKind = 'mock' | 'live';
 
 /**
  * 上妆引擎开关。与 `makeup/compose.ts` 的同名 union 同形,两处要一起改。
@@ -38,9 +38,10 @@ export type ReferenceProviderKind = 'mock' | 'off' | 'bing';
  *   现在 `image` 与类名逐一对齐,**再接第二家生图 API 时不必动这个枚举**。
  *
  * ⚠️ **旧名 `qwen` 刻意不做兼容**(2026-09-17 定):它和任何拼错的值一样,
- *   回落 `mock` 并打一声 `console.warn`(见 `asMakeupEngineKind`)。
- *   不认识却**不喊**才是问题——服务照常启动、日志干净、出图那一步悄悄把原图交回来,
- *   正是本项目反复点名的"假开关"。所以那声警告是这条路唯一的警报。
+ *   **启动即失败**,并把合法取值连说明一起打进报错(见 `asKind`)。
+ *   ★ 2026-09-18 之前这里是"回落 `mock` 再打一声 `warn`"。改成抛错,是因为那声警告
+ *   拦不住:`MAKEUP_ENGINE=qwen` 的 `.env` 会照常启动,而出图那一步悄悄把原图交回来
+ *   ——正是本项目反复点名的"假开关",只不过是带着一行日志的假开关。
  */
 export type MakeupEngineKind = 'mock' | 'image' | 'replay';
 
@@ -50,11 +51,11 @@ export type MakeupEngineKind = 'mock' | 'image' | 'replay';
  * ★ **刻意没有 `off`**:对话 agent 没有 LLM 就什么也做不了——这跟 `weather` 那种
  *   "接不上就降级为空列表"的增强项不同。离线要兜底就用 `mock`。
  *
- * ★ **缺省是 `mock`**,与 `weatherProvider` 缺省 `open-meteo` 的选择相反,理由是**花钱**:
+ * ★ **缺省是 `mock`**,与 `weatherProvider` 缺省 `live` 的选择相反,理由是**花钱**:
  *   天气实拉是免费公开接口,模型调用按 token 计费。**缺省值必须是"不会意外产生账单"的那个**,
- *   要用真实模型就显式写 `AGENT_LLM=dashscope`。
+ *   要用真实模型就显式写 `AGENT_LLM=real`。
  */
-export type AgentLlmKind = 'mock' | 'dashscope';
+export type AgentLlmKind = 'mock' | 'real';
 
 export interface ServerConfig {
   host: string;
@@ -64,9 +65,9 @@ export interface ServerConfig {
   dataDir: string;
   maxUploadMb: number;
   referenceProvider: ReferenceProviderKind;
-  /** 参考检索站点基址;仅 referenceProvider='bing' 用。换镜像/代理只改这里。 */
+  /** 参考检索站点基址;仅 referenceProvider='live' 用。换镜像/代理只改这里。 */
   referenceBaseUrl: string;
-  /** 参考检索超时毫秒;仅 referenceProvider='bing' 用。 */
+  /** 参考检索超时毫秒;仅 referenceProvider='live' 用。 */
   referenceTimeoutMs: number;
   /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)| replay(回放夹具,CI)。 */
   makeupEngine: MakeupEngineKind;
@@ -81,9 +82,9 @@ export interface ServerConfig {
    * ★ 缺省不设:与所有开关同一条规矩——缺省值必须没有意外副作用,这里的副作用是**写盘**。
    */
   makeupFixturesDir?: string;
-  /** 天气源:open-meteo(无 key 实拉,缺省)| mock(离线示意兜底)。 */
+  /** 天气源:live(无 key 实拉,缺省)| mock(离线示意兜底)。 */
   weatherProvider: WeatherProviderKind;
-  /** 对话 agent 的模型来源:mock(离线兜底,缺省)| dashscope(真实模型,按 token 计费)。 */
+  /** 对话 agent 的模型来源:mock(离线兜底,缺省)| real(真实模型,按 token 计费)。 */
   agentLlm: AgentLlmKind;
   /** 对话模型名。实测可用的候选见 `scripts/probe-tool-calling.ts`。 */
   agentModel: string;
@@ -144,43 +145,70 @@ export function loadDotEnvIfPresent(file = '.env'): void {
 }
 
 /**
- * ★ **这一格的沉默是有代价的,所以它比同类函数多一句 `console.warn`。**
- *
- * 其余 `as*Kind`(`asWeatherKind` / `asReferenceKind` / `asAgentLlmKind`)不认识的取值
- * 一律静默回落。对它们成立,是因为回落的都是**增强项或离线兜底**;
- * 而 `makeupEngine` 回落成 `mock` 意味着**出图那一步开始返回原图**:
- * 服务在跑、接口 200、日志干净,只有用户手上那张图不对。**这正是"假开关"。**
+ * 开关的合法取值表。★ **解析与报错共用这一份**——两处各抄一遍的话,
+ * 迟早出现"报错说合法、解析却不认"的错位。
  */
-function asMakeupEngineKind(
+interface KindChoice<T extends string> {
+  value: T;
+  /** 报错里跟在取值后面的短说明,形如 `real(真实模型,按 token 计费)`。 */
+  note: string;
+}
+
+const MAKEUP_ENGINE_CHOICES: readonly KindChoice<MakeupEngineKind>[] = [
+  { value: 'mock', note: '骨架,把输入照片原样当成品返回' },
+  { value: 'image', note: '真实出图,按次计费' },
+  { value: 'replay', note: '回放录好的夹具,不联网' },
+];
+
+const WEATHER_PROVIDER_CHOICES: readonly KindChoice<WeatherProviderKind>[] = [
+  { value: 'mock', note: '离线示意' },
+  { value: 'live', note: '无 key 实拉' },
+];
+
+const REFERENCE_PROVIDER_CHOICES: readonly KindChoice<ReferenceProviderKind>[] = [
+  { value: 'mock', note: '离线兜底,只出文字' },
+  { value: 'live', note: '外部检索' },
+];
+
+const AGENT_LLM_CHOICES: readonly KindChoice<AgentLlmKind>[] = [
+  { value: 'mock', note: '离线演示脚本,不是模型' },
+  { value: 'real', note: '真实模型,按 token 计费' },
+];
+
+/**
+ * ★ **开关取值的唯一解析口。认不出来就抛错——这就是「启动即失败」。**
+ *
+ * 三种情况分开处置:
+ *   1. **没设 / 空串** → 用缺省。这不是错误,是"不配就用缺省"这个正常形态
+ *      (`loadDotEnvIfPresent` 会把 `K=` 原样送进来,空串按没给算,同 `optionalAbsDir`)。
+ *   2. **认得的取值** → 用它。
+ *   3. **设了但不认得** → 抛错,并把合法取值**连同说明**列全。
+ *
+ * 第 3 条在 2026-09-18 之前是静默回落(只有 `MAKEUP_ENGINE` 会打一声 `warn`)。
+ * 改成抛错,是因为那两种处置都会得到**同一样东西——假开关**:
+ * 旧 `.env` 里写着 `AGENT_LLM=dashscope`,服务照常启动、端口通、日志干净,
+ * 而模型调用已经悄悄换成了那段离线脚本。**这种事该在启动那一秒暴露,不是演示当天。**
+ * 一声 `warn` 拦不住它:日志会被刷过去,而故障现场在几分钟之后。
+ *
+ * `note` 写进报错里,是为了让那一行**直接可照抄**——只说"非法取值",
+ * 等于把人丢回 `.env.example` 再翻一遍。
+ */
+function asKind<T extends string>(
+  name: string,
   value: string | undefined,
-  fallback: MakeupEngineKind,
-): MakeupEngineKind {
-  if (value === 'mock' || value === 'image' || value === 'replay') return value;
-  if (value !== undefined && value !== '') {
-    console.warn(
-      `[config] MAKEUP_ENGINE 不认识 "${value}",回落成 ${fallback}。` +
-        '合法取值:mock(骨架)/ image(真实出图)/ replay(回放夹具)。',
-    );
-  }
-  return fallback;
-}
-
-function asWeatherKind(value: string | undefined, fallback: WeatherProviderKind): WeatherProviderKind {
-  if (value === 'mock' || value === 'open-meteo') return value;
-  return fallback;
-}
-
-function asReferenceKind(
-  value: string | undefined,
-  fallback: ReferenceProviderKind,
-): ReferenceProviderKind {
-  if (value === 'mock' || value === 'off' || value === 'bing') return value;
-  return fallback;
-}
-
-function asAgentLlmKind(value: string | undefined, fallback: AgentLlmKind): AgentLlmKind {
-  if (value === 'mock' || value === 'dashscope') return value;
-  return fallback;
+  fallback: T,
+  choices: readonly KindChoice<T>[],
+): T {
+  const raw = (value ?? '').trim();
+  if (raw === '') return fallback;
+  if (choices.some((c) => c.value === raw)) return raw as T;
+  const list = choices
+    .map((c) => `${c.value}(${c.note}${c.value === fallback ? ',缺省' : ''})`)
+    .join(' / ');
+  throw new Error(
+    `${name} 不认识 "${raw}"。合法取值:${list};留空或不设则用缺省 ${fallback}。` +
+      '合法取值与说明见 .env.example。',
+  );
 }
 
 /** 可选目录:空串/空白视同**没给**(而不是"当前目录"),其余解析成绝对路径。 */
@@ -214,14 +242,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     logLevel: env.LOG_LEVEL ?? 'info',
     dataDir: path.resolve(env.DATA_DIR ?? './data'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 25),
-    // 参考检索缺省仍是 mock:不联网、启动即用。要用真实检索显式设为 bing
+    // 参考检索缺省仍是 mock:不联网、启动即用。要用真实检索显式设为 live
     // (它失败会降级为空列表,不会拖垮任务,但会让每个任务多几次网络往返)。
-    referenceProvider: asReferenceKind(env.REFERENCE_PROVIDER, 'mock'),
+    referenceProvider: asKind(
+      'REFERENCE_PROVIDER',
+      env.REFERENCE_PROVIDER,
+      'mock',
+      REFERENCE_PROVIDER_CHOICES,
+    ),
     referenceBaseUrl: env.REFERENCE_BASE_URL ?? 'https://cn.bing.com',
     referenceTimeoutMs: asPositiveInt(env.REFERENCE_TIMEOUT_MS, 5000),
     // 引擎缺省**仍是 mock**:它不联网、不出账单,是"不会意外花钱"的那一个
     // (与 AGENT_LLM 缺省 mock 同一条理由)。
-    makeupEngine: asMakeupEngineKind(env.MAKEUP_ENGINE, 'mock'),
+    makeupEngine: asKind('MAKEUP_ENGINE', env.MAKEUP_ENGINE, 'mock', MAKEUP_ENGINE_CHOICES),
     // 四次实测(§4.4)全部基于 -plus;`-max` / `-2.0-pro` 值不值得换,本文没有对比数据(§14.1)。
     makeupModel: env.QWEN_IMAGE_MODEL ?? 'qwen-image-edit-plus',
     // 与对话模型共用一个域名开关(一个 key 打通两层,§7.5),但允许单独覆盖。
@@ -232,9 +265,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // 夹具目录缺省**不设**(见 ServerConfig 里那条注释:缺省不能有写盘副作用)。
     ...(makeupFixturesDir ? { makeupFixturesDir } : {}),
     // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。
-    weatherProvider: asWeatherKind(env.WEATHER_PROVIDER, 'open-meteo'),
+    weatherProvider: asKind('WEATHER_PROVIDER', env.WEATHER_PROVIDER, 'live', WEATHER_PROVIDER_CHOICES),
     // 对话模型缺省 mock:不联网、不出账单(理由见 AgentLlmKind 的注释)。
-    agentLlm: asAgentLlmKind(env.AGENT_LLM, 'mock'),
+    agentLlm: asKind('AGENT_LLM', env.AGENT_LLM, 'mock', AGENT_LLM_CHOICES),
     // qwen-flash 实测 847ms 能跑完整两轮工具调用,是这三项里最快的一档。
     agentModel: env.AGENT_MODEL ?? 'qwen-flash',
     // 复用 DASHSCOPE_API_HOST(与生图脚本同一个域名开关),只是接上兼容模式路径;

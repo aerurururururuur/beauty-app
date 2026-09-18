@@ -5,7 +5,7 @@
 ## ★ 2026-09-11：本模块的性质变了（知情变更）
 
 **以前**：返回自绘示意条目，逐张标 `license`，红线是「**不抓网络图**」（见 roadmap §13-2）。
-**现在**：改为**真实外部检索**（`REFERENCE_PROVIDER=bing`），红线被**主动推翻**。
+**现在**：改为**真实外部检索**（`REFERENCE_PROVIDER=live`，当时写作 `bing`），红线被**主动推翻**。
 
 变更理由与实测原始记录见 `docs/plan/reference-fetch-feasibility.md`。这里只记结论与代价。
 
@@ -36,10 +36,9 @@
 | `infrastructure/reference-provider/bing-reference-provider.ts` | `BingReferenceProvider`：按部位各搜一次，解析结果页 HTML |
 | `infrastructure/reference-provider/parse-bing.ts` | `parseBingHits(html)`：纯函数，从 HTML 抠 `m="…"` 属性里的 `murl`/`purl`/`t` |
 | `infrastructure/reference-provider/mock-reference-provider.ts` | `MockReferenceProvider`：写死的中文标题样本，**不给 imageUrl / sourceUrl**（编一个假地址只会渲染出裂图） |
-| `infrastructure/reference-provider/off-reference-provider.ts` | `OffReferenceProvider`：恒返回空列表 |
 | `compose.ts` | `createReferencesModule({ kind, baseUrl, timeoutMs })`；`kind` 取自 `config.referenceProvider` |
 
-三个开关（`REFERENCE_PROVIDER`）：`mock`（缺省，离线，只出文字） / `off`（空） / `bing`（真实检索）。
+两个开关（`REFERENCE_PROVIDER`）：`mock`（缺省，离线，只出文字） / `live`（真实检索）。
 
 ## 检索词（**改这里之前先读**）
 
@@ -74,5 +73,5 @@
 ## 待办
 
 - **授权**：本模块目前**没有**合规的素材来源。要么回头做自绘/自有素材，要么拿到可授权的图源 ——
-  在解决之前，`REFERENCE_PROVIDER=bing` 上生产就是带着主办规则那条红线跑。
+  在解决之前，`REFERENCE_PROVIDER=live` 上生产就是带着主办规则那条红线跑。
 - 参考妆面按 `skinTone` 分层，让深肤色用户也有代表性 —— 需先扩展 port 形状，评估后再动。

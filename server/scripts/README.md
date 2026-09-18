@@ -192,7 +192,7 @@ npm run probe:tools -- --models qwen-plus,deepseek-v3
 上一节证明的是「**端点 + 模型 + 喂到嘴边的 schema**」这一层行不行;
 本脚本问的是**另一件事**:接进真链路之后,**提示词**会不会让模型干脆不调工具。
 
-起因见 `docs/plan/makeup-agent-design.md` §14.1:真模型(`AGENT_LLM=dashscope`,
+起因见 `docs/plan/makeup-agent-design.md` §14.1:真模型(`AGENT_LLM=real`(当时写作 `dashscope`),
 `qwen-plus`)在真会话里**一个工具都不调**,把整套妆面用散文写出来 ⇒ `lookSpec` 永远空
 ⇒ 界面那条出图入口摆不出来 ⇒ **用户拿不到图**。当时定位到 `system-prompt.ts` 的**规则 3**,
 但**每个变体只跑了 1 次**。本脚本是那一轮验证的可重复版本。

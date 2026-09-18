@@ -54,7 +54,7 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 
 | 想做什么 | 改这一行 | 计费 |
 | --- | --- | --- |
-| 让**对话**用真实模型 | `AGENT_LLM=dashscope` | 按 **token** |
+| 让**对话**用真实模型 | `AGENT_LLM=real` | 按 **token** |
 | 让**出图**真的生成 | `MAKEUP_ENGINE=image` | 按 **次** |
 
 两个都改就是全真。只改一个也完全正常，比如只想试真实对话、图仍走离线骨架。
@@ -75,12 +75,16 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 **启动就失败**，不会静默回落：
 
 ```
-AGENT_LLM=dashscope 但没有拿到 DASHSCOPE_API_KEY。请在 .env 里填上…
+AGENT_LLM=real 但没有拿到 DASHSCOPE_API_KEY。请在 .env 里填上…
 MAKEUP_ENGINE=image 但没有拿到 DASHSCOPE_API_KEY。请在 .env 里填上…
 ```
 
 这是故意的。配置错了却还能启动，是最容易拖到演示当天才炸的一类问题。
 要临时回到离线，把开关改回 `mock` 就行，不用删 key。
+
+开关**取值**写错走的是同一条路：`AGENT_LLM=dashscope`（旧值）或者拼错一个字母，服务同样
+**启动即失败**，报错会列出这一项的全部合法取值。以前不是这样——以前它悄悄回落成 `mock`，
+于是"以为自己开着真模型、对面其实是那段脚本"。
 
 想换端点改 `DASHSCOPE_API_HOST`，想换对话模型改 `AGENT_MODEL`，实测候选见 `npm run probe:tools -- --list`。
 
@@ -92,7 +96,7 @@ key 不会进 `ServerConfig` 对象，所以任何一次 `app.log.info(config)` 
 | 形态 | `.env` 要改的 | 花钱 | 说明 |
 | --- | --- | --- | --- |
 | **离线演示**，缺省 | 无 | 否 | 全流程能走通，包括那个出图确认框 |
-| **真对话 + 假图** | `AGENT_LLM=dashscope` + key | 按 token | 妆面是真的，图还是原图 |
+| **真对话 + 假图** | `AGENT_LLM=real` + key | 按 token | 妆面是真的，图还是原图 |
 | **全真** | 上面再加 `MAKEUP_ENGINE=image` | token + 按次 | 表单那条路在这个形态下不可用，见下 |
 
 ★ **`MAKEUP_ENGINE=image` 会让表单路径 `POST /api/jobs` 不可用。** 真实引擎需要一份妆面单
@@ -106,7 +110,7 @@ key 不会进 `ServerConfig` 对象，所以任何一次 `app.log.info(config)` 
 
 别拿它判断妆面质量，也别拿它当「模型会怎么回话」的证据。它除了一张写死在代码里的场合关键词表，
 不解析任何语义，也写不出 `brief` 里那几项结构化字段，只会把用户的话原样塞进 `sceneText`。
-那件事只有 `AGENT_LLM=dashscope` 能给出。
+那件事只有 `AGENT_LLM=real` 能给出。
 
 起服务时会打一行日志说明当前是不是离线配置，免得现场分不清对面是真模型还是那段脚本。
 
