@@ -1,0 +1,95 @@
+# 场合美妆镜 —— 本机/演示用编排。
+#
+#   docker compose up --build
+#   前端 http://localhost:8080   后端 http://localhost:3000
+#
+# build context 都是**仓库根**,不是各子目录 —— 两个 Dockerfile 里都写了原因
+# (前端构建要读后端源码里的 scene-rules.ts,见 vue/Dockerfile 文件头)。
+#
+# 缺省起来是**离线形态**:不挂 server/.env 时,两个服务都走 .env.example 里那套
+# 不产生账单的缺省(mock 引擎 + mock 对话)。要全真,把 server/.env 备好即可。
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: olyhks-server
+
+    # 本机的 server/.env(含 DASHSCOPE_API_KEY)。★ 它是**运行时注入**,
+    # 不进镜像、不进 git —— key 始终只在你机器上。
+    # required: false 是 Compose Spec 的写法(docker compose v2.24+):文件不存在也不报错,
+    # 刚 clone 下来没建 .env 时照样起得来。
+    env_file:
+      - path: ./server/.env
+        required: false
+
+    # ★★ 这三行**不是冗余**,是必需品:
+    #   env_file 是 Docker 在运行时注入环境变量,会**覆盖镜像里的 ENV**。
+    #   而 server/.env 里写着 HOST=127.0.0.1 —— 不钉回来的话,容器就只听 loopback,
+    #   `-p 3000:3000` 形同虚设:服务起来了、日志正常、docker ps 也在,宿主就是连不上。
+    #   DATA_DIR 同理:不钉就落回 .env 里的 ./data,那是**镜像层内**的路径,容器一重建全没。
+    #   compose 的 environment 优先于 env_file,所以这三行一定能赢。
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATA_DIR: /data
+
+    # 任务记录 + 上传的照片 + 产物都在这。用命名卷而不是 bind mount:
+    # 命名卷首次挂载会**继承镜像里 /data 的属主**(Dockerfile 里 chown node:node),
+    # 所以非 root 的 node 用户写得进去;bind mount 不继承,那条路要自己在宿主上 chown。
+    volumes:
+      - olyhks-data:/data
+
+    # 对宿主暴露 3000,方便直接用 curl 打后端(README 里那串最小联调就是这个端口)。
+    # 前端容器内部走 compose 网络,不经过这里。
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+    # 用 node 自己探活,不装 curl —— node:22-slim 里没有 curl,别为此把镜像撑大。
+    # node:22 有全局 fetch。
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  vue:
+    build:
+      context: .
+      dockerfile: vue/Dockerfile
+      # VITE_* 是 build 期烘焙的,这里是唯一能设它们的地方 ——
+      # 起容器时再给 -e VITE_USE_MOCK=false 完全无效。理由见 vue/Dockerfile。
+      args:
+        VITE_USE_MOCK: "false"
+        VITE_API_BASE: "/api"
+    image: olyhks-vue
+
+    # 等后端**健康**再起,不是等它"启动了"。否则首屏那几个请求会撞 502。
+    depends_on:
+      server:
+        condition: service_healthy
+
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  olyhks-data:
+
+# ⚠️ 两条已知的"挂进来也用不了":
+#
+# 1. MAKEUP_FIXTURES_DIR —— 它要的是**容器内**的绝对路径。server/.env 里若写的是宿主路径
+#    (如 D:\...\__fixtures__),容器里不存在,replay 模式会明确报错(不会给假图,这点是好的)。
+#    真要用 replay:把夹具目录也挂进去,并把这一项改成容器内路径。
+#    另外 __fixtures__ 目前只有 README,还没有录过夹具。
+#
+# 2. 数据是**命名卷** olyhks-data,不是宿主目录。想直接在宿主上看任务记录:
+#      docker compose cp server:/data ./data-copy
+#    或者把 volumes 换成 bind mount(- ./server/data:/data),但要自己解决属主。

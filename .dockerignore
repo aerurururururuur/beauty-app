@@ -1,0 +1,32 @@
+# build context 排除清单。**这不是为了瘦身,第一要务是别把隐私和密钥烤进镜像层。**
+#
+# ★ 为什么必须先排除 `.env` 和 `server/data/`:
+#   docker build 会把整个 context 发给 daemon。这两样一旦发出去,即使后续在 Dockerfile 里
+#   删掉,`docker history` / 层文件系统里仍能捞回来 —— 删除不产生"没发生"。
+#   `server/data/inputs/` 里是**真实人脸照**(隐私红线,见 README 的 TTL 承诺),
+#   `server/.env` 里是能直接计费的 `DASHSCOPE_API_KEY`。
+
+# ── 密钥与隐私:最高优先级 ────────────────────────────────────
+**/.env
+**/.env.*
+# 例外:示例文件没有真实取值,且是 .env 的**注释单一源**(见 server/README.md),
+# 留着不碍事。否定规则必须写在对应排除规则**之后**(后匹配者胜)。
+!**/.env.example
+server/data/
+server/data-e2e/
+server/out/
+
+# ── 体积与噪声(构建产物在镜像内重新生成)──────────────────────
+**/node_modules/
+**/dist/
+**/*.tsbuildinfo
+server/scripts/assets/
+.git/
+.gitignore
+.claude/
+.idea/
+.vscode/
+docs/
+**/*.md
+**/*.webp
+**/*.log
