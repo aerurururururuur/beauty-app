@@ -18,7 +18,7 @@ import {
   itemIdSchema,
   ownerQuerySchema,
   updateItemSchema,
-} from '../schemas/cosmetic-item.js';
+} from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 清洗后的一条特性。 */

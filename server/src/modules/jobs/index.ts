@@ -35,10 +35,10 @@ export {
   MAX_SCENE_TEXT,
   jobSubmitSchema,
   metaSchema,
-} from './domain/schemas/job-submit.js';
-export type { JobSubmitRaw, MetaScalar, UploadFileMeta } from './domain/schemas/job-submit.js';
-export { jobIdSchema } from './domain/schemas/job-id.js';
-export type { JobIdScalar } from './domain/schemas/job-id.js';
+} from './domain/schemas/index.js';
+export type { JobSubmitRaw, MetaScalar, UploadFileMeta } from './domain/schemas/index.js';
+export { jobIdSchema } from './domain/schemas/index.js';
+export type { JobIdScalar } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 export { validateJobId } from './domain/validators/job-id.validator.js';
@@ -55,7 +55,7 @@ export type {
   JobResultView,
   JobView,
   SubmitJobResponse,
-} from './domain/api/job-view.js';
+} from './domain/schemas/index.js';
 
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { JobRepository } from './domain/ports/job-repository.js';

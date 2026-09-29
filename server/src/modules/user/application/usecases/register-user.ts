@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { createUser } from '../../domain/entities/user.js';
-import type { UserView } from '../../domain/api/user-view.js';
+import type { UserView } from '../../domain/schemas/index.js';
 import { validateCredentials } from '../../domain/validators/user.validator.js';
 import type { PasswordHasher } from '../../domain/ports/password-hasher.js';
 import type { UserRepository } from '../../domain/ports/user-repository.js';

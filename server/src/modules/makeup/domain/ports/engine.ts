@@ -28,7 +28,7 @@ export interface EngineInput {
    *
    * 1. **`brief` 是"用户填的",`LookSpec` 是"算出来的"。** 两者的来源与可信度都不是一回事,
    *    混进同一个包里,"同一层里 occasion 以谁为准"就变成一个需要解释的问题。
-   * 2. ★ **`brief` 会泄漏进 `JobView`**(`jobs/domain/api/job-view.ts:17`),
+   * 2. ★ **`brief` 会泄漏进 `JobView`**(`jobs/domain/schemas/api/job-view.ts:17`),
    *    而 §6 规矩 3 明写「**不要让它泄漏进 `JobView`**」。塞进 `brief` 会**同时**让
    *    `POST /api/jobs` 的校验器接受它——那是把一条引擎私有契约接上了 HTTP 边界。
    *

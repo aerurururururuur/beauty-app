@@ -18,7 +18,7 @@ import {
   type JobSubmitRaw,
   type MetaScalar,
   type UploadFileMeta,
-} from '../schemas/job-submit.js';
+} from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 通过校验、可交给用例/仓库使用的输入标量。 */

@@ -1,5 +1,5 @@
 /**
- * domain/validators/content.validator.ts —— 内容文件的行为(形状在 `../schemas/content.ts`)。
+ * domain/validators/content.validator.ts —— 内容文件的行为(形状在 `../schemas/entities/content.ts`)。
  *
  * ★ **这里唯一的职责是:坏数据不许静默溜进去。**
  *   少了它,一条字段缺失的产品会被读成"这条没什么可推荐的",而模型会照着
@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { zodIssuesMessage } from '../../../shared/index.js';
-import { libraryFileSchema, productFileSchema } from '../schemas/content.js';
+import { libraryFileSchema, productFileSchema } from '../schemas/index.js';
 import type { ProductLibrary } from '../entities/library.js';
 import type { Product } from '../entities/product.js';
 

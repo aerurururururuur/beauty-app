@@ -11,7 +11,7 @@
 | --- | --- |
 | `domain/entities/product.ts` | `Product`：`{ id, number, name, category, dimensions, derived, notes? }`。★ `dimensions`(**原文**) 与 `derived`(**我们生成的索引**) 物理分开 |
 | `domain/entities/library.ts` | `ProductLibrary` / `LibraryCategory` / `MatchingGuide` / `LibraryHealth` |
-| `domain/schemas/content.ts` | 两种内容文件的形状（zod `.strict()` 单源） |
+| `domain/schemas/entities/content.ts` | 两种内容文件的形状（zod `.strict()` 单源） |
 | `domain/ports/product-catalog.ts` | `ProductCatalog` 端口：`overview()` / `find(id)`。**同步**方法 |
 | `domain/validators/content.validator.ts` | 校验 + 抛一句人看得懂的话。抛普通 `Error`，**不是 `AppError`** |
 | `infrastructure/json/content-loader.ts` | `JsonProductCatalog`：扫目录 → 内存 Map |
@@ -66,7 +66,7 @@
 - **加库**：`products/` 下加一个平级目录，各自有 `library.json`。本模块的类型不用动。
 - **加类目**：改 `scripts/import-products.ts` 的 `CATEGORIES`，重导。
 - **加维度**：改 `DIMENSIONS`（导入器）+ `DIMENSION_KEYS`/`DIMENSION_LABELS`（`entities/product.ts`）
-  + `dimensionsSchema`（`schemas/content.ts`）——**三处，缺一处启动就炸**（`.strict()` 会抓到）。
+  + `dimensionsSchema`（`schemas/entities/content.ts`）——**三处，缺一处启动就炸**（`.strict()` 会抓到）。
 
 ## 待办
 

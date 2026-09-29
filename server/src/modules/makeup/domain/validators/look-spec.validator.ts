@@ -1,7 +1,7 @@
 /**
  * makeup/domain/validators/look-spec.validator.ts —— `LookSpec` 的校验**行为**。
  *
- * 分工:`schemas/look-spec.ts` 只声明形状;这里执行形状表达不了的两件事:
+ * 分工:`schemas/contracts/look-spec.ts` 只声明形状;这里执行形状表达不了的两件事:
  *   ① 清洗与形状错误的中文化;
  *   ② ★ §6 规矩 4:**合法取值空间按 `skinTone` 收窄**——「不是生成完再检查」。
  *
@@ -21,7 +21,7 @@ import type { SkinTone } from '../../../shared/index.js';
 import type { LookSpec } from '../entities/look-spec.js';
 import { ZONE_ROLES } from '../entities/look-spec.js';
 import type { SkinTonePalette } from '../ports/skin-tone-palette.js';
-import { lookSpecSchema } from '../schemas/look-spec.js';
+import { lookSpecSchema } from '../schemas/index.js';
 
 // ⚠️ 那张 `TONE_KEYS_BY_SKIN_TONE` 已经不在这里了 —— 它连同 `SKIN_TONE_CN` 一起
 //    变成了**词表目录里的内容**(`assests/face-catalog/skin-tones.json` 的 `toneKeys` /

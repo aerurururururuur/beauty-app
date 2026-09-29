@@ -10,9 +10,9 @@
 | 路径 | 内容 |
 | --- | --- |
 | `domain/ports/weather-provider.ts` | `WeatherProvider` 端口（`name` + `fetch`）、`WeatherResult`、两个契约错误 `CityNotFoundError` / `WeatherUpstreamError` |
-| `domain/schemas/weather-query.ts` | 查询串形状（全是字符串）+ `MAX_CITY` |
+| `domain/schemas/api/weather-query.ts` | 查询串形状（全是字符串）+ `MAX_CITY` |
 | `domain/validators/weather-query.validator.ts` | 行为：city 与坐标二选一、坐标解析与夹逼、`city` trim |
-| `domain/api/weather-view.ts` | ★ 对外契约 `WeatherView`（前端可直接塞进 `brief.weather`） |
+| `domain/schemas/api/weather-view.ts` | ★ 对外契约 `WeatherView`（前端可直接塞进 `brief.weather`） |
 | `application/usecases/get-weather.ts` | `GetWeather`：**上游错误 → 业务错误码的唯一翻译点** |
 | `application/weather-view.ts` | `WeatherResult` → `WeatherView`（只展开有值的字段） |
 | `infrastructure/open-meteo/` | 实拉适配器 + `wmo.ts`（WMO 码 → 中文简述） |

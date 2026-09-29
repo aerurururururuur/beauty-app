@@ -20,7 +20,7 @@
 | `domain/ports/user-directory.ts` | `exists(userId)`——开会话时校验归属用户存在。★ 与 `cabinet` 那份**同名同形但不是同一个类型**（不 import cabinet）；组装根用**同一个闭包**满足两边 |
 | `domain/ports/session-artifacts.ts` | ★ 照片与成品图的端口。**底下就是 `assets` 的 `ArtifactStore`**（2026-09-16 拍板：不新写第二套照片存储），由组装根包一层注入。★ 另有 `listStored()`：**问盘上"有哪些会话目录"**（不是问会话存储），它是 TTL 清理**第二遍扫盘**的输入，用来删掉上一进程留下的孤儿 |
 | `domain/tools/` | `tool.ts`（工具形状 + `ToolContext.confirmation`）+ `definitions.ts`（**给模型看的契约**，是产品文案） |
-| `domain/schemas/` | `brief-patch.ts` / `agent-http.ts`（纯形状）+ `domain/validators/`（行为与中文错误） |
+| `domain/schemas/` | `api/brief-patch.ts` / `api/agent-http.ts`（纯形状；无 `entities/`——会话不落盘）+ `domain/validators/`（行为与中文错误） |
 | `application/agent-loop.ts` | ★ **harness**。本模块唯一有真实复杂度的地方；文件头列了六条被结构钉死的不变量 |
 | `application/system-prompt.ts` | 每轮现拼的系统提示（嵌当前 brief / LookSpec / 出图状态 + 七条硬规则；★ 版本号与沿革都在文件头） |
 | `application/brief-description.ts` | 把"agent 现在知道什么"讲成一行字。★ 值**原样透出**，不建中文标签表（那会是第三份，见 `narration.ts` 记的教训） |
@@ -363,7 +363,7 @@
       合成 `shared/domain/validators/zod-issues.ts`。★ 本模块那份 `describeIssues` **没有**跟着合并，
       而且不该并：它给**模型**看（错误会回填成 observation），必须带上合法取值清单；
       shared 那份给**人**看（HTTP 错误体）。**两份的消费者不同 ⇒ 不是重复。**
-      ② **简报字段共用一份**（`shared/domain/schemas/brief-fields.ts`）——`patch_brief` 的
+      ② **简报字段共用一份**（`shared/domain/schemas/contracts/brief-fields.ts`）——`patch_brief` 的
       `briefPatchSchema` 与 `POST /api/jobs` 的 `metaSchema` 现在铺开的是同一份字段定义，
       一致性由 `test/schemas.test.ts` 的**表驱动对拍**钉住（**故意不靠注释维持**）。
       只共用**字段**，不共用对象：`jobs` 多一个 `weather`，两边各自留 `.strict()`。

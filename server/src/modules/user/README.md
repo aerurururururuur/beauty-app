@@ -13,9 +13,9 @@
 | `domain/entities/user.ts` | `User{ id, nickname, passwordHash, createdAt }` + `createUser` 工厂 |
 | `domain/ports/user-repository.ts` | `UserRepository`：`save` / `findById` / `findByNickname` |
 | `domain/ports/password-hasher.ts` | `PasswordHasher`：`hash` / `verify`（领域不认识 scrypt） |
-| `domain/schemas/user.ts` | 形状：凭据（昵称/密码的字符串与长度上界）、用户 id 格式 + 长度常量 |
+| `domain/schemas/entities/user.ts` | 形状：凭据（昵称/密码的字符串与长度上界）、用户 id 格式 + 长度常量 |
 | `domain/validators/user.validator.ts` | 行为：清洗昵称（trim）、长度夹逼、拒控制字符、`VALIDATION_ERROR` |
-| `domain/api/user-view.ts` | ★ 对外契约 `UserView`——**不含 passwordHash** |
+| `domain/schemas/api/user-view.ts` | ★ 对外契约 `UserView`——**不含 passwordHash** |
 | `application/usecases/` | `RegisterUser` / `AuthenticateUser` / `GetUser` |
 | `application/user-view.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体） |
 | `infrastructure/json/user-repository.ts` | 账号表落 `dataDir/users/users.json`（tmp + rename 原子写） |

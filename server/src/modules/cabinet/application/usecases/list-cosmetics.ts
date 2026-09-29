@@ -4,7 +4,7 @@
  * 保证同一批数据每次渲染顺序一致——UI 上条目乱跳比"排序不好看"更烦人。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import type { CosmeticListView } from '../../domain/api/cosmetic-item-view.js';
+import type { CosmeticListView } from '../../domain/schemas/index.js';
 import type { CosmeticRepository } from '../../domain/ports/cosmetic-repository.js';
 import type { UserDirectory } from '../../domain/ports/user-directory.js';
 import { validateOwnerQuery } from '../../domain/validators/cosmetic-item.validator.js';

@@ -9,7 +9,7 @@
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { CityNotFoundError } from '../../domain/ports/weather-provider.js';
 import type { WeatherProvider, WeatherResult } from '../../domain/ports/weather-provider.js';
-import type { WeatherView } from '../../domain/api/weather-view.js';
+import type { WeatherView } from '../../domain/schemas/index.js';
 import { validateWeatherQuery } from '../../domain/validators/weather-query.validator.js';
 import { toWeatherView } from '../weather-view.js';
 

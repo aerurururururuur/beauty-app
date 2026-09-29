@@ -33,7 +33,7 @@
  */
 import type { Occasion } from '../../../shared/index.js';
 import type { LookSpec } from '../../../makeup/index.js';
-import { MAX_SCENE_TEXT } from '../../domain/schemas/brief-patch.js';
+import { MAX_SCENE_TEXT } from '../../domain/schemas/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
 import { PHOTO_ATTACHED_NOTE } from '../../domain/tools/observations.js';
 import {

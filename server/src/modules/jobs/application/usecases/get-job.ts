@@ -2,7 +2,7 @@
  * application/usecases/get-job.ts —— 查询任务用例(供轮询)。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import type { JobView } from '../../domain/api/job-view.js';
+import type { JobView } from '../../domain/schemas/index.js';
 import type { JobRepository } from '../../domain/ports/job-repository.js';
 import { toJobView } from '../jobs-view.js';
 

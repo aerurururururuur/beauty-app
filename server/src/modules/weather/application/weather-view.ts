@@ -4,7 +4,7 @@
  * 再补上回显用的 place / source。无 IO、无框架。
  */
 import type { WeatherResult } from '../domain/ports/weather-provider.js';
-import type { WeatherView } from '../domain/api/weather-view.js';
+import type { WeatherView } from '../domain/schemas/index.js';
 
 export function toWeatherView(result: WeatherResult): WeatherView {
   const view: WeatherView = { source: result.source };

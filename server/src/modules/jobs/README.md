@@ -8,11 +8,11 @@
 | --- | --- |
 | `domain/entities/job.ts` | ★ Job 状态机纯函数：`queued → running → done|failed`、步骤单调推进（queued0→scene_understand20→reference_gather40→makeup_generate70→store_result100）、`advanceTo/startJob/finishJob/failJob/recordScene/recordReferences/displayInputs` 等 |
 | `domain/entities/error.ts` | `JobError`（jobs 持有，与 makeup 的 ResultText 分开归属） |
-| `domain/schemas/job-submit.ts` | ★ 形状 SSOT：`jobSubmitSchema`（face/scene/metaRaw）+ `metaSchema`（brief 形状：occasion/肤质肤色/穿搭/天气/自由文字，`.strict()`）+ 上限常量 |
-| `domain/schemas/job-id.ts` | `jobIdSchema`（`:id` 形状） |
+| `domain/schemas/api/job-submit.ts` | ★ 形状 SSOT：`jobSubmitSchema`（face/scene/metaRaw）+ `metaSchema`（brief 形状：occasion/肤质肤色/穿搭/天气/自由文字，`.strict()`）+ 上限常量 |
+| `domain/schemas/api/job-id.ts` | `jobIdSchema`（`:id` 形状） |
 | `domain/validators/*` | **校验行为**：`validateSubmitJob`(meta JSON 解析+业务码+清洗→`SubmitJobInput`) · `validateJobId`。★ 原先这里还有一份 `validate.ts`(`zodIssuesMessage`)，**2026-09-16 已上提到 `shared`**（四份逐字相同的副本合成一份，本模块不再持有） |
 | `domain/ports/job-repository.ts` / `job-queue.ts` | 仓库 / 队列端口（本模块持契约） |
-| `domain/api/job-view.ts` | ★ 对外契约 DTO：`JobView/SubmitJobResponse/ErrorBody…`（联调唯一真源） |
+| `domain/schemas/api/job-view.ts` | ★ 对外契约 DTO：`JobView/SubmitJobResponse/ErrorBody…`（联调唯一真源） |
 | `application/usecases/*` | `SubmitJob` / `RunPipeline` / `GetJob` / `GetJobResult` |
 | `application/jobs-view.ts` | 领域对象 → JobView |
 | `presentation/multipart.ts` | 归口 `face`(1) / `scene`(0..6) 文件 + `meta`(JSON) 标量 |
@@ -33,4 +33,4 @@
 - **现状**：状态机/仓库/队列/用例/控制器已全通，45 个单测覆盖。
 - **明确不做**：队列持久化（重启丢可接受）、外部中间件——竞赛无削峰需求。
 - **待办**：接真实引擎后核对端到端耗时；若单任务由秒级变几十秒，确认轮询/超时/前端 loading 扛得住（改动点在 controller + vue 轮询，不动状态机）。
-- **怎么改契约**：改 `domain/api/job-view.ts`（DTO）+ `domain/schemas`（形状）+ validator（行为），三处成套，别漏。
+- **怎么改契约**：改 `domain/schemas/api/job-view.ts`（DTO）+ `domain/schemas`（形状）+ validator（行为），三处成套，别漏。

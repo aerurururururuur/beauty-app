@@ -1,5 +1,5 @@
 /**
- * makeup/domain/schemas/look-spec.ts —— `LookSpec` 的「形状 / 契约」(zod,**无行为**)。
+ * makeup/domain/schemas/contracts/look-spec.ts —— `LookSpec` 的「形状 / 契约」(zod,**无行为**)。
  *
  * 只声明结构:字段在不在、类型对不对、数值在不在闭区间内。
  * **形状表达不了的规则一律不在这里**——具体说就是 §6 规矩 4 那条
@@ -8,7 +8,7 @@
  * 这里不写 `refine` / `transform`,不做任何动作。
  */
 import { z } from 'zod';
-import { OCCASIONS } from '../../../shared/index.js';
+import { OCCASIONS } from '../../../../shared/index.js';
 import {
   BROW_SHAPES,
   FINISHES,
@@ -17,7 +17,7 @@ import {
   TONE_KEYS,
   WARMTH_MAX,
   WARMTH_MIN,
-} from '../entities/look-spec.js';
+} from '../../entities/look-spec.js';
 
 /** 浓度档:整数 1..5(上下界与实体同源)。 */
 const intensitySchema = z.number().int().min(INTENSITY_MIN).max(INTENSITY_MAX);

@@ -1,5 +1,5 @@
 /**
- * domain/api/user-view.ts —— ★ 对外 API 契约 / DTO 类型。
+ * domain/schemas/api/user-view.ts —— ★ 对外 API 契约 / DTO 类型。
  * 前后端以此联调;类型唯一真源。presentation 直接返回这些形状,
  * application 只负责把领域对象映射过来(见 application/user-view.ts)。
  * 不引入网络/框架类型,保持纯数据。

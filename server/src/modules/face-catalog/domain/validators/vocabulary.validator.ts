@@ -1,5 +1,5 @@
 /**
- * domain/validators/vocabulary.validator.ts —— 面部词表的行为(形状在 `../schemas/vocabulary.ts`)。
+ * domain/validators/vocabulary.validator.ts —— 面部词表的行为(形状在 `../schemas/entities/vocabulary.ts`)。
  *
  * ★ **这里唯一的职责是:坏词表不许静默溜进去。**
  *   少了它,一份 `toneKeys` 写空的词表会读成"这一档没什么色可选",而模型会照着
@@ -16,7 +16,7 @@ import {
   FaceVocabulary,
   SkinToneTier,
 } from '../entities/face-vocabulary.js';
-import { featureFileSchema, skinToneFileSchema } from '../schemas/vocabulary.js';
+import { featureFileSchema, skinToneFileSchema } from '../schemas/index.js';
 
 /**
  * 代码里那份元组的集合形式。

@@ -147,11 +147,11 @@ export { GetRender } from './application/usecases/get-render.js';
 export type { RenderArtifact } from './application/usecases/get-render.js';
 // ★ `patch_brief` 的入参形状。**导出它是为了让一条跨模块的契约可测**:
 //   表单那条路(`jobs` 的 `metaSchema`)与本模块这条补丁路共用同一份字段规则
-//   (见 `shared/domain/schemas/brief-fields.ts`),而"两条路给同一个答案"这件事
+//   (见 `shared/domain/schemas/contracts/brief-fields.ts`),而"两条路给同一个答案"这件事
 //   只有在同一处拿到**两边**的 schema 时才验得了(`test/schemas.test.ts`)。
 //   没有这个export,那条测试就只能各写一遍断言——那正是它要防的东西。
-export { briefPatchSchema } from './domain/schemas/brief-patch.js';
-export type { BriefPatchRaw } from './domain/schemas/brief-patch.js';
+export { briefPatchSchema } from './domain/schemas/index.js';
+export type { BriefPatchRaw } from './domain/schemas/index.js';
 export {
   DEFAULT_SESSION_TTL_HOURS,
   PurgeExpiredSessions,

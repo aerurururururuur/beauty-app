@@ -4,7 +4,7 @@
  * 对外视图必须经这里产出,别把实体直接回给客户端。
  */
 import type { User } from '../domain/entities/user.js';
-import type { UserView } from '../domain/api/user-view.js';
+import type { UserView } from '../domain/schemas/index.js';
 
 export function toUserView(user: User): UserView {
   return {

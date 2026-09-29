@@ -2,7 +2,7 @@
  * domain/entities/face-vocabulary.ts —— 面部词表的实体。
  *
  * 三处分工,照 `products` 的先例:
- *   `../schemas/vocabulary.ts`             两个 JSON 文件的形状(zod)
+ *   `../schemas/entities/vocabulary.ts`             两个 JSON 文件的形状(zod)
  *   `../validators/vocabulary.validator.ts` 形状之外的规则,坏数据在这里抛普通 `Error`
  *   本文件                                  把**已经校验过的**两棵树装成可查询的对象
  *

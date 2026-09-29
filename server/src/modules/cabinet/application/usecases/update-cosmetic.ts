@@ -5,7 +5,7 @@
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { updateCosmeticItem } from '../../domain/entities/cosmetic-item.js';
-import type { CosmeticItemView } from '../../domain/api/cosmetic-item-view.js';
+import type { CosmeticItemView } from '../../domain/schemas/index.js';
 import type { CosmeticRepository } from '../../domain/ports/cosmetic-repository.js';
 import { validateItemId, validateUpdateInput } from '../../domain/validators/cosmetic-item.validator.js';
 import { toCosmeticItemView } from '../cabinet-view.js';

@@ -9,7 +9,7 @@ import type { ImageRef, MakeupBrief } from '../../../shared/index.js';
 import type { ArtifactStore, UploadFile } from '../../../assets/index.js';
 import { createQueuedJob } from '../../domain/entities/job.js';
 import type { JobUpload } from '../../domain/entities/job.js';
-import type { SubmitJobResponse } from '../../domain/api/job-view.js';
+import type { SubmitJobResponse } from '../../domain/schemas/index.js';
 import { validateSubmitJob } from '../../domain/validators/job-submit.validator.js';
 import type { JobRepository } from '../../domain/ports/job-repository.js';
 import type { JobQueue } from '../../domain/ports/job-queue.js';

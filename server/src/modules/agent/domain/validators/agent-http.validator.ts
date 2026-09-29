@@ -1,11 +1,11 @@
 /**
  * domain/validators/agent-http.validator.ts —— HTTP 入参的校验**行为**。
- * 形状在 `schemas/agent-http.ts`;这里只做形状表达不了的事:清洗 + 中文错误。
+ * 形状在 `schemas/api/agent-http.ts`;这里只做形状表达不了的事:清洗 + 中文错误。
  * (长度上限这类"单字段闭区间"归 schema,不在这里重复一遍。)
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import { confirmRenderSchema, startSessionSchema, sendMessageSchema } from '../schemas/agent-http.js';
-import type { ConfirmRenderRaw, SendMessageRaw, StartSessionRaw } from '../schemas/agent-http.js';
+import { confirmRenderSchema, startSessionSchema, sendMessageSchema } from '../schemas/index.js';
+import type { ConfirmRenderRaw, SendMessageRaw, StartSessionRaw } from '../schemas/index.js';
 import { describeIssues } from './validate.js';
 
 function fail(message: string): never {

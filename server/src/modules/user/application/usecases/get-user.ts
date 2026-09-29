@@ -2,7 +2,7 @@
  * application/usecases/get-user.ts —— 按 id 查档案用例(前端登录后拿 id 回读自身)。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import type { UserView } from '../../domain/api/user-view.js';
+import type { UserView } from '../../domain/schemas/index.js';
 import type { UserRepository } from '../../domain/ports/user-repository.js';
 import { toUserView } from '../user-view.js';
 

@@ -1,5 +1,5 @@
 /**
- * domain/schemas/job-id.ts —— 路径参数 :id 的运行时校验(zod)。
+ * domain/schemas/api/job-id.ts —— 路径参数 :id 的运行时校验(zod)。
  */
 import { z } from 'zod';
 

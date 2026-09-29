@@ -4,7 +4,7 @@
  */
 import { displayInputs } from '../domain/entities/job.js';
 import type { JobRecord } from '../domain/entities/job.js';
-import type { JobView } from '../domain/api/job-view.js';
+import type { JobView } from '../domain/schemas/index.js';
 
 export function toJobView(rec: JobRecord): JobView {
   return {

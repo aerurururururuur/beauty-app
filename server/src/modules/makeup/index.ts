@@ -29,7 +29,7 @@ export {
   WARMTH_MIN,
   ZONE_ROLES,
 } from './domain/entities/look-spec.js';
-export { lookSpecSchema } from './domain/schemas/look-spec.js';
+export { lookSpecSchema } from './domain/schemas/index.js';
 // ★ **色域表不再从这里导出**(`TONE_KEYS_BY_SKIN_TONE` 已删):档位表进了词表目录,
 //   要按肤色取色域请走 `SkinTonePalette` 端口,由组装根注入。
 export { validateLookSpec } from './domain/validators/look-spec.validator.js';

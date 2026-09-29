@@ -26,8 +26,8 @@ export {
   ownerIdSchema,
   ownerQuerySchema,
   updateItemSchema,
-} from './domain/schemas/cosmetic-item.js';
-export type { CreateItemRaw, UpdateItemRaw } from './domain/schemas/cosmetic-item.js';
+} from './domain/schemas/index.js';
+export type { CreateItemRaw, UpdateItemRaw } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 export {
@@ -48,7 +48,7 @@ export type {
   CosmeticAttributeView,
   CosmeticItemView,
   CosmeticListView,
-} from './domain/api/cosmetic-item-view.js';
+} from './domain/schemas/index.js';
 
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { CosmeticRepository } from './domain/ports/cosmetic-repository.js';

@@ -1,5 +1,5 @@
 /**
- * domain/schemas/weather-query.ts —— 天气查询入参的「形状/契约」(zod,无行为)。
+ * domain/schemas/api/weather-query.ts —— 天气查询入参的「形状/契约」(zod,无行为)。
  * 只声明结构:查询串里全是字符串,故坐标先按字符串收,数值解析与取值范围
  * (纬经度夹逼、city 与坐标二选一)属 domain/validators/weather-query.validator.ts 的活。
  */

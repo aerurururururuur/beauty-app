@@ -1,5 +1,5 @@
 /**
- * domain/schemas/vocabulary.ts —— 面部词表两个 JSON 文件的形状(zod 单源)。
+ * domain/schemas/entities/vocabulary.ts —— 面部词表两个 JSON 文件的形状(zod 单源)。
  *
  * ★ `schema` 与 `validator` 分工照 `products` / `cabinet` 的先例:**这里只描述形状**,
  *   "读文件 → 校验 → 抛一句人看得懂的话"在 `domain/validators/` 里。
@@ -11,7 +11,7 @@
  *   实际抛错在 validator 里,这里只给形状。
  */
 import { z } from 'zod';
-import { GEOMETRY_SLOTS, TONE_KEYS } from '../../../shared/index.js';
+import { GEOMETRY_SLOTS, TONE_KEYS } from '../../../../shared/index.js';
 
 /**
  * 一个特征取值在提示词里的去向。

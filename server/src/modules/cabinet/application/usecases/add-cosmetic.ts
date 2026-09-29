@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { MAX_ITEMS_PER_USER, createCosmeticItem } from '../../domain/entities/cosmetic-item.js';
-import type { CosmeticItemView } from '../../domain/api/cosmetic-item-view.js';
+import type { CosmeticItemView } from '../../domain/schemas/index.js';
 import type { CosmeticRepository } from '../../domain/ports/cosmetic-repository.js';
 import type { UserDirectory } from '../../domain/ports/user-directory.js';
 import { validateCreateInput } from '../../domain/validators/cosmetic-item.validator.js';

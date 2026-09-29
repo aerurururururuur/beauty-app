@@ -16,7 +16,7 @@ import {
   MIN_PASSWORD,
   credentialsSchema,
   userIdSchema,
-} from '../schemas/user.js';
+} from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
 
 /** 通过校验、可交给用例使用的账号凭据(密码仍是明文,仅在内存中流转)。 */

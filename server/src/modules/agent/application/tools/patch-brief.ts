@@ -9,7 +9,7 @@
 import type { MakeupBrief } from '../../../shared/index.js';
 import { PATCH_BRIEF } from '../../domain/tools/definitions.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
-import { briefPatchSchema } from '../../domain/schemas/brief-patch.js';
+import { briefPatchSchema } from '../../domain/schemas/index.js';
 import { patchBrief as applyPatch } from '../../domain/entities/session.js';
 import { describeBrief } from '../brief-description.js';
 import { describeIssues } from '../../domain/validators/validate.js';

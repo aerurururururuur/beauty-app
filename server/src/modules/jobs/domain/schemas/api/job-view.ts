@@ -1,14 +1,14 @@
 /**
- * domain/api/job-view.ts —— ★ 对外 API 契约 / DTO 类型。
+ * domain/schemas/api/job-view.ts —— ★ 对外 API 契约 / DTO 类型。
  * 前后端以此联调;类型唯一真源。presentation 直接返回这些形状,
  * application 只负责把领域对象映射过来(见 application/mapping)。
  * 不引入网络/框架类型,保持纯数据。
  */
-import type { MakeupBrief, SceneDescriptor } from '../../../shared/index.js';
-import type { ReferenceImage } from '../../../references/index.js';
-import type { Look, ResultText } from '../../../makeup/index.js';
-import type { JobError } from '../entities/error.js';
-import type { JobStatus, PipelineStep } from '../entities/job.js';
+import type { MakeupBrief, SceneDescriptor } from '../../../../shared/index.js';
+import type { ReferenceImage } from '../../../../references/index.js';
+import type { Look, ResultText } from '../../../../makeup/index.js';
+import type { JobError } from '../../entities/error.js';
+import type { JobStatus, PipelineStep } from '../../entities/job.js';
 
 /** 给用户回显的最小输入(不含内部存储键)。 */
 export interface JobInputsView {

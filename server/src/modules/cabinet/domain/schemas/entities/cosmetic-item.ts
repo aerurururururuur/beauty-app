@@ -1,5 +1,5 @@
 /**
- * domain/schemas/cosmetic-item.ts —— 衣橱入参的「形状/契约」(zod,无行为)。
+ * domain/schemas/entities/cosmetic-item.ts —— 衣橱入参的「形状/契约」(zod,无行为)。
  * 只声明结构:名称/标签/值是字符串、长度各有上界、条数有上界(先挡住超大 payload),
  * id 是路径参数,只认 URL 安全字符。
  *

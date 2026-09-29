@@ -1,5 +1,5 @@
 /**
- * domain/api/weather-view.ts —— ★ 对外 API 契约 / DTO(GET /api/weather 响应体)。
+ * domain/schemas/api/weather-view.ts —— ★ 对外 API 契约 / DTO(GET /api/weather 响应体)。
  * 前端把 condition/temperatureC/humidityPct/uvIndex 直接塞进 brief.weather 即可,
  * 另两个字段是回显用的元信息(不给 brief 用)。
  * 不引入网络/框架类型,保持纯数据。

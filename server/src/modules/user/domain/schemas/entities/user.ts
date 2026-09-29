@@ -1,5 +1,5 @@
 /**
- * domain/schemas/user.ts —— 账号入参的「形状/契约」(zod,无行为)。
+ * domain/schemas/entities/user.ts —— 账号入参的「形状/契约」(zod,无行为)。
  * 只声明结构:昵称/密码是字符串、长度各有上界(先挡住超大 payload,别拿超长串喂 scrypt);
  * 用户 id 是路径参数,只认 URL 安全字符。
  *

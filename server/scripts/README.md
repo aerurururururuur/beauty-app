@@ -153,7 +153,7 @@ npm run import-products -- --docx <路径> --out <目录>
   「色号全部剥离」其实没剥干净)**不改写、不跳过**,而是由脚本**算出来**记进 `library.json`
   的 `health` 字段。体检报告是生成的、不是人工标注的,所以「修好源文档 → 重导」会自然清零。
   服务启动时会以 `warn` 打一行摘要(见 `src/index.ts`),详单在 `library.json` 里。
-- **产物形状**由 `src/modules/products/domain/schemas/content.ts` 的 zod 管。改了这里的输出、
+- **产物形状**由 `src/modules/products/domain/schemas/entities/content.ts` 的 zod 管。改了这里的输出、
   没跟着改那边的 schema → **服务启动即失败**(`.strict()` 会抓到)。这是故意的。
 
 **2026-09-16 首跑结果**:57 条 / 9 类目;体检报告报出 4 类已知问题 + 2 类附带发现

@@ -39,4 +39,4 @@ export type { ErrorCodeValue } from './domain/errors/app-error.js';
 //   · briefFields + 上限  —— 此前表单与对话两条路各写一遍「改一处要记得改另一处」
 // ⚠️ `agent/domain/validators/validate.ts` 那份**不在**这里,它是给模型看的变体,不是副本。
 export { zodIssuesMessage } from './domain/validators/zod-issues.js';
-export { briefFields, MAX_DRESS, MAX_SCENE_TEXT } from './domain/schemas/brief-fields.js';
+export { briefFields, MAX_DRESS, MAX_SCENE_TEXT } from './domain/schemas/index.js';

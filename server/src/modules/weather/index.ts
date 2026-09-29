@@ -11,12 +11,12 @@ export type {
 export { CityNotFoundError, WeatherUpstreamError } from './domain/ports/weather-provider.js';
 
 // ---- schemas / validators(形状与校验行为)----
-export { MAX_CITY, weatherQuerySchema } from './domain/schemas/weather-query.js';
-export type { WeatherQueryRaw } from './domain/schemas/weather-query.js';
+export { MAX_CITY, weatherQuerySchema } from './domain/schemas/index.js';
+export type { WeatherQueryRaw } from './domain/schemas/index.js';
 export { validateWeatherQuery } from './domain/validators/weather-query.validator.js';
 
 // ---- 对外 API 契约 / DTO ----
-export type { WeatherView } from './domain/api/weather-view.js';
+export type { WeatherView } from './domain/schemas/index.js';
 
 // ---- 用例 ----
 export { GetWeather } from './application/usecases/get-weather.js';

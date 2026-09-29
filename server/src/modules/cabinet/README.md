@@ -13,12 +13,12 @@
 | 路径 | 内容 |
 | --- | --- |
 | `domain/entities/cosmetic-item.ts` | `CosmeticItem{ id, userId, name, attributes[], createdAt, updatedAt? }` + 工厂 + `MAX_ITEMS_PER_USER` |
-| `domain/schemas/cosmetic-item.ts` | 形状：新增/修改入参、条目 id、归属查询 + 全部长度与条数常量 |
+| `domain/schemas/entities/cosmetic-item.ts` | 形状：新增/修改入参、条目 id、归属查询 + 全部长度与条数常量 |
 | `domain/validators/cosmetic-item.validator.ts` | 行为：trim、拒控制字符、**标签去重**、上下限、「修改至少要给一个字段」 |
 | ~~`domain/validators/validate.ts`~~ | ★ **已删（2026-09-16）**：那份 `zodIssuesMessage` 与 jobs / user / weather 逐字相同，四份**一起上提到了 `shared/domain/validators/zod-issues.ts`**。本模块的校验器现在从 `shared` 直接 import |
 | `domain/ports/cosmetic-repository.ts` | `CosmeticRepository`：`save` / `findById` / `listByUser` / `remove`（**不含**归属判断） |
 | `domain/ports/user-directory.ts` | `UserDirectory`：`exists(userId)`——本模块唯一与 user 有关的接缝 |
-| `domain/api/cosmetic-item-view.ts` | ★ 对外契约 `CosmeticItemView` / `CosmeticListView` |
+| `domain/schemas/api/cosmetic-item-view.ts` | ★ 对外契约 `CosmeticItemView` / `CosmeticListView` |
 | `application/usecases/` | `AddCosmetic` / `ListCosmetics` / `UpdateCosmetic` / `RemoveCosmetic` |
 | `application/cabinet-view.ts` | 实体 → 视图（特性是新建对象，不共享引用） |
 | `infrastructure/json/cosmetic-repository.ts` | 衣橱表落 `dataDir/cabinet/items.json`（tmp + rename 原子写） |

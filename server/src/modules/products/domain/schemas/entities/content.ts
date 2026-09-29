@@ -1,5 +1,5 @@
 /**
- * domain/schemas/content.ts —— 内容目录里那两种 JSON 的形状(zod 单源)。
+ * domain/schemas/entities/content.ts —— 内容目录里那两种 JSON 的形状(zod 单源)。
  *
  * ★ `schema` 与 `validator` 分工照 `cabinet` 的先例:**这里只描述形状**,
  *   "读文件 → 校验 → 抛一句人看得懂的话"在 `domain/validators/` 里。
@@ -11,7 +11,7 @@
  *   不是 `AppError`——内容坏了和请求坏了不是一类事。
  */
 import { z } from 'zod';
-import { DIMENSION_KEYS } from '../entities/product.js';
+import { DIMENSION_KEYS } from '../../entities/product.js';
 
 const dimensionKeySchema = z.enum(DIMENSION_KEYS);
 

@@ -4,7 +4,7 @@
  * (视图与领域对象从此互不影响,也顺带剥掉实体将来可能多出来的字段)。
  */
 import type { CosmeticItem } from '../domain/entities/cosmetic-item.js';
-import type { CosmeticItemView } from '../domain/api/cosmetic-item-view.js';
+import type { CosmeticItemView } from '../domain/schemas/index.js';
 
 export function toCosmeticItemView(item: CosmeticItem): CosmeticItemView {
   return {

@@ -18,15 +18,15 @@ export {
   MIN_PASSWORD,
   credentialsSchema,
   userIdSchema,
-} from './domain/schemas/user.js';
-export type { CredentialsRaw, UserIdScalar } from './domain/schemas/user.js';
+} from './domain/schemas/index.js';
+export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 export { validateCredentials, validateUserId } from './domain/validators/user.validator.js';
 export type { Credentials } from './domain/validators/user.validator.js';
 
 // ---- 对外 API 契约 / DTO ----
-export type { UserView } from './domain/api/user-view.js';
+export type { UserView } from './domain/schemas/index.js';
 
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { PasswordHasher } from './domain/ports/password-hasher.js';

@@ -1,5 +1,5 @@
 /**
- * agent/domain/schemas/agent-http.ts —— HTTP 入参的「形状」(zod,**无行为**)。
+ * agent/domain/schemas/api/agent-http.ts —— HTTP 入参的「形状」(zod,**无行为**)。
  *
  * 只声明结构;「会话不存在」「不是你的会话」「正文是空白」这类判断在用例里,
  * 用语义错误码表达(`schema ≠ validator` 的既有分工)。

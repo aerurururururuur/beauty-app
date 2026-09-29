@@ -1,5 +1,5 @@
 /**
- * agent/domain/schemas/brief-patch.ts —— `patch_brief` 工具入参的「形状」(zod,**无行为**)。
+ * agent/domain/schemas/api/brief-patch.ts —— `patch_brief` 工具入参的「形状」(zod,**无行为**)。
  *
  * 这是**同构于 `MakeupBrief` 的一个子集**,不是 `MakeupBrief` 本身,原因是分工不同:
  *   - `MakeupBrief` 是**流水线的输入契约**,由 `POST /api/jobs` 一次给全;
@@ -8,20 +8,20 @@
  *     天气不是对话里问出来的,是 `weather` 模块实拉的。
  *
  * ★ **字段规则从 `shared` 的 `briefFields` 来,不在这里再写一遍。**
- *   此前这里和 `jobs/domain/schemas/job-submit.ts` 的 `metaSchema` 各写了一遍同样五行,
+ *   此前这里和 `jobs/domain/schemas/api/job-submit.ts` 的 `metaSchema` 各写了一遍同样五行,
  *   风险不是"重复"本身,而是**改一边忘一边**:同一个用户输入会因为从哪条路进来
  *   而受不同限制。现在两边展开同一份字段,各自只添自己的成员
  *   (表单多一个 `weather`,补丁没有)。
  */
 import { z } from 'zod';
-import { briefFields } from '../../../shared/index.js';
+import { briefFields } from '../../../../shared/index.js';
 
 /**
  * 长度上限(字)。
- * ★ 值在 `shared`(`domain/schemas/brief-fields.ts`),这里只是转发,
+ * ★ 值在 `shared`(`domain/schemas/contracts/brief-fields.ts`),这里只是转发,
  *   好让本模块的使用者不改 import 路径。
  */
-export { MAX_DRESS, MAX_SCENE_TEXT } from '../../../shared/index.js';
+export { MAX_DRESS, MAX_SCENE_TEXT } from '../../../../shared/index.js';
 
 export const briefPatchSchema = z.object({ ...briefFields }).strict();
 
