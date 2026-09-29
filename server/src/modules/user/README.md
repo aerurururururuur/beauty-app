@@ -20,7 +20,7 @@
 | `application/mapping/user-view.mapper.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体） |
 | `infrastructure/json/user-repository.ts` | 账号表落 `dataDir/users/users.json`（tmp + rename 原子写） |
 | `infrastructure/crypto/scrypt-password-hasher.ts` | scrypt 凭据 `scrypt$<salt>$<key>`，核对走定时安全比较 |
-| `presentation/controllers/users.controller.ts` | `POST /users` · `POST /users/login` · `GET /users/:id` |
+| `presentation/users.controller.ts` + `presentation/routes/users.route.ts` | `POST /users` · `POST /users/login` · `GET /users/:id` |
 | `index.ts` / `compose.ts` | public barrel / `createUserModule({ dataDir })` |
 
 ## 依赖 / 被依赖

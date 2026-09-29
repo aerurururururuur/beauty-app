@@ -17,7 +17,7 @@
 | `application/mapping/weather-view.mapper.ts` | `WeatherResult` → `WeatherView`（只展开有值的字段） |
 | `infrastructure/open-meteo/` | 实拉适配器 + `wmo.ts`（WMO 码 → 中文简述） |
 | `infrastructure/weather-provider/mock-weather-provider.ts` | 离线示意兜底（不联网、不失败） |
-| `presentation/controllers/weather.controller.ts` | `GET /api/weather` |
+| `presentation/weather.controller.ts` + `presentation/routes/weather.route.ts` | `GET /api/weather` |
 | `index.ts` / `compose.ts` | public barrel / `createWeatherModule({ kind })` |
 
 ## 端点

@@ -69,8 +69,8 @@ export { SubmitJob } from './application/usecases/submit-job.js';
 export type { SubmitJobCommand } from './application/usecases/submit-job.js';
 
 // ---- presentation(HTTP 路由挂载)----
-export { registerJobsRoutes } from './presentation/controllers/jobs.controller.js';
-export type { JobsDeps } from './presentation/controllers/jobs.controller.js';
+export { registerJobsRoutes } from './presentation/routes/jobs.route.js';
+export type { JobsDeps } from './presentation/jobs.controller.js';
 
 // ---- 组合根 ----
 export { createJobsModule } from './compose.js';

@@ -16,7 +16,7 @@
 | `application/usecases/*` | `SubmitJob` / `RunPipeline` / `GetJob` / `GetJobResult` |
 | `application/mapping/job-view.mapper.ts` | 领域对象 → JobView |
 | `presentation/multipart.ts` | 归口 `face`(1) / `scene`(0..6) 文件 + `meta`(JSON) 标量 |
-| `presentation/controllers/jobs.controller.ts` | `registerJobsRoutes`：薄路由层 |
+| `presentation/jobs.controller.ts` + `presentation/routes/jobs.route.ts` | `registerJobsRoutes`：薄路由层 |
 | `infrastructure/json/job-repository.ts` | 临时 JSON 仓库 + rename 原子写 |
 | `infrastructure/queue/in-memory-queue.ts` | 进程内串行队列（重启丢） |
 | `index.ts` | public barrel（jobs 是编排者，跨模块注入都在 `jobs/compose.ts` 收口） |

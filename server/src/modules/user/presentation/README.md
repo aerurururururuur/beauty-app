@@ -1,6 +1,6 @@
 # modules/user/presentation —— 表现层
 
-`controllers/users.controller.ts` —— 三个端点，`src/app.ts` 挂在 `/api` 前缀下：
+`users.controller.ts`（请求 → 用例）+ `routes/users.route.ts`（路径登记）—— 三个端点，`src/app.ts` 挂在 `/api` 前缀下：
 
 | 方法 & 路径 | 说明 |
 | --- | --- |

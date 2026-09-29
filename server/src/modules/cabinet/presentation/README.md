@@ -1,6 +1,6 @@
 # modules/cabinet/presentation —— 表现层
 
-`controllers/cabinet.controller.ts` —— 四个端点，`src/app.ts` 挂在 `/api` 前缀下：
+`cabinet.controller.ts`（请求 → 用例）+ `routes/cabinet.route.ts`（路径登记）—— 四个端点，`src/app.ts` 挂在 `/api` 前缀下：
 
 | 方法 & 路径 | 说明 |
 | --- | --- |

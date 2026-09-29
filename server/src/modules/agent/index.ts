@@ -123,8 +123,8 @@ export type { DashScopeLlmOptions } from './infrastructure/llm/dashscope-llm.js'
 export { InMemorySessionStore } from './infrastructure/memory/session-store.js';
 
 // ---- ① HTTP 层 ----
-export { registerAgentRoutes } from './presentation/controllers/agent.controller.js';
-export type { AgentDeps } from './presentation/controllers/agent.controller.js';
+export { registerAgentRoutes } from './presentation/routes/agent.route.js';
+export type { AgentDeps } from './presentation/agent.controller.js';
 export { toSessionView, toTurnView } from './application/mapping/turn-view.mapper.js';
 export type {
   AgentSessionView,

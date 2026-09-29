@@ -1,6 +1,6 @@
 # modules/weather/presentation —— 表现层
 
-`controllers/weather.controller.ts` —— 一个端点，`src/app.ts` 挂在 `/api` 前缀下：
+`weather.controller.ts`（请求 → 用例）+ `routes/weather.route.ts`（路径登记）—— 一个端点，`src/app.ts` 挂在 `/api` 前缀下：
 
 | 方法 & 路径 | 说明 |
 | --- | --- |

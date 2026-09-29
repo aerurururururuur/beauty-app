@@ -27,8 +27,8 @@ export { MockWeatherProvider } from './infrastructure/weather-provider/mock-weat
 export { conditionFromWmoCode } from './infrastructure/open-meteo/wmo.js';
 
 // ---- presentation(HTTP 路由挂载)----
-export { registerWeatherRoutes } from './presentation/controllers/weather.controller.js';
-export type { WeatherDeps } from './presentation/controllers/weather.controller.js';
+export { registerWeatherRoutes } from './presentation/routes/weather.route.js';
+export type { WeatherDeps } from './presentation/weather.controller.js';
 
 // ---- 组合根 ----
 export { createWeatherModule } from './compose.js';

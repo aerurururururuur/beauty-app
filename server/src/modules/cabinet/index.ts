@@ -63,8 +63,8 @@ export { RemoveCosmetic } from './application/usecases/remove-cosmetic.js';
 export { UpdateCosmetic } from './application/usecases/update-cosmetic.js';
 
 // ---- presentation(HTTP 路由挂载)----
-export { registerCabinetRoutes } from './presentation/controllers/cabinet.controller.js';
-export type { CabinetDeps } from './presentation/controllers/cabinet.controller.js';
+export { registerCabinetRoutes } from './presentation/routes/cabinet.route.js';
+export type { CabinetDeps } from './presentation/cabinet.controller.js';
 
 // ---- 组合根 ----
 export { createCabinetModule } from './compose.js';

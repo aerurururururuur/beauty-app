@@ -41,8 +41,8 @@ export { GetUser } from './application/usecases/get-user.js';
 export { RegisterUser } from './application/usecases/register-user.js';
 
 // ---- presentation(HTTP 路由挂载)----
-export { registerUsersRoutes } from './presentation/controllers/users.controller.js';
-export type { UsersDeps } from './presentation/controllers/users.controller.js';
+export { registerUsersRoutes } from './presentation/routes/users.route.js';
+export type { UsersDeps } from './presentation/users.controller.js';
 
 // ---- 组合根 ----
 export { createUserModule } from './compose.js';
