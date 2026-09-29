@@ -13,7 +13,8 @@
  *
  *   代价是启动时多读 ~57 个小文件(实测 50KB 上下),可以忽略。
  *   ⚠️ **这个取舍有规模上限**:内容库涨到几千条时,急切加载和"整库索引进上下文"
- *   两件事都会先撑不住(见 `overview()` 的注释)。到那天再谈分片,现在不谈。
+ *   两件事都会先撑不住(见 `application/products-view.ts` 里 `toLibraryView` 的注释)。
+ *   到那天再谈分片,现在不谈。
  *
  * ★ `library.json` 里的 `categories[].id` 就是子目录名 —— **目录即索引**,
  *   没有一张另外维护的"产品到类目"的映射表可以漂。
@@ -25,33 +26,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { parseLibraryFile, parseProductFile } from '../../domain/validators/content.validator.js';
-import type { Product, DimensionKey } from '../../domain/entities/product.js';
-import { DIMENSION_LABELS } from '../../domain/entities/product.js';
+import type { Product } from '../../domain/entities/product.js';
 import type { ProductLibrary } from '../../domain/entities/library.js';
-import type {
-  LibraryOverview,
-  ProductCatalog,
-  ProductDetail,
-  ProductSummary,
-} from '../../domain/ports/product-catalog.js';
+import type { ProductCatalog } from '../../domain/ports/product-catalog.js';
 
 /** `library.json` 的文件名。子目录里除它以外全是产品文件。 */
 const LIBRARY_FILE = 'library.json';
 /** 溯源副本的目录名。**它不是类目**,扫描类目时要跳过。 */
 const SOURCE_DIR = 'source';
-
-/**
- * 取**首句**。`。!?` 与换行都算句读,都取不到就整段(短文本本来就是一句)。
- *
- * ★ 取首句而不是截断到 N 字:品牌资料里一句话就是一个意思,
- *   截半句给模型比不给更容易被误读。
- */
-function firstSentence(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed === '') return '';
-  const m = /^[^。！？!?\n]*[。！？!?]?/.exec(trimmed);
-  return (m?.[0] ?? trimmed).trim();
-}
 
 function readJson(file: string): unknown {
   try {
@@ -117,81 +99,41 @@ function loadLibrary(rootDir: string): { library: ProductLibrary; products: Prod
   return { library, products };
 }
 
+/**
+ * ★ **本类只做"读进来 + 索引",不做投影。**
+ *   取首句、贴类目中文名、按 DIMENSION_KEYS 排序这些往外给的样子,
+ *   一律在 `application/products-view.ts`(§6 唯一投影点)。
+ *   端口文件头记着这条边界为什么在这里而不是在类型声明上。
+ */
 export class JsonProductCatalog implements ProductCatalog {
   readonly #library: ProductLibrary;
   readonly #products: Product[];
   /** ★ 目录即哈希表:id → 条目。查不到就是 `undefined`,不抛错。 */
   readonly #byId: Map<string, Product>;
-  readonly #labelOf: Map<string, string>;
 
   constructor(rootDir: string) {
     const { library, products } = loadLibrary(rootDir);
     this.#library = library;
     this.#products = products;
     this.#byId = new Map(products.map((p) => [p.id, p]));
-    this.#labelOf = new Map(library.categories.map((c) => [c.id, c.label]));
   }
 
-  /** 库元信息。给启动日志用(不进模型上下文)。 */
-  get library(): ProductLibrary {
+  /** 库元信息(`library.json` 那个领域对象本身)。进模型上下文前要先过投影。 */
+  library(): ProductLibrary {
     return this.#library;
   }
 
-  #summary(p: Product): ProductSummary {
-    const summary: ProductSummary = {
-      id: p.id,
-      number: p.number,
-      name: p.name,
-      categoryId: p.category,
-      categoryLabel: this.#labelOf.get(p.category) ?? p.category,
-      lookSpecSlots: p.derived.lookSpecSlots,
-      textureFirst: firstSentence(p.dimensions.texture ?? ''),
-      skinTypesFirst: firstSentence(p.dimensions.skinTypes ?? ''),
-      occasionsFirst: firstSentence(p.dimensions.occasions ?? ''),
-    };
-    if (p.derived.series) summary.series = p.derived.series;
-    return summary;
+  /**
+   * 全部条目,**按扫描顺序**(类目目录序 + 文件名序)。
+   * ★ 给的是副本 —— 否则调用方一次 `.sort()` 就把这个顺序**全局改掉**了,
+   *   而那个顺序是 `list()` 承诺的一部分。(条目本身是只读内容,不深拷贝。)
+   */
+  list(): Product[] {
+    return [...this.#products];
   }
 
-  overview(): LibraryOverview {
-    return {
-      id: this.#library.id,
-      name: this.#library.name,
-      brand: this.#library.brand,
-      categories: this.#library.categories.map((c) => ({
-        id: c.id,
-        label: c.label,
-        count: c.actualCount,
-        statedCount: c.statedCount,
-        lookSpecSlots: c.lookSpecSlots,
-      })),
-      matchingGuide: this.#library.matchingGuide,
-      notes: this.#library.notes,
-      // ⚠️ 这里是"整库索引一次给全"。57 条还撑得住;几千条就得改成分片检索,
-      //    那种时候**先改这里**,别把它留在原地假装还能扩展。
-      products: this.#products.map((p) => this.#summary(p)),
-    };
-  }
-
-  find(id: string): ProductDetail | undefined {
-    const p = this.#byId.get(id);
-    if (!p) return undefined;
-
-    const detail: ProductDetail = {
-      id: p.id,
-      number: p.number,
-      name: p.name,
-      categoryId: p.category,
-      categoryLabel: this.#labelOf.get(p.category) ?? p.category,
-      lookSpecSlots: p.derived.lookSpecSlots,
-      // 固定按 DIMENSION_KEYS 的顺序出,缺的那项**不出现**(不是空串)。
-      dimensions: (Object.keys(DIMENSION_LABELS) as DimensionKey[])
-        .filter((key) => (p.dimensions[key] ?? '').trim() !== '')
-        .map((key) => ({ key, label: DIMENSION_LABELS[key], text: p.dimensions[key] ?? '' })),
-    };
-    if (p.derived.series) detail.series = p.derived.series;
-    if (p.notes && p.notes.length > 0) detail.notes = p.notes;
-    return detail;
+  find(id: string): Product | undefined {
+    return this.#byId.get(id);
   }
 }
 

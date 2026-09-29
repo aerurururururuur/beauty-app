@@ -12,6 +12,13 @@ export { createUser } from './domain/entities/user.js';
 // ---- schemas(形状/契约,无行为)----
 export { credentialsSchema, userIdSchema } from './domain/schemas/index.js';
 export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
+/**
+ * ★ **落盘行的形状也导出**(同 `cabinet` / `agent` 那条测试接缝的理由):
+ * 读出口的解析依据是它(§7.2),而「盘上写下去的键集合与这份 schema 一格不差」
+ * 只有拿到 schema 才验得了(`test/user.test.ts` 的往返那条)。**它是形状,不是规则。**
+ */
+export { userSchema, userTableSchema } from './domain/schemas/index.js';
+export type { UserRow } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 // ★ 五个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**:不让既有调用方改

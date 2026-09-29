@@ -8,9 +8,14 @@
  * (不符报"找不到",不报"无权")。跨模块协作只经由这里。
  */
 
-// ---- 领域实体(纯数据 + 工厂)----
-export { MAX_ITEMS_PER_USER, createCosmeticItem, updateCosmeticItem } from './domain/entities/cosmetic-item.js';
-export type { CosmeticAttribute, CosmeticItem } from './domain/entities/cosmetic-item.js';
+// ---- 领域实体(字段由 schema 推导,本文件只加归属守卫与工厂)----
+export {
+  CosmeticItem,
+  MAX_ITEMS_PER_USER,
+  createCosmeticItem,
+  updateCosmeticItem,
+} from './domain/entities/cosmetic-item.js';
+export type { CosmeticAttribute } from './domain/entities/cosmetic-item.js';
 
 // ---- schemas(形状/契约,无行为)----
 export {
@@ -21,6 +26,14 @@ export {
   updateItemSchema,
 } from './domain/schemas/index.js';
 export type { CreateItemRaw, UpdateItemRaw } from './domain/schemas/index.js';
+/**
+ * ★ **落盘行的形状也导出**(同 `agent` 那条测试接缝的理由)。
+ * 读出口的解析依据是它(§7.2),而「盘上写下去的键集合与这份 schema 一格不差」
+ * 是唯一照得见「实体字段悄悄脱队」的那盏灯 —— 只给类型不给 schema,那条测试写不出来
+ * (`test/cabinet.test.ts` 的往返那条)。**它是形状,不是规则**,别顺手往里加长度上限。
+ */
+export { cosmeticItemSchema, cosmeticItemTableSchema } from './domain/schemas/index.js';
+export type { CosmeticItemRow } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 // ★ 七个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**,理由同 `shared` 的

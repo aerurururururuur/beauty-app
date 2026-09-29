@@ -23,6 +23,7 @@
  *
  * ✏️ 路径登记在 `presentation/routes/agent.route.ts`(见 `weather.controller.ts` 那段说明)。
  */
+import { createReadStream } from 'node:fs';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { StartSession } from '../application/usecases/start-session.js';
 import type { GetSession } from '../application/usecases/get-session.js';
@@ -151,8 +152,9 @@ export function makeAgentController(deps: AgentDeps) {
       const params = request.params as { seq?: unknown };
       const seq = validateRenderSeq(params.seq);
       const userId = validateUserIdQuery(request.query);
-      const artifact = await deps.getRender.execute(id, userId, seq);
-      return reply.type(artifact.mimeType).send(artifact.stream);
+      // ★ 建流在这一层:用例给的是本机路径(见 `SessionArtifacts.resolveRender`)。
+      const image = await deps.getRender.execute(id, userId, seq);
+      return reply.type(image.mimeType).send(createReadStream(image.filePath));
     },
 
     // ★★ 下面两条**只在 `analysis` 在时才有**(`VISION_ANALYZER=real`)。

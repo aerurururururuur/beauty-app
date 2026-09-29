@@ -34,11 +34,15 @@ import { INTENSITY_MAX, INTENSITY_MIN } from '../src/modules/makeup/index.js';
 import { SKIN_TONES } from '../src/modules/shared/index.js';
 
 /** 一份合法的底稿,各用例在它上面改一处。 */
-const SPEC = new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
-  lip: new ZoneSpec('rose', 'matte', 3),
-  cheek: new ZoneSpec('coral', 'satin', 2),
-  eyeshadow: new ZoneSpec('nude', 'satin', 2),
-  brow: new BrowSpec('natural', 2),
+const SPEC = new LookSpec({
+  occasion: 'interview',
+  base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+  zones: {
+    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+  },
 });
 
 /**
@@ -110,16 +114,19 @@ function allClauseBodies(): string[] {
       for (const intensity of [INTENSITY_MIN, 3, INTENSITY_MAX]) {
         for (const baseFinish of FINISHES) {
           for (const warmth of [-2, -1, 0, 1, 2]) {
-            const spec = new LookSpec(
-              SPEC.occasion,
-              new LookSpecBase(intensity as 1, baseFinish, warmth),
-              {
-                lip: new ZoneSpec(tone, finish, intensity as 1),
-                cheek: new ZoneSpec(tone, finish, intensity as 1),
-                eyeshadow: new ZoneSpec(tone, finish, intensity as 1),
-                brow: new BrowSpec('natural', intensity as 1),
+            // ★ 不再写 `as 1` 断言:构造器收的 row 里浓度就是宽的 `number`
+            //   (`.int()` 是类型声明,`1..5` 的区间在 validator,§4.2),循环变量本来就是这个类型。
+            //   改口径前那句 `as 1` 是把 3 和 5 说成 `1` —— 一个假断言,顺手去掉。
+            const spec = new LookSpec({
+              occasion: SPEC.occasion,
+              base: new LookSpecBase({ coverage: intensity, finish: baseFinish, warmth }),
+              zones: {
+                lip: new ZoneSpec({ tone, finish, intensity }),
+                cheek: new ZoneSpec({ tone, finish, intensity }),
+                eyeshadow: new ZoneSpec({ tone, finish, intensity }),
+                brow: new BrowSpec({ shape: 'natural', intensity }),
               },
-            );
+            });
             bodies.push(renderLookClauses(spec).join('\n'));
           }
         }
@@ -151,9 +158,10 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
     // 三种眉形都不该改变这一行:形状字段被刻意忽略。
     for (const shape of ['natural', 'soft_arch', 'straight'] as const) {
       const withShape = renderLookClauses(
-        new LookSpec(SPEC.occasion, SPEC.base, {
-          ...SPEC.zones,
-          brow: new BrowSpec(shape, 2),
+        new LookSpec({
+          occasion: SPEC.occasion,
+          base: SPEC.base,
+          zones: { ...SPEC.zones, brow: new BrowSpec({ shape, intensity: 2 }) },
         }),
       );
       expect(withShape.find((l) => l.startsWith('眉部'))).toBe(brow);
@@ -177,9 +185,10 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
     for (const tone of TONE_KEYS) {
       seen.add(
         renderLookClauses(
-          new LookSpec(SPEC.occasion, SPEC.base, {
-            ...SPEC.zones,
-            lip: new ZoneSpec(tone, 'matte', 3),
+          new LookSpec({
+            occasion: SPEC.occasion,
+            base: SPEC.base,
+            zones: { ...SPEC.zones, lip: new ZoneSpec({ tone, finish: 'matte', intensity: 3 }) },
           }),
         )
           .join('\n')
@@ -243,7 +252,9 @@ describe('buildPrompt', () => {
   });
 
   it('场合只作为一句语境,不带 SCENE_RULES 的 direction / tags(那里有「利落」「立体」这类词)', () => {
-    const { prompt } = buildPrompt(new LookSpec('stage', SPEC.base, SPEC.zones));
+    const { prompt } = buildPrompt(
+      new LookSpec({ occasion: 'stage', base: SPEC.base, zones: SPEC.zones }),
+    );
     expect(prompt).toContain('场合');
     // stage 的 tags 里有「立体」「高显色」,都不该进 prompt。
     expect(prompt).not.toContain('立体');

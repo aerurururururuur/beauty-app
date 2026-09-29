@@ -84,7 +84,7 @@ export class ReadProductTool implements Tool {
     //   「只在真的改了时才返回」,也让整轮重放不产生重复条目。
     const next = addConsultedProduct(
       context.session,
-      new ConsultedProduct(detail.id, detail.name, detail.categoryLabel),
+      new ConsultedProduct({ id: detail.id, name: detail.name, categoryLabel: detail.categoryLabel }),
     );
 
     return next === context.session ? { content } : { content, session: next };

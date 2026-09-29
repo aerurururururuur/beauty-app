@@ -159,7 +159,12 @@ export class ConfirmRender {
 
     // ★ `manual-` 前缀:转写里一眼认得出这条**不是供应商发的 id**(排查时有用),
     //   同时与模型给的 id 不会撞(那些是 `call_xxxx` 之类)。
-    const call = new ToolUseBlock(`manual-${randomUUID()}`, TOOL_NAMES.renderLook, {});
+    const call = new ToolUseBlock({
+      type: 'tool_use',
+      id: `manual-${randomUUID()}`,
+      name: TOOL_NAMES.renderLook,
+      input: {},
+    });
     // ★ **只带 `tool_use`、不带一个字的正文**:正文是"模型说的话",
     //   服务端替它写一句,就是在历史里伪造一句它没说过的话(同 `AgentView.vue` 不伪造开场白)。
     return appendMessages(session, [assistantMessage([call])]);

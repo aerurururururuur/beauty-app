@@ -25,7 +25,7 @@
  *   一个会话本来就能出多张图,所以这一层是必须的,不是整理癖。
  *   (`remove` 是递归删,所以删会话时那层嵌套不会变成删不掉的垃圾。)
  *
- * ★ **取图地址不在这里**:`putResult` 现在只回 `ref`(它以前还回一个
+ * ★ **取图地址不在这里**:`putResult` 现在只回 `ImageRef`(它以前还回一个
  *   `jobs` 形状的 `url`,`jobs` 一删就成了指向 404 的值,已摘掉)。
  *   本会话的取图路由是 `/agent/sessions/:id/renders/:seq`,由 `turn-view.mapper.ts` 生成。
  *
@@ -63,12 +63,12 @@ export function createSessionArtifacts(
     putImage: (sessionId, kind, file) => store.putInputFile(sessionId, kind, file),
     resolveImage: (sessionId, ref) => store.resolveToFilePath(sessionId, ref),
     putRender: async (sessionId, seq, sourceFilePath, mimeType) => {
-      const { ref } = await store.putResult(renderId(sessionId, seq), sourceFilePath, mimeType);
+      const ref = await store.putResult(renderId(sessionId, seq), sourceFilePath, mimeType);
 
       await disposeScratch(sourceFilePath, engineOutDir);
       return ref;
     },
-    readRender: (sessionId, seq) => store.readResult(renderId(sessionId, seq)),
+    resolveRender: (sessionId, seq) => store.resolveResult(renderId(sessionId, seq)),
     removeAll: (sessionId) => store.remove(sessionId),
     // ★ 直接透传:`store.listIds()` 给的已经是**顶层那一段**
     //   (`results/<sessionId>/r1/` 报的是 `<sessionId>`),与端口要的形状一致。
@@ -86,7 +86,7 @@ export function createSessionArtifacts(
  * 会话那份删了,`engine-out/` 里的副本永远留着。
  *
  * ⚠️ **但它必须带一道边界,否则会删掉用户的照片。** 不是理论风险,是**已经踩到的**:
- * `MockEngine` 返回的 `resultFilePath` **就是 `input.face.filePath`**(它不出图,
+ * `MockEngine` 返回的 `result.image` **就是 `input.face`**(它不出图,
  * 只把输入当输出),而那个路径落在 `inputs/<sessionId>/face/` 下。
  * 无边界地删下去,第一次出图就会**把用户上传的照片删掉**——
  * 会话里 `faceRef` 还在、第二次出图 `resolveFace` 却解析到一个不存在的文件。

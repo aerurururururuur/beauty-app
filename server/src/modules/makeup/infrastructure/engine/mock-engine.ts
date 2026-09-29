@@ -111,21 +111,22 @@ export class MockEngine implements Engine {
     // 风格只认 brief 里的场合;拿不到就是 `STYLES.daily` 那套基线。
     const { style, palette } = specFor(input.brief?.occasion, tone);
 
+    // ★ 对象实参,不是位置参数:七格里 `anchor` / `size` 同型,位置参数能悄悄传反。
     const zones: MakeupZone[] = ZONES.map(
       (z) =>
-        new MakeupZone(
-          z.role,
-          z.anchor,
-          z.size,
-          palette[z.role],
-          'multiply',
-          z.blur,
-          z.opacity,
-        ),
+        new MakeupZone({
+          role: z.role,
+          anchor: z.anchor,
+          size: z.size,
+          rgb: palette[z.role],
+          blend: 'multiply',
+          blur: z.blur,
+          opacity: z.opacity,
+        }),
     );
 
     // ⚠️ **这份 `look` 目前没有任何消费者读它。** 出图那条路(`agent` 的 `render_look`)只取
-    //    `resultFilePath` / `mimeType`,给人看的那句话是 `describeLook(spec)` 现算的;
+    //    `result.image`,给人看的那句话是 `describeLook(spec)` 现算的;
     //    `validateEngineResult` 会验 `zones` / `palette` 的形状,**验完就丢**。
     //    所以下面这些格子今天等于**写完不读**——留着是因为前端设计那一轮可能要把
     //    `zones` 拿回去做「本人照片 + CSS 叠加」的预览(红线没变:要展示就得先让会话视图
@@ -146,9 +147,8 @@ export class MockEngine implements Engine {
     };
 
     return {
-      // mock 不真正改图:返回原图路径,由 artifact-store 收编。
-      resultFilePath: input.face.filePath,
-      mimeType: input.face.mimeType,
+      // mock 不真正改图:返回原图本身,由 artifact-store 收编。
+      image: input.face,
       look,
     };
   }

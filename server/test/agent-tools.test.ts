@@ -71,11 +71,15 @@ const palette: SkinTonePalette = realPalette();
 // ── 样例与替身 ───────────────────────────────────────────────────────────────
 
 /** 一份合法的妆面单,同时喂给 zod 与 JSON Schema 两边。 */
-const SAMPLE_LOOK = new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
-  lip: new ZoneSpec('rose', 'matte', 3),
-  cheek: new ZoneSpec('coral', 'satin', 2),
-  eyeshadow: new ZoneSpec('nude', 'satin', 2),
-  brow: new BrowSpec('natural', 2),
+const SAMPLE_LOOK = new LookSpec({
+  occasion: 'interview',
+  base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+  zones: {
+    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+  },
 });
 
 interface JsonSchema {
@@ -606,8 +610,13 @@ describe('系统提示', () => {
       session({
         faceRef: { storeKey: 'inputs/s1/face/me.png', mimeType: 'image/png' },
         messages: [
-          new Message('user', [new TextBlock('出图')]),
-          new Message('assistant', [new ToolUseBlock('t1', TOOL_NAMES.renderLook, {})]),
+          new Message({ role: 'user', content: [new TextBlock({ type: 'text', text: '出图' })] }),
+          new Message({
+            role: 'assistant',
+            content: [
+              new ToolUseBlock({ type: 'tool_use', id: 't1', name: TOOL_NAMES.renderLook, input: {} }),
+            ],
+          }),
         ],
         ...over,
       });
@@ -625,8 +634,18 @@ describe('系统提示', () => {
       const s = session({
         faceRef: { storeKey: 'k', mimeType: 'image/png' },
         renders: [
-          new RenderRecord(1, { storeKey: 'a', mimeType: 'image/png' }, '', '2026-09-16T00:00:00.000Z'),
-          new RenderRecord(2, { storeKey: 'b', mimeType: 'image/png' }, '', '2026-09-16T00:00:00.000Z'),
+          new RenderRecord({
+            seq: 1,
+            ref: { storeKey: 'a', mimeType: 'image/png' },
+            lookDescription: '',
+            createdAt: '2026-09-16T00:00:00.000Z',
+          }),
+          new RenderRecord({
+            seq: 2,
+            ref: { storeKey: 'b', mimeType: 'image/png' },
+            lookDescription: '',
+            createdAt: '2026-09-16T00:00:00.000Z',
+          }),
         ],
       });
 
@@ -655,7 +674,19 @@ describe('系统提示', () => {
         has(
           session({
             faceRef: { storeKey: 'k', mimeType: 'image/png' },
-            messages: [new Message('assistant', [new ToolUseBlock('t2', TOOL_NAMES.listProducts, {})])],
+            messages: [
+              new Message({
+                role: 'assistant',
+                content: [
+                  new ToolUseBlock({
+                    type: 'tool_use',
+                    id: 't2',
+                    name: TOOL_NAMES.listProducts,
+                    input: {},
+                  }),
+                ],
+              }),
+            ],
           }),
         ),
       ).toBe(false);
@@ -710,8 +741,16 @@ describe('系统提示', () => {
   describe('妆面定下来没有(v11)', () => {
     /** 造一条「`propose_look` 的 `tool_use` + 它的结果」的消息对。 */
     const proposeTurn = (isError: boolean): Message[] => [
-      new Message('assistant', [new ToolUseBlock('p1', TOOL_NAMES.proposeLook, {})]),
-      new Message('user', [new ToolResultBlock('p1', '…', isError)]),
+      new Message({
+        role: 'assistant',
+        content: [
+          new ToolUseBlock({ type: 'tool_use', id: 'p1', name: TOOL_NAMES.proposeLook, input: {} }),
+        ],
+      }),
+      new Message({
+        role: 'user',
+        content: [new ToolResultBlock({ type: 'tool_result', toolUseId: 'p1', content: '…', isError })],
+      }),
     ];
 
     it('★★ 一次都没调过 `propose_look` → 也要说清"正文里描述过不算数"', () => {
@@ -743,8 +782,28 @@ describe('系统提示', () => {
           lookSpec: SAMPLE_LOOK,
           messages: [
             ...proposeTurn(true),
-            new Message('assistant', [new ToolUseBlock('p2', TOOL_NAMES.proposeLook, {})]),
-            new Message('user', [new ToolResultBlock('p2', '已记下', false)]),
+            new Message({
+              role: 'assistant',
+              content: [
+                new ToolUseBlock({
+                  type: 'tool_use',
+                  id: 'p2',
+                  name: TOOL_NAMES.proposeLook,
+                  input: {},
+                }),
+              ],
+            }),
+            new Message({
+              role: 'user',
+              content: [
+                new ToolResultBlock({
+                  type: 'tool_result',
+                  toolUseId: 'p2',
+                  content: '已记下',
+                  isError: false,
+                }),
+              ],
+            }),
           ],
         }),
       );
@@ -770,8 +829,28 @@ describe('系统提示', () => {
       const line = describeLookState(
         session({
           messages: [
-            new Message('assistant', [new ToolUseBlock('x1', TOOL_NAMES.renderLook, {})]),
-            new Message('user', [new ToolResultBlock('x1', '没有照片', true)]),
+            new Message({
+              role: 'assistant',
+              content: [
+                new ToolUseBlock({
+                  type: 'tool_use',
+                  id: 'x1',
+                  name: TOOL_NAMES.renderLook,
+                  input: {},
+                }),
+              ],
+            }),
+            new Message({
+              role: 'user',
+              content: [
+                new ToolResultBlock({
+                  type: 'tool_result',
+                  toolUseId: 'x1',
+                  content: '没有照片',
+                  isError: true,
+                }),
+              ],
+            }),
           ],
         }),
       );

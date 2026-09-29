@@ -160,8 +160,8 @@ export class RenderLookTool implements Tool {
       const ref = await this.deps.artifacts.putRender(
         session.id,
         seq,
-        result.resultFilePath,
-        result.mimeType,
+        result.image.filePath,
+        result.image.mimeType,
       );
       const { session: next } = addRender(session, {
         ref,

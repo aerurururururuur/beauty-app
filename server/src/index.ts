@@ -14,7 +14,7 @@ import { createMakeupModule } from './modules/makeup/index.js';
 import { createUserModule } from './modules/user/index.js';
 import { createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
-import { createProductsModule } from './modules/products/index.js';
+import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
 import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { createAgentModule } from './modules/agent/index.js';
 import type { CosmeticReader, ProductLibrary } from './modules/agent/index.js';
@@ -151,7 +151,10 @@ async function main(): Promise<void> {
   const productLibrary: ProductLibrary | undefined = catalog
     ? {
         overview: () => {
-          const o = catalog.overview();
+          // ★ 领域类型 → 投影 → 这一层再挑一遍字段,三步各管一件事:
+          //   投影(`toLibraryView`)决定"这个模块往外给哪些字段",
+          //   这里决定"其中哪些值得进模型上下文"。
+          const o = toLibraryView(catalog.library(), catalog.list());
           return {
             name: o.name,
             brand: o.brand,
@@ -175,8 +178,9 @@ async function main(): Promise<void> {
           };
         },
         find: (id) => {
-          const d = catalog.find(id);
-          if (!d) return undefined;
+          const p = catalog.find(id);
+          if (!p) return undefined;
+          const d = toProductDetailView(p, catalog.library());
           return {
             id: d.id,
             name: d.name,
@@ -310,7 +314,7 @@ async function main(): Promise<void> {
         'list_products / read_product 不会注册。要接上就配 PRODUCTS_DIR,见 .env.example。',
     );
   } else {
-    const library = products.loaded.library;
+    const library = products.loaded.library();
     const health = library.health;
     const debts: string[] = [];
     const mismatched = health.statedVsActual.perCategory.filter((c) => !c.ok).length;

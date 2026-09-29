@@ -8,7 +8,8 @@ export type {
   WeatherQuery,
   WeatherResult,
 } from './domain/ports/weather-provider.js';
-export { CityNotFoundError, WeatherUpstreamError } from './domain/ports/weather-provider.js';
+export { CityNotFoundError } from './domain/errors/city-not-found-error.js';
+export { WeatherUpstreamError } from './domain/errors/weather-upstream-error.js';
 
 // ---- schemas / validators(形状与校验行为)----
 export { weatherQuerySchema } from './domain/schemas/index.js';

@@ -70,11 +70,15 @@ const OCCASION_HINTS: readonly { readonly words: readonly string[]; readonly occ
  *   (`test/demo-llm.test.ts` 跑通整条链路,就是这份 spec 能过校验的证据。)
  */
 function demoLook(occasion: Occasion): LookSpec {
-  return new LookSpec(occasion, new LookSpecBase(3, 'satin', 0), {
-    lip: new ZoneSpec('rose', 'matte', 3),
-    cheek: new ZoneSpec('coral', 'satin', 2),
-    eyeshadow: new ZoneSpec('nude', 'satin', 2),
-    brow: new BrowSpec('natural', 2),
+  return new LookSpec({
+    occasion,
+    base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+    zones: {
+      lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+      cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+      eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+      brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+    },
   });
 }
 
@@ -162,7 +166,7 @@ export class DemoLlm implements Llm {
 
   private call(name: string, input: unknown): ToolUseBlock {
     this.calls += 1;
-    return new ToolUseBlock(`demo-${this.calls}`, name, input);
+    return new ToolUseBlock({ type: 'tool_use', id: `demo-${this.calls}`, name, input });
   }
 }
 

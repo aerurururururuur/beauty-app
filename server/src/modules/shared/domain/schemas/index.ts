@@ -7,3 +7,9 @@
  * 两条入口（表单 / 对话）调的是**同一份**。
  */
 export { briefFields } from './contracts/brief-fields.js';
+
+// ★ 只有形状(§4.2):`ImageRef` 由 artifact-store 直接构造,不经 zod 解析;
+//   进了这份 schema 是为了让**三个用它**的模块共用一份形状(§4.1),
+//   不是因为它现在要开始校验什么。真正需要解析的那天自然会有人来改这一行。
+export { imageRefSchema } from './contracts/image-ref.js';
+export type { ImageRef } from './contracts/image-ref.js';

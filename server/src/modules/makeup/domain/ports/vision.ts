@@ -8,14 +8,14 @@
  *   `domain/validators/analysis.validator.ts` 的 `parseVisionReply`。在这里解析的话,
  *   三个分析器各要处理一次「模型没按格式回答」—— 而那是同一件事。
  */
-import type { EngineSourceImage } from '../../../shared/index.js';
+import type { ResolvedImage } from '../../../shared/index.js';
 
 export interface VisionRequest {
   /**
    * 要看的图,**按顺序**(顺序对模型是语义的一部分)。
-   * 复用 `EngineSourceImage`:它已经是一张可读的本机绝对路径,不新造类型。
+   * 复用 `ResolvedImage`:它已经是一张可读的本机绝对路径,不新造类型。
    */
-  images: readonly EngineSourceImage[];
+  images: readonly ResolvedImage[];
   /** 中文提问。**只做分类**,不做描述 —— 理由见 `infrastructure/vision/*-analyzer.ts`。 */
   prompt: string;
 }

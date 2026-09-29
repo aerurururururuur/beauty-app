@@ -7,12 +7,12 @@
  * 说明:引擎收到的是已解析到本机磁盘的图片路径;将来若换云存储/把图片转交远端 API,
  * 由上层用例在调用处解析/适配,端口形状可保持不变。
  */
-import type { EngineSourceImage, MakeupBrief } from '../../../shared/index.js';
+import type { MakeupBrief, ResolvedImage } from '../../../shared/index.js';
 import type { Look } from '../entities/look.js';
 import type { LookSpec } from '../entities/look-spec.js';
 
 export interface EngineInput {
-  face: EngineSourceImage;
+  face: ResolvedImage;
   /** 用户需求简报:occasion / 肤质肤色 / 穿搭 / 天气 / 自由文字。 */
   brief: MakeupBrief;
   /**
@@ -24,7 +24,7 @@ export interface EngineInput {
    * `modules/makeup/README.md` 的待办里。
    * 引擎收到就该按"没有"处理,别在这里替上层编一份默认值。
    */
-  references?: EngineSourceImage[];
+  references?: ResolvedImage[];
   /**
    * ★ **妆面单:只有 agent 路径会传。**
    *
@@ -43,8 +43,12 @@ export interface EngineInput {
 }
 
 export interface EngineResult {
-  resultFilePath: string; // 引擎产出的成品图(本机绝对路径)
-  mimeType: string;
+  /**
+   * ★ 引擎产出的成品图。**与输入图同一个形状**(`ResolvedImage`:本机绝对路径 + MIME)——
+   *   原先这里写的是 `resultFilePath` + `mimeType` 两个平铺字段,与 `EngineInput.face`
+   *   装的是同一件东西却各说各话,调用方还得手动把两份拼回一张图。
+   */
+  image: ResolvedImage;
   look: Look; // 结构化妆容元信息,对流水线不透明
 }
 

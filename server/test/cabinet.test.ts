@@ -5,15 +5,17 @@
  *        ③ 特性是用户自定义的自由键值,但空白、控制字符、重名一律拒收(不静默丢数据)。
  * 真实 JSON 仓库另用 mkdtemp 验一次「重启后还在」。
  */
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppError, ErrorCode } from '../src/modules/shared/index.js';
 import {
   AddCosmetic,
+  CosmeticItem,
   JsonCosmeticRepository,
   ListCosmetics,
+  cosmeticItemSchema,
   createCosmeticItem,
   MAX_ATTRIBUTES,
   MAX_ATTRIBUTE_LABEL,
@@ -100,8 +102,12 @@ describe('ListCosmetics', () => {
     const s = setup();
     // 直接塞仓库,才能精确控制 createdAt 来验排序
     await s.items.save(createCosmeticItem('b', 'u1', '第二件', []));
-    await s.items.save({ ...createCosmeticItem('a', 'u1', '第一件', []), createdAt: '2026-01-01T00:00:00.000Z' });
-    await s.items.save({ ...createCosmeticItem('c', 'u1', '第三件', []), createdAt: '2026-06-01T00:00:00.000Z' });
+    await s.items.save(
+      new CosmeticItem({ ...createCosmeticItem('a', 'u1', '第一件', []), createdAt: '2026-01-01T00:00:00.000Z' }),
+    );
+    await s.items.save(
+      new CosmeticItem({ ...createCosmeticItem('c', 'u1', '第三件', []), createdAt: '2026-06-01T00:00:00.000Z' }),
+    );
     await s.items.save(createCosmeticItem('x', 'u2', '别人的', []));
 
     const list = await s.listCosmetics.execute({ userId: 'u1' });
@@ -337,5 +343,59 @@ describe('JsonCosmeticRepository', () => {
 
     await expect(repo.remove('c1')).resolves.toBeUndefined();
     await expect(repo.remove('从没存在过')).resolves.toBeUndefined();
+  });
+
+  /**
+   * ★ 往返:盘上一条记录的**键集合**必须与 `cosmeticItemSchema` 一格不差。
+   *
+   * 钉的是那种看不见的失守:实体字段与 schema 各写一份之后少掉一格,**编译不报错**,
+   * 只在某次写盘时把这一格悄悄丢掉 —— 等读回来发现东西没了,盘上那份已经是残缺的。
+   * 断言直接读 schema 本身,所以谁往 schema 里加一格而没有对应的搬运路径,这里立刻红。
+   */
+  it('★ 落盘的键集合与 cosmeticItemSchema 一格不差(字段只有一份定义)', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'cabinet-repo-'));
+    const repo = new JsonCosmeticRepository(dir);
+
+    // 可选那一格也给上:不给的话比的是"没给所以没写",照不见丢字段。
+    const item = new CosmeticItem({
+      ...createCosmeticItem('c1', 'u1', '唇釉', [{ label: '色号', value: '#420' }]),
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    await repo.save(item);
+
+    const onDisk = JSON.parse(await readFile(path.join(dir, 'items.json'), 'utf8')) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(Object.keys(onDisk.c1!).sort()).toEqual(Object.keys(cosmeticItemSchema.shape).sort());
+    // 键齐了但值丢了同样是丢。
+    expect(onDisk.c1).toEqual(item);
+  });
+
+  it('★ 盘上的文件被手改坏 → 报的是「哪个文件、坏在哪」,不是一句裸的 JSON 错误', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'cabinet-repo-'));
+    await writeFile(path.join(dir, 'items.json'), '{ 这不是 JSON', 'utf8');
+    await expect(new JsonCosmeticRepository(dir).findById('c1')).rejects.toThrow(/items\.json/);
+  });
+
+  it('★ 形状对不上的落盘数据读不进来(§7.2:不拿 as 断言硬说"我知道它是什么形状")', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'cabinet-repo-'));
+    // 少一格 `userId`:归属判断会失去依据,放进来只是把问题推到更远的地方。
+    await writeFile(
+      path.join(dir, 'items.json'),
+      JSON.stringify({ c1: { id: 'c1', name: '唇釉', attributes: [], createdAt: 'x' } }),
+      'utf8',
+    );
+    await expect(new JsonCosmeticRepository(dir).findById('c1')).rejects.toThrow(/items\.json/);
+  });
+
+  it('★ 键与行里的 id 对不上 → 读不进来(那会让「按 id 查得到、按用户列不出来」)', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'cabinet-repo-'));
+    await writeFile(
+      path.join(dir, 'items.json'),
+      JSON.stringify({ c1: { ...createCosmeticItem('other', 'u1', '唇釉', []), id: 'other' } }),
+      'utf8',
+    );
+    await expect(new JsonCosmeticRepository(dir).findById('c1')).rejects.toThrow(/两者必须一致/);
   });
 });

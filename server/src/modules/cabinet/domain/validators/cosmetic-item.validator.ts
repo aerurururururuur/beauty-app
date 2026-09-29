@@ -15,12 +15,15 @@
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import {
+  cosmeticItemTableSchema,
   createItemSchema,
   itemIdSchema,
   ownerQuerySchema,
   updateItemSchema,
 } from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
+import { CosmeticItem } from '../entities/cosmetic-item.js';
+import type { CosmeticAttribute } from '../schemas/index.js';
 
 /** 名称原文上限(字,给 trim 留余量;清洗后的上下限另判)。 */
 export const MAX_NAME_RAW = 80;
@@ -47,11 +50,11 @@ export const MAX_ATTRIBUTE_VALUE = 40;
 const ITEM_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const OWNER_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 
-/** 清洗后的一条特性。 */
-export interface CleanAttribute {
-  label: string;
-  value: string;
-}
+/**
+ * 清洗后的一条特性。
+ * ★ 形状就是 `CosmeticAttribute`(schema 推导)本身,不另立第二份 —— §4.1。
+ */
+export type CleanAttribute = CosmeticAttribute;
 
 /** 通过校验、可交给用例使用的新增入参。 */
 export interface CreateItemInput {
@@ -218,4 +221,35 @@ export function validateUpdateInput(raw: unknown): UpdateItemInput {
     ...(name !== undefined ? { name: cleanName(name) } : {}),
     ...(attributes !== undefined ? { attributes: cleanAttributes(attributes) } : {}),
   };
+}
+
+/**
+ * 落盘表(`dataDir/cabinet/items.json`)的解析点 —— 仓库读出口调它(§7.2)。
+ *
+ * ★ 这里只查**形状**。长度上限、条数上限、id 格式是**入参**规则,不拿来回溯校验盘上的数据:
+ *   某天收紧一条上限,旧数据不该整个读不出来。这道网要挡的是另一类事 ——
+ *   文件被手改过、写坏了,形状对不上。
+ * ★ 抛普通 `Error` 而不是 `AppError`:这不是「这个请求不合法」,是**盘上的数据坏了**。
+ *   该以 500 结束并让人去查那个文件,不是一个 400 把锅甩给客户端。
+ */
+export function parseItemTable(raw: unknown, file: string): Record<string, CosmeticItem> {
+  const parsed = cosmeticItemTableSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `衣橱数据不合法:${file} —— ${zodIssuesMessage(parsed.error)}。` +
+        '这是 dataDir 下的落盘数据,不是请求入参;多半是文件被手改过。',
+    );
+  }
+
+  const table: Record<string, CosmeticItem> = {};
+  for (const [id, row] of Object.entries(parsed.data)) {
+    // 键与行里的 id 必须一致:钥匙和锁对不上时,按 id 查得到、按用户却列不出来。
+    if (row.id !== id) {
+      throw new Error(
+        `衣橱数据不合法:${file} —— 键「${id}」下的条目 id 是「${row.id}」,两者必须一致。`,
+      );
+    }
+    table[id] = new CosmeticItem(row);
+  }
+  return table;
 }

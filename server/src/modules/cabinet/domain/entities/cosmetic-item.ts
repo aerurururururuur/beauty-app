@@ -6,27 +6,51 @@
  * 用户拍板「特性就自定义」——录入不被十几个固定字段劝退,信息量也不封顶。
  * 代价见模块 README:将来做「平价同款推荐」时拿不到稳定的「品类」锚点,
  * 只能依赖 UI 上那几个**约定标签**(品类 / 色号 / 质地),那是约定不是枚举。
+ *
+ * ── ★ 字段不在本文件里写第二遍 ────────────────────────────────────────────────
+ * `CosmeticItem` 的字段**全部**来自 `schemas/entities/cosmetic-item.ts` 的
+ * `cosmeticItemSchema`,走下面那个声明合并的 interface。本文件只加**行为**:
+ * 归属守卫 + 两个工厂。§4.1「同一个形状只有一份定义」在这里是结构性的,不靠自觉。
+ *
+ * ★ 所以别在这里补 `id: string` 之类的字段声明 —— 那就是第二份定义,
+ *   而且它会**盖过** schema:字段改了 schema 没改类,编译不报错,只在写盘时悄悄丢。
  */
-export interface CosmeticAttribute {
-  /** 特性名,如「色号」;由用户自定,不设词表。 */
-  label: string;
-  /** 特性值,如「#420 豆沙」。 */
-  value: string;
+import { AppError, ErrorCode } from '../../../shared/index.js';
+import type { CosmeticAttribute, CosmeticItemRow } from '../schemas/index.js';
+
+export type { CosmeticAttribute } from '../schemas/index.js';
+
+/**
+ * 一条衣橱条目。
+ *
+ * ★ 构造器只收**已经过校验的行**(仓库读出口或 `createCosmeticItem`)。
+ *   裸字面量与 `{ ...实例 }` 都当不了条目 —— 它们没有 {@link CosmeticItem.assertOwnedBy},
+ *   编译器当场报错(实测:`{...item}` 的类型不含原型上的方法)。
+ */
+export class CosmeticItem {
+  constructor(row: CosmeticItemRow) {
+    Object.assign(this, row);
+  }
+
+  /**
+   * 归属守卫。§5 那张表:需要「归属」的规则落在实体的具名守卫上,不写在用例的 if 里 ——
+   * 写在用例里的话,换一条路径(比如将来的批量删除)就漏判。
+   */
+  assertOwnedBy(userId: string): void {
+    if (this.userId !== userId) throw itemNotFound(this.id);
+  }
 }
 
-export interface CosmeticItem {
-  /** 条目唯一标识(UUID)。 */
-  id: string;
-  /** 归属用户 id。★ 只做字符串层面的搬运,「用户是否存在」由 UserDirectory 端口判定。 */
-  userId: string;
-  /** 化妆品名称,如「豆沙色唇釉」。 */
-  name: string;
-  /** 自定义特性,可为空数组(允许"只记个名字")。顺序即用户录入顺序。 */
-  attributes: CosmeticAttribute[];
-  /** 建档时间(ISO 8601)。 */
-  createdAt: string;
-  /** 最后一次修改时间(ISO 8601);从未改过则不存在。 */
-  updatedAt?: string;
+/** 字段全部来自 schema(声明合并);本文件不重抄一遍。 */
+export interface CosmeticItem extends CosmeticItemRow {}
+
+/**
+ * 「条目不存在」与「条目不属于你」**共用同一个错误**(§9 越权探测)。
+ * ★ 报 403 等于告诉对方「这条存在,只是不是你的」,逐 id 试一遍就能枚举别人的条目。
+ *   两种情况的码与文案必须逐字相同 —— 分两处写的那天,差异就从文案里漏出去了。
+ */
+export function itemNotFound(itemId: string): AppError {
+  return new AppError(ErrorCode.CABINET_ITEM_NOT_FOUND, `衣橱条目不存在:${itemId}`);
 }
 
 /**
@@ -47,7 +71,7 @@ export function createCosmeticItem(
   name: string,
   attributes: CosmeticAttribute[],
 ): CosmeticItem {
-  return { id, userId, name, attributes, createdAt: nowIso() };
+  return new CosmeticItem({ id, userId, name, attributes, createdAt: nowIso() });
 }
 
 /** 应用一次修改:只改传进来的字段,并刷新 updatedAt(未传的字段原样保留)。 */
@@ -55,10 +79,10 @@ export function updateCosmeticItem(
   item: CosmeticItem,
   changes: { name?: string; attributes?: CosmeticAttribute[] },
 ): CosmeticItem {
-  return {
+  return new CosmeticItem({
     ...item,
     ...(changes.name !== undefined ? { name: changes.name } : {}),
     ...(changes.attributes !== undefined ? { attributes: changes.attributes } : {}),
     updatedAt: nowIso(),
-  };
+  });
 }

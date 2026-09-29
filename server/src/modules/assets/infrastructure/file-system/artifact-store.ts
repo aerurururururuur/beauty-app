@@ -3,17 +3,15 @@
  * 目录:dataDir/inputs/<jobId>/face|scene/* 与 dataDir/results/<jobId>/result<ext>。
  * 输入文件用随机文件名,避免与用户文件名碰撞;storeKey 统一用正斜杠相对路径。
  */
-import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import type { Readable } from 'node:stream';
-import type { ImageRef } from '../../../shared/index.js';
+import type { ImageRef, ResolvedImage } from '../../../shared/index.js';
 import type {
   ArtifactStore,
   InputKind,
-  StoredResult,
   UploadFile,
 } from '../../domain/ports/artifact-store.js';
 
@@ -69,27 +67,34 @@ export class FileSystemArtifactStore implements ArtifactStore {
     return { storeKey, mimeType: file.mimeType, originalName: file.originalName };
   }
 
-  async putResult(jobId: string, sourceFilePath: string, mimeType: string): Promise<StoredResult> {
+  async putResult(jobId: string, sourceFilePath: string, mimeType: string): Promise<ImageRef> {
     const dir = path.join(this.dataDir, 'results', jobId);
     await mkdir(dir, { recursive: true });
     const name = `result${extFor(mimeType)}`;
     await copyFile(sourceFilePath, path.join(dir, name));
     const storeKey = path.relative(this.dataDir, path.join(dir, name)).split(path.sep).join('/');
-    return { ref: { storeKey, mimeType } };
+    return { storeKey, mimeType };
   }
 
   async resolveToFilePath(_jobId: string, ref: ImageRef): Promise<string> {
     return toAbs(this.dataDir, ref.storeKey);
   }
 
-  async readResult(jobId: string): Promise<{ stream: Readable; mimeType: string } | null> {
+  /**
+   * ★ 只解析路径,不建流。
+   * ⚠️ **MIME 必须由这里反推**(`mimeForExt`):调用方手上只有 id,没有 `ImageRef`,
+   *   而盘上的文件名只带扩展名 —— 这是本方法比 `resolveToFilePath` 多给一个字段的理由。
+   */
+  async resolveResult(jobId: string): Promise<ResolvedImage | null> {
     const dir = path.join(this.dataDir, 'results', jobId);
     if (!existsSync(dir)) return null;
     const entries = await readdir(dir);
     const name = entries.find((f) => f.startsWith('result.'));
     if (!name) return null;
-    const mimeType = mimeForExt(path.extname(name));
-    return { stream: createReadStream(path.join(dir, name)), mimeType };
+    return {
+      filePath: path.join(dir, name),
+      mimeType: mimeForExt(path.extname(name)),
+    };
   }
 
   /**

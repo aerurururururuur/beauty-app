@@ -286,7 +286,7 @@ const fakeArtifacts = {
   putRender: async () => {
     throw new Error('probe 不该走到出图这一步');
   },
-  readRender: async () => null,
+  resolveRender: async () => null,
   removeAll: async () => {},
   listStored: async () => [],
 };

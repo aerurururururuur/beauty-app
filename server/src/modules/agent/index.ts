@@ -46,7 +46,7 @@ export type { SessionStore } from './domain/ports/session-store.js';
  */
 export type { SessionArtifacts, PhotoUpload } from './domain/ports/session-artifacts.js';
 export type { Llm, LlmRequest, LlmResponse, LlmToolDefinition, LlmStopReason, LlmUsage } from './domain/ports/llm.js';
-export { LlmUnavailableError } from './domain/ports/llm.js';
+export { LlmUnavailableError } from './domain/errors/llm-unavailable-error.js';
 
 // ---- ③ 测试接缝 ----
 export { AgentLoop, DEFAULT_MAX_ITERATIONS, DEFAULT_MAX_TOKENS, DEFAULT_TURN_TIMEOUT_MS } from './application/agent-loop.js';
@@ -153,7 +153,6 @@ export { AnalyzeImage } from './application/usecases/analyze-image.js';
 export type { AnalyzeOutcome, AnalyzeStatus } from './application/usecases/analyze-image.js';
 export { ConfirmRender } from './application/usecases/confirm-render.js';
 export { GetRender } from './application/usecases/get-render.js';
-export type { RenderArtifact } from './application/usecases/get-render.js';
 // ★ 简报的**两条入口**(开会话带初始 brief ↔ 对话里 `patch_brief`)的入参形状与校验行为。
 //   **导出它们是为了让一条跨入口的契约可测**:两条路共用同一份字段规则
 //   (`shared/domain/validators/brief-fields.validator.ts`),而"两条路给同一个答案"
@@ -174,6 +173,16 @@ export type { StartSessionInput } from './domain/validators/agent-http.validator
  */
 export { sendMessageSchema } from './domain/schemas/index.js';
 export { MAX_AGENT_TEXT, validateSendMessage } from './domain/validators/agent-http.validator.js';
+/**
+ * ★ 「确认出图」的形状 + 校验行为。**导出理由同上**:这条路的形状是「**只有** userId」,
+ *   「一个出图参数都不收」靠的正是这一条 —— 而它是"松掉看不见"的那类东西:
+ *   2026-09-29 把 `startSessionSchema` 与 `confirmRenderSchema` 拆成两个对象时,
+ *   validator 里指的还是前者,出图那条路就静悄悄又能收 brief 与天气了,测试全绿。
+ *   形状与行为两半都得拿到,才钉得住"schema 层就拒",而不是只验 validator 一层。
+ *   ⚠️ 这条链同样**没有 HTTP 层测试**,这是它目前唯一的网。
+ */
+export { confirmRenderSchema } from './domain/schemas/index.js';
+export { validateConfirmRender } from './domain/validators/agent-http.validator.js';
 /**
  * ★ 读图那两条口的**词汇表 + 校验行为 + 解析器**。导出理由与上面两条同类:
  *   三个 case 的闭集在**三处**各声明了一份(`agent` / `makeup` / `assets`,跨模块零 import),

@@ -331,7 +331,16 @@ export class AgentLoop {
         continue;
       }
 
-      results.push(new ToolResultBlock(call.id, outcome.content, outcome.isError));
+      // ★ `outcome.isError` 是 `boolean | undefined`,这里原样传进去 ——
+      //   构造器会把值为 `undefined` 的键删掉,所以"没出错"那条路不会凭空多一个键。
+      results.push(
+        new ToolResultBlock({
+          type: 'tool_result',
+          toolUseId: call.id,
+          content: outcome.content,
+          isError: outcome.isError,
+        }),
+      );
     }
 
     return { results, session: current, pending };

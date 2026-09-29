@@ -21,11 +21,15 @@ import {
 } from '../src/modules/makeup/index.js';
 import type { EngineInput } from '../src/modules/makeup/index.js';
 
-const SPEC = new LookSpec('daily', new LookSpecBase(3, 'satin', 0), {
-  lip: new ZoneSpec('rose', 'matte', 3),
-  cheek: new ZoneSpec('coral', 'satin', 2),
-  eyeshadow: new ZoneSpec('nude', 'satin', 2),
-  brow: new BrowSpec('natural', 2),
+const SPEC = new LookSpec({
+  occasion: 'daily',
+  base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+  zones: {
+    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+  },
 });
 
 /** 一张最小的"脸":内容任意,引擎只把它读成 base64。 */
@@ -185,9 +189,10 @@ describe('提示词只随"会影响措辞"的东西变', () => {
 
   it('妆面单变了 → 提示词变', () => {
     // `SPEC.zones` 是普通对象(成员才是名义类型),所以展开它没问题;整体必须重新构造。
-    const other = new LookSpec(SPEC.occasion, SPEC.base, {
-      ...SPEC.zones,
-      lip: new ZoneSpec('berry', 'matte', 5),
+    const other = new LookSpec({
+      occasion: SPEC.occasion,
+      base: SPEC.base,
+      zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'berry', finish: 'matte', intensity: 5 }) },
     });
     expect(promptOf({ lookSpec: other })).not.toBe(promptOf());
   });
@@ -206,9 +211,9 @@ describe('ImageEngine', () => {
     const { imageBytes } = stubFetch();
     const res = await engine().generate(input());
 
-    expect(res.mimeType).toBe('image/png');
-    expect(readFileSync(res.resultFilePath)).toEqual(imageBytes);
-    expect(path.dirname(res.resultFilePath)).toBe(path.join(dir, 'out'));
+    expect(res.image.mimeType).toBe('image/png');
+    expect(readFileSync(res.image.filePath)).toEqual(imageBytes);
+    expect(path.dirname(res.image.filePath)).toBe(path.join(dir, 'out'));
     expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v1' });
     // style 复用 describeLook:确定性、与 LookSpec 一一对应。
     expect(String((res.look as { style: string }).style)).toContain('玫瑰粉');
@@ -236,7 +241,7 @@ describe('ImageEngine', () => {
     mock.mockRejectedValueOnce(connectErr).mockImplementation(real as never);
 
     const res = await engine().generate(input());
-    expect(res.mimeType).toBe('image/png');
+    expect(res.image.mimeType).toBe('image/png');
   });
 
   it('★ 下载失败会重试;连续失败时把 URL 一起抛出来(图还活 24h,别白烧一次计费)', async () => {

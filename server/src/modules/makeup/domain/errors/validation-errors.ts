@@ -1,9 +1,13 @@
 /**
- * makeup/domain/validators/errors.ts —— 本模块校验失败时的两个公共零件。
+ * makeup/domain/errors/validation-errors.ts —— 本模块校验失败时的两个公共零件。
  *
  * 抽出来是因为 `look-spec.validator.ts` 与 `analysis.validator.ts` 都要用,
  * 而 `describeIssue` 的 `unrecognized_keys` 那一支是本模块特有的措辞
  * (读图的 `.strict()` 靠它说话),拿不了 `shared` 那份给人看的版本。
+ *
+ * ⚠️ 本文件里**没有错误类**:失败一律是 `AppError` + `VALIDATION_ERROR`
+ *   (错误码是全局协议表,只在 `shared/domain/errors/app-error.ts`)。
+ *   这里是**抛它之前的两个零件**:把 zod issue 说成中文、把失败统一抛出去。
  */
 import type { z } from 'zod';
 import { AppError, ErrorCode } from '../../../shared/index.js';

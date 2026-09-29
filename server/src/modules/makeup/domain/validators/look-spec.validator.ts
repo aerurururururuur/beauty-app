@@ -42,7 +42,7 @@ import type { Intensity } from '../entities/look-spec.js';
 import { StyleRead } from '../entities/style-read.js';
 import type { SkinTonePalette } from '../ports/skin-tone-palette.js';
 import { lookSpecSchema, styleReadSchema } from '../schemas/index.js';
-import { describeIssue, fail } from './errors.js';
+import { describeIssue, fail } from '../errors/validation-errors.js';
 
 // ⚠️ 那张 `TONE_KEYS_BY_SKIN_TONE` 已经不在这里了 —— 它连同 `SKIN_TONE_CN` 一起
 //    变成了**词表目录里的内容**(`assests/face-catalog/skin-tones.json` 的 `toneKeys` /
@@ -105,7 +105,7 @@ function readZone(
   const finish = readEnum(reading, `${at}.finish`, raw.finish, FINISHES);
   const intensity = readIntensity(reading, `${at}.intensity`, raw.intensity);
   if (tone === undefined || finish === undefined || intensity === undefined) return undefined;
-  return new ZoneSpec(tone, finish, intensity);
+  return new ZoneSpec({ tone, finish, intensity });
 }
 
 /**
@@ -156,13 +156,21 @@ export function validateLookSpec(
     fail('妆面单', reading.problems.join(';'));
   }
 
-  // ★ §6:逐项显式传参,不用对象展开 —— 展开会把"少写一个字段"变成"它恰好没传"。
+  // ★ §6:逐项显式列字段,**不许对象展开** —— 展开会把"少写一个字段"变成"它恰好没传"。
+  //   ⚠️ 下面传的是**对象实参,但那不是展开**:每一格都按 `schemas/contracts/look-spec.ts`
+  //   的字段名逐字写出来,少写一格 TS 当场报错(missing property)。被禁的只有 `{ ...shape }`
+  //   —— 那样 schema 哪天少给一格,这里就静默变成"它恰好没传",而形状层那边 `.strict()`
+  //   什么都不缺,没人会红。
   //   走到这里每一项都已收窄成具体类型(不是 `as LookSpec` 那种断言出来的)。
-  const spec = new LookSpec(occasion, new LookSpecBase(baseCoverage, baseFinish, baseWarmth), {
-    lip,
-    cheek,
-    eyeshadow,
-    brow: new BrowSpec(browShape, browIntensity),
+  const spec = new LookSpec({
+    occasion,
+    base: new LookSpecBase({ coverage: baseCoverage, finish: baseFinish, warmth: baseWarmth }),
+    zones: {
+      lip,
+      cheek,
+      eyeshadow,
+      brow: new BrowSpec({ shape: browShape, intensity: browIntensity }),
+    },
   });
 
   // ③ 肤色收窄(§6 规矩 4)——只有知道了肤色才谈得上"违反"
@@ -235,11 +243,10 @@ export function validateStyleRead(raw: unknown): StyleRead {
     fail('风格图读数', reading.problems.join(';'));
   }
 
-  // ★ 逐字段显式装配,不用对象展开(同 `validateLookSpec` 那句注释:展开会把
-  //   "少写一个字段"变成"它恰好没传")。走到这里每一项都已收窄成具体类型。
-  return new StyleRead(new LookSpecBase(baseCoverage, baseFinish, baseWarmth), {
-    lip,
-    cheek,
-    eyeshadow,
+  // ★ 逐字段显式列出来,不用对象展开(同上:对象实参里少写一格编译器会红,
+  //   而 `{ ...shape }` 会把它变成"它恰好没传")。走到这里每一项都已收窄成具体类型。
+  return new StyleRead({
+    base: new LookSpecBase({ coverage: baseCoverage, finish: baseFinish, warmth: baseWarmth }),
+    zones: { lip, cheek, eyeshadow },
   });
 }

@@ -28,16 +28,26 @@ const routeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('advisory') }).strict(),
 ]);
 
-const toneTierSchema = z
+/**
+ * ★ **导出**是为了给实体与对表测试用(`.shape`)。
+ *   实体把字段从这个类型上切下来(§4.1),不重抄一份 ——
+ *   两处清单靠 `test/face-catalog.test.ts` 的对表钉着。
+ *   ⚠️ 它是**文件的形状**(宽 Raw:`toneKeys` 是 `string[]`),不是收窄后的实体类型;
+ *   收窄(每色 ∈ `TONE_KEYS`)在 `domain/validators/vocabulary.validator.ts`(§4.2)。
+ */
+export const toneTierSchema = z
   .object({
+    /** 档位 id。`brief.skinTone` 存的就是它,也是识别结果白名单里的值。 */
     id: z.string().min(1),
+    /** 中文档名,直接上界面。 */
     label: z.string().min(1),
     /** 浅 → 深的次序。**从 1 起**那条在 validator 里(与"不重复"作伴)。 */
     order: z.number().int(),
+    /** 缺省档。全表恰好一条为 `true`,且它的 `order` 不得是最小值 —— 都在 validator 里查。 */
     isDefault: z.boolean(),
     /** ★ 色域。非空(`min(1)`);每个值必须是 `shared` 的 `TONE_KEYS` 之一 —— 在 validator 里查。 */
     toneKeys: z.array(z.string()).min(1),
-    /** 界面色卡色值。`#rrggbb` 那个格式在 validator 里。 */
+    /** 界面色卡色值,如 `#d9c79e`。`#rrggbb` 那个格式在 validator 里。 */
     swatch: z.string().optional(),
   })
   .strict();
@@ -52,20 +62,28 @@ export const skinToneFileSchema = z
   })
   .strict();
 
-const featureValueSchema = z
+/** ★ 导出理由同 `toneTierSchema`。收窄(`route.slot` ∈ `GEOMETRY_SLOTS`)在 validator 里。 */
+export const featureValueSchema = z
   .object({
+    /** 取值 id。存进 `brief.features` 的是它。 */
     id: z.string().min(1),
+    /** 中文名,直接上界面。 */
     label: z.string().min(1),
+    /** 这个取值在图像提示词里的去向。`advisory` = 只给用户建议,一个字都不进出图文案。 */
     route: routeSchema,
   })
   .strict();
 
-const dimensionSchema = z
+/** ★ 导出理由同 `toneTierSchema`。 */
+export const dimensionSchema = z
   .object({
+    /** 类 id,如 `eye_shape`。 */
     id: z.string().min(1),
+    /** 中文类名,如「眼型」。 */
     label: z.string().min(1),
     /** 这类「决定什么策略」。owner 原文,当界面提示文案用。 */
     strategy: z.string().min(1),
+    /** 可多选为 `true`。 */
     multi: z.boolean(),
     values: z.array(featureValueSchema).min(1),
   })
@@ -78,3 +96,8 @@ export const featureFileSchema = z
     dimensions: z.array(dimensionSchema).min(1),
   })
   .strict();
+
+/** 三个子形状的输出类型。★ 实体从它们切字段(`Omit` 掉要收窄的那一格)。 */
+export type ToneTierRow = z.output<typeof toneTierSchema>;
+export type FeatureValueRow = z.output<typeof featureValueSchema>;
+export type DimensionRow = z.output<typeof dimensionSchema>;

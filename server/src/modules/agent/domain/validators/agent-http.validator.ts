@@ -37,21 +37,15 @@ function fail(message: string): never {
   throw new AppError(ErrorCode.VALIDATION_ERROR, message);
 }
 
-/** 「只有 userId」那份形状。★ 与 `confirmRenderSchema` 是**同一个对象**(见那边)。 */
-const userIdOnlySchema = startSessionSchema;
-
 /**
- * 「只有 `userId`」那一类请求体的共用校验(开会话 / 确认出图)。
- * ★ 两处**必须是同一段代码**:同一件事有两条实现,迟早只改一条。
+ * `userId` 的共用校验:形状之外只剩"trim 后不能为空"这一条判断。
+ * ★ 三个入口(开会话 / 确认出图 / 发消息)共用这一份——同一件事有两条实现,迟早只改一条。
+ * trim 后为空 = 没给:schema 的 `min(1)` 挡不住全空白(`" "` 有长度)。
  */
-function validateUserIdOnly(raw: unknown): { userId: string } {
-  const parsed = userIdOnlySchema.safeParse(raw ?? {});
-  if (!parsed.success) fail(describeIssues(parsed.error));
-
-  const userId = parsed.data.userId.trim();
-  // trim 后为空 = 没给。schema 的 `min(1)` 挡不住全空白(`" "` 有长度)。
+function requireUserId(raw: string): string {
+  const userId = raw.trim();
   if (userId === '') fail('userId 不能是空白');
-  return { userId };
+  return userId;
 }
 
 /**
@@ -70,8 +64,7 @@ export function validateStartSession(raw: unknown): StartSessionInput {
   const parsed = startSessionSchema.safeParse(raw ?? {});
   if (!parsed.success) fail(describeIssues(parsed.error));
 
-  const userId = parsed.data.userId.trim();
-  if (userId === '') fail('userId 不能是空白');
+  const userId = requireUserId(parsed.data.userId);
 
   const checked = checkBriefFields(parsed.data);
   if (!checked.ok) fail(checked.message);
@@ -130,9 +123,15 @@ function checkWeather(raw: WeatherInfo | undefined): WeatherInfo | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** 校验「确认出图」入参。★ 除了归属人什么都没得校验——**这是有意的**,见 schema 注释。 */
+/**
+ * 校验「确认出图」入参。★ 除了归属人什么都没得校验——**这是有意的**,见 schema 注释。
+ * ★ 形状必须是 `confirmRenderSchema`(**只有 `userId`**)。别为了"少写一份"换成
+ *   `startSessionSchema`:那会让这条路重新收得下 brief 与天气,而它一个字都不该收。
+ */
 export function validateConfirmRender(raw: unknown): ConfirmRenderRaw {
-  return validateUserIdOnly(raw);
+  const parsed = confirmRenderSchema.safeParse(raw ?? {});
+  if (!parsed.success) fail(describeIssues(parsed.error));
+  return { userId: requireUserId(parsed.data.userId) };
 }
 
 /** 校验「发消息」入参。 */
@@ -140,8 +139,7 @@ export function validateSendMessage(raw: unknown): SendMessageRaw {
   const parsed = sendMessageSchema.safeParse(raw ?? {});
   if (!parsed.success) fail(describeIssues(parsed.error));
 
-  const userId = parsed.data.userId.trim();
-  if (userId === '') fail('userId 不能是空白');
+  const userId = requireUserId(parsed.data.userId);
 
   // ★ 长度上限(§4.2 后在这里)。⚠️ 量的是**原文**,trim 之前 —— 与 schema 时代一致:
   //   一条末尾带一万个空格的正文照样会烧上下文预算,不能靠 trim 绕过。

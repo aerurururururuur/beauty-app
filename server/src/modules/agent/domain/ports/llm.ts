@@ -1,5 +1,6 @@
 /**
  * agent/domain/ports/llm.ts —— LLM 取数端口(本模块持契约)。
+ * ★ 端口抛的那个错误类**不住在这里**:见 `domain/errors/llm-unavailable-error.ts`。
  *
  * 领域层不认识任何具体家,只认识「给我一段对话和一组工具,
  * 还我下一轮回复」。实现见 `infrastructure/llm/`,在 `compose.ts` 按开关分发。
@@ -54,6 +55,11 @@ export interface LlmToolDefinition {
 /** 归一化后的终止原因(映射表见文件头)。 */
 export type LlmStopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'refusal';
 
+/**
+ * 一次调用的用量。
+ * ⚠️ **两个字段都是必填**:读不到就整个不给(`undefined`),不许把缺的那个补成 0 ——
+ *    补零之后"供应商没报"与"用量真的是 0"长得一模一样,而且没人会发现(§14-06)。
+ */
 export interface LlmUsage {
   inputTokens: number;
   outputTokens: number;
@@ -81,22 +87,11 @@ export interface LlmRequest {
 }
 
 /**
- * 传输层不可用:网络断、超时、鉴权失败、5xx。
- *
- * ★ **与「模型回了话但内容不对」必须分开**(同 `weather-provider.ts` 那条
- *  `CityNotFoundError` vs `WeatherUpstreamError` 的二分):
- * 前者该由 `agent-loop` 捕获、优雅收束成一句道歉(§10 `[I4]`);
- * 后者是正常响应,循环该怎么走怎么走。**别把两者都当 Exception 一锅端。**
+ * ★ 失败抛的错误类住在 `domain/errors/llm-unavailable-error.ts`,不在这里。
+ * ⚠️ 别把它重新写回本文件——`domain/errors/` 是错误类的唯一住处。
  */
-export class LlmUnavailableError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
-    super(message);
-    this.name = 'LlmUnavailableError';
-  }
-}
-
 export interface Llm {
   readonly name: string;
-  /** 发一轮。失败抛 {@link LlmUnavailableError}。 */
+  /** 发一轮。失败抛 `domain/errors/` 的 `LlmUnavailableError`。 */
   chat(request: LlmRequest): Promise<LlmResponse>;
 }

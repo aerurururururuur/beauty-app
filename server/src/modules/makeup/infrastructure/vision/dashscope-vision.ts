@@ -15,7 +15,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import type { EngineSourceImage } from '../../../shared/index.js';
+import type { ResolvedImage } from '../../../shared/index.js';
 import type { VisionClient, VisionRequest } from '../../domain/ports/vision.js';
 import { describeError, isConnectPhaseError, sleep } from '../connect-retry.js';
 
@@ -35,10 +35,10 @@ const ATTEMPTS = 3;
  * 本机文件 → `data:` URL。
  *
  * ⚠️ 与 `engine/qwen-request.ts` 的 `toImageField` 是**两个函数**,不是重复:
- *   那个从**扩展名**推 mime(引擎只拿到路径),这个用 `EngineSourceImage.mimeType`
+ *   那个从**扩展名**推 mime(引擎只拿到路径),这个用 `ResolvedImage.mimeType`
  *   (上传口已经验过它)。合并就得让其中一个接受"mime 从哪来"这种参数。
  */
-function toDataUrl(image: EngineSourceImage): string {
+function toDataUrl(image: ResolvedImage): string {
   return `data:${image.mimeType};base64,${readFileSync(image.filePath).toString('base64')}`;
 }
 

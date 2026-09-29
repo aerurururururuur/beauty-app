@@ -7,12 +7,12 @@
 | 路径 | 内容 |
 | --- | --- |
 | `domain/entities/brief.ts` | ★ 枚举单源：`OCCASIONS`(interview/date/stage/family/daily) · `SKIN_TYPES`(5) · `SKIN_TONES`(**5 档,缺省 `medium` 中间档,不默认浅肤色**) · `WeatherInfo` · `MakeupBrief` |
-| `domain/entities/image.ts` | `ImageRef` / `EngineSourceImage`(给引擎的图片值对象:filePath/mimeType/originalName) |
+| `domain/entities/image.ts` | `ImageRef`(存储键 + MIME)/ `ResolvedImage`(已解析到本机:`filePath`/`mimeType`/`originalName`)——引擎**入参**与读回的**产物**共用后者 |
 | `domain/scene-rules.ts` | ★ **前后端单一源**:`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。**零运行时依赖,前端会直接执行它**——见下 |
 | `domain/errors/app-error.ts` | `AppError` + `ErrorCode`(**不携带 HTTP 状态码**) |
 | `infrastructure/config.ts` | `.env`/环境变量读取(属组装关心,只由 `src/index.ts` 深路径取用,**不进 barrel**) |
 | `presentation/error-handler.ts` | 错误码 → HTTP 的唯一映射(由 `src/app.ts` 深路径取用) |
-| `index.ts` | public barrel：导出 brief 常量/类型 + 图片类型 + `AppError`/`ErrorCode` + 场合规则与 `describeScene` |
+| `index.ts` | public barrel：导出 brief 常量/类型 + 图片类型(`ImageRef`/`ResolvedImage`) + `AppError`/`ErrorCode` + 场合规则与 `describeScene` |
 | `compose.ts` | 占位组合根(shared 无独立运行时服务;未来日志器/时钟从此暴露) |
 
 ## ★ 跨端共享资产:`domain/scene-rules.ts`

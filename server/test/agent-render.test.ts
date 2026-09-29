@@ -72,14 +72,20 @@ import type {
 
 // ── 测试替身 ─────────────────────────────────────────────────────────────────
 
-// ★ 妆面单是**名义类型**,字面量过不了编译(见 `entities/look-spec.ts` 那段「为什么是类」),
-//   所以这里必须走构造器。测试里也一样 —— 否则测的是一个 `src` 已经禁止的形状。
-const SAMPLE_LOOK = new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
-  lip: new ZoneSpec('rose', 'matte', 3),
-  cheek: new ZoneSpec('coral', 'satin', 2),
-  // ★ 四个区都要给:`describeLook` 会逐区取 `zone.tone`,漏一个就会在视图那一步炸。
-  eyeshadow: new ZoneSpec('nude', 'satin', 2),
-  brow: new BrowSpec('natural', 2),
+// ★ 妆面单是**名义类型**,字面量过不了编译(见 `entities/look-spec.ts` 那段
+//   「字段不在这里声明」),所以这里必须走构造器。测试里也一样 ——
+//   否则测的是一个 `src` 已经禁止的形状。
+//   ⚠️ 构造器收的是**未加品牌的 row**,所以每一格仍是普通字面量(`{ tone: 'rose', … }`)。
+const SAMPLE_LOOK = new LookSpec({
+  occasion: 'interview',
+  base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+  zones: {
+    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    // ★ 四个区都要给:`describeLook` 会逐区取 `zone.tone`,漏一个就会在视图那一步炸。
+    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+  },
 });
 
 const FACE_REF = { storeKey: 'inputs/s1/face/face-x.png', mimeType: 'image/png' };
@@ -100,8 +106,7 @@ class RecordingEngine implements Engine {
 
 function okResult(): EngineResult {
   return {
-    resultFilePath: 'mem://rendered.png',
-    mimeType: 'image/png',
+    image: { filePath: 'mem://rendered.png', mimeType: 'image/png' },
     look: { engine: 'mock', style: '测试', model: 'mem', templateVersion: 'v1' },
   };
 }
@@ -147,11 +152,15 @@ class FakeSessionArtifacts implements SessionArtifacts {
     return { storeKey, mimeType };
   }
 
-  async readRender(sessionId: string, seq: number) {
-    const entry = this.files.get(`results/${sessionId}/r${seq}/result.png`);
-    return entry
-      ? { stream: Readable.from([entry.data]), mimeType: entry.mimeType }
-      : null;
+  /**
+   * ★ 给**路径**,不给流(与真实现同形)。
+   * ⚠️ 这里只验"键算得对不对";**字节读不读得回来**那件事在
+   *   `session-artifacts.test.ts` 对着真盘验,不在这个假实现上验。
+   */
+  async resolveRender(sessionId: string, seq: number) {
+    const storeKey = `results/${sessionId}/r${seq}/result.png`;
+    const entry = this.files.get(storeKey);
+    return entry ? { filePath: `mem://${storeKey}`, mimeType: entry.mimeType } : null;
   }
 
   async removeAll(sessionId: string): Promise<void> {
@@ -261,7 +270,7 @@ class FreeTool implements Tool {
  *   只会得到一个没有 `type` 的畸形块,而循环会当成"模型没有调工具"直接收尾。
  */
 const call = (id: string, name: string, input: unknown = {}): ToolUseBlock =>
-  new ToolUseBlock(id, name, input);
+  new ToolUseBlock({ type: 'tool_use', id, name, input });
 
 const baseSession = (over: Partial<Session> = {}): Session =>
   new Session({ ...createSession('s1', 'u1'), ...over });
@@ -405,12 +414,12 @@ describe('render_look 三态', () => {
     const full = baseSession({
       renders: [1, 2, 3].map(
         (seq) =>
-          new RenderRecord(
+          new RenderRecord({
             seq,
-            { storeKey: `results/s1/r${seq}/result.png`, mimeType: 'image/png' },
-            'x',
-            '2026-09-16T00:00:00.000Z',
-          ),
+            ref: { storeKey: `results/s1/r${seq}/result.png`, mimeType: 'image/png' },
+            lookDescription: 'x',
+            createdAt: '2026-09-16T00:00:00.000Z',
+          }),
       ),
     });
     const out = await renderTool(engine, new FakeSessionArtifacts()).run(
@@ -1158,7 +1167,12 @@ describe('GetRender', () => {
       new Session({
         ...baseSession(),
         renders: [
-          new RenderRecord(1, { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' }, 'x', 'x'),
+          new RenderRecord({
+            seq: 1,
+            ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+            lookDescription: 'x',
+            createdAt: 'x',
+          }),
         ],
       }),
     );
@@ -1171,23 +1185,26 @@ describe('GetRender', () => {
     warn.mockRestore();
   });
 
-  it('正常:把字节交出去', async () => {
+  it('正常:给出那一张的本机路径与 MIME', async () => {
     const { store, artifacts, usecase } = await withArtifacts();
     await artifacts.putRender('s1', 1, 'mem://x', 'image/png');
     await store.create(
       new Session({
         ...baseSession(),
         renders: [
-          new RenderRecord(1, { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' }, 'x', 'x'),
+          new RenderRecord({
+            seq: 1,
+            ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+            lookDescription: 'x',
+            createdAt: 'x',
+          }),
         ],
       }),
     );
 
     const artifact = await usecase.execute('s1', 'u1', 1);
     expect(artifact.mimeType).toBe('image/png');
-    const chunks: Buffer[] = [];
-    for await (const chunk of artifact.stream) chunks.push(Buffer.from(chunk));
-    expect(Buffer.concat(chunks).toString()).toBe('render-1');
+    expect(artifact.filePath).toBe('mem://results/s1/r1/result.png');
   });
 });
 
@@ -1213,7 +1230,10 @@ describe('renderReadiness —— 缺什么才算不能出图', () => {
 describe('会话视图', () => {
   it('★ 有待确认时才出现 `pendingRender`,那句话与工具用的是**同一句**', () => {
     const paused = appendMessages(readySession(), [
-      new Message('assistant', [new ToolUseBlock('c1', 'render_look', {})]),
+      new Message({
+        role: 'assistant',
+        content: [new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 'render_look', input: {} })],
+      }),
     ]);
 
     const view = toSessionView(paused);
@@ -1272,12 +1292,12 @@ describe('会话视图', () => {
         baseSession({
           renders: [
             // ★ 与 `describeLook(session.lookSpec)` 逐字同源(服务端出图时就是这么记的)。
-            new RenderRecord(
-              1,
-              { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
-              describeLook(SAMPLE_LOOK),
-              'x',
-            ),
+            new RenderRecord({
+              seq: 1,
+              ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+              lookDescription: describeLook(SAMPLE_LOOK),
+              createdAt: 'x',
+            }),
           ],
         }),
         SAMPLE_LOOK,
@@ -1289,9 +1309,10 @@ describe('会话视图', () => {
     // 只改了唇色 ⇒ 已经不是那一套了,按钮该回到「确认生成」。
     const changed = setLookSpec(
       rendered,
-      new LookSpec(SAMPLE_LOOK.occasion, SAMPLE_LOOK.base, {
-        ...SAMPLE_LOOK.zones,
-        lip: new ZoneSpec('berry', 'matte', 3),
+      new LookSpec({
+        occasion: SAMPLE_LOOK.occasion,
+        base: SAMPLE_LOOK.base,
+        zones: { ...SAMPLE_LOOK.zones, lip: new ZoneSpec({ tone: 'berry', finish: 'matte', intensity: 3 }) },
       }),
     );
     expect(toSessionView(changed).renderOffer?.alreadyRendered).toBe(false);
@@ -1304,10 +1325,30 @@ describe('会话视图', () => {
       setLookSpec(
         baseSession({
           renders: [
-            new RenderRecord(1, { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' }, 'x', 'x'),
-            new RenderRecord(2, { storeKey: 'results/s1/r2/result.png', mimeType: 'image/png' }, 'x', 'x'),
-            new RenderRecord(3, { storeKey: 'results/s1/r3/result.png', mimeType: 'image/png' }, 'x', 'x'),
-            new RenderRecord(4, { storeKey: 'results/s1/r4/result.png', mimeType: 'image/png' }, 'x', 'x'),
+            new RenderRecord({
+              seq: 1,
+              ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+              lookDescription: 'x',
+              createdAt: 'x',
+            }),
+            new RenderRecord({
+              seq: 2,
+              ref: { storeKey: 'results/s1/r2/result.png', mimeType: 'image/png' },
+              lookDescription: 'x',
+              createdAt: 'x',
+            }),
+            new RenderRecord({
+              seq: 3,
+              ref: { storeKey: 'results/s1/r3/result.png', mimeType: 'image/png' },
+              lookDescription: 'x',
+              createdAt: 'x',
+            }),
+            new RenderRecord({
+              seq: 4,
+              ref: { storeKey: 'results/s1/r4/result.png', mimeType: 'image/png' },
+              lookDescription: 'x',
+              createdAt: 'x',
+            }),
           ],
         }),
         SAMPLE_LOOK,
@@ -1325,12 +1366,12 @@ describe('会话视图', () => {
   it('出过的图:url 是**本模块**的取图路由,lookDescription 是历史说法', () => {
     const withRender = baseSession({
       renders: [
-        new RenderRecord(
-          1,
-          { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
-          '当时那套',
-          '2026-09-16T00:00:00.000Z',
-        ),
+        new RenderRecord({
+          seq: 1,
+          ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
+          lookDescription: '当时那套',
+          createdAt: '2026-09-16T00:00:00.000Z',
+        }),
       ],
     });
 
@@ -1358,8 +1399,8 @@ describe('会话视图', () => {
   it('★ 查过的产品要透出 id/名称/类目 —— 前端那个「品牌参考」角标靠它,角标文案不由模型定', () => {
     const withProducts = baseSession({
       consultedProducts: [
-        new ConsultedProduct('42-rouge', '某细管口红', '唇部彩妆'),
-        new ConsultedProduct('29-base', '某气垫', '底妆类'),
+        new ConsultedProduct({ id: '42-rouge', name: '某细管口红', categoryLabel: '唇部彩妆' }),
+        new ConsultedProduct({ id: '29-base', name: '某气垫', categoryLabel: '底妆类' }),
       ],
     });
 

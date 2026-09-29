@@ -3,7 +3,8 @@
 本层放「对外入口/HTTP 适配」。
 
 - **现状**：空（且预计长期为空）。products 是**非 HTTP 能力模块**——不持有路由/控制器；
-  对外只经 `index.ts`(public barrel) 暴露 `ProductCatalog` 端口。
+  对外只经 `index.ts`(public barrel) 暴露 `ProductCatalog` 端口，以及
+  `application/products-view.ts` 那几个**纯函数**投影（`toLibraryView` 等）。
 - **为什么没有**：产品推荐**不走新端点**。它流经已有的 agent 会话视图——
   `read_product` 把读过的产品记进会话(`consultedProducts`)，会话视图透出，前端渲染一块角标。
   ★ 这一点是刻意的：`vue/src/api/agent.js` 是全项目**唯一没有 mock 分支**的 api 模块

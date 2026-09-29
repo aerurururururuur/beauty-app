@@ -14,7 +14,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFaceCatalogModule, loadFaceVocabulary } from '../src/modules/face-catalog/index.js';
-import { parseFaceVocabulary } from '../src/modules/face-catalog/index.js';
+import {
+  dimensionSchema,
+  featureValueSchema,
+  parseFaceVocabulary,
+  toneTierSchema,
+} from '../src/modules/face-catalog/index.js';
 import { TONE_KEYS } from '../src/modules/shared/index.js';
 import type { ToneKey } from '../src/modules/shared/index.js';
 import { REAL_CATALOG_DIR } from './helpers/face-catalog.js';
@@ -313,5 +318,73 @@ describe('FaceVocabulary 的查表', () => {
     reversed.skinTones.tones.reverse();
     const v = parseFaceVocabulary(reversed, FILES);
     expect(v.tones.map((t) => t.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+});
+
+// ── ✏️ 2026-09-29:实体 ↔ schema 的对表 ──────────────────────────────────────
+//
+// 实体**不再自己声明字段**:形状在 `schemas/entities/vocabulary.ts` 写一次,
+// 构造器 `Object.assign(this, row)` 搬过来。这么改的收益是"schema 加了字段实体不可能漏掉",
+// 代价是**两个坏法都变成运行时看不出来的那种**:
+//   ① 实体又手写了一个 schema 里没有的字段(键多出来);
+//   ② schema 加了字段而某个构造点没传(键少一个)。
+// 两边都不是报错,只是对象上多了/少了一个键 —— 只有**对表**照得见,所以下面这组就是那盏灯。
+// (写法照 `test/cabinet.test.ts` 的往返那条。)
+
+/** schema 那一份的键。写成结构类型是为了不 import zod —— 只用到 `isOptional()`。 */
+const allKeys = (shape: Record<string, { isOptional(): boolean }>): string[] =>
+  Object.keys(shape).sort();
+const requiredKeys = (shape: Record<string, { isOptional(): boolean }>): string[] =>
+  Object.keys(shape)
+    .filter((k) => !shape[k]!.isOptional())
+    .sort();
+
+describe('★ 实体的键集合 = schema 的那一份(单源的对表)', () => {
+  const raw = validRaw();
+  // 第一档补上可选键 `swatch`:不补的话"可选键根本走不通"这条照不见。
+  raw.skinTones.tones[0] = { ...raw.skinTones.tones[0]!, swatch: '#d9c79e' };
+  const vocabulary = parseFaceVocabulary(raw, FILES);
+
+  it('SkinToneTier:必填键一个不少,多出来的键一个不许有', () => {
+    const tier = vocabulary.tierById('cool_porcelain')!;
+    const keys = Object.keys(tier);
+    // ① 少一个 = 那个构造点没接上 schema(或实体把某个字段名写错了)。
+    expect(keys).toEqual(expect.arrayContaining(requiredKeys(toneTierSchema.shape)));
+    // ② 多一个 = 实体又自己写了一个 schema 里没有的字段 —— 单源就白立了。
+    for (const key of keys) expect(allKeys(toneTierSchema.shape)).toContain(key);
+    expect(keys).toContain('swatch');
+  });
+
+  it('★ 没写 swatch 的那一档就没有这个键(可选键不许被补成 undefined)', () => {
+    const tier = vocabulary.tierById('deep_brown')!;
+    expect('swatch' in tier).toBe(false);
+    // ★ 两边都排序:键的**顺序**是调用点书写的顺序(不是契约),集合才是。
+    expect(Object.keys(tier).sort()).toEqual(requiredKeys(toneTierSchema.shape));
+  });
+
+  it('FeatureValue / FeatureDimension:同上', () => {
+    const eye = vocabulary.dimensionById('eye_shape')!;
+    for (const key of Object.keys(eye)) expect(allKeys(dimensionSchema.shape)).toContain(key);
+    expect(Object.keys(eye)).toEqual(expect.arrayContaining(requiredKeys(dimensionSchema.shape)));
+
+    const value = eye.valueById('upturned')!;
+    for (const key of Object.keys(value)) expect(allKeys(featureValueSchema.shape)).toContain(key);
+    expect(Object.keys(value).sort()).toEqual(requiredKeys(featureValueSchema.shape));
+  });
+
+  it('★ `#` 私有字段(`#byId`)不进键集合 —— JSON / `toEqual` 与改动前逐位一致', () => {
+    const eye = vocabulary.dimensionById('eye_shape')!;
+    expect(Object.keys(eye)).not.toContain('#byId');
+    // 序列化出来应当**正好是文件里那一行**的形状(键与值都不多不少)。
+    expect(JSON.parse(JSON.stringify(eye))).toEqual({
+      id: 'eye_shape',
+      label: '眼型',
+      strategy: '决定眼线与眼影的走向',
+      multi: true,
+      values: [
+        { id: 'upturned', label: '眼尾上扬', route: { kind: 'geometry', slot: 'eyeliner' } },
+        { id: 'puffy', label: '肿眼泡', route: { kind: 'advisory' } },
+      ],
+    });
   });
 });

@@ -12,7 +12,8 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/ports/llm.ts` | `Llm` 端口 + `LlmRequest`/`LlmResponse` + `LlmUnavailableError`。★ **本模块存在的技术理由**：把「线上两支工具调用协议的差异」关在适配器里，业务层不认识任何具体家 |
+| `domain/ports/llm.ts` | `Llm` 端口 + `LlmRequest`/`LlmResponse`/`LlmUsage`。★ **本模块存在的技术理由**：把「线上两支工具调用协议的差异」关在适配器里，业务层不认识任何具体家 |
+| `domain/errors/llm-unavailable-error.ts` | 传输层不可用（断网/超时/鉴权/5xx）。★ 与「模型回了话但内容不对」分开：只有前者该被 `agent-loop` 收束成道歉。**错误类只住这里，别写回 `ports/`** |
 | `domain/entities/message.ts` | 供应商无关的消息模型（content 块）。取「块」做规范形因为它**是超集** |
 | `domain/entities/session.ts` | `Session`（`messages[]` + `brief` + `lookSpec` + `faceRef` + `renders[]`）+ 纯函数工厂。★ `system` **不存**在这里（派生状态不存第二遍） |
 | `domain/ports/session-store.ts` | `SessionStore`（`create`/`find`/`save`/`findUpdatedBefore`/`delete`）。★ `findUpdatedBefore(cutoffIso)` 是给 TTL 用的——传**时间戳**而不是小时数：钟在用例那边（可注入、可测），存储只管比较。仍是内存实现，**重启即丢** |
@@ -303,7 +304,7 @@
 不删的话，`[I8]` 那句"照片与产物被真实删除"就是**假的**：会话那份删了，副本永远留着。
 
 ⚠️ **但那一下删除必须带边界**，否则会删掉用户的照片——**这不是假想的**：
-`MockEngine` 返回的 `resultFilePath` **就是 `input.face.filePath`**（它不出图，只把输入当输出），
+`MockEngine` 返回的 `result.image` **就是 `input.face`**（它不出图，只把输入当输出），
 而那个路径在 `inputs/<sid>/face/` 下。所以只有落在引擎输出目录里的源文件才删，
 别的一律不动。边界与那道"前缀相近不算"的规矩都有测试
 （`★★ 源文件不在引擎输出目录里 → 一个字节都不许动它`）。

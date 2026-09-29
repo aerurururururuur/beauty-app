@@ -8,4 +8,5 @@
 export { weatherQuerySchema } from './api/weather-query.js';
 export type { WeatherQueryRaw } from './api/weather-query.js';
 
+export { weatherViewSchema } from './api/weather-view.js';
 export type { WeatherView } from './api/weather-view.js';

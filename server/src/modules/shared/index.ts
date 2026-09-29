@@ -13,7 +13,7 @@ export type {
   WeatherInfo,
 } from './domain/entities/brief.js';
 
-export type { EngineSourceImage, ImageRef } from './domain/entities/image.js';
+export type { ImageRef, ResolvedImage } from './domain/entities/image.js';
 
 // ★ 引擎的**封闭词汇表**(色汇表 + 几何槽位)。从 `makeup` 迁来,理由见其文件头:
 //   `look-spec.ts` 头部预言的搬迁条件("待前端 chips 落地时再迁")已经成立,
@@ -45,6 +45,10 @@ export { zodIssuesMessage } from './domain/validators/zod-issues.js';
 //   · `checkBriefFields` —— 规则(枚举白名单 / 上限 / trim)与两个上限常量
 //   两条入口(表单 metaRaw / 对话 patch_brief)调的都是后者那一份。
 export { briefFields } from './domain/schemas/index.js';
+
+// ★ 形状从 `schemas/` 走(§4.1),`ImageRef` 的**类型**由 `domain/entities/image.js` 转出;
+//   这里补的是**值**:`agent` 的 `sessionSchema` 要拿它当 `faceRef`/`styleRef`/`sceneRef` 的字段形状。
+export { imageRefSchema } from './domain/schemas/index.js';
 export {
   checkBriefFields,
   MAX_DRESS,

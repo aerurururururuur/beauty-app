@@ -2,7 +2,7 @@
  * 用户模块用例单测:注册 / 登录 / 查档案(内存假端口)+ 真实 JSON 仓库与 scrypt 凭据。
  * 重点守两条红线:明文密码不落库、对外视图不含凭据。
  */
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -14,6 +14,8 @@ import {
   JsonUserRepository,
   RegisterUser,
   ScryptPasswordHasher,
+  createUser,
+  userSchema,
   validateCredentials,
   validateUserId,
 } from '../src/modules/user/index.js';
@@ -182,5 +184,51 @@ describe('JsonUserRepository', () => {
     // 「重启」:新实例读同一目录
     const reopened = new JsonUserRepository(dir);
     expect((await reopened.findByNickname('小美'))?.id).toBe('u1');
+  });
+
+  /**
+   * ★ 往返:盘上一条账号的**键集合**必须与 `userSchema` 一格不差。
+   * 理由同 `cabinet` 那份(见 `test/cabinet.test.ts` 的对应注释):字段各写一份之后
+   * 少掉一格**编译不报错**,只在写盘时悄悄丢 —— 而密码哈希少一格就不是"少一格"了。
+   */
+  it('★ 落盘的键集合与 userSchema 一格不差(字段只有一份定义)', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'user-repo-'));
+    const repo = new JsonUserRepository(dir);
+    const user = createUser('u1', '小美', 'scrypt$c2FsdA==$aGFzaA==');
+    await repo.save(user);
+
+    const onDisk = JSON.parse(await readFile(path.join(dir, 'users.json'), 'utf8')) as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(Object.keys(onDisk.u1!).sort()).toEqual(Object.keys(userSchema.shape).sort());
+    expect(onDisk.u1).toEqual(user);
+  });
+
+  it('★ 盘上的文件被手改坏 → 报的是「哪个文件、坏在哪」', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'user-repo-'));
+    await writeFile(path.join(dir, 'users.json'), '{ 这不是 JSON', 'utf8');
+    await expect(new JsonUserRepository(dir).findById('u1')).rejects.toThrow(/users\.json/);
+  });
+
+  it('★ 形状对不上的落盘数据读不进来(§7.2:不拿 as 断言硬说"我知道它是什么形状")', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'user-repo-'));
+    // 少一格 `passwordHash`:登录会变成"密码永远不对",查起来离现场很远。
+    await writeFile(
+      path.join(dir, 'users.json'),
+      JSON.stringify({ u1: { id: 'u1', nickname: '小美', createdAt: 'x' } }),
+      'utf8',
+    );
+    await expect(new JsonUserRepository(dir).findById('u1')).rejects.toThrow(/users\.json/);
+  });
+
+  it('★ 键与行里的 id 对不上 → 读不进来(那会让「按 id 查不到、按昵称却查得到」)', async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'user-repo-'));
+    await writeFile(
+      path.join(dir, 'users.json'),
+      JSON.stringify({ u1: { ...createUser('other', '小美', 'h'), id: 'other' } }),
+      'utf8',
+    );
+    await expect(new JsonUserRepository(dir).findById('u1')).rejects.toThrow(/两者必须一致/);
   });
 });

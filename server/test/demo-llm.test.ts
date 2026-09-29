@@ -367,10 +367,14 @@ describe('observation 标记', () => {
 
 /** 与 `demo-llm.ts` 里那份同形(场合换成面试,好认);只是给"钉标记"那组当输入。 */
 function interviewLook(): LookSpec {
-  return new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
-    lip: new ZoneSpec('rose', 'matte', 3),
-    cheek: new ZoneSpec('coral', 'satin', 2),
-    eyeshadow: new ZoneSpec('nude', 'satin', 2),
-    brow: new BrowSpec('natural', 2),
+  return new LookSpec({
+    occasion: 'interview',
+    base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+    zones: {
+      lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+      cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+      eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+      brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+    },
   });
 }

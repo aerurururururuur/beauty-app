@@ -41,7 +41,7 @@ import type {
   LlmStopReason,
   LlmUsage,
 } from '../../domain/ports/llm.js';
-import { LlmUnavailableError } from '../../domain/ports/llm.js';
+import { LlmUnavailableError } from '../../domain/errors/llm-unavailable-error.js';
 
 export interface DashScopeLlmOptions {
   apiKey: string;
@@ -162,21 +162,35 @@ function parseToolArguments(raw: string | undefined): unknown {
   }
 }
 
-/** `finish_reason` → 归一化终止原因(映射表见 `domain/ports/llm.ts` 文件头)。 */
+/**
+ * `finish_reason` → 归一化终止原因(映射表见 `domain/ports/llm.ts` 文件头)。
+ * ★ 表外的值**必须留下一条日志**(那条注释承诺的就是这一句):
+ *   `end_turn` 的含义是"模型说完了",而没见过的终止原因很可能不是那个意思 ——
+ *   供应商悄悄改行为时,这里静默归到 `end_turn` 会把一整轮提前结束掉,却什么都不报。
+ */
 function toStopReason(finish: unknown): LlmStopReason {
   if (finish === 'tool_calls') return 'tool_use';
+  if (finish === 'stop' || finish === 'end_turn') return 'end_turn';
   if (finish === 'length') return 'max_tokens';
   if (finish === 'content_filter') return 'refusal';
+  console.warn(
+    `[agent] LLM 返回了映射表外的 finish_reason:${JSON.stringify(finish)},按 end_turn 处理`,
+  );
   return 'end_turn';
 }
 
+/**
+ * 读用量。两个字段**都**是数字才认,否则整个 `undefined`。
+ * ⚠️ 缺的那个位置**不许补 0**:那会让"供应商没报用量"在账上长得跟"用量真的是 0"
+ *    一模一样,而后者永远不会被谁发现(§14-06)。
+ */
 function toUsage(usage: unknown): LlmUsage | undefined {
   if (!usage || typeof usage !== 'object') return undefined;
   const u = usage as { prompt_tokens?: unknown; completion_tokens?: unknown };
-  return {
-    inputTokens: typeof u.prompt_tokens === 'number' ? u.prompt_tokens : 0,
-    outputTokens: typeof u.completion_tokens === 'number' ? u.completion_tokens : 0,
-  };
+  if (typeof u.prompt_tokens !== 'number' || typeof u.completion_tokens !== 'number') {
+    return undefined;
+  }
+  return { inputTokens: u.prompt_tokens, outputTokens: u.completion_tokens };
 }
 
 function toContent(message: Record<string, unknown>): ContentBlock[] {
@@ -184,7 +198,7 @@ function toContent(message: Record<string, unknown>): ContentBlock[] {
 
   const text = message.content;
   if (typeof text === 'string' && text.trim() !== '') {
-    blocks.push(new TextBlock(text));
+    blocks.push(new TextBlock({ type: 'text', text }));
   }
 
   const calls = message.tool_calls;
@@ -192,13 +206,14 @@ function toContent(message: Record<string, unknown>): ContentBlock[] {
     calls.forEach((raw, index) => {
       const call = raw as WireToolCall;
       blocks.push(
-        new ToolUseBlock(
+        new ToolUseBlock({
+          type: 'tool_use',
           // ★ id 缺失要兜底:没有 id 就配不上 tool_result,下一轮必 400。
           //   实测里 id 是有的(`call_ce5648...`),这只是防御。
-          typeof call.id === 'string' && call.id !== '' ? call.id : `call_fallback_${index}`,
-          typeof call.function?.name === 'string' ? call.function.name : '',
-          parseToolArguments(call.function?.arguments),
-        ),
+          id: typeof call.id === 'string' && call.id !== '' ? call.id : `call_fallback_${index}`,
+          name: typeof call.function?.name === 'string' ? call.function.name : '',
+          input: parseToolArguments(call.function?.arguments),
+        }),
       );
     });
   }

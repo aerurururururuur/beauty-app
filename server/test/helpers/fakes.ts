@@ -31,7 +31,7 @@ import type {
   VisionClient,
   VisionRequest,
 } from '../../src/modules/makeup/index.js';
-import type { EngineSourceImage, Occasion, SkinTone } from '../../src/modules/shared/index.js';
+import type { Occasion, ResolvedImage, SkinTone } from '../../src/modules/shared/index.js';
 
 /** 固定返回值(或固定抛错)的天气源,用来测用例的错误翻译。 */
 export class FakeWeatherProvider implements WeatherProvider {
@@ -139,10 +139,13 @@ export class FakeVisionClient implements VisionClient {
 }
 
 /** 一份合法的风格读数。★ 闭集值必须走构造器(见 `entities/look-spec.ts`)。 */
-export const SAMPLE_STYLE_READ = new StyleRead(new LookSpecBase(3, 'satin', 0), {
-  lip: new ZoneSpec('rose', 'matte', 3),
-  cheek: new ZoneSpec('coral', 'satin', 2),
-  eyeshadow: new ZoneSpec('nude', 'satin', 2),
+export const SAMPLE_STYLE_READ = new StyleRead({
+  base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+  zones: {
+    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+  },
 });
 
 /**
@@ -156,7 +159,7 @@ export class FakeAnalyzers implements Analyzers {
   /** 每次 `read` 的 case,**按调用顺序**。 */
   readonly calls: AnalyzeCase[] = [];
   /** 每次 `read` 收到的输入图(验"交给分析器的是解析出来的本机路径")。 */
-  readonly images: EngineSourceImage[] = [];
+  readonly images: ResolvedImage[] = [];
   /** 置一个错则三个 `read` 都抛(验"分析失败也照样记账"那一支)。 */
   failWith: Error | undefined;
   skinTone: SkinTone = 'warm_ivory';

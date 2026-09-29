@@ -128,6 +128,7 @@ modules/<module>/
 │   │   ├── contracts/      跨模块 / 跨端契约的形状
 │   │   └── index.ts        barrel
 │   ├── entities/           实体 + 规则表（状态机 / 归属 / 准入 / 策略）
+│   ├── errors/             本模块自己的错误类（ErrorCode 不在这里，见下）
 │   ├── validators/         业务校验实现（豁免 import 校验库）
 │   └── ports/              仓储 / 适配器 interface（纯 TS）
 ├── application/
@@ -147,7 +148,8 @@ modules/<module>/
 - `schemas/deps/` —— 注入契约的载体是**用例构造器的 `deps` 参数类型**（具名对象、无默认值、用例内零 `new`），不是 schema。
 - `ports/public/` + `<mod>.public.service.ts` —— 本仓的跨模块机制方向相反，见 §10。
 - `events/` —— 见 §12。
-- `errors/` —— `ErrorCode` 是**一张全局协议表**（`shared/domain/errors/app-error.ts`，48 个文件引用）。拆到各模块反而把「错误码即协议」这条破了，所以只在 `shared` 建这一处。
+- `errors/` **的 `ErrorCode` 那半** —— 错误码是**一张全局协议表**（`shared/domain/errors/app-error.ts`，48 个文件引用）。拆到各模块反而把「错误码即协议」这条破了，所以码表与基类 `AppError` 只在 `shared` 建这一处。
+  ★ 但**模块自己的错误类**（如 `weather` 的 `CityNotFoundError`、`agent` 的 `LlmUnavailableError`）归各自的 `domain/errors/`，**不写在 `ports/` 里**：端口只声明契约，错误类是这个模块的行为，混在一起会让"这个错误是谁抛的"变得要靠翻端口文件才知道。
 - `utils/` —— 唯一候选 `shared/domain/scene-rules.ts` 是**跨端共享资产**（前端经 vite alias 直接执行同一个文件），搬它要同时改 alias / 脚本深链 / 测试路径断言，只为多一层目录，不划算。
 
 两个约束值得单独记住：

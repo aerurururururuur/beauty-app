@@ -9,14 +9,15 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/product.ts` | `Product`：`{ id, number, name, category, dimensions, derived, notes? }`。★ `dimensions`(**原文**) 与 `derived`(**我们生成的索引**) 物理分开 |
-| `domain/entities/library.ts` | `ProductLibrary` / `LibraryCategory` / `MatchingGuide` / `LibraryHealth` |
-| `domain/schemas/entities/content.ts` | 两种内容文件的形状（zod `.strict()` 单源） |
-| `domain/ports/product-catalog.ts` | `ProductCatalog` 端口：`overview()` / `find(id)`。**同步**方法 |
+| `domain/schemas/entities/content.ts` | 两种内容文件的形状（zod `.strict()` **单源**）：`productFileSchema` / `libraryFileSchema` / `DIMENSION_KEYS`，`Product` 与 `ProductLibrary` 由它 `z.output` 推导 |
+| `domain/entities/product.ts` | `Product`（= `productFileSchema` 的输出类型）。★ `dimensions`(**原文**) 与 `derived`(**我们生成的索引**) 物理分开；`DIMENSION_KEYS` / `DimensionKey` 从 schema 转出，`DIMENSION_LABELS`（中文名）在这里 |
+| `domain/entities/library.ts` | `ProductLibrary` / `LibraryCategory` / `MatchingGuide` / `LibraryHealth`——都从 `libraryFileSchema` 上切下来 |
+| `domain/ports/product-catalog.ts` | `ProductCatalog` 端口：`library()` / `list()` / `find(id)`。**同步**方法，**只进出领域类型** |
 | `domain/validators/content.validator.ts` | 校验 + 抛一句人看得懂的话。抛普通 `Error`，**不是 `AppError`** |
-| `infrastructure/json/content-loader.ts` | `JsonProductCatalog`：扫目录 → 内存 Map |
+| `application/products-view.ts` | ★ **唯一投影点**：`toLibraryView` / `toProductSummaryView` / `toProductDetailView`——领域类型 → 给模型看的样子 |
+| `infrastructure/json/content-loader.ts` | `JsonProductCatalog`：扫目录 → 内存 Map。**不做投影** |
 | `compose.ts` | `createProductsModule({ contentDir })`。**刻意没有 `kind` 开关** |
-| `application/` `presentation/` | 空。各有 README 说明为什么空 |
+| `presentation/` | 空。有 README 说明为什么空 |
 
 ## ★ 已知取舍一：**急切加载**（本项目唯一一处）
 
@@ -30,7 +31,7 @@
 
 代价：启动多读 ~57 个小文件（50KB 上下），可忽略。
 ⚠️ **有规模上限**：几千条时急切加载和"整库索引进上下文"都会先撑不住，
-那时**先改 `overview()`**，别让它留在原地假装还能扩展。
+那时**先改 `toLibraryView`**（`application/products-view.ts`），别让它留在原地假装还能扩展。
 
 ### 两种"没有内容"，区别对待（`compose.ts` 的核心判断）
 
@@ -65,8 +66,11 @@
 
 - **加库**：`products/` 下加一个平级目录，各自有 `library.json`。本模块的类型不用动。
 - **加类目**：改 `scripts/import-products.ts` 的 `CATEGORIES`，重导。
-- **加维度**：改 `DIMENSIONS`（导入器）+ `DIMENSION_KEYS`/`DIMENSION_LABELS`（`entities/product.ts`）
-  + `dimensionsSchema`（`schemas/entities/content.ts`）——**三处，缺一处启动就炸**（`.strict()` 会抓到）。
+- **加维度**：改 `DIMENSIONS`（导入器）+ `DIMENSION_KEYS` 与 `dimensionsSchema`
+  （都在 `schemas/entities/content.ts`）+ `DIMENSION_LABELS`（`entities/product.ts`）
+  ——**三处，缺一处启动就炸**（`.strict()` 会抓到）。`DIMENSION_KEYS` 与 `dimensionsSchema`
+  是同一份清单写了两遍（六格逐字写出才保得住 `dimensions.skinTypes` 这类按名字取的编译期保护），
+  由 `test/products.test.ts` 对表钉着。
 
 ## 待办
 

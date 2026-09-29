@@ -14,8 +14,9 @@
  * 密码**不做任何清洗**:空格、首尾空白都是密码的合法字符,动了就和用户之后输入的密码对不上。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import { credentialsSchema, userIdSchema } from '../schemas/index.js';
+import { credentialsSchema, userIdSchema, userTableSchema } from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
+import type { User } from '../entities/user.js';
 
 /** 昵称原文上限(字,给 trim 留余量;清洗后的上下限另判)。 */
 export const MAX_NICKNAME_RAW = 64;
@@ -106,4 +107,35 @@ export function validateCredentials(raw: unknown): Credentials {
 
   // ④ 输出(密码原样透传,不清洗)
   return { nickname, password: parsed.data.password };
+}
+
+/**
+ * 落盘表(`dataDir/users/users.json`)的解析点 —— 仓库读出口调它(§7.2)。
+ *
+ * ★ 这里只查**形状**。昵称长度、id 格式是**入参**规则,不拿来回溯校验盘上的数据:
+ *   某天收紧一条上限,旧账号不该整个读不出来。这道网要挡的是另一类事 ——
+ *   文件被手改过、写坏了,形状对不上。
+ * ★ 抛普通 `Error` 而不是 `AppError`:这不是「这个请求不合法」,是**盘上的数据坏了**。
+ *   该以 500 结束并让人去查那个文件,不是一个 400 把锅甩给客户端。
+ */
+export function parseUserTable(raw: unknown, file: string): Record<string, User> {
+  const parsed = userTableSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `账号数据不合法:${file} —— ${zodIssuesMessage(parsed.error)}。` +
+        '这是 dataDir 下的落盘数据,不是请求入参;多半是文件被手改过。',
+    );
+  }
+
+  const table: Record<string, User> = {};
+  for (const [id, row] of Object.entries(parsed.data)) {
+    // 键与行里的 id 必须一致:对不上时「按 id 查不到、按昵称却查得到」,登录会变得不可解释。
+    if (row.id !== id) {
+      throw new Error(
+        `账号数据不合法:${file} —— 键「${id}」下的账号 id 是「${row.id}」,两者必须一致。`,
+      );
+    }
+    table[id] = row;
+  }
+  return table;
 }

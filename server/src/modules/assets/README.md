@@ -6,7 +6,7 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/ports/artifact-store.ts` | `ArtifactStore` 端口（本模块持契约）：`putInputFile`(face/scene) · `putResult` · `resolveToFilePath` · `readResult` |
+| `domain/ports/artifact-store.ts` | `ArtifactStore` 端口（本模块持契约）：`putInputFile`(face/scene) · `putResult` · `resolveToFilePath` · `resolveResult`（**返路径不返流**）· `remove` · `listIds` |
 | `infrastructure/file-system/artifact-store.ts` | `FileSystemArtifactStore`：dataDir 下写盘、rename 原子收编产物 |
 | `index.ts` | public barrel |
 | `compose.ts` | `createAssetsModule({ dataDir })` → `{ artifactStore }` |

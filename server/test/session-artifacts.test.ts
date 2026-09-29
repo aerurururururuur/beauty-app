@@ -52,11 +52,6 @@ function engineOutput(dataDir: string, content: string, name = 'out.png'): strin
   return file;
 }
 
-async function streamText(stream: NodeJS.ReadableStream): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk as Buffer));
-  return Buffer.concat(chunks).toString();
-}
 
 describe('createSessionArtifacts', () => {
   it('照片:存进去能解析成一个**真实存在**的本机路径(引擎要的是路径,不是流)', async () => {
@@ -84,10 +79,10 @@ describe('createSessionArtifacts', () => {
     expect(second.storeKey).toBe('results/s1/r2/result.png');
 
     // 两张都读得回来,而且是各自那份。
-    const a = await artifacts.readRender('s1', 1);
-    const b = await artifacts.readRender('s1', 2);
-    expect(await streamText(a!.stream)).toBe('第一张');
-    expect(await streamText(b!.stream)).toBe('第二张');
+    const a = await artifacts.resolveRender('s1', 1);
+    const b = await artifacts.resolveRender('s1', 2);
+    expect(readFileSync(a!.filePath, 'utf8')).toBe('第一张');
+    expect(readFileSync(b!.filePath, 'utf8')).toBe('第二张');
   });
 
   it('★ 收编之后把引擎那份原图删掉 —— 不删的话 `[I8]` 的"真删"就是假的', async () => {
@@ -98,13 +93,13 @@ describe('createSessionArtifacts', () => {
 
     // 盘上那份副本没了,而存储里那份好好的 —— 这正是"收编"该有的样子。
     expect(existsSync(src)).toBe(false);
-    const kept = await artifacts.readRender('s1', 1);
-    expect(await streamText(kept!.stream)).toBe('上了妆的用户的脸');
+    const kept = await artifacts.resolveRender('s1', 1);
+    expect(readFileSync(kept!.filePath, 'utf8')).toBe('上了妆的用户的脸');
   });
 
   it('★★ 源文件**不在**引擎输出目录里 → 一个字节都不许动它', async () => {
     // ⚠️ 这条防的是一个**真踩过的** bug,不是假想的:
-    //    `MockEngine` 返回的 `resultFilePath` 就是 `input.face.filePath`(它不出图,只把输入当输出),
+    //    `MockEngine` 返回的 `result.image` 就是 `input.face`(它不出图,只把输入当输出),
     //    那个路径落在 `inputs/<sid>/face/` 下。没有这道边界的话,第一次出图就会
     //    **把用户上传的照片删掉** —— 而会话里的 `faceRef` 还在,第二次出图 `resolveFace` 解析到空气。
     const { artifacts } = setup();
@@ -154,12 +149,12 @@ describe('createSessionArtifacts', () => {
     //    写**新的**文件名(`image-engine.ts` 的 `newFileStamp()`)。
     //    但**写完这条之后要记住**:别写出"一份源文件喂给两次 putRender"的代码。
     await expect(artifacts.putRender('s1', 2, src, 'image/png')).rejects.toThrow();
-    expect(await artifacts.readRender('s1', 2)).toBeNull();
+    expect(await artifacts.resolveRender('s1', 2)).toBeNull();
   });
 
   it('读一张不存在的图 → `null`(不是抛错:调用方用它判 404)', async () => {
     const { artifacts } = setup();
-    expect(await artifacts.readRender('s1', 7)).toBeNull();
+    expect(await artifacts.resolveRender('s1', 7)).toBeNull();
   });
 
   it('★ `removeAll` 把照片与**全部**成品图一起删掉,且不碰别的会话', async () => {
@@ -176,27 +171,24 @@ describe('createSessionArtifacts', () => {
 
     expect(existsSync(facePath)).toBe(false);
     expect(existsSync(path.join(dataDir, 'results', 's1'))).toBe(false);
-    expect(await artifacts.readRender('s1', 1)).toBeNull();
+    expect(await artifacts.resolveRender('s1', 1)).toBeNull();
     // ★ `s1` 与 `s10` 只差一个字符,但删的边界不许糊。
-    const neighbor = await artifacts.readRender('s10', 1);
+    const neighbor = await artifacts.resolveRender('s10', 1);
     expect(neighbor).not.toBeNull();
-    // ⚠️ **必须把流读掉**:留着不读的 `fs.ReadStream` 会在 `afterEach` 删掉临时目录之后
-    //    才去 open,于是抛一个**没人接的** ENOENT(vitest 会把它记成本次运行的 unhandled error)。
-    expect(await streamText(neighbor!.stream)).toBe('邻居的图');
+    expect(readFileSync(neighbor!.filePath, 'utf8')).toBe('邻居的图');
   });
 
-  it('同一份 id,`putRender` 与 `readRender` 用的是**同一个**公式', async () => {
+  it('同一份 id,`putRender` 与 `resolveRender` 用的是**同一个**公式', async () => {
     const { dataDir, artifacts } = setup();
 
     for (const seq of [1, 2, 3]) {
       // 每张写的是**不同**内容:只比 mimeType 的话,"读回的是别的那张"也照样能过。
       const src = engineOutput(dataDir, `第 ${seq} 张`);
       await artifacts.putRender('s1', seq, src, 'image/png');
-      const back = await artifacts.readRender('s1', seq);
+      const back = await artifacts.resolveRender('s1', seq);
       expect(back).not.toBeNull();
       expect(back!.mimeType).toBe('image/png');
-      // 读掉流(理由同上一条):不读就是漏一个会抛 ENOENT 的句柄。
-      expect(await streamText(back!.stream)).toBe(`第 ${seq} 张`);
+      expect(readFileSync(back!.filePath, 'utf8')).toBe(`第 ${seq} 张`);
     }
     expect(renderId('s1', 2)).toBe('s1/r2');
   });

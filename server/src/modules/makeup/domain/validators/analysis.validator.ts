@@ -15,7 +15,7 @@ import type { AnalysisOf } from '../ports/analyzer.js';
 import type { StyleRead } from '../entities/style-read.js';
 import { faceReadingSchema, sceneReadingSchema } from '../schemas/index.js';
 import { checkBriefFields } from '../../../shared/index.js';
-import { describeIssue, fail } from './errors.js';
+import { describeIssue, fail } from '../errors/validation-errors.js';
 import { validateStyleRead } from './look-spec.validator.js';
 
 /** 提示词允许模型用它表示「读不出来」。它是**一条失败通道**,不是一种取值。 */

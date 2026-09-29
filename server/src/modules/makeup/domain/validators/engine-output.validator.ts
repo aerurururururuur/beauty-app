@@ -62,16 +62,18 @@ function assertZone(zone: unknown, index: number): void {
 }
 
 /**
- * 校验引擎产物结构:成品图路径/类型必须有;look 里声明的 zones / palette
+ * 校验引擎产物结构:成品图(`image.filePath` / `image.mimeType`)必须有;look 里声明的 zones / palette
  * 若存在则逐项做几何与颜色合法性检查。通过则原样返回。
  */
 export function validateEngineResult(result: EngineResult): EngineResult {
   if (!result || typeof result !== 'object') fail('引擎未返回结果');
-  if (typeof result.resultFilePath !== 'string' || result.resultFilePath.trim() === '') {
-    fail('缺少成品图路径(resultFilePath)');
+  const image = result.image;
+  if (!image || typeof image !== 'object') fail('引擎未返回成品图(image)');
+  if (typeof image.filePath !== 'string' || image.filePath.trim() === '') {
+    fail('缺少成品图路径(image.filePath)');
   }
-  if (typeof result.mimeType !== 'string' || result.mimeType.trim() === '') {
-    fail('缺少成品图类型(mimeType)');
+  if (typeof image.mimeType !== 'string' || image.mimeType.trim() === '') {
+    fail('缺少成品图类型(image.mimeType)');
   }
 
   const look = result.look;

@@ -2,9 +2,12 @@
  * domain/ports/artifact-store.ts —— 图片文件存储端口。
  * 负责输入落盘、产物保存、把存储键解析成本机文件路径(供引擎/分析器读取)。
  * 具体实现(本地文件系统 / 对象存储)属于 infrastructure。
+ *
+ * ★ **本端口的返回值一律是路径 / 引用,没有流。** 领域与应用层不做 I/O(§2),
+ *   而"建流"本身就是 I/O —— 交给路径由**表现层** `createReadStream`。
  */
 import type { Readable } from 'node:stream';
-import type { ImageRef } from '../../../shared/index.js';
+import type { ImageRef, ResolvedImage } from '../../../shared/index.js';
 
 export interface UploadFile {
   originalName: string;
@@ -21,28 +24,24 @@ export interface UploadFile {
  */
 export type InputKind = 'face' | 'style' | 'scene';
 
-/**
- * 收编好的产物。
- *
- * ★ **刻意只有一个成员。** 以前这里还有个 `url: '/jobs/<id>/result'`——
- *   它是**只写不读**的:唯一消费者(`session-artifacts.ts`)明说不看它、
- *   自己按 `/agent/sessions/:id/renders/:seq` 生成取图地址。
- *   而 `jobs` 删掉之后,那个字段里装着的就是**一条不存在的路由**——
- *   客户端哪天真去用它,拿到的是 404 而不是图。**取图地址归表现层生成,不归存储层。**
- */
-export interface StoredResult {
-  ref: ImageRef; // 相对路径 + mimeType
-}
-
 export interface ArtifactStore {
   /** 把上传流式写入输入区,返回 ImageRef(storeKey 相对路径)。 */
   putInputFile(jobId: string, kind: InputKind, file: UploadFile): Promise<ImageRef>;
-  /** 把引擎产出的本地文件收编为任务产物,返回相对引用与下载 URL。 */
-  putResult(jobId: string, sourceFilePath: string, mimeType: string): Promise<StoredResult>;
+  /**
+   * 把引擎产出的本地文件收编为任务产物,返回它的存储引用(storeKey 相对路径)。
+   * ⚠️ **不收「下载 URL」**:取图地址归表现层按路由生成 ——
+   *   这里装过的 `url: '/jobs/<id>/result'` 在 `jobs` 删掉后就是一条**指向 404 的路由**,
+   *   客户端哪天真去用它,拿到的是 404 而不是图。
+   */
+  putResult(jobId: string, sourceFilePath: string, mimeType: string): Promise<ImageRef>;
   /** 把 ImageRef 解析成可被引擎/分析器直接读取的本机文件路径。 */
   resolveToFilePath(jobId: string, ref: ImageRef): Promise<string>;
-  /** 读取任务产物(若已生成)。 */
-  readResult(jobId: string): Promise<{ stream: Readable; mimeType: string } | null>;
+  /**
+   * 解析出已落盘的产物(若已生成)。
+   * ★ **给路径 + MIME,不给流**:`Readable` 是活对象(zod 描述不了),而建流是 I/O,
+   *   封进返回值等于让它上到领域层。建流归表现层(见文件头)。
+   */
+  resolveResult(jobId: string): Promise<ResolvedImage | null>;
   /**
    * ★ **真删**这个 id 名下的全部东西:输入区(`inputs/<id>/`)与产物区(`results/<id>/`)。
    *

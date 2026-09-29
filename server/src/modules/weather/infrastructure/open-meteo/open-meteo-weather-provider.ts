@@ -6,10 +6,8 @@
  * 本文件不返回任何「猜的」天气(宁可没有,不要假的)。
  */
 import type { WeatherInfo } from '../../../shared/index.js';
-import {
-  CityNotFoundError,
-  WeatherUpstreamError,
-} from '../../domain/ports/weather-provider.js';
+import { CityNotFoundError } from '../../domain/errors/city-not-found-error.js';
+import { WeatherUpstreamError } from '../../domain/errors/weather-upstream-error.js';
 import type { WeatherProvider, WeatherQuery, WeatherResult } from '../../domain/ports/weather-provider.js';
 import { conditionFromWmoCode } from './wmo.js';
 

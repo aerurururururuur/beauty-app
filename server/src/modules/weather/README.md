@@ -9,7 +9,8 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/ports/weather-provider.ts` | `WeatherProvider` 端口（`name` + `fetch`）、`WeatherResult`、两个契约错误 `CityNotFoundError` / `WeatherUpstreamError` |
+| `domain/ports/weather-provider.ts` | `WeatherProvider` 端口（`name` + `fetch`）、`WeatherQuery`、`WeatherResult` |
+| `domain/errors/city-not-found-error.ts` + `weather-upstream-error.ts` | 本端口的两个契约错误。★ 分开是刻意的：「用户改地名就能好」(404) vs 「上游挂了」(502)。**错误类只住这里，别写回 `ports/`** |
 | `domain/schemas/api/weather-query.ts` | 查询串形状（全是字符串，**只有类型与 `optional()`**） |
 | `domain/validators/weather-query.validator.ts` | 行为：`MAX_CITY` 城市名上限、city 与坐标二选一、坐标解析与夹逼、`city` trim（§4.2：规则与文案同处一地） |
 | `domain/schemas/api/weather-view.ts` | ★ 对外契约 `WeatherView`（前端可直接塞进 `brief.weather`） |

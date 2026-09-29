@@ -6,6 +6,9 @@
  * 代价(README 也写了):写入是整表读-改-写,并发写会互相覆盖;
  * 演示期单进程、量级(每人 ≤ 100 件)远没到需要索引或分片的程度。
  * 写盘先写临时文件再 rename,保证原子性(避免留下半截 JSON)。
+ *
+ * ★ **读出口过解析器**(§7.2):`readTable` 交给 `parseItemTable`,不拿 `as` 断言硬说
+ *   「我知道它是什么形状」。`.json` 里的东西可以是手改的 —— 断言在边界处不作数(§7.3)。
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
@@ -13,9 +16,21 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { CosmeticItem } from '../../domain/entities/cosmetic-item.js';
 import type { CosmeticRepository } from '../../domain/ports/cosmetic-repository.js';
+import { parseItemTable } from '../../domain/validators/cosmetic-item.validator.js';
 
 /** 落盘格式:itemId → CosmeticItem。 */
 type ItemTable = Record<string, CosmeticItem>;
+
+/** 读 + `JSON.parse`。文件损坏时报的是「哪个文件、坏在哪」,不是一句裸的 `Unexpected token`。 */
+function readJson(text: string, file: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(
+      `衣橱数据读不出来:${file} —— ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
 
 export class JsonCosmeticRepository implements CosmeticRepository {
   constructor(private readonly dir: string) {}
@@ -49,7 +64,7 @@ export class JsonCosmeticRepository implements CosmeticRepository {
 
   private async readTable(): Promise<ItemTable> {
     if (!existsSync(this.file)) return {};
-    return JSON.parse(await readFile(this.file, 'utf8')) as ItemTable;
+    return parseItemTable(readJson(await readFile(this.file, 'utf8'), this.file), this.file);
   }
 
   private async writeAtomic(content: string): Promise<void> {

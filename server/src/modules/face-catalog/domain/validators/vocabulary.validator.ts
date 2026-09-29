@@ -136,7 +136,9 @@ export function parseFaceVocabulary(
       );
     }
 
-    tiers.push(new SkinToneTier(tone.id, tone.label, tone.order, tone.isDefault, toneKeys, tone.swatch));
+    // ★ 展开文件那一行再盖掉 `toneKeys`(宽 `string[]` → 收窄后的 `ToneKey[]`)。
+    //   展开是**有意**的:字段清单在 schema 里,这里多写一格就少一格要跟着改。
+    tiers.push(new SkinToneTier({ ...tone, toneKeys }));
   }
 
   // ── 与代码里的 `SKIN_TONES` 对账 ──
@@ -206,10 +208,10 @@ export function parseFaceVocabulary(
       seenValues.add(value.id);
 
       const where = `特征类「${dimension.label}」的取值「${value.label}」`;
-      values.push(new FeatureValue(value.id, value.label, readRoute(files.features, where, value.route)));
+      values.push(new FeatureValue({ ...value, route: readRoute(files.features, where, value.route) }));
     }
 
-    dims.push(new FeatureDimension(dimension.id, dimension.label, dimension.strategy, dimension.multi, values));
+    dims.push(new FeatureDimension({ ...dimension, values }));
   }
 
   if (version !== featuresParsed.data.version) {

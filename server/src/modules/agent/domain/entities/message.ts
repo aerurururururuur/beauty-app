@@ -22,73 +22,56 @@
  *      拆成多条不仅多余,还会**训练模型不再并行调用工具**。
  *      这两条由 {@link toolResults} 在结构上保证:它是唯一的构造入口。
  *
- * ── ★ 下面四个是类,不是 interface ────────────────────────────────────────────
- * 名义化标记那个 `brand` 的由来见 `makeup/domain/entities/look-spec.ts`
- * 那段「为什么是类」——这里不抄第二遍。要收拢的是同一件事:
- * 「块只能由本文件的构造器产出」,上面那两条不变量才由注释变成编译期事实。
+ * ── ★ 形状在 `../schemas/entities/message.ts`,这里一个字段都不声明 ────────────
+ * 类只做 `Object.assign(this, row)` + 声明合并(同 `cabinet` 的 `CosmeticItem`);
+ * **名义化只在 schema 那一侧(`.brand<>()`),别在类里手写 brand** —— 理由见那份 schema 的文件头。
+ * ★ **构造参数收未加品牌的 row**,所以调用点照旧写字面量:`new TextBlock({ type: 'text', text: '你好' })`。
  *
- * ★ 字段一律 `declare` + 构造函数体内逐项赋值,**不用参数属性、不用字段初始化式**:
- *   两者都会自己决定运行时字段的生成顺序,`Object.keys` / `JSON.stringify` 的键序
- *   与选项键的有无就会与改动前那个字面量不一致。逐项赋值则逐项相同。
+ * ⚠️ 键序 = **调用点字面量的书写顺序**(品牌是纯类型标记、方法在原型上,
+ *   所以 `Object.keys` / `JSON.stringify` / `structuredClone` 与改动前逐字相同)。
  */
+import type {
+  MessageRow,
+  MessageShape,
+  TextBlockRow,
+  TextBlockShape,
+  ToolResultBlockRow,
+  ToolResultBlockShape,
+  ToolUseBlockRow,
+  ToolUseBlockShape,
+} from '../schemas/index.js';
 
 /** 一个文本块。 */
 export class TextBlock {
-  /** 名义化标记:只声明、不初始化、**不许读**。见文件头那段。 */
-  declare private readonly brand: void;
-
-  declare readonly type: 'text';
-  declare readonly text: string;
-
-  constructor(text: string) {
-    this.type = 'text';
-    this.text = text;
+  constructor(row: TextBlockRow) {
+    Object.assign(this, row);
   }
 }
+export interface TextBlock extends TextBlockShape {}
 
 /** 一次工具调用。`input` 是**已解析**的对象(adapter 负责把 JSON 字符串解析掉)。 */
 export class ToolUseBlock {
-  /** 名义化标记:只声明、不初始化、**不许读**。见文件头那段。 */
-  declare private readonly brand: void;
-
-  declare readonly type: 'tool_use';
-  /** 供应方给的调用 id;回填结果时必须原样带上。 */
-  declare readonly id: string;
-  declare readonly name: string;
-  declare readonly input: unknown;
-
-  constructor(id: string, name: string, input: unknown) {
-    this.type = 'tool_use';
-    this.id = id;
-    this.name = name;
-    this.input = input;
+  constructor(row: ToolUseBlockRow) {
+    Object.assign(this, row);
   }
 }
+export interface ToolUseBlock extends ToolUseBlockShape {}
 
 /** 一次工具结果。`isError` 为真时模型会看到这是失败并自行改路(§7.3 第 4 条)。 */
 export class ToolResultBlock {
-  /** 名义化标记:只声明、不初始化、**不许读**。见文件头那段。 */
-  declare private readonly brand: void;
-
-  declare readonly type: 'tool_result';
-  /** 对应 {@link ToolUseBlock.id}。**必须精确匹配**,不匹配模型就看不到结果。 */
-  declare readonly toolUseId: string;
-  declare readonly content: string;
-  /**
-   * 缺省时**这个键不存在**(同 `agent-loop.ts` 那句 `...(isError ? {isError:true} : {})`
-   * 的取舍——凭空多一个值为 `undefined` 的键,对"按有没有这个键判断"的读者是假信息)。
-   */
-  declare readonly isError?: boolean;
-
-  constructor(toolUseId: string, content: string, isError?: boolean) {
-    this.type = 'tool_result';
-    this.toolUseId = toolUseId;
-    this.content = content;
-    if (isError !== undefined) this.isError = isError;
+  constructor(row: ToolResultBlockRow) {
+    Object.assign(this, row);
+    // ★ **缺省时这个键不存在** —— `Object.assign` 会把值为 `undefined` 的键一起搬,
+    //   而调用点几乎总是把 `outcome.isError`(可能是 `undefined`)整个传进来。
+    //   这里删掉它,与改动前那句 `if (isError !== undefined)` 逐字等价。
+    //   (`delete` 只对可选属性合法,所以不需要断言。)
+    if (this.isError === undefined) delete this.isError;
   }
 }
+export interface ToolResultBlock extends ToolResultBlockShape {}
 
-export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
+/** 一条消息能装的东西。★ 从 schema 那份联合上切下来 —— 加了第四种块这里自动跟上。 */
+export type ContentBlock = MessageShape['content'][number];
 
 /**
  * 会话里的一条消息。
@@ -100,30 +83,22 @@ export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
  * `system` 是独立角色而不是塞进第一条 user:线上两种传法(顶层 `system` 参数、
  * 或一条 `role:'system'` 消息)都能从这一个字段翻译过去,放在这里是为了让
  * adapter 一眼能挑出来往对应位置翻译。
- *
- * ★ **它是类**,理由与上面三个块相同(见文件头)。字段写法也相同:逐项赋值。
  */
 export class Message {
-  /** 名义化标记:只声明、不初始化、**不许读**。见文件头那段。 */
-  declare private readonly brand: void;
-
-  declare readonly role: 'system' | 'user' | 'assistant';
-  declare readonly content: ContentBlock[];
-
-  constructor(role: 'system' | 'user' | 'assistant', content: ContentBlock[]) {
-    this.role = role;
-    this.content = content;
+  constructor(row: MessageRow) {
+    Object.assign(this, row);
   }
 }
+export interface Message extends MessageShape {}
 
 /** 一条纯文本消息(最常用的构造)。 */
 export function textMessage(role: 'system' | 'user' | 'assistant', text: string): Message {
-  return new Message(role, [new TextBlock(text)]);
+  return new Message({ role, content: [new TextBlock({ type: 'text', text })] });
 }
 
 /** assistant 那一轮的回复(正文 + 若干工具调用),**原样**存进 `messages[]`。 */
 export function assistantMessage(content: ContentBlock[]): Message {
-  return new Message('assistant', content);
+  return new Message({ role: 'assistant', content });
 }
 
 /**
@@ -138,8 +113,8 @@ export function assistantMessage(content: ContentBlock[]): Message {
  */
 export function toolResults(results: readonly ToolResultBlock[], thenText?: string): Message {
   const content: ContentBlock[] = [...results];
-  if (thenText) content.push(new TextBlock(thenText));
-  return new Message('user', content);
+  if (thenText) content.push(new TextBlock({ type: 'text', text: thenText }));
+  return new Message({ role: 'user', content });
 }
 
 /** 从一条 assistant 消息里挑出全部工具调用(按出现顺序,顺序即执行顺序)。 */

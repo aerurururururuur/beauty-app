@@ -6,9 +6,9 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/look.ts` | `Look`（引擎私有契约，对调用方不透明）+ `MakeupZone`（归一化叠加区）。★ ✏️ 2026-09-29：`look` **今天零消费者**——`render_look` 只取 `resultFilePath`/`mimeType`，验完形状就丢；见该文件头 |
-| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, brief, references?, lookSpec? }` |
-| `domain/validators/engine-output.validator.ts` | `validateEngineResult`：把关外部引擎产物（路径/类型存在、坐标 0..1、RGB 0..255、opacity 0..1、blur≥0，非法 → `INTERNAL_ERROR`） |
+| `domain/entities/look.ts` | `Look`（引擎私有契约，对调用方不透明）+ `MakeupZone`（归一化叠加区）。★ ✏️ 2026-09-29：`look` **今天零消费者**——`render_look` 只取 `result.image`，验完形状就丢；见该文件头 |
+| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, brief, references?, lookSpec? }`、`EngineResult{ image: ResolvedImage, look }`（`ResolvedImage` 来自 `shared`，与入参同一个形状） |
+| `domain/validators/engine-output.validator.ts` | `validateEngineResult`：把关外部引擎产物（`image.filePath`/`image.mimeType` 存在、坐标 0..1、RGB 0..255、opacity 0..1、blur≥0，非法 → `INTERNAL_ERROR`） |
 | `application/look-description.ts` | `describeLook`：`LookSpec` → 一句给用户看的人话（**唯一**一份说法，引擎的 `look.style` 也复用它） |
 | `infrastructure/engine/mock-engine.ts` | `MockEngine`：occasion 基准风格 × skinTone 调深浅，产物 = 本人照片原样收编 + `zones/palette`。★ ✏️ 2026-09-29：`zones/palette` **今天没人读**（「供前端叠加」那个前端随 `jobs` 一起没了） |
 | `infrastructure/engine/prompt-builder.ts` | ★★ `buildPrompt(spec, opts)`：`LookSpec` → 提示词。**纯函数**，只输出色/质地/浓度 |
@@ -74,14 +74,14 @@
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared`（`EngineSourceImage` / `MakeupBrief` / `SceneDescriptor` 等）。**不依赖任何业务模块**。
+- 依赖：`shared`（`ResolvedImage` / `MakeupBrief` / `SceneDescriptor` 等）。**不依赖任何业务模块**。
 - 被依赖：`agent`（经 `render_look` 调用，产物交 `validateEngineResult` 把关）。
 - **`makeup` 不认识 `agent`**：出图能力是**被调用**的，依赖方向单向。引擎本身与消费者无关。
 
 ## 现状与待办
 
 - **现状**（✏️ 2026-09-29 更正；此前这一行写的是「从未真跑过一次付费生成」）：
-  - `mock` 可用 —— 骨架，产物**就是输入照本身**（`resultFilePath: input.face.filePath`，见 `src/session-artifacts.ts` 的 `putRender`）。
+  - `mock` 可用 —— 骨架，产物**就是输入照本身**（`image: input.face`，见 `src/session-artifacts.ts` 的 `putRender`）。
   - `image` 代码就位、单测绿，**而且真的跑过付费生成**：服务内至少一次（`data/results/4e2fe641-…/r1/result.png`，
     1.2 MB，而它的输入是 6.4 KB 的 webp），离线脚本另出过 6 张（`out/qwen-image-makeup/`，2026-09-15/16）。
   - ★ **分辨「真出图」与「mock 回原图」只看字节**：mock 的产物与输入**逐字节同大小**，
@@ -95,7 +95,7 @@
      ——真跑、真花钱、人工看图。
   2. ✏️ **`data/engine-out/` 的清理已经做了。**（2026-09-16 起；2026-09-29 起这是唯一一条出图路径）
      - **已解决的部分**：`agent` 收编一张成品图之后会把引擎那份中间产物**删掉**（见 `src/session-artifacts.ts` 的 `putRender`）。这一步是必须的——那张图**就是用户的脸上了妆**，不删的话 §10 `[I8]` 那句"照片与产物被真实删除"就是**假的**：会话那份删了，`engine-out/` 里的副本永远留着，而且**没有任何模块会去枚举它**。
-     - ⚠️ **那道删除带边界：只删确实落在引擎输出目录里的文件。** 少了它就会删掉用户的照片——`MockEngine` 返回的"产物"**就是输入照片自己**（`resultFilePath: input.face.filePath`），而照片在 `inputs/` 下。这是落地时踩到的，不是假想。
+     - ⚠️ **那道删除带边界：只删确实落在引擎输出目录里的文件。** 少了它就会删掉用户的照片——`MockEngine` 返回的"产物"**就是输入照片自己**（`image: input.face`），而照片在 `inputs/` 下。这是落地时踩到的，不是假想。
   3. `brow.shape` 要么找到色/质地/浓度维度的替代表达并删字段，要么补实测证明眉形安全。
   4. 自研参数化渲染那条路（关键点 + 局部调色合成）**没有选**：本轮的实测表明第三方编辑模型只改妆是可行的，先把这条路走通。
   5. ✏️ **风格参考图不进引擎（2026-09-29 拍板）。** 用户上传的那张图只做**文本化分析**：读出的 `StyleRead`

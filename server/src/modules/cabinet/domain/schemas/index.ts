@@ -5,14 +5,27 @@
  * ★ 这里只声明「是什么结构」;长度与 id 格式在 `domain/validators/cosmetic-item.validator.ts`(§4.2)。
  */
 export {
+  cosmeticAttributeSchema,
+  cosmeticItemSchema,
+  cosmeticItemTableSchema,
   createItemSchema,
   itemIdSchema,
   ownerIdSchema,
   ownerQuerySchema,
   updateItemSchema,
 } from './entities/cosmetic-item.js';
-export type { CreateItemRaw, UpdateItemRaw } from './entities/cosmetic-item.js';
+export type {
+  CosmeticAttribute,
+  CosmeticItemRow,
+  CreateItemRaw,
+  UpdateItemRaw,
+} from './entities/cosmetic-item.js';
 
+export {
+  cosmeticAttributeViewSchema,
+  cosmeticItemViewSchema,
+  cosmeticListViewSchema,
+} from './api/cosmetic-item-view.js';
 export type {
   CosmeticAttributeView,
   CosmeticItemView,

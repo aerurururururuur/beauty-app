@@ -12,14 +12,32 @@
  *   「合法取值空间按 `skinTone` 收窄」——**它依赖上下文(用户的肤色),而 schema 是上下文无关的**。
  *
  * 这里不写 `refine` / `transform`,不做任何动作。
+ *
+ * ── ✏️ 2026-09-29:品牌与「一份形状两份 schema」──────────────────────────────
+ *
+ * `entities/look-spec.ts` 那 6 个类的字段不再自己声明,改成从这个文件**继承**
+ * (`Object.assign` + 声明合并,§4.1);它们的**名义化**(让字面量写不出来)也从
+ * `declare private readonly brand` 换成 zod 的 `.brand<'X'>()`(§7.4)。
+ * 于是每个形状有**两份**,职责不同、不许合并:
+ *
+ *   · `xxxRowSchema` —— **不带品牌**。它是构造参数的类型:调用点传的是普通字面量,
+ *     带品牌的话调用点自己就先写不出来了。
+ *   · `xxxSchema`(= `xxxRowSchema.brand<'X'>()`)—— **带品牌**。它是**实例**的类型,
+ *     实体接口 `extends` 的就是它。
+ *
+ * ⚠️ 品牌是**编译期**的东西(`unique symbol` 属性,运行时不存在),所以
+ *   `Object.keys` / `JSON.stringify` / `structuredClone` / `toEqual` 与改动前逐位一致。
+ * ⚠️ 别把 `xxxRowSchema` 拿出去当契约用 —— 宽的那份不是任何东西的类型,只是过一手。
  */
 import { z } from 'zod';
 
 /** 浓度档的形状(整数的**类型**声明;1..5 的**区间**在 validator)。 */
 const intensitySchema = z.number().int();
 
+// ── 三个子形状:每个都是「宽 row + 品牌过的形状」两份 ──────────────────────
+
 /** 一个「色 + 质地 + 浓度」区。 */
-const zoneSchema = z
+const zoneRowSchema = z
   .object({
     tone: z.string(),
     finish: z.string(),
@@ -27,44 +45,80 @@ const zoneSchema = z
   })
   .strict();
 
+/** ★ 实体 `ZoneSpec` 继承的形状(带品牌;见文件头「一份形状两份 schema」)。 */
+export const zoneSchema = zoneRowSchema.brand<'ZoneSpec'>();
+export type ZoneRow = z.output<typeof zoneRowSchema>;
+export type ZoneSpecShape = z.output<typeof zoneSchema>;
+
 /** 底妆。★ 抽出来是为了被 `lookSpecSchema` 与 `styleReadSchema` **共用**：
  *  风格图读数里的底妆与妆面单里的底妆是同一件事,写两遍就会有一天不一样(§4.1)。 */
-const baseSchema = z
+const baseRowSchema = z
   .object({
     coverage: intensitySchema,
     finish: z.string(),
-    /** 明暗(负数偏冷、正数偏暖)。区间在 validator。 */
+    /** 明暗(负数偏冷、正数偏暖;0 = 中性)。-2..+2 的区间在 validator。 */
     warmth: z.number(),
   })
   .strict();
 
-/** 妆面单的形状。 */
-export const lookSpecSchema = z
+/** ★ 实体 `LookSpecBase` 继承的形状。 */
+export const baseSchema = baseRowSchema.brand<'LookSpecBase'>();
+export type BaseRow = z.output<typeof baseRowSchema>;
+export type LookSpecBaseShape = z.output<typeof baseSchema>;
+
+/**
+ * 眉。⚠️ 几何字段,见 `entities/look-spec.ts` 的 `BROW_SHAPES`。
+ * ★ 抽成具名形状(原先是 `lookSpecSchema` 里的一段内联)是为了让实体 `BrowSpec` 接得上。
+ */
+const browRowSchema = z
   .object({
-    occasion: z.string(),
-    base: baseSchema,
-    zones: z
-      .object({
-        lip: zoneSchema,
-        cheek: zoneSchema,
-        eyeshadow: zoneSchema,
-        brow: z
-          .object({
-            shape: z.string(),
-            intensity: intensitySchema,
-          })
-          .strict(),
-      })
-      .strict(),
+    shape: z.string(),
+    intensity: intensitySchema,
   })
   .strict();
 
+/** ★ 实体 `BrowSpec` 继承的形状。 */
+export const browSchema = browRowSchema.brand<'BrowSpec'>();
+export type BrowRow = z.output<typeof browRowSchema>;
+export type BrowSpecShape = z.output<typeof browSchema>;
+
+const zonesSchema = z
+  .object({
+    lip: zoneSchema,
+    cheek: zoneSchema,
+    eyeshadow: zoneSchema,
+    /** ⚠️ 几何字段(见 {@link browRowSchema})。 */
+    brow: browSchema,
+  })
+  .strict();
+
+// ── 妆面单 ─────────────────────────────────────────────────────────────────
+
+/** 妆面单的形状。 */
+const lookSpecRowSchema = z
+  .object({
+    /** 复用 shared 的场合枚举(单一源);白名单在 validator。 */
+    occasion: z.string(),
+    base: baseSchema,
+    /** 三个区 + 眉。分组用内联形状即可:成员全是名义类型,不必再加一层。 */
+    zones: zonesSchema,
+  })
+  .strict();
+
+/** ★ 实体 `LookSpec` 继承的形状(带品牌)。 */
+export const lookSpecSchema = lookSpecRowSchema.brand<'LookSpec'>();
+
 /**
- * 通过形状校验的妆面单。
+ * 通过形状校验的妆面单,**未加品牌**——也就是 `LookSpec` 的 row(构造参数的类型)。
  * ⚠️ **它不是 `LookSpec`**:字段都还是宽泛的 `string` / `number`,取值一条都没查过。
  *   要 `LookSpec` 请走 `validateLookSpec`(它逐字段收窄,不做断言)。
  */
-export type LookSpecRaw = z.output<typeof lookSpecSchema>;
+export type LookSpecRaw = z.output<typeof lookSpecRowSchema>;
+
+/** 实例那一侧的形状(= `LookSpecRaw` + 品牌)。 */
+export type LookSpecShape = z.output<typeof lookSpecSchema>;
+
+// ── 风格参考图读数 ──────────────────────────────────────────────────────────
 
 /**
  * 「风格参考图读数」的形状 —— `lookSpecSchema` 的**子集**。
@@ -76,9 +130,11 @@ export type LookSpecRaw = z.output<typeof lookSpecSchema>;
  * ⚠️ 与 `lookSpecSchema` 一样,**这里一条取值都没查**:`tone` / `finish` 仍是宽泛的
  *   `string`,浓度区间也没查。要 `StyleRead` 请走 `validateStyleRead`。
  */
-export const styleReadSchema = z
+const styleReadRowSchema = z
   .object({
+    /** 底妆:遮瑕度 / 质地 / 冷暖偏移。 */
     base: baseSchema,
+    /** 三个「色 + 质地 + 浓度」区。 */
     zones: z
       .object({
         lip: zoneSchema,
@@ -89,4 +145,9 @@ export const styleReadSchema = z
   })
   .strict();
 
-export type StyleReadRaw = z.output<typeof styleReadSchema>;
+/** ★ 实体 `StyleRead` 继承的形状(带品牌)。 */
+export const styleReadSchema = styleReadRowSchema.brand<'StyleRead'>();
+
+/** 未加品牌的 row(= `StyleRead` 的构造参数类型)。 */
+export type StyleReadRaw = z.output<typeof styleReadRowSchema>;
+export type StyleReadShape = z.output<typeof styleReadSchema>;

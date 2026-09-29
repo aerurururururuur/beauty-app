@@ -18,15 +18,35 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  DIMENSION_KEYS,
   JsonProductCatalog,
   createProductsModule,
   loadCatalogIfPresent,
+  toLibraryView,
+  toProductDetailView,
 } from '../src/modules/products/index.js';
-import type { Product } from '../src/modules/products/index.js';
+import type {
+  Product,
+  ProductCatalog,
+  ProductDetailView,
+  LibraryView,
+} from '../src/modules/products/index.js';
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..');
 /** 仓库里那份真内容。★ 改了它的形状,这个文件会红——那是应该的。 */
 const REAL_CONTENT = path.join(REPO_ROOT, 'products', 'ysl-property');
+
+/**
+ * 端口只给领域类型,给模型看的样子要先过投影。
+ * 这两个小帮手替组装根做同一件事(`src/index.ts` 那段粘合),这样断言写起来还是老样子。
+ */
+function viewOf(catalog: ProductCatalog): LibraryView {
+  return toLibraryView(catalog.library(), catalog.list());
+}
+function detailOf(catalog: ProductCatalog, id: string): ProductDetailView | undefined {
+  const p = catalog.find(id);
+  return p ? toProductDetailView(p, catalog.library()) : undefined;
+}
 
 let dir: string;
 let tempDirs: string[] = [];
@@ -165,6 +185,17 @@ describe('★ 坏数据一律启动即失败(绝不静默跳过)', () => {
     expectStartupFailure(root, '多出来的');
   });
 
+  it('★ 维度列表里多出一个键也炸(`dimensionsSchema` 自己也是 .strict())', () => {
+    // 与上一条不同的地方:这是在**嵌套的那一层**。上一条只挡住产品文件的顶层键,
+    // 而"导入器加了个第七维度"改的正是这一层。
+    const root = writeLibrary(libraryFile(), {
+      '01-x': productFile({
+        dimensions: { ...productFile().dimensions, 新维度: 'x' } as Product['dimensions'],
+      }),
+    });
+    expectStartupFailure(root, '新维度');
+  });
+
   it('★ category 与所在目录不符(目录即索引,两处必须一致)', () => {
     const root = writeLibrary(libraryFile(), { '01-x': productFile({ category: 'base' }) });
     expectStartupFailure(root, '目录即索引');
@@ -273,7 +304,7 @@ describe('overview / find', () => {
     });
     const catalog = loadCatalogIfPresent(root)!;
 
-    expect(catalog.overview().products[0]?.textureFirst).toBe('哑光质地，显色度高。');
+    expect(viewOf(catalog).products[0]?.textureFirst).toBe('哑光质地，显色度高。');
   });
 
   it('缺的维度在详情里**不出现**(不是空串)——那是"源资料没写",不是"没这个性质"', () => {
@@ -282,14 +313,27 @@ describe('overview / find', () => {
     });
     const catalog = loadCatalogIfPresent(root)!;
 
-    expect(catalog.find('01-x')?.dimensions.map((d) => d.key)).toEqual(['texture', 'warnings']);
+    expect(detailOf(catalog, '01-x')?.dimensions.map((d) => d.key)).toEqual(['texture', 'warnings']);
+  });
+
+  it('★ 六个维度全给 → 一个不少、顺序也对(dimensionsSchema 与 DIMENSION_KEYS 对表)', () => {
+    // `dimensionsSchema` 的六格是**逐字写**的(生成出来会退化成 Record,见 schema 里的注释),
+    // 于是同一份清单有两处:那六格,以及 DIMENSION_KEYS。这条钉的是"两处一字不差"。
+    // ★ 为什么值得单独钉:今天漏一格多半会炸(`.strict()` 撞上真内容里那份六格齐全的
+    //   文件),但"会炸"靠的是内容碰巧带了那一维——换一份内容就没人报了。这条与内容无关。
+    const all = Object.fromEntries(DIMENSION_KEYS.map((k) => [k, '原文。'])) as Product['dimensions'];
+    const root = writeLibrary(libraryFile(), { '01-x': productFile({ dimensions: all }) });
+    const catalog = loadCatalogIfPresent(root)!;
+
+    // 顺序一起钉:出详情的顺序就是展示顺序,两处顺序不同样是"说一套做一套"。
+    expect(detailOf(catalog, '01-x')?.dimensions.map((d) => d.key)).toEqual([...DIMENSION_KEYS]);
   });
 
   it('overview 里透出的条目数就是实际扫到的数', () => {
     const root = writeLibrary(libraryFile(), { '01-x': productFile() });
     const catalog = loadCatalogIfPresent(root)!;
-    expect(catalog.overview().products).toHaveLength(1);
-    expect(catalog.overview().categories[0]?.count).toBe(1);
+    expect(viewOf(catalog).products).toHaveLength(1);
+    expect(viewOf(catalog).categories[0]?.count).toBe(1);
   });
 });
 
@@ -298,7 +342,7 @@ describe('overview / find', () => {
 describe('★ 仓库里那份真内容(改了它的形状这里会红)', () => {
   it('加载得起来,条数与类目对得上', () => {
     const catalog = new JsonProductCatalog(REAL_CONTENT);
-    const overview = catalog.overview();
+    const overview = viewOf(catalog);
 
     expect(overview.categories).toHaveLength(9);
     // 条数写死是**故意的**:这份数字变了,要么是内容真的变了(那就该来改这里),
@@ -310,7 +354,7 @@ describe('★ 仓库里那份真内容(改了它的形状这里会红)', () => {
 
   it('每一条都能按 id 取回详情(索引里的 id 与 find 对得上)', () => {
     const catalog = new JsonProductCatalog(REAL_CONTENT);
-    for (const entry of catalog.overview().products) {
+    for (const entry of viewOf(catalog).products) {
       expect(catalog.find(entry.id), `索引里的 ${entry.id} 取不回详情`).toBeDefined();
     }
   });
@@ -318,7 +362,7 @@ describe('★ 仓库里那份真内容(改了它的形状这里会红)', () => {
   it('★ 体检报告抓得到我们手工核出来的那几类问题(正向验证)', () => {
     // 这一条是"规则写对了"的证明,不是"数据干净"的证明:
     // 已知有四类问题,体检报告一项都没报出来才说明它坏了。
-    const health = new JsonProductCatalog(REAL_CONTENT).library.health;
+    const health = new JsonProductCatalog(REAL_CONTENT).library().health;
 
     expect(health.statedVsActual.statedTotals.length).toBeGreaterThan(1); // 资料内 55/57 两种说法
     expect(health.missingDimensions.length).toBeGreaterThan(0); // #36 空占位、#40 缺成分

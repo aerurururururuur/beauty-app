@@ -21,7 +21,7 @@
  * 下载 URL)在这里没有消费者,提前搬过来只会是没有验证场合的代码。
  */
 import type { Readable } from 'node:stream';
-import type { ImageRef } from '../../../shared/index.js';
+import type { ImageRef, ResolvedImage } from '../../../shared/index.js';
 import type { RefImageKind } from '../entities/session.js';
 
 /**
@@ -61,8 +61,13 @@ export interface SessionArtifacts {
     sourceFilePath: string,
     mimeType: string,
   ): Promise<ImageRef>;
-  /** 读回一张成品图(对外的取图路由用)。 */
-  readRender(sessionId: string, seq: number): Promise<{ stream: Readable; mimeType: string } | null>;
+  /**
+   * 解析出一张成品图的本机路径 + MIME(对外的取图路由用)。
+   * ★ **返回路径而不是流**:建流是 I/O,归表现层(`agent.controller.ts` 那条路由)。
+   *   此处原先是 `{ stream, mimeType }`,与 `assets` 端口、`GetRender` 各写了一遍同形声明;
+   *   改成路径后那份形状由 `ResolvedImage` 一个类型承担。
+   */
+  resolveRender(sessionId: string, seq: number): Promise<ResolvedImage | null>;
   /**
    * ★ **连照片带全部产物一起真删**(§10 `[I8]` / 隐私红线)。
    * 这是"TTL 到期"与"会话被删"的**唯一落点**——只删会话记录不删文件,

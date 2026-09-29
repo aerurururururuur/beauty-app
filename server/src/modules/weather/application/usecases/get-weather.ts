@@ -7,7 +7,7 @@
  * **绝不返回编造的天气冒充实时**)。控制器因此不必认识任何上游错误类型。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import { CityNotFoundError } from '../../domain/ports/weather-provider.js';
+import { CityNotFoundError } from '../../domain/errors/city-not-found-error.js';
 import type { WeatherProvider, WeatherResult } from '../../domain/ports/weather-provider.js';
 import type { WeatherView } from '../../domain/schemas/index.js';
 import { validateWeatherQuery } from '../../domain/validators/weather-query.validator.js';

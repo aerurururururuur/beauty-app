@@ -30,25 +30,13 @@ export interface WeatherResult {
 }
 
 /**
- * 地名解析不到坐标 —— 是**用户输入问题**,与「上游挂了」必须分开:
- * 前者该提示改地名(404),后者该回落到手动预设(502)。
+ * 本端口的两个契约错误**不住在这里**了,在 `domain/errors/`:
+ * `city-not-found-error.ts`(用户输入问题)与 `weather-upstream-error.ts`(上游挂了)。
+ * ★ 两分法的理由写在 `city-not-found-error.ts` 的文件头。
+ * ⚠️ 别把错误类重新写回本文件——`domain/errors/` 是它们的唯一住处。
  */
-export class CityNotFoundError extends Error {
-  constructor(readonly city: string) {
-    super(`未找到城市:${city}`);
-    this.name = 'CityNotFoundError';
-  }
-}
-
-/** 上游不可用(超时 / 网络断 / 返回体不合预期)。用例据此翻译成 WEATHER_UNAVAILABLE。 */
-export class WeatherUpstreamError extends Error {
-  constructor(message: string, readonly cause?: unknown) {
-    super(message);
-    this.name = 'WeatherUpstreamError';
-  }
-}
-
 export interface WeatherProvider {
   readonly name: string;
+  /** 取一次天气。失败抛 `domain/errors/` 里那两个之一。 */
   fetch(query?: WeatherQuery): Promise<WeatherResult>;
 }

@@ -138,11 +138,40 @@ describe('入站翻译', () => {
       ['content_filter', 'refusal'],
       ['不认识的值', 'end_turn'],
     ];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const [raw, expected] of cases) {
       stubFetch({ choices: [{ finish_reason: raw, message: { content: 'hi' } }] });
       expect((await adapter().chat({ messages: [textMessage('user', 'x')] })).stopReason).toBe(expected);
       vi.unstubAllGlobals();
     }
+    // ★ **表内的四个值一个都不该报警**,表外那个必须报(`llm.ts` 文件头承诺的就是这一句)。
+    //   只钉住"报过警"是不够的:那样把日志写在分支前面(每轮都刷屏)也照样绿。
+    expect(warn.mock.calls.map((c) => String(c[0]))).toHaveLength(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('不认识的值');
+    warn.mockRestore();
+  });
+
+  it('★ 用量读不到就整个不给 —— 缺的那个不许补 0(补了没人分得出来)', async () => {
+    // 三种"读不到":整个 usage 缺席、只给一个字段、字段不是数字。
+    const cases: unknown[] = [
+      undefined,
+      { prompt_tokens: 128 },
+      { prompt_tokens: 128, completion_tokens: '20' },
+    ];
+    for (const usage of cases) {
+      const body = completion();
+      stubFetch({ ...(body as Record<string, unknown>), usage });
+      const res = await adapter().chat({ messages: [textMessage('user', 'x')] });
+      expect(res.usage).toBeUndefined();
+      vi.unstubAllGlobals();
+    }
+
+    // 两个都在就照给(别为了"严格"把正常那一路也挡掉)。
+    stubFetch(completion());
+    expect((await adapter().chat({ messages: [textMessage('user', 'x')] })).usage).toEqual({
+      inputTokens: 128,
+      outputTokens: 20,
+    });
   });
 });
 
@@ -189,11 +218,14 @@ describe('出站翻译', () => {
       messages: [
         textMessage('user', 'x'),
         assistantMessage([
-          new TextBlock('我查一下'),
-          new ToolUseBlock('c1', 'a', { n: 1 }),
-          new ToolUseBlock('c2', 'b', {}),
+          new TextBlock({ type: 'text', text: '我查一下' }),
+          new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 'a', input: { n: 1 } }),
+          new ToolUseBlock({ type: 'tool_use', id: 'c2', name: 'b', input: {} }),
         ]),
-        toolResults([new ToolResultBlock('c1', 'A'), new ToolResultBlock('c2', 'B')]),
+        toolResults([
+          new ToolResultBlock({ type: 'tool_result', toolUseId: 'c1', content: 'A' }),
+          new ToolResultBlock({ type: 'tool_result', toolUseId: 'c2', content: 'B' }),
+        ]),
       ],
     });
 
@@ -215,7 +247,7 @@ describe('出站翻译', () => {
     const mock = stubFetch(completion());
     await adapter().chat({
       messages: [
-        assistantMessage([new ToolUseBlock('c1', 'a', {})]),
+        assistantMessage([new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 'a', input: {} })]),
       ],
     });
 
@@ -227,8 +259,13 @@ describe('出站翻译', () => {
     await adapter().chat({
       messages: [
         toolResults([
-          new ToolResultBlock('c1', '参数不合法'),
-          new ToolResultBlock('c2', '这次没成功', true),
+          new ToolResultBlock({ type: 'tool_result', toolUseId: 'c1', content: '参数不合法' }),
+          new ToolResultBlock({
+            type: 'tool_result',
+            toolUseId: 'c2',
+            content: '这次没成功',
+            isError: true,
+          }),
         ]),
       ],
     });
@@ -327,7 +364,9 @@ describe('端口契约', () => {
   it('入参 message 数组不被适配器改写', async () => {
     const mock = stubFetch(completion());
     const request: LlmRequest = {
-      messages: [assistantMessage([new ToolUseBlock('c1', 'a', { n: 1 })])],
+      messages: [
+        assistantMessage([new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 'a', input: { n: 1 } })]),
+      ],
     };
     const snapshot = structuredClone(request.messages);
 

@@ -11,64 +11,27 @@
  *   里"为什么急切加载"那段)。写成 async 只会假装底层可能是网络/磁盘,
  *   而那个假象会让调用方以为"每次调用都要等"。
  *
+ * ★ **本端口只进出领域类型**(`ProductLibrary` / `Product`)——**不返回投影**。
+ *   「一行索引」「六维度详情」那种给调用方看的样子是**投影**,归
+ *   `application/products-view.ts`(§6 唯一投影点)。放在这里的话,
+ *   "这个模块往外给哪些字段"就成了契约的一部分,而那是视图该管的事 ——
+ *   结果就是端口里三个接口(`LibraryOverview` / `ProductSummary` / `ProductDetail`)
+ *   比它真正要回答的两个问题还长。
+ *
  * ⚠️ **不含 `health`**:体检报告是给我们修数据看的,模型不需要,进上下文只是白烧 token。
+ *   (它仍在 `library()` 返回的实体上;组装根打启动日志时读它,那是**模块内部**的用法。)
  */
-import type { DimensionKey } from '../entities/product.js';
-import type { LibraryNote, MatchingGuide } from '../entities/library.js';
-
-/** 一行索引。给模型**挑**用,不含六维度全文——全文走 `find()`。 */
-export interface ProductSummary {
-  id: string;
-  number: number;
-  name: string;
-  categoryId: string;
-  categoryLabel: string;
-  series?: string;
-  lookSpecSlots: string[];
-  /**
-   * 三个维度的**首句**(不是截断到 N 字)。
-   * ★ 取首句而不是硬截:品牌资料里一句话就是一个意思,
-   *   截半个句子给模型比不给更容易被误读。
-   */
-  textureFirst: string;
-  skinTypesFirst: string;
-  occasionsFirst: string;
-}
-
-/** 一条产品的六维度全文。 */
-export interface ProductDetail {
-  id: string;
-  number: number;
-  name: string;
-  categoryId: string;
-  categoryLabel: string;
-  series?: string;
-  lookSpecSlots: string[];
-  dimensions: { key: DimensionKey; label: string; text: string }[];
-  /** 源资料写的非维度说明(#36 那种"待补"占位)。有才出现。 */
-  notes?: string[];
-}
-
-/** 库级信息:元信息 + 类目 + 速查表 + 说明书 + 全部条目的一行索引。 */
-export interface LibraryOverview {
-  id: string;
-  name: string;
-  brand: string;
-  categories: {
-    id: string;
-    label: string;
-    count: number;
-    statedCount: number | null;
-    lookSpecSlots: string[];
-  }[];
-  matchingGuide: MatchingGuide;
-  /** 第十一节的补充说明(含酸/含变性乙醇/护肤线与彩妆的联动…)。原样带出去。 */
-  notes: LibraryNote[];
-  products: ProductSummary[];
-}
+import type { Product } from '../entities/product.js';
+import type { ProductLibrary } from '../entities/library.js';
 
 export interface ProductCatalog {
-  overview(): LibraryOverview;
+  /** 库级元信息:`library.json` 那个领域对象本身(类目表 / 速查表 / 说明)。 */
+  library(): ProductLibrary;
+  /**
+   * 全部条目,**按扫描顺序**(类目目录序 + 文件名序)。
+   * 它就是"整库索引"的原料 —— 投影(取首句、贴类目中文名)在 `products-view.ts` 里做。
+   */
+  list(): Product[];
   /** 按 id 取一条;没有就是 `undefined`(**不抛错**——查不到是正常结果,不是故障)。 */
-  find(id: string): ProductDetail | undefined;
+  find(id: string): Product | undefined;
 }

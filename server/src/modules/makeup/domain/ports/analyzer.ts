@@ -24,8 +24,7 @@
  *   (前两条是开会话与 `patch_brief`),各判一次就有了第二处定义(§5.1)。
  * ★ 产物全是闭集里的值、无自由文本 —— 理由见 `entities/style-read.ts`。
  */
-import type { Occasion, SkinTone } from '../../../shared/index.js';
-import type { EngineSourceImage } from '../../../shared/index.js';
+import type { Occasion, ResolvedImage, SkinTone } from '../../../shared/index.js';
 import type { StyleRead } from '../entities/style-read.js';
 
 /**
@@ -40,8 +39,8 @@ export type AnalyzeCase = 'face' | 'scene' | 'style';
 
 /** 一次读图的输入。三个 case 一个形状 —— 差别全在**问题**上,不在图上。 */
 export interface AnalyzeInput {
-  /** 已解析成本机绝对路径的输入图(复用 `EngineSourceImage`,不新造类型)。 */
-  image: EngineSourceImage;
+  /** 已解析成本机绝对路径的输入图(复用 `ResolvedImage`,不新造类型)。 */
+  image: ResolvedImage;
 }
 
 /** 三个 case 各自的产物。★ 每一项都是**闭集里的值**,见文件头。 */

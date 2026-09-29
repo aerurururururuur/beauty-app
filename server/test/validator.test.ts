@@ -39,8 +39,7 @@ function zone(overrides: Record<string, unknown> = {}) {
 
 function result(overrides: Partial<EngineResult> = {}): EngineResult {
   return {
-    resultFilePath: '/tmp/out.png',
-    mimeType: 'image/png',
+    image: { filePath: '/tmp/out.png', mimeType: 'image/png' },
     look: { style: '正式得体妆', palette: [{ role: '唇', rgb: [230, 178, 186] }], zones: [] },
     ...overrides,
   };
@@ -55,12 +54,29 @@ describe('validateEngineResult(输出)', () => {
   });
 
   it('缺少成品图路径 → INTERNAL_ERROR', () => {
-    expectCode(() => validateEngineResult(result({ resultFilePath: '  ' })), ErrorCode.INTERNAL_ERROR);
+    expectCode(
+      () => validateEngineResult(result({ image: { filePath: '  ', mimeType: 'image/png' } })),
+      ErrorCode.INTERNAL_ERROR,
+    );
   });
 
-  it('非法 RGB(越界)→ INTERNAL_ERROR', () => {
+  it('缺少成品图类型 → INTERNAL_ERROR', () => {
     expectCode(
-      () => validateEngineResult(result({ look: { zones: [zone({ rgb: [300, 0, 0] })] } })),
+      () => validateEngineResult(result({ image: { filePath: '/tmp/out.png', mimeType: ' ' } })),
+      ErrorCode.INTERNAL_ERROR,
+    );
+  });
+
+  // ── ★ 下面七条:同一格的七种坏法,一种一条 ─────────────────────────────────
+  // 就是 `schemas/entities/makeup-zone.ts` 那七个键与 `assertZone` 查的七件事的**对表**。
+  // 两份形状是各自写的、且**不能合并**(schema 七个全必填,assertZone 是"字段在才查"),
+  // 所以它们会各改各的 —— 而 `assertZone` 按**字符串**取键,那边改名字**不报错**,
+  // 只会让某一格的检查静默消失(本仓库的头号 bug 类型:假开关)。
+  // ⚠️ 所以:改 `makeupZoneRowSchema` 的键名时,这七条得跟着绿;
+  //    哪天删了一条,等于那一格的检查从此没人看着。
+  it('role 不是字符串 → INTERNAL_ERROR', () => {
+    expectCode(
+      () => validateEngineResult(result({ look: { zones: [zone({ role: 123 })] } })),
       ErrorCode.INTERNAL_ERROR,
     );
   });
@@ -71,6 +87,35 @@ describe('validateEngineResult(输出)', () => {
         validateEngineResult(
           result({ look: { zones: [zone({ anchor: { x: 1.5, y: -0.1 } })] } }),
         ),
+      ErrorCode.INTERNAL_ERROR,
+    );
+  });
+
+  it('size 超出归一化范围 0..1 → INTERNAL_ERROR', () => {
+    expectCode(
+      () =>
+        validateEngineResult(result({ look: { zones: [zone({ size: { w: 1.4, h: 0.5 } })] } })),
+      ErrorCode.INTERNAL_ERROR,
+    );
+  });
+
+  it('非法 RGB(越界)→ INTERNAL_ERROR', () => {
+    expectCode(
+      () => validateEngineResult(result({ look: { zones: [zone({ rgb: [300, 0, 0] })] } })),
+      ErrorCode.INTERNAL_ERROR,
+    );
+  });
+
+  it('blend 不是字符串 → INTERNAL_ERROR', () => {
+    expectCode(
+      () => validateEngineResult(result({ look: { zones: [zone({ blend: 3 })] } })),
+      ErrorCode.INTERNAL_ERROR,
+    );
+  });
+
+  it('blur 为负数 → INTERNAL_ERROR', () => {
+    expectCode(
+      () => validateEngineResult(result({ look: { zones: [zone({ blur: -1 })] } })),
       ErrorCode.INTERNAL_ERROR,
     );
   });

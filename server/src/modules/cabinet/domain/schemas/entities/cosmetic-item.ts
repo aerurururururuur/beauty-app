@@ -14,7 +14,8 @@
  */
 import { z } from 'zod';
 
-const attributeSchema = z
+/** 一条自定义特性的形状。 */
+export const cosmeticAttributeSchema = z
   .object({
     label: z.string(),
     value: z.string(),
@@ -22,7 +23,7 @@ const attributeSchema = z
   .strict();
 
 /** 特性列表的形状(条数上限是规则,在 validator)。 */
-const attributesSchema = z.array(attributeSchema);
+const attributesSchema = z.array(cosmeticAttributeSchema);
 
 /** 路径参数 :id 的形状。 */
 export const itemIdSchema = z.string();
@@ -53,6 +54,41 @@ export const updateItemSchema = z
 
 /** 归属查询串(列表与删除共用):只认 userId 一个键。 */
 export const ownerQuerySchema = z.object({ userId: ownerIdSchema }).strict();
+
+/**
+ * ★ **落盘行的形状**(`dataDir/cabinet/items.json` 里的一条)。
+ *
+ * 与上面几个入参 schema 不是一回事:入参答的是「用户能提交什么」,这里答的是
+ * 「盘上存了什么」。`id` / `userId` / `createdAt` 这三格入参里没有,只有这里齐全 ——
+ * 仓库读出口靠它兜底(§7.2),少了它的那天,一份手改过的 `items.json` 会一路读进领域层。
+ *
+ * ⚠️ 这里**只有形状**:长度上限、条数上限、id 格式都是规则,在 validator 里
+ *   (§4.2)。读出口不重跑那一套 —— 盘上的数据是**本服务自己写下去**的,
+ *   拿入参规则去回溯校验,只会在某天收紧一条上限后让旧数据整个读不出来。
+ */
+export const cosmeticItemSchema = z
+  .object({
+    id: z.string(),
+    userId: z.string(),
+    name: z.string(),
+    attributes: attributesSchema,
+    createdAt: z.string(),
+    updatedAt: z.string().optional(),
+  })
+  .strict();
+
+/** 落盘表的形状:`{ [itemId]: CosmeticItemRow }`。 */
+export const cosmeticItemTableSchema = z.record(z.string(), cosmeticItemSchema);
+
+/** 一条自定义特性。 */
+export type CosmeticAttribute = z.output<typeof cosmeticAttributeSchema>;
+/**
+ * 一条衣橱条目(落盘行)。
+ * ★ 名字带 `Row`,是为了与领域实体 `domain/entities/cosmetic-item.ts` 的
+ *   `CosmeticItem`(类)分开。**两者不是两份定义**:那个类的字段就是把本类型
+ *   经声明合并接过去的,本类型仍是唯一真源(§4.1)。
+ */
+export type CosmeticItemRow = z.output<typeof cosmeticItemSchema>;
 
 /** 通过形状校验的新增入参(仍需清洗,见 validator)。 */
 export type CreateItemRaw = z.output<typeof createItemSchema>;

@@ -20,13 +20,13 @@ import type { Llm, LlmRequest, LlmResponse } from '../../domain/ports/llm.js';
 
 /** 构造一个纯文字回复。 */
 export function mockText(text: string): LlmResponse {
-  return { content: [new TextBlock(text)], stopReason: 'end_turn' };
+  return { content: [new TextBlock({ type: 'text', text })], stopReason: 'end_turn' };
 }
 
 /** 构造一个「调工具」的回复。`input` 直接给对象(内部形状,**不是** JSON 字符串)。 */
 export function mockToolCall(id: string, name: string, input: unknown): LlmResponse {
   return {
-    content: [new ToolUseBlock(id, name, input)],
+    content: [new ToolUseBlock({ type: 'tool_use', id, name, input })],
     stopReason: 'tool_use',
   };
 }
@@ -40,7 +40,7 @@ export function mockTextAndToolCalls(
   text: string,
   calls: readonly ToolUseBlock[],
 ): LlmResponse {
-  return { content: [new TextBlock(text), ...calls], stopReason: 'tool_use' };
+  return { content: [new TextBlock({ type: 'text', text }), ...calls], stopReason: 'tool_use' };
 }
 
 /** 脚本用完时的兜底话术。**不编内容**。 */

@@ -119,7 +119,7 @@ export class ImageEngine implements Engine {
     const stamp = newFileStamp();
     const dest = path.join(this.opts.outputDir, `${stamp}.png`);
     // ★ 只取第一张:出图张数由 `n` 决定,但**本端口只返回一张成品**
-    //   (`EngineResult.resultFilePath` 是单数)。n>1 的候选图选择属 §14 阶段 4。
+    //   (`EngineResult.image` 是单数)。n>1 的候选图选择属 §14 阶段 4。
     const bytes = await this.download(urls[0] as string, dest);
 
     const spec = input.lookSpec;
@@ -144,7 +144,7 @@ export class ImageEngine implements Engine {
         ` · template=${TEMPLATE_VERSION}`,
     );
 
-    return { resultFilePath: dest, mimeType: 'image/png', look };
+    return { image: { filePath: dest, mimeType: 'image/png' }, look };
   }
 
   /**

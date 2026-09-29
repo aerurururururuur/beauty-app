@@ -1,9 +1,10 @@
 /**
  * modules/makeup —— 上妆引擎模块(public barrel)。
- * 依赖 shared,`EngineInput` 的输入图一律用 shared 的 `EngineSourceImage`,**不依赖别的模块**。
+ * 依赖 shared,`EngineInput` 的输入图一律用 shared 的 `ResolvedImage`,**不依赖别的模块**。
  * 业务「引擎输出校验」也归本模块(贴近 look/引擎契约)。
  */
-// ★ `MakeupZone` 虽然也是名义类,但**只导类型**:构造点是本模块的 `validateEngineResult`。
+// ★ `MakeupZone` 虽然也是名义类,但**只导类型**:构造点只有 `MockEngine` 一处
+//   (`validateEngineResult` 不构造它 —— 那边面对的是 `unknown`,只查形状)。
 //   当值导出等于把"随手造一个叠加区"开给全仓。
 export type { Look, MakeupZone } from './domain/entities/look.js';
 export type { Engine, EngineInput, EngineResult } from './domain/ports/engine.js';
@@ -12,7 +13,7 @@ export { validateEngineResult } from './domain/validators/engine-output.validato
 // ---- LookSpec:层 A(引擎)与层 B(agent)之间**唯一**的契约(设计文档 §6)----
 // ★ 取值仍是占位,见 entities/look-spec.ts 文件头(§15.1 明写枚举「一个都没定」)。
 // ★ 前四个是**类**(名义类型),必须当值导出 —— 构造点只有校验器与演示数据两处,
-//   见 `entities/look-spec.ts` 里那段「为什么是类」。
+//   见 `entities/look-spec.ts` 里那段「字段不在这里声明」(形状与品牌都来自 schema)。
 export {
   BROW_SHAPES,
   BrowSpec,
