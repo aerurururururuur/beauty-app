@@ -50,6 +50,8 @@ import {
   loadDotEnvIfPresent,
   readDashScopeApiKey,
 } from '../src/modules/shared/infrastructure/config.js';
+import { createFaceCatalogModule } from '../src/modules/face-catalog/index.js';
+import type { SkinTonePalette } from '../src/modules/makeup/index.js';
 
 /**
  * 用户那一句。★ **逐字取自 2026-09-16 真机实测**(§14.1):
@@ -373,11 +375,19 @@ async function main(): Promise<void> {
     textMessage('user', USER_TURN),
   ]);
   const base = buildSystemPrompt(session, { hasProducts: argv.products });
+  // ★ 工具注册表要 `palette`(肤色档 → 中文名与可用色域),这里用**与组装根同一份真实词表**
+  //   —— 拿假档位凑一个会让"工具列表"和真实运行的不是同一套。词表坏了就抛,同生产口径。
+  const { vocabulary } = createFaceCatalogModule({ contentDir: config.faceCatalogDir });
+  const palette: SkinTonePalette = {
+    toneKeysFor: (skinTone) => vocabulary.tierById(skinTone)?.toneKeys,
+    labelOf: (skinTone) => vocabulary.tierById(skinTone)?.label,
+  };
   const tools = createToolRegistry({
     cosmetics: noopCosmetics,
     engine: neverUsedEngine,
     artifacts: fakeArtifacts,
     maxRenders: 3,
+    palette,
     ...(argv.products ? { products: fakeProducts } : {}),
   });
 

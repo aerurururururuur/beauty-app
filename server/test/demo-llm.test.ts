@@ -52,6 +52,7 @@ import type {
   SessionArtifacts,
   ToolResultBlock,
 } from '../src/modules/agent/index.js';
+import { realPalette } from './helpers/face-catalog.js';
 
 const USER = 'u1';
 /**
@@ -103,7 +104,9 @@ function setup() {
   const llm = new DemoLlm();
   const loop = new AgentLoop({
     llm,
-    tools: createToolRegistry({ cosmetics, engine, artifacts, maxRenders }),
+    // ★ `palette` 是 `ToolDeps` 的必填项(缺了肤色收窄会**静默失效**)。
+    //   这里用与组装根同一份真实词表 —— 拿假档位凑一个,测的就不是生产那条链路了。
+    tools: createToolRegistry({ cosmetics, engine, artifacts, maxRenders, palette: realPalette() }),
   });
   const renderTool = new RenderLookTool({ engine, artifacts, maxRenders });
 
