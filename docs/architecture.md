@@ -67,7 +67,7 @@ src/
 | `occasion` | `interview` 面试 / `date` 约会 / `stage` 上台 / `family` 见家长 / `daily` 日常兜底 | 主风格信号，直进 domain |
 | `sceneText` | ≤2000 字 | 自由文字自定义需求 |
 | `skinType` | `dry`/`oily`/`combination`/`sensitive`/`neutral` | 肤质（持妆策略） |
-| `skinTone` | `light`/`light_medium`/`medium`/`tan`/`deep` 5 档 | **缺省默认 `medium`（中间档）**，不默认浅肤色审美 |
+| `skinTone` | `cool_porcelain`/`pink_porcelain`/`warm_ivory`/`warm_beige`/`olive`/`warm_tan`/`wheat`/`deep_brown` **8 档** | **缺省 `olive`（橄榄皮·橄榄调）**，不默认浅肤色审美 |
 | `dress` | ≤80 字 | 穿搭一句话（风格 + 主色） |
 | `weather` | `{ condition?, temperatureC?, humidityPct?, uvIndex? }` | 当日天气，整块 `.optional()`：前端拉不到就**整个省掉**（无手动预设可填，不吃假数据） |
 
@@ -344,7 +344,8 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 
 **引擎与产品库**
 
-- `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取 medium。
+- `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取**词表 `isDefault` 那一档**
+  （不写死档位名 —— 词表把缺省档挪走之后，写死的那条测试会照样绿）。
 - `makeup-engine.test.ts` — `ImageEngine` 的请求组装与下载重试，打桩 fetch。外加 record/replay：
   录完能离线回放同一张图，**模板版本变了就算未命中**。
 - `makeup-prompt.test.ts` — ★ 提示词模板的零漂移门槛：产出里不许出现几何词、构图词、服装词、背景词。
