@@ -23,7 +23,7 @@ import {
 } from '../src/modules/makeup/index.js';
 import type { LookSpec, SkinTonePalette } from '../src/modules/makeup/index.js';
 import { realPalette } from './helpers/face-catalog.js';
-import { OCCASIONS } from '../src/modules/shared/index.js';
+import { MAX_SCENE_TEXT, OCCASIONS } from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
   ListCabinetTool,
@@ -297,6 +297,27 @@ describe('patch_brief', () => {
   it('不认识的字段 / 猜出来的字段一律打回', async () => {
     expect((await run(tool, { weather: { condition: '晴' } }, session())).isError).toBe(true);
     expect((await run(tool, { skinTone: 'very_deep' }, session())).isError).toBe(true);
+  });
+
+  it('★ 取值非法 / 超长一律打回,且**会话一个字没动**(§4.2 后规则在 validator)', async () => {
+    // ★ 这两条此前是**裸奔**的。形状层的 `z.enum` / `.max()` 一按 §4.2 降成纯形状,
+    //   `occasion` 与 `sceneText` 就再没有第二道网 —— 非法值会**静默写进会话 brief**,
+    //   一路带到最后 `POST /api/jobs` 提交时才在**另一条路**上炸掉。
+    //   那正是 spec §14-08「某个校验规则只在一个入口生效」那一格。
+    //   (`skinTone: 'very_deep'` 上面那条碰巧覆盖到了肤色,occasion 与长度没有。)
+    const cases: Array<[unknown, string]> = [
+      // 报错就是 prompt:模型得知道"能填什么 / 上限是多少",否则只能换个词再猜一轮。
+      [{ occasion: 'snow' }, '可用:'],
+      [{ sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1) }, `最多 ${MAX_SCENE_TEXT} 字`],
+    ];
+    for (const [bad, fragment] of cases) {
+      const out = await run(tool, bad, session());
+      expect(out.isError).toBe(true);
+      // ★ 断言"没记下"才是这条测试的**要害**:isError 只说明报了错,
+      //   而真正的损害是"报了错却又写进去了"。
+      expect(out.session).toBeUndefined();
+      expect(out.content).toContain(fragment);
+    }
   });
 
   it('不动没提到的字段', async () => {

@@ -33,7 +33,8 @@
  */
 import type { Occasion } from '../../../shared/index.js';
 import type { LookSpec } from '../../../makeup/index.js';
-import { MAX_SCENE_TEXT } from '../../domain/schemas/index.js';
+// ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
+import { MAX_SCENE_TEXT } from '../../../shared/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
 import { PHOTO_ATTACHED_NOTE } from '../../domain/tools/observations.js';
 import {

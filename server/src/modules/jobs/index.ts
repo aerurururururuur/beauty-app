@@ -28,17 +28,14 @@ export {
 export type { JobError } from './domain/entities/error.js';
 
 // ---- schemas(形状/契约,无行为)----
-export {
-  MAX_DRESS,
-  MAX_META_RAW,
-  MAX_SCENES,
-  MAX_SCENE_TEXT,
-  jobSubmitSchema,
-  metaSchema,
-} from './domain/schemas/index.js';
+export { MAX_META_RAW, MAX_SCENES, jobSubmitSchema, metaSchema } from './domain/schemas/index.js';
 export type { JobSubmitRaw, MetaScalar, UploadFileMeta } from './domain/schemas/index.js';
 export { jobIdSchema } from './domain/schemas/index.js';
 export type { JobIdScalar } from './domain/schemas/index.js';
+
+// ---- 简报字段的两个上限(§4.2 后属**业务规则**,值在 `shared` 的 validator;
+//      仍从这里转出,是为了不让既有调用方改 import 路径)----
+export { MAX_DRESS, MAX_SCENE_TEXT } from '../shared/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 export { validateJobId } from './domain/validators/job-id.validator.js';

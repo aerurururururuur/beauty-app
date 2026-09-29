@@ -8,15 +8,20 @@
  *      SCENES_MAX_EXCEEDED(风景参考图可选,仍设上限) /
  *      CONTEXT_REQUIRED(既无 occasion 也无 sceneText);
  *   ④ 清洗(trim)并产出可直接落库的 SubmitJobInput(face 恰好一张)。
+ *
+ * ★ `occasion` / 肤质 / 肤色 / `sceneText` / `dress` 这五个字段的**规则**
+ *   (枚举白名单 + 长度上限 + trim)不在这里、也不在 schema 里,而在
+ *   `shared/domain/validators/brief-fields.validator.ts` 的 `checkBriefFields()` ——
+ *   对话那条路(`patch_brief`)调的是**同一份**。schema 只声明形状(§4.2)。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { MakeupBrief } from '../../../shared/index.js';
+import { checkBriefFields } from '../../../shared/index.js';
 import {
   jobSubmitSchema,
   MAX_SCENES,
   metaSchema,
   type JobSubmitRaw,
-  type MetaScalar,
   type UploadFileMeta,
 } from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
@@ -37,26 +42,21 @@ function parseBrief(metaRaw: string | undefined): MakeupBrief {
   } catch {
     throw new AppError(ErrorCode.VALIDATION_ERROR, 'meta 不是合法的 JSON');
   }
+  // ① 形状(结构对不对;schema 只答这个)
   const parsed = metaSchema.safeParse(obj);
   if (!parsed.success) {
     throw new AppError(ErrorCode.VALIDATION_ERROR, `meta 字段有误:${zodIssuesMessage(parsed.error)}`, {
       issues: parsed.error.issues,
     });
   }
-  return normalize(parsed.data);
-}
-
-/** 把已过形状的简报清洗成只含有效值的 MakeupBrief(sceneText/dress trim 后空则省略)。 */
-function normalize(m: MetaScalar): MakeupBrief {
-  const brief: MakeupBrief = {};
-  if (m.occasion) brief.occasion = m.occasion;
-  if (m.skinType) brief.skinType = m.skinType;
-  if (m.skinTone) brief.skinTone = m.skinTone;
-  const sceneText = (m.sceneText ?? '').trim();
-  if (sceneText) brief.sceneText = sceneText;
-  const dress = (m.dress ?? '').trim();
-  if (dress) brief.dress = dress;
-  if (m.weather) brief.weather = { ...m.weather };
+  // ② 规则(枚举白名单 / 长度上限 / trim)——**与对话那条路同一份实现**,不在这里重写
+  const checked = checkBriefFields(parsed.data);
+  if (!checked.ok) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, `meta 字段有误:${checked.message}`);
+  }
+  // ③ `weather` 是表单独有的成员,不在共用字段里,由本模块自己收
+  const brief = checked.brief;
+  if (parsed.data.weather) brief.weather = { ...parsed.data.weather };
   return brief;
 }
 

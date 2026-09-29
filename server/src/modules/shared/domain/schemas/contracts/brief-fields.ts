@@ -14,28 +14,25 @@
  * 所以这里只放**字段**,不放对象:两个模块各自 `z.object({ ...briefFields, … })`,
  * 各自的 `.strict()`、各自的成员(表单多一个 `weather`)都留在原地。
  *
- * ★ 长度上限(`MAX_SCENE_TEXT` / `MAX_DRESS`)也一并放这里。它们此前同样各写一份,
- *   而且**必须**跟着字段走:上限与字段分开,又会得到两处要一起改。
+ * ★ **这里只有形状,没有规则**(§4.2):五个字段都是「可选字符串」。
+ *   「哪些取值合法」「最长多少字」是**业务规则**,在
+ *   `shared/domain/validators/brief-fields.validator.ts` —— 两条路都调那一份。
+ *   ⚠️ 所以**别在这里加 `.max()` / `z.enum()`**:加了就等于规则又多了第二个落点,
+ *   而 schema 是松是紧决定了两条路会不会**一起**失守。
  *
  * ⚠️ 两条路的行为一致性有测试钉着(`test/schemas.test.ts` 里那组
  *   「同一份输入,两条路给同一个答案」)——**故意不靠这里的注释维持**。
  */
 import { z } from 'zod';
-import { OCCASIONS, SKIN_TONES, SKIN_TYPES } from '../../entities/brief.js';
-
-/** 自由文字(场景文字)上限(字)。 */
-export const MAX_SCENE_TEXT = 2000;
-/** 穿搭一句话描述上限(字)。 */
-export const MAX_DRESS = 80;
 
 /**
  * 两条入口共用的简报字段。**全部可选**——两条路都是"能给多少给多少"。
  * 用 `...briefFields` 展开进各自的 `z.object()`。
  */
 export const briefFields = {
-  occasion: z.enum(OCCASIONS).optional(),
-  sceneText: z.string().max(MAX_SCENE_TEXT, `场景文字最多 ${MAX_SCENE_TEXT} 字`).optional(),
-  skinType: z.enum(SKIN_TYPES).optional(),
-  skinTone: z.enum(SKIN_TONES).optional(),
-  dress: z.string().max(MAX_DRESS, `穿搭描述最多 ${MAX_DRESS} 字`).optional(),
+  occasion: z.string().optional(),
+  sceneText: z.string().optional(),
+  skinType: z.string().optional(),
+  skinTone: z.string().optional(),
+  dress: z.string().optional(),
 } as const;

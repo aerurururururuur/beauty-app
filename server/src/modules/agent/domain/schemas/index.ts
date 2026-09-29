@@ -13,5 +13,5 @@ export {
 } from './api/agent-http.js';
 export type { StartSessionRaw, SendMessageRaw, ConfirmRenderRaw } from './api/agent-http.js';
 
-export { MAX_DRESS, MAX_SCENE_TEXT, briefPatchSchema } from './api/brief-patch.js';
+export { briefPatchSchema } from './api/brief-patch.js';
 export type { BriefPatchRaw } from './api/brief-patch.js';

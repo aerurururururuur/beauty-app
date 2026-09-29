@@ -36,7 +36,21 @@ export type { ErrorCodeValue } from './domain/errors/app-error.js';
 
 // ★ 上提的公共零件(不是新能力,是把已有副本合成一份,见各自文件头):
 //   · zodIssuesMessage    —— 此前 jobs / user / weather / cabinet 各持一份逐字相同的实现
-//   · briefFields + 上限  —— 此前表单与对话两条路各写一遍「改一处要记得改另一处」
+//   · briefFields + 规则  —— 此前表单与对话两条路各写一遍「改一处要记得改另一处」
 // ⚠️ `agent/domain/validators/validate.ts` 那份**不在**这里,它是给模型看的变体,不是副本。
 export { zodIssuesMessage } from './domain/validators/zod-issues.js';
-export { briefFields, MAX_DRESS, MAX_SCENE_TEXT } from './domain/schemas/index.js';
+
+// ★ 形状与行为**分两处**导出(§4.2):
+//   · `briefFields`      —— 只有结构(五个可选字符串),给两条路的 schema 展开
+//   · `checkBriefFields` —— 规则(枚举白名单 / 上限 / trim)与两个上限常量
+//   两条入口(表单 metaRaw / 对话 patch_brief)调的都是后者那一份。
+export { briefFields } from './domain/schemas/index.js';
+export {
+  checkBriefFields,
+  MAX_DRESS,
+  MAX_SCENE_TEXT,
+} from './domain/validators/brief-fields.validator.js';
+export type {
+  BriefFieldsCheck,
+  BriefFieldsInput,
+} from './domain/validators/brief-fields.validator.js';

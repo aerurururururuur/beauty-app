@@ -6,8 +6,6 @@
  */
 export {
   MAX_SCENES,
-  MAX_DRESS,
-  MAX_SCENE_TEXT,
   MAX_META_RAW,
   metaSchema,
   jobSubmitSchema,

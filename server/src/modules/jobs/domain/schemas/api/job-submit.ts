@@ -15,11 +15,11 @@ import { briefFields } from '../../../../shared/index.js';
 /** 风景参考图上限(形状参数之一;可选,不驱动风格)。 */
 export const MAX_SCENES = 6;
 /**
- * 自由文字(场景文字)上限(字)。
- * ★ **值在 `shared`**(`domain/schemas/contracts/brief-fields.ts`),这里只是转发:
- *   两条入口(表单 / 对话)必须受同一个上限,见那个文件头。
+ * ⚠️ `MAX_DRESS` / `MAX_SCENE_TEXT`（自由文字与穿搭的上限）**已不在这里**：
+ *   §4.2 之后它们属**业务规则**，在
+ *   `shared/domain/validators/brief-fields.validator.ts`，由 `checkBriefFields` 执行。
+ *   从 `shared/index.js` 取（本模块 `index.ts` 仍照旧转出，调用方不必改路径）。
  */
-export { MAX_DRESS, MAX_SCENE_TEXT } from '../../../../shared/index.js';
 /** meta JSON 原文上限(含 sceneText 等,给足余量)。 */
 export const MAX_META_RAW = 8000;
 
