@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMakeupStore } from '@/stores/makeup'
-import { createMakeupJob, useMock } from '@/api/makeup'
+import { useUserStore } from '@/stores/user'
+import { submitMakeupForm } from '@/api/makeup'
+import { useMock } from '@/api/use-mock'
 import { fetchWeather } from '@/api/weather'
 import { DEMO_PORTRAIT } from '@/api/mock'
 import {
@@ -15,13 +17,11 @@ import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import Icon from '@/components/Icon.vue'
 
 const store = useMakeupStore()
+const user = useUserStore()
 const router = useRouter()
+const isMock = useMock()
 
-const sceneInput = ref(null)
-const sceneMsg = ref('')
 const error = ref('')
-
-const MAX_SCENES = 6
 
 /** 把静态示例照载成 File，作为真实文件提交（mock 下仅作预览亦可）。 */
 async function loadDemoFile(url, name, type) {
@@ -78,34 +78,29 @@ const weatherSummary = computed(() => {
   return parts.join(' · ')
 })
 
-// ---- 可选风景参考图（不参与成片判定，仅回显） ----
-function addSceneFiles(fileList) {
-  const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'))
-  const room = MAX_SCENES - store.sceneFiles.length
-  const pick = files.slice(0, room)
-  pick.forEach((f) => store.addScene(f, URL.createObjectURL(f)))
-  sceneMsg.value =
-    files.length > room
-      ? `氛围参考图最多 ${MAX_SCENES} 张，已保留前 ${room} 张。`
-      : ''
-}
-
 function onFacePicked(file) {
   // 照片 URL 已由 PhotoUploader v-model 同步，这里记住真实 File 用于提交。
   store.portraitFile = file
 }
 
+/**
+ * 提交。
+ *
+ * ✏️ 2026-09-29:底层换成了 agent 会话链(建会话带 brief → 传照片 → 发一句话)。
+ * ★ **提交不等于出图**:出图要用户在出图那条消息上再点一次「确认生成」才会花钱
+ *   (红线 §7.4)。所以这里只是把表单接进对话,然后交棒给结果页。
+ */
 async function submit() {
   if (!store.canSubmit) return
   error.value = ''
   store.startSubmit()
   try {
-    const res = await createMakeupJob({
+    const view = await submitMakeupForm({
+      userId: user.id,
       portraitFile: store.portraitFile,
-      sceneFiles: store.sceneFiles,
       brief: store.brief
     })
-    store.finishSubmit(res.id)
+    store.finishSubmit(view.sessionId)
     router.push({ path: '/result' })
   } catch (e) {
     store.failSubmit()
@@ -250,53 +245,23 @@ async function submit() {
       </p>
     </section>
 
-    <!-- ④ 可选：氛围参考图 -->
-    <section class="card faint">
-      <div class="scene-head">
-        <h2 class="card-title">④ 氛围参考图（可选）</h2>
-        <span class="caps scene-count">{{ store.sceneFiles.length }}/{{ MAX_SCENES }}</span>
-      </div>
-      <p class="card-sub">实验加分项：上传风景图仅供回显参考，<b>不参与</b>妆容判定。跳过不影响结果。</p>
-
-      <button
-        v-if="!store.sceneFiles.length"
-        class="btn btn-ghost scene-upload-btn"
-        type="button"
-        @click="sceneInput?.click()"
-      >
-        <Icon name="upload" :size="15" />
-        上传氛围图（可不上传）
-      </button>
-
-      <div v-else class="scene-grid">
-        <div v-for="(url, i) in store.sceneUrls" :key="url" class="scene-tile">
-          <img :src="url" alt="氛围预览" />
-          <button class="remove" type="button" aria-label="移除" @click="store.removeScene(i)">×</button>
-        </div>
-        <button v-if="store.sceneFiles.length < MAX_SCENES" class="scene-add" type="button" @click="sceneInput?.click()">
-          <Icon name="upload" :size="16" />
-          <span>再添一张</span>
-        </button>
-      </div>
-
-      <input
-        ref="sceneInput"
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        @change="addSceneFiles($event.target.files)"
-      />
-      <p v-if="sceneMsg" class="field-tip warn">{{ sceneMsg }}</p>
-    </section>
-
     <p v-if="error" class="field-tip warn submit-error">{{ error }}</p>
 
-    <button class="btn btn-primary btn-block submit" :disabled="!store.canSubmit" @click="submit">
+    <button
+      class="btn btn-primary btn-block submit"
+      :disabled="!store.canSubmit || isMock"
+      @click="submit"
+    >
       生成我的得体妆
     </button>
+    <!-- ★ mock 模式下这条路**明确不可用**,不给假结果:提交之后那条链要真的开会话、
+         真的传照片,而出图是一条会花钱的真实 HTTP 路由(理由同 `api/agent.js` 文件头)。 -->
     <p class="caps center-line">
-      {{ useMock() ? '当前为离线演示模式（mock）' : '将调用本地 TS 后端（:3000）' }}
+      {{
+        isMock
+          ? '离线演示模式下这条链不可用——出图需要真实后端'
+          : '将调用本地 TS 后端（:3000）'
+      }}
     </p>
   </div>
 </template>
@@ -538,74 +503,6 @@ textarea:focus {
 .text-meta .count {
   font-size: 11px;
   color: var(--c-ink-faint);
-}
-
-/* ---- 氛围图（可选，弱化） ---- */
-.faint .card-title,
-.faint .card-sub {
-  color: var(--c-ink-soft);
-}
-
-.scene-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.scene-count {
-  font-size: 11px;
-}
-
-.scene-upload-btn {
-  width: 100%;
-  border-style: dashed;
-  color: var(--c-ink-faint);
-}
-
-.scene-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.scene-tile {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--c-line-strong);
-}
-
-.scene-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.remove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  line-height: 1;
-  border-radius: 50%;
-  background: rgba(42, 30, 34, 0.55);
-  color: #fff;
-  font-size: 15px;
-}
-
-.scene-add {
-  aspect-ratio: 4 / 3;
-  border: 1px dashed var(--c-line-strong);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--c-ink-faint);
-  font-size: 11px;
 }
 
 .field-tip {

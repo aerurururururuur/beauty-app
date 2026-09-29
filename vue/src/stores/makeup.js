@@ -2,21 +2,24 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 /**
- * makeup store —— 「场景美妆镜」制作台状态。
- * 本人照片 1 张 + 需求简报(brief):
- *   occasion 场合(interview/date/stage/family/daily)、sceneText 自由文字、
- *   skinType/skinTone 肤质肤色、dress 穿搭、weather 日期天气。
- * 风景图(sceneFiles)保留但降级为可选参考,不参与风格判定。
- * 提交后记录任务 id,交由 ResultView 轮询后端(或 mock)。
+ * makeup store —— 「场景美妆镜」制作台的**表单状态**。
+ *
+ * 采什么字段:本人照片 1 张 + 需求简报(brief)——
+ * occasion 场合(interview/date/stage/family/daily)、sceneText 自由文字、
+ * skinType/skinTone 肤质肤色、dress 穿搭、weather 日期天气。
+ *
+ * ✏️ 2026-09-29:提交那条路从"建任务"换成了"**开一段 agent 会话**"。
+ *   表单一次填完的 brief 随开会话直接进会话,不再有任务 id / 进度 / 轮询状态机。
+ *   所以下面记的是 `sessionId` 而不是 `jobId`——它就只是一个**不透明的会话 id**。
+ *
+ * ⚠️ **风景参考图(`sceneFiles` / `sceneUrls`)已经摘掉。** agent 的照片口只认
+ *   `face` 一个字段,引擎的 `scenes` 那格也删了——留着就是"界面上收图、后端静默丢掉"。
+ *   它要回来得等"风格图进引擎"那一轮(位置已经在 `EngineInput.references` 留好)。
  */
 export const useMakeupStore = defineStore('makeup', () => {
   // ---- 本人照(必填) ----
   const portraitFile = ref(null) // File | null(demo 填充时为 null 也可提交,mock 下无碍)
   const portraitUrl = ref('') // 本人照片预览(objectURL 或静态路径)
-
-  // ---- 风景参考图(可选,降级,不驱动风格) ----
-  const sceneFiles = ref([]) // File[]
-  const sceneUrls = ref([]) // string[](与 sceneFiles 一一对应)
 
   // ---- 需求简报 brief ----
   const occasion = ref('') // Occasion | ''(未选)
@@ -37,8 +40,9 @@ export const useMakeupStore = defineStore('makeup', () => {
   const weatherNote = ref('') // 给用户看的一行说明
   const weatherWarn = ref(false) // 该说明是否要提示色(离线示意 / 拉取失败)
 
-  // ---- 任务 ----
-  const jobId = ref('')
+  // ---- 会话 ----
+  /** ★ 从 agent 那条路拿回来的会话 id。空 = 还没提交过。 */
+  const sessionId = ref('')
   const submitting = ref(false)
 
   /** 提交用简报:只收有值的字段,与后端 meta 契约一一对应。 */
@@ -64,17 +68,6 @@ export const useMakeupStore = defineStore('makeup', () => {
     revoke(portraitUrl.value)
     portraitFile.value = file
     portraitUrl.value = url
-  }
-
-  function addScene(file, url) {
-    sceneFiles.value.push(file)
-    sceneUrls.value.push(url)
-  }
-
-  function removeScene(index) {
-    revoke(sceneUrls.value[index])
-    sceneFiles.value.splice(index, 1)
-    sceneUrls.value.splice(index, 1)
   }
 
   function setSceneText(text) {
@@ -127,7 +120,7 @@ export const useMakeupStore = defineStore('makeup', () => {
   }
 
   function finishSubmit(id) {
-    jobId.value = id
+    sessionId.value = id
     submitting.value = false
   }
 
@@ -137,11 +130,8 @@ export const useMakeupStore = defineStore('makeup', () => {
 
   function reset() {
     revoke(portraitUrl.value)
-    sceneUrls.value.forEach(revoke)
     portraitFile.value = null
     portraitUrl.value = ''
-    sceneFiles.value = []
-    sceneUrls.value = []
     occasion.value = ''
     sceneText.value = ''
     skinType.value = ''
@@ -153,7 +143,7 @@ export const useMakeupStore = defineStore('makeup', () => {
     weatherSource.value = ''
     weatherNote.value = ''
     weatherWarn.value = false
-    jobId.value = ''
+    sessionId.value = ''
     submitting.value = false
   }
 
@@ -168,8 +158,6 @@ export const useMakeupStore = defineStore('makeup', () => {
   return {
     portraitFile,
     portraitUrl,
-    sceneFiles,
-    sceneUrls,
     occasion,
     sceneText,
     skinType,
@@ -182,13 +170,11 @@ export const useMakeupStore = defineStore('makeup', () => {
     weatherNote,
     weatherWarn,
     brief,
-    jobId,
+    sessionId,
     submitting,
     hasContext,
     canSubmit,
     setPortrait,
-    addScene,
-    removeScene,
     setSceneText,
     applyWeather,
     setWeatherFailure,

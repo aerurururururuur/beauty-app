@@ -52,9 +52,22 @@ export const MAX_AGENT_TEXT = 1000
 /** 这几条都走同一份超时(理由见 `AGENT_TIMEOUT_MS`)。 */
 const longRequest = { timeout: AGENT_TIMEOUT_MS }
 
-/** 开一个会话 → 会话视图(新会话里一条消息都没有)。 */
-export async function startAgentSession({ userId }) {
-  return api.post('/agent/sessions', { userId }, longRequest)
+/**
+ * 开一个会话 → 会话视图(新会话里一条消息都没有)。
+ *
+ * ★ `brief` 是**可选**的初始需求简报。两个调用方:
+ *   · `stores/agent.js` 的「新开一段对话」——不带,纯聊出来;
+ *   · `api/makeup.js` 的表单提交——带上用户在表单里一次填完的那份。
+ *
+ * ⚠️ **简报字段是平铺在请求体上的,不是嵌在 `brief` 键下**(服务端的
+ *   `startSessionSchema` 把 `shared` 的 `briefFields` 直接展开,`weather` 是它
+ *   自己的可选成员)。所以这里必须**展开**,写成 `{ userId, brief }` 会被服务端
+ *   按 `.strict()` 打回「不认识的字段:brief」——而**上一版这里只收 `userId`**,
+ *   后果更坏:表单填的 occasion/肤质/穿搭/天气**一字段不剩地被丢掉**,
+ *   请求照样 200、日志干净,只有模型从头到尾不知道用户填了什么。
+ */
+export async function startAgentSession({ userId, brief = {} }) {
+  return api.post('/agent/sessions', { userId, ...brief }, longRequest)
 }
 
 /**

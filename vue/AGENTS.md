@@ -7,6 +7,11 @@
 > `docs/plan/roadmap.md` §13 红线 **>** 本文件 **>** `vue/README.md`（README 讲「怎么跑」，本文件讲「怎么改」）
 > **>** 代码注释（注释解释「为什么这样写」，是很好的补充，但不覆盖上述）。
 >
+> ✏️ **2026-09-29：`docs/plan/*` 已冻结废弃，不要再去那里找权威。** 那些红线**约束本身仍然有效**
+> （§8 就是它们的可执行转述，照 §8 做），但**文档不再维护**——`roadmap.md` 里描述的模块与端点
+> （如 `jobs`）可能已经不存在了。**冲突时以代码 + 本文件为准**；§8 与代码打架了就来问，
+> 别去翻冻结的 plan 找答案。
+>
 > **适用范围**：`vue/` 下的一切。后端**契约**看 `docs/architecture.md`、后端**怎么跑**看 `server/README.md`；跨端共享资产看 `server/src/modules/shared/domain/scene-rules.ts` 的文件头。
 >
 > **⚠️ 如果你是在聊天窗口里工作、手上只有对话上下文（读不到仓库文件）——先看 §0。**
@@ -48,9 +53,9 @@
 | 改样式 | `vue/src/assets/styles/tokens.css`、`main.css`，以及目标页面（样式多为页内 `scoped`，见 §5.2） |
 | 改动线 / 路由 | `vue/src/router/index.js`、相关页面、`vue/src/stores/user.js` |
 | 场合判定相关 | `server/src/modules/shared/domain/scene-rules.ts`（**要整份**，它不长，而且一个字都不能漏——见 §6.2） |
-| 核对契约 | `server/src/modules/jobs/domain/api/job-view.ts` 等 `domain/api/*.ts` + `docs/architecture.md` §5 |
+| 核对契约 | `server/src/modules/*/domain/api/*.ts`（结果页与对话页那份是 `agent/application/agent-view.ts` 的 `AgentSessionView`）+ `docs/architecture.md` §5。✏️ 2026-09-29：`jobs/domain/api/job-view.ts` 已随模块删除 |
 
-> 两个大文件（`ResultView.vue` 622 行、`UploadView.vue` 630 行）可以只要**相关段落**，
+> 两个大文件（`AgentView.vue` 718 行、`UploadView.vue` 530 行）可以只要**相关段落**，
 > 但必须说清是哪一段（「从 `<script setup>` 到 `</script>`」/「template 里 `PhotoUploader` 那一段」），
 > 且**收到后先核对它是否完整覆盖了你正要用到的上下文**——不完整就再要一次，别将就。
 
@@ -93,17 +98,21 @@
 一条主链路（4 屏）：
 
 ```
-/login 登录 ──► / 首页 ──► /upload 上传(填需求简报) ──► /result 结果(进度→前后对比)
-                                                              ▲
+/login 登录 ──► / 首页 ──► /upload 上传(填需求简报) ──┬──► /result 结果(妆面 → 确认出图 → 前后对比)
+                                                      │
                                           /cabinet 衣橱(用户自己的化妆品，独立支线)
                                           /agent   对话定妆(聊着把妆面定下来 → 确认出图)
 ```
 
-★ `/agent` 是**第二条独立的出图路径**，也是唯一一条**没有 mock 轨**的：照片与每一句话都真的
+✏️ **2026-09-29：`/upload` 与 `/agent` 现在是同一条路。** 上传页提交之后做的是
+「开会话(带 brief)→ 传照片 → 发一句话」，也就是从 `/agent` 那条链进去的——`jobs` 那条
+表单流水线已删。**全项目只剩一条出图路径**，而它**没有 mock 轨**：照片与每一句话都真的
 发给后端，最后那一下「确认出图」是**全项目唯一真的会花钱**的动作（要用户点一次确认才发生）。
-所以它在 `VITE_USE_MOCK=true` 下**整个不可用**——见 §6.3 与 §7.2。
+所以 `VITE_USE_MOCK=true` 下这条链**整个不可用**——上传页提交按钮禁用、结果页如实报错。
+见 §6.3 与 §7.2。
 
-`/upload` 收的**需求简报 brief** 是全局最有价值的数据结构，它直接等于提交给后端的 `meta`：
+`/upload` 收的**需求简报 brief** 是全局最有价值的数据结构——它随开会话请求**平铺**发出去
+（`{ userId, ...brief }`，不是嵌一个 `brief` 键），落到会话的 `brief` 上：
 
 | 字段 | 取值 | 说明 |
 | --- | --- | --- |
@@ -118,8 +127,11 @@
 
 | 模式 | 触发 | 数据来自 |
 | --- | --- | --- |
-| mock（默认） | `VITE_USE_MOCK !== 'false'` | `src/api/mock.js`（浏览器内假后端，不联网） |
+| mock（默认） | `VITE_USE_MOCK !== 'false'` | `src/api/mock.js`（浏览器内假后端，不联网）——**只剩账号与衣橱** |
 | 真实 | `VITE_USE_MOCK=false` | Fastify 后端 `server/`，经 Vite 代理 `/api` → `:3000` |
+
+★ **出图那条链是例外：它没有 mock 轨**（`api/agent.js` / `api/makeup.js`），所以 mock 模式下
+**上传页与对话页都用不了**。这不是漏的，理由见 §6.3。
 
 **两条轨必须给出同一个判定结果**——这是 `scene-rules` 单一源存在的全部理由，见 §6。
 
@@ -171,7 +183,7 @@ pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
    页面永远不知道自己在跟谁说话。
 
 6. **页面间传业务数据只经 store。**
-   `ResultView` 靠 `store.jobId` 拿任务 id，而不是 query / params。
+   `ResultView` 靠 `store.sessionId` 拿会话 id，而不是 query / params。
    （例外：URL 语义上确实该有的东西才进 query——目前只有登录后的 `?redirect=`。）
 
 **Pinia 写法**：全部是 setup store（`defineStore('x', () => {...})`）。
@@ -190,21 +202,21 @@ vue/src/
 ├── api/
 │   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE
 │   ├── use-mock.js            # ★ 只有一行环境变量判断，刻意独立成文件（见 §6）
-│   ├── makeup.js              # POST /jobs · GET /jobs/:id · resultImageHref()
+│   ├── makeup.js              # ✏️ 2026-09-29：表单那条路的**编排层**——开会话(带 brief)+传照片+发一句；函数全转发给 agent.js
 │   ├── weather.js             # GET /weather（mock 模式回离线示意值）
 │   ├── users.js               # POST /users · POST /users/login
 │   ├── cabinet.js             # 衣橱 CRUD 四个端点
 │   ├── agent.js               # ★ 对话定妆六条端点。**唯一没有 mock 分支**的模块（见 §6.3）
-│   └── mock.js                # ★ 整个假后端（判定/调色/假流水线/本地衣橱）。只准惰性引入
+│   └── mock.js                # ★ 假后端（账号 / 本地衣橱）。只准惰性引入。✏️ 2026-09-29：假任务流水线整段删了
 ├── stores/
-│   ├── makeup.js              # 需求简报表单 + 本人照 + 任务 id。★ 全项目最核心的 store
+│   ├── makeup.js              # 需求简报表单 + 本人照 + **会话 id**。★ 全项目最核心的 store
 │   ├── user.js                # 「这次演示用的是哪个账号」——不是登录态
 │   ├── cabinet.js             # 衣橱列表与增删改
 │   └── agent.js               # 对话定妆：服务端视图（权威）+ 本地气泡。★ api 只能惰性引（见 §6.3）
 ├── constants/options.js       # 场合/肤质/肤色选项 + 中文名映射（纯展示，判定逻辑不在这里）
-├── utils/color.js             # rgbToHex / rgbCss / rgbLuminance
+├── utils/color.js             # rgbToHex / rgbCss / rgbLuminance。✏️ 2026-09-29：零引用（见 §11）
 ├── components/                # 5 个共享组件（见 §5）
-├── pages/                     # 6 个页面，每个都是「一个大文件」（196~630 行）
+├── pages/                     # 6 个页面，每个都是「一个大文件」（196~718 行）
 └── assets/styles/
     ├── tokens.css             # CSS 变量：颜色/字体/圆角/阴影
     └── main.css               # reset + 全局类（.page/.card/.btn/.caps/.tag …）
@@ -270,7 +282,9 @@ slots:  #before   顶层（被裁切的那张，一般是原图）
 ```
 自带鼠标 + 触摸事件、`原图/妆容` 角标、`aspect-ratio: 3/4` 容器。
 槽内容建议直接放 `<img>`——内部对 `:deep(img)` 做了 `object-fit: cover`。
-（`#after` 槽里可以放一个 `<div class="fx">` 包住 img + 若干叠加层，见 `pages/ResultView.vue:187`。）
+（✏️ 2026-09-29：原先这里举的例子是「`#after` 里放一个 `<div class="fx">` 包住 img + 色块叠加层，
+见 `pages/ResultView.vue`」——**那个例子做不到了**，结果页重写后 `#after` 里只有一张 `<img>`，
+叠加层靠的 `look.zones` 不在会话视图里（见 §7.2）。要做叠加层得先让服务端把 `look` 透出。）
 
 #### `TipBanner.vue` —— 提示条
 
@@ -309,7 +323,9 @@ props:  tips: Array = []     每项形如 { text }
 
 > **⚠️ 不在全局的那几个（别照这张表去找）**：`.hint`（脚注）、`.text-input`、`.field-label`、
 > `.field-tip`（含 `.warn`）**都不在 `main.css` 里**，而是各页面 `scoped` 样式里各有一份——
-> 到 2026-09-16 为止 `.hint` 与 `.text-input` **各 4 份**，`.field-label` / `.field-tip` **各 3 份**。
+> 到 2026-09-29 为止这**四个各 3 份**（`CabinetView` / `LoginView` / `UploadView`；`.hint` 那份
+> 在 `HomeView` 而不是 `UploadView`——它那边叫 `.opt-hint`，是另一个类）。
+> （2026-09-16 记的是 `.hint`/`.text-input` 各 4 份，`ResultView` 重写时它自己那份没了。）
 > `.spacer` 同理：全局只有 `.page-header .spacer` 一条，页面里单用的 `.spacer` 是页内自己定义的。
 >
 > **加新页面时不要再抄下一份**——要么先把它们提进 `main.css`（几处一起删，属小重构），
@@ -340,8 +356,13 @@ props:  tips: Array = []     每项形如 { text }
 ### 6.2 场合判定的**唯一源**
 
 `server/src/modules/shared/domain/scene-rules.ts` 是**本项目唯一跨端共享资产**。
-前端经 Vite alias `@scene-rules` **直接执行后端那个源文件**——`api/mock.js` 调的 `describeScene(brief)`
-和后端 `run-pipeline` 调的是**同一个函数**。
+前端经 Vite alias `@scene-rules` **直接执行后端那个源文件**——浏览器 mock 模式与真实后端
+必须给出同一个判定，各抄一份会静默漂移。
+
+> ✏️ **2026-09-29：前端现在一处都不引它了。** 唯一的调用点是 `api/mock.js` 那条假任务流水线
+> （`describeScene(brief)`），随 `jobs` 一起删了；`ENGINE_SPECS` / `TONE_MIX` 那两份**知情拷贝**
+> 也一并没了。alias 与 `server.fs.allow` **都还配着**，服务端那条读 `vite.config.js` 的测试也还在
+> ——**下面两条规矩照旧生效**，前端再引它的时候自动重新有用。别看到"没人引"就去删 alias。
 
 **因此有两条硬规矩：**
 
@@ -352,11 +373,6 @@ props:  tips: Array = []     每项形如 { text }
    往里加一句 `import fs from 'node:fs'`，前端构建会以很难懂的方式炸掉。
    `server/test/scene-rules.test.ts` 有正则扫源码钉着这条。
 
-**已知情的拷贝**：`api/mock.js` 里的 `ENGINE_SPECS`（场合→色板）与 `TONE_MIX`（肤色档→明暗校正）
-仍是后端 `MockEngine` 色板的拷贝。**这是刻意的**——色板是**上妆引擎的实现细节**，不是场合语义，
-搬进 `scene-rules.ts` 会让 shared 里躺一份「将来换真引擎就没人用」的死数据。
-正确的清理时机是接真实引擎时由 `MockEngine` 导出快照。**不要现在去合并它。**
-
 ### 6.3 其他 mock 规矩
 
 - ★ **`api/agent.js` 是全项目唯一没有 mock 分支的 api 模块——这是有意的，不是漏的。**
@@ -364,10 +380,14 @@ props:  tips: Array = []     每项形如 { text }
   在浏览器里复刻一份，复刻出来的既不是那条路由、也不检验那条循环，只会让"看起来能用"与
   "真的能用"分不清。所以 `VITE_USE_MOCK=true` 时**页面明确显示「对话功能需要真实后端」**，
   不给假对话（`AgentView.vue` 顶部那道 `isMock` 判断）。**别为了"统一"给它补一个 mock。**
-- `api/mock.js` 返回的对象必须与真实 HTTP 响应的**形状逐字段一致**（`JobView` / `UserView` / `CosmeticItemView`）。
+- `api/mock.js` 返回的对象必须与真实 HTTP 响应的**形状逐字段一致**（`UserView` / `CosmeticItemView`）。
 - 演示模式**不校验密码**——没有后端就没有 scrypt 表。它刻意不存明文密码、也不做假校验。
 - 演示模式的衣橱存 `localStorage`（键 `beauty-app.mock-cabinet`），复刻「刷新后还在」的行为。
-- `mockGetJob` 对未知 id 会**回放一个已完成的示例任务**，方便直连 `/result` 调试。
+- ✏️ **2026-09-29：`api/mock.js` 只剩账号与衣橱两块。** 假任务流水线（`mockCreateJob` / `mockGetJob`
+  / `STEP_AT` 时间轴 / 场合判定 / 色板 / 参考图那几组）**整段删了**——表单那条路已改走 agent 会话链，
+  而那条链**刻意没有 mock**(见上一条)。
+  ⚠️ 所以 `VITE_USE_MOCK=true` 时**出图那条链明确不可用**(上传页的提交按钮禁用、结果页如实报错)，
+  **不再有假结果可回放**。别为了"离线也能演示"把那条假流水线加回来。
 
 ### 6.4 ⚠️ 构建过 ≠ dev 过
 
@@ -375,6 +395,8 @@ props:  tips: Array = []     每项形如 { text }
 `vite.config.js` 里专门配了 `server.fs.allow: ['..']`（本项目根目录没有 `package.json`，
 dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs.allow`，
 **必须 `npm run dev` 实开一次**，`npm run build` 通过说明不了任何事。
+（✏️ 2026-09-29 起前端没有活着的 `@scene-rules` 调用点，所以这条风险暂时压在"配置还在"上
+——alias 一删就立刻重新成立。）
 
 ---
 
@@ -385,11 +407,11 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 
 ### 7.1 端点总表（全部挂 `/api`）
 
+> ✏️ **2026-09-29：`/jobs` 那三个端点整段删掉了**（模块已删）。**出图现在只有一条路**——
+> 下面 `/agent/sessions/*` 那几行。上传页(`/upload`)提交之后走的就是它，不再有"表单流水线"。
+
 | 方法 & 路径 | 请求 | 成功响应 |
 | --- | --- | --- |
-| `POST /jobs` | multipart：`face`(1 张，必填)、`scene`(0..6，可选)、`meta`(brief 的 JSON 字符串) | **202** `{ id, status, progress, step }` |
-| `GET /jobs/:id` | — | **200** `JobView`，轮询到 `status: 'done'` |
-| `GET /jobs/:id/result` | — | **200** 图片字节流 |
 | `GET /weather` | `?city=北京` 或 `?lat=&lon=` | **200** `WeatherView` |
 | `POST /users` | `{ nickname, password }` | **201** `UserView` |
 | `POST /users/login` | `{ nickname, password }` | **200** `UserView`；不符 **401** |
@@ -398,7 +420,7 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 | `GET /cabinet/items?userId=` | — | **200** `{ items: [...] }` |
 | `PATCH /cabinet/items/:id` | `{ userId, name?, attributes? }`（二者至少给一个） | **200** `CosmeticItemView` |
 | `DELETE /cabinet/items/:id?userId=` | — | **204** 无响应体 |
-| `POST /agent/sessions` | `{ userId }` | **201** `AgentSessionView`（新会话里**一条消息都没有**）。★ 用户不存在 → **404**（服务端 2026-09-16 起校验），`stores/agent.js` 不特判、如实报错——它意味着**这台浏览器存着的登录在服务端已查无此人** |
+| `POST /agent/sessions` | `{ userId, occasion?, sceneText?, skinType?, skinTone?, dress?, weather? }` —— ✏️ 2026-09-29 起**可以随请求带一份初始 brief**（表单提交那条路要用）。★ **简报字段是平铺的，不是嵌一个 `brief` 键**（服务端把 `shared` 的 `briefFields` 展开，`weather` 是它自己的可选成员），多一个键就 422。不带 brief 的调用与新增之前逐字相同 | **201** `AgentSessionView`（新会话里**一条消息都没有**）。★ 用户不存在 → **404**（服务端 2026-09-16 起校验），`stores/agent.js` 不特判、如实报错——它意味着**这台浏览器存着的登录在服务端已查无此人** |
 | `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView`；会话不在 / 不属于你 → **404**（不区分，免得能被枚举） |
 | `POST /agent/sessions/:id/messages` | `{ userId, text }`（≤1000 字） | **200** `AgentTurnView`（含 `stopReason` + `events`） |
 | `POST /agent/sessions/:id/photo` | multipart：`face`(1 张，字段名就是 `face`)、`userId` | **200** `AgentSessionView` |
@@ -409,26 +431,10 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 ### 7.2 DTO 形状（JS 视角）
 
 ```js
-// JobView —— GET /jobs/:id，结果页全程靠它
-{
-  id, status: 'queued'|'running'|'done'|'failed', progress: 0..100,
-  step: 'queued'|'scene_understand'|'reference_gather'|'makeup_generate'|'store_result',
-  error: { code, message } | null,
-  inputs: { faceName, sceneNames: [], brief },       // brief 就是回显你提交的那份
-  scene?: { label, direction, tags: [] },            // 场合判定结果
-  references?: [{ id, title, imageUrl, sourceUrl, role, retrievedAt }],
-  result?: {
-    engine, resultUrl,                              // resultUrl 形如 '/jobs/<id>/result'
-    scene, look, references,
-    analysis, explain, tips: []                     // 三段给人看的文案
-  }
-}
-
-// look —— 前端 CSS 叠加预览的依据（mock 模式 resultUrl 为空时走这条路）
-{ engine, style, skinTone,
-  palette: [{ role, rgb: [r,g,b] }],
-  zones: [{ role, anchor:{x,y}, size:{w,h}, opacity, blur, rgb }],  // 坐标/比例均 0..1
-  note }
+// ✏️ 2026-09-29：`JobView` 与 `look` 两块随 `jobs` 一起删掉了。
+//   结果页现在读的是下面那份 `AgentSessionView`。⚠️ 它**没有** `look.zones`/`look.palette`
+//   ——所以「本人照片 + 色块叠加」的模拟上妆预览**今天做不出来**（要它回来，得先让服务端
+//   把 `look` 透出到会话视图，见 `server/src/modules/makeup/domain/entities/look.ts` 文件头）。
 
 // UserView（★ 永不含密码/凭据）        { id, nickname, createdAt }
 // CosmeticItemView                    { id, userId, name, attributes:[{label,value}], createdAt, updatedAt? }
@@ -510,9 +516,10 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 
 **几个前端必须记住的细节：**
 
-- **`resultUrl` 在纯 mock 模式下是 `null`**——此时结果页回落到「本人照片 + `look.zones` 的 CSS `mix-blend-mode: multiply` 叠加」。
-  真实引擎给了 `resultUrl` 就直接展示成品图。**两条路都要能走通**（`ResultView.vue:138` 的 `baseSrc` 就是那个分叉）。
-- 路径型 URL 要配 `API_BASE` 前缀再交给 `<img>`——用 `api/makeup.js` 的 `resultImageHref()`，别自己拼。
+- ✏️ **2026-09-29：没有 `resultUrl` 了，只有 `renders[].url`。** 成品图一律经
+  `renderImageHref(url, userId)`（`api/makeup.js` 转出，实现在 `api/agent.js`）——它补
+  `API_BASE` **再补 `?userId=`**（取图靠查询串判归属），别自己拼。
+  结果页的「前后对比」= 本人照片(`store.portraitUrl`) vs `renders` 里最后一张。
 - **`WeatherView` 只有 4 个字段能进 `brief.weather`**：`condition`/`temperatureC`/`humidityPct`/`uvIndex`。
   `place` 和 `source` 是**回显元信息，不进 meta**——后端 weather schema 是 `.strict()`，多一个键就 422。
   `source` 要**原样透传给 UI**（`'open-meteo'` = 实时 / `'mock'` = 离线示意），别在前端猜来源。
@@ -526,20 +533,24 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 
 | 错误码 | HTTP | 前端该怎么办 |
 | --- | --- | --- |
-| `JOB_NOT_FOUND` | 404 | 任务没了，回上传页 |
-| `JOB_NOT_READY` / `JOB_FAILED` | 409 | 继续轮询 / 走失败态 |
-| `FACE_REQUIRED` | 422 | 理论上到不了（前端 `canSubmit` 已挡） |
-| `CONTEXT_REQUIRED` | 422 | 同上（`hasContext` 已挡） |
-| `SCENES_MAX_EXCEEDED` | 422 | 前端 `MAX_SCENES=6` 已挡 |
 | `LOCATION_REQUIRED` / `CITY_NOT_FOUND` | 422 / 404 | 天气**失败说明**，不阻塞提交 |
 | `WEATHER_UNAVAILABLE` | 502 | 同上——`clearWeather()` 后整块省掉，**没有手动预设可回落** |
-| `USER_NOT_FOUND` | 404 | 账号没了 |
+| `USER_NOT_FOUND` | 404 | 账号没了（开会话时也回它——**这台浏览器存着的登录在服务端查无此人**） |
+| `SESSION_NOT_FOUND` | 404 | 会话不在 / **不属于你**（共用，别去区分）。回上传页重开 |
+| `RENDER_NOT_FOUND` | 404 | 会话是我的，但我没有这个序号的图 |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 「不存在」与「不属于你」**共用**，别去区分 |
 | `CABINET_FULL` | 409 | 衣橱满了 |
 | `NICKNAME_TAKEN` | 409 | 昵称占用 |
 | `INVALID_CREDENTIALS` | 401 | 昵称或密码错，**不泄露账号是否存在** |
-| `VALIDATION_ERROR` | 422 | meta 非法 / 枚举越界 |
+| `VALIDATION_ERROR` | 422 | 请求体非法 / 枚举越界 / 多给了一个键（`.strict()`） |
 | `INTERNAL_ERROR` | 500 | 引擎输出不过关等 |
+
+> ✏️ 2026-09-29：删掉了 `JOB_NOT_FOUND` / `JOB_NOT_READY` / `JOB_FAILED` / `FACE_REQUIRED` /
+> `CONTEXT_REQUIRED` / `SCENES_MAX_EXCEEDED` 六行——**服务端连同它们一起删了**（抛出点全在
+> `jobs` 里，留着的是"一份还带 HTTP 状态码的空声明"）。
+> ★ `POST …/render` 的 **422 不是靠 code 认的**：它那几个真实原因（没妆面 / 没照片 /
+> 上一轮欠着的不是出图请求 / 并发连点）**共用 `VALIDATION_ERROR`**，message 本身就是人话
+> ⇒ 重新 `GET` 一次会话视图即可（正是下面那条规矩的用法）。
 
 **前端不按 code 分支**。现有代码一律只展示 `message`——后端给的 message 已经是准确的中文。
 除非你要做**特定 code 的特殊动线**（目前没有），否则别引入 code→文案的映射表，那会和后端文案漂移。
@@ -557,6 +568,7 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 ## 8. 红线（前端视角：代码里不能出现什么）
 
 > 上游是 `docs/plan/roadmap.md` §13。这里只做**可执行的转述**——每条都告诉你代码里长什么样。
+> ✏️ 2026-09-29：那份 plan **已冻结**（见文件头），**这一节才是你要照着做的那份**。
 
 1. **不默认浅肤色审美。**
    `stores/makeup.js` 的 `skinTone` 默认 `medium`——**不许改成 `light`**，不许出现 `skinTone || 'light'` 这种兜底。
@@ -621,13 +633,18 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 以加一个字段 `xxx` 为例，**一处都不能漏**：
 
 1. `server/src/modules/shared/domain/entities/brief.ts` —— 接口 + 枚举常量（**枚举单源**）
-2. `server/.../jobs/domain/schemas/job-submit.ts` —— zod 形状（`.strict()`，多键会 422）
-3. `server/.../makeup/...narration / mock-engine` —— 若它影响文案或调色
+2. `server/.../shared/domain/schemas/contracts/brief-fields.ts` —— zod 形状（`.strict()`，多键会 422）
+   ★ 它是 `POST /agent/sessions`（开会话带初值）与 `patch_brief`（对话里改）**共用的那一份**；
+   规则在 `shared/domain/validators/brief-fields.validator.ts`（枚举白名单 / 长度上限 / trim）。
+   改完跑 `server/test/schemas.test.ts`——它钉着「两条入口给同一个答案」。
+   ✏️ 2026-09-29：这两格此前写的是 `jobs` 的 `job-submit.ts` / validator，那个模块已删。
+3. `server/.../makeup/...mock-engine` —— 若它影响文案或调色
 4. `vue/src/constants/options.js` —— 加选项 + 中文名映射（**纯展示，无编译期保护，最容易漏**）
 5. `vue/src/stores/makeup.js` —— 状态 `ref` + `brief` computed 里的条件放入 + `reset()` 清空
 6. `vue/src/pages/UploadView.vue` —— 表单控件
 7. `vue/src/pages/ResultView.vue` —— 回显（`hasEcho` 也要加）
-8. `vue/src/api/mock.js` —— 假后端要认这个字段
+8. ✏️ ~~`vue/src/api/mock.js` —— 假后端要认这个字段~~：**这一格没了**。假任务流水线已删，
+   而 agent 那条链刻意没有 mock（§6.3）——**加字段不会再牵动 `mock.js`**。
 
 > 枚举类改动（加场合 / 肤质 / 肤色档）另有两条硬要求：
 > `brief.ts` 的 `OCCASIONS` 与 `scene-rules.ts` 的 `SCENE_RULES`/`SCENE_MATCH_ORDER` 都要加
@@ -680,7 +697,7 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 | --- | --- |
 | 加一个接口 | `api/<域>.js` 加函数（含 mock 分支，**惰性 import**）→ `api/mock.js` 补同形状假实现 → store 里包一层 → 页面调用 |
 | ★ 那条链**在浏览器里复刻不了**（要服务端真实状态 / 会花钱） | **不要**给它加 mock 分支，改成页面明确说「不可用」——`api/agent.js` 是先例（见 §6.3） |
-| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由 → 需要门禁就别加 `meta.public`。★ 页面**可以**静态引 `api/*` 的纯函数（`ResultView` 引 `resultImageHref`、`AgentView` 引 `renderImageHref`/`MAX_AGENT_TEXT`）——**store 不行**（见 §6.1） |
+| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由 → 需要门禁就别加 `meta.public`。★ 页面**可以**静态引 `api/*` 的纯函数（`ResultView` / `AgentView` 都引 `renderImageHref`、后者还引 `MAX_AGENT_TEXT`）——**store 不行**（见 §6.1） |
 | 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 `api/*`**（首屏链，见 §6.1） |
 | 加一个图标 | `Icon.vue` 的 `paths`（24×24，`currentColor`） |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
@@ -723,7 +740,10 @@ npm run typecheck
   一次点击就花钱（所以费用与时长必须写在按钮上）、服务端进程内锁只挡并发、
   **响应丢在回程时用户再点一次会真的再出一张**（那要幂等键，而这条路由刻意不收客户端参数）。
 - **`TipBanner.vue` 零引用**（见 §5.1）。
-- **`.hint` / `.text-input` / `.field-label` / `.field-tip` 各页面各一份**（见 §5.2）。
+- **`.hint` / `.text-input` / `.field-label` / `.field-tip` 各页面各一份，目前各 3 份**（见 §5.2）。
+- ✏️ **`utils/color.js` 现在零引用**（2026-09-29 查证）。它服务的「本人照片 + 色块叠加」预览随
+  `jobs` 一起没了，而结果页重写后不再需要 `rgbCss` / `rgbLuminance`。**先别删**——叠加层要回来
+  （见 §5.1 `CompareSlider`）就得用它。这是**已知的零消费者文件**，不是漏收拾的。
 - ★ **前端零测试基建**：`package.json` 里没有 vitest，全仓没有一个前端测试文件。
   所以**任何一个页面（含 `/agent`）的回归只有「手工走一遍」这一条路**——
   改动前后别声称"测过了"。这不是这次的欠债，是本目录一直的状态；**要建它是单独一件事**。
@@ -735,8 +755,8 @@ npm run typecheck
   所以那一屏只显示"正在想"，**不演工具进度**——想让它变真，先做 SSE，别在前端假播。
 - **`renders[].url` 要带 `?userId=` 才能取到图** ⇒ 那个 URL 会进浏览器历史与缓存。
   已知、可接受（`GET` 不指望请求体），但**别把它当成"服务端会替你保密"**。
-- **`api/mock.js` 的色板是 `MockEngine` 的知情拷贝**（见 §6.2）——接真引擎时才清理。
-- **结果页轮询是 650ms 固定间隔 + 30s axios 超时**（`ResultView.vue:79`）。接真实引擎后单任务可能变几十秒，
-  那时要回头核对这里的等待体验——这是 roadmap 里挂着的一条。
-- **`references` 的图片素材目前没有合规来源**（roadmap §13-2）——前端拿到 `imageUrl` 为空要能正常回落，
-  别因为「没图不好看」就去补一个假地址（`api/mock.js` 就是这么处理的：`imageUrl: ''`）。
+- **结果页轮询是 650ms 固定间隔**（`ResultView.vue`）。超时用的是 `api/agent.js` 的
+  `AGENT_TIMEOUT_MS`（**90 秒**，不是实例缺省的 30 秒）——`fetchMakeupSession` 转发的就是
+  `fetchAgentSession`。★ 别把这条看小了：掐掉一条**已经花了钱**的 `render` 请求退不了钱。
+- ✏️ 2026-09-29：删掉两条已失效的——`api/mock.js` 的色板拷贝（那份 `ENGINE_SPECS` 随假流水线删了）、
+  以及 `references` 图片素材的合规来源那条（模块已删）。
