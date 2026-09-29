@@ -14,13 +14,6 @@ export type { CosmeticAttribute, CosmeticItem } from './domain/entities/cosmetic
 
 // ---- schemas(形状/契约,无行为)----
 export {
-  MAX_ATTRIBUTES,
-  MAX_ATTRIBUTE_LABEL,
-  MAX_ATTRIBUTE_LABEL_RAW,
-  MAX_ATTRIBUTE_VALUE,
-  MAX_ATTRIBUTE_VALUE_RAW,
-  MAX_NAME,
-  MAX_NAME_RAW,
   createItemSchema,
   itemIdSchema,
   ownerIdSchema,
@@ -30,7 +23,17 @@ export {
 export type { CreateItemRaw, UpdateItemRaw } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
+// ★ 七个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**,理由同 `jobs` 的
+//   `MAX_DRESS`/`MAX_SCENE_TEXT`:不让既有调用方改 import 路径。新代码请直接从
+//   `domain/validators/cosmetic-item.validator.js` 引——barrel 上这条转发只是兼容。
 export {
+  MAX_ATTRIBUTES,
+  MAX_ATTRIBUTE_LABEL,
+  MAX_ATTRIBUTE_LABEL_RAW,
+  MAX_ATTRIBUTE_VALUE,
+  MAX_ATTRIBUTE_VALUE_RAW,
+  MAX_NAME,
+  MAX_NAME_RAW,
   validateCreateInput,
   validateItemId,
   validateOwnerQuery,

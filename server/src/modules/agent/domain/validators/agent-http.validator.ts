@@ -1,12 +1,26 @@
 /**
  * domain/validators/agent-http.validator.ts —— HTTP 入参的校验**行为**。
- * 形状在 `schemas/api/agent-http.ts`;这里只做形状表达不了的事:清洗 + 中文错误。
- * (长度上限这类"单字段闭区间"归 schema,不在这里重复一遍。)
+ * 形状在 `schemas/api/agent-http.ts`;这里做形状表达不了的事:长度上限、清洗、中文错误。
+ *
+ * ★ §4.2:长度上限**在这里**,不在 schema —— 它是业务规则,要和它的错误文案放一起。
+ *   (本文件从前写着"长度上限这类单字段闭区间归 schema",那条口径已按 spec 改掉。)
+ *   ⚠️ §4.3 欠账:`MAX_AGENT_TEXT` 仍是文件里的魔数,要真兑现得由组合根注入(单独一轮)。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { confirmRenderSchema, startSessionSchema, sendMessageSchema } from '../schemas/index.js';
 import type { ConfirmRenderRaw, SendMessageRaw, StartSessionRaw } from '../schemas/index.js';
 import { describeIssues } from './validate.js';
+
+/**
+ * 单条用户消息上限(字)。
+ * 比 `jobs` 的 `MAX_SCENE_TEXT`(2000)小一个量级:那是**一次性把需求写完**的输入框,
+ * 这是**对话里的一句话**。留 1000 已经远超正常一句话,同时挡住"贴一整篇需求文档进来"
+ * 这种会把上下文预算一次烧掉的行为。
+ *
+ * ⚠️ `vue/src/api/agent.js` 有一份**手抄的同值副本**(前端要先在本地拦一次,
+ *    不等服务端回错)。改这里**必须**顺手改那边,否则前后端的"字数超了"会在不同长度上触发。
+ */
+export const MAX_AGENT_TEXT = 1000;
 
 function fail(message: string): never {
   throw new AppError(ErrorCode.VALIDATION_ERROR, message);
@@ -46,6 +60,12 @@ export function validateSendMessage(raw: unknown): SendMessageRaw {
 
   const userId = parsed.data.userId.trim();
   if (userId === '') fail('userId 不能是空白');
+
+  // ★ 长度上限(§4.2 后在这里)。⚠️ 量的是**原文**,trim 之前 —— 与 schema 时代一致:
+  //   一条末尾带一万个空格的正文照样会烧上下文预算,不能靠 trim 绕过。
+  if (parsed.data.text.length > MAX_AGENT_TEXT) {
+    fail(`消息最多 ${MAX_AGENT_TEXT} 字`);
+  }
 
   // ★ 正文按**原样**保留首尾之外的空格无所谓,但**全空白要拦**——
   //   全空白消息会白烧一轮 LLM,而且模型收到空话只会瞎猜。

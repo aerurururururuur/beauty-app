@@ -43,7 +43,8 @@ import api, { API_BASE } from './index'
 export const AGENT_TIMEOUT_MS = 90000
 
 /**
- * 一句话的长度上限(字)。**与后端 `sendMessageSchema` 的 `MAX_AGENT_TEXT` 同值。**
+ * 一句话的长度上限(字)。**与后端 `agent/domain/validators/agent-http.validator.ts` 的
+ * `MAX_AGENT_TEXT` 同值**(2026-09-29 起它在那儿——§4.2 把长度这种业务规则从 schema 搬进了 validator)。
  * 前端先挡一道只是省一次白跑的 422;真正的把关在后端(两处要一起改)。
  */
 export const MAX_AGENT_TEXT = 1000

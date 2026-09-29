@@ -9,6 +9,10 @@
  *   ——它们原来测的是 schema,现在测的是规则。见下面第二个 describe。
  *
  * meta JSON 解析、跨字段业务规则与清洗在 validator 那几个测试文件里。
+ *
+ * ✏️ 2026-09-29(§4.2 扫完其余模块):同样那件事在 `user` / `cabinet` / `weather` /
+ * `agent-http` 上也做了一遍,分工由**最后一组** describe 统一钉着。
+ * 每组都是两半:schema 放行(**故意反着断言**)+ validator 照旧拒。
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,10 +22,33 @@ import {
   MAX_SCENE_TEXT,
   metaSchema,
   jobIdSchema,
+  validateJobId,
   validateSubmitJob,
 } from '../src/modules/jobs/index.js';
 // ★ 对话那条路的补丁 schema + 它的 validator。两条路的一致性由下面那组测试钉着。
-import { briefPatchSchema, checkBriefPatch } from '../src/modules/agent/index.js';
+import {
+  briefPatchSchema,
+  checkBriefPatch,
+  MAX_AGENT_TEXT,
+  sendMessageSchema,
+  validateSendMessage,
+} from '../src/modules/agent/index.js';
+// ★ §4.2 那一批「规则从 schema 搬进 validator」的其余模块。下面最后一组把分工本身钉住。
+import {
+  credentialsSchema,
+  MAX_NICKNAME_RAW,
+  MAX_PASSWORD,
+  userIdSchema,
+  validateCredentials,
+} from '../src/modules/user/index.js';
+import {
+  createItemSchema,
+  itemIdSchema,
+  MAX_ATTRIBUTES,
+  MAX_NAME_RAW,
+  validateCreateInput,
+} from '../src/modules/cabinet/index.js';
+import { MAX_CITY, validateWeatherQuery, weatherQuerySchema } from '../src/modules/weather/index.js';
 
 const meta = (mimeType = 'image/png', originalName = 'a.png') => ({ originalName, mimeType });
 
@@ -93,8 +120,15 @@ describe('jobIdSchema(形状)', () => {
   it('接受 UUID 风格 id', () => {
     expect(jobIdSchema.safeParse('3fa85f64-5717-4562-b3fc-2c963f66afa6').success).toBe(true);
   });
-  it('拒绝含空格/路径字符的 id', () => {
-    expect(jobIdSchema.safeParse('../etc').success).toBe(false);
+
+  it('★ §4.2:id 的**格式**不在 schema 里(否则它就有了第二个落点)', () => {
+    expect(jobIdSchema.safeParse('../etc').success).toBe(true);
+  });
+
+  it('格式由 validator 把关(文案也钉着)', () => {
+    expect(validateJobId('abc-123_XYZ')).toBe('abc-123_XYZ');
+    expect(() => validateJobId('../etc')).toThrow('任务 id 不合法');
+    expect(() => validateJobId(123)).toThrow();
   });
 });
 
@@ -195,5 +229,79 @@ describe('★ 两条入口共用同一份简报规则(表单 ↔ 对话)', () =>
     // 表单侧经 jobs 的 barrel 转发,值在 `shared` 的 validator 里——两边都不许再写字面量。
     expect(MAX_SCENE_TEXT).toBe(2000);
     expect(MAX_DRESS).toBe(80);
+  });
+});
+
+/**
+ * ★ §4.2 那一批改动(`user` / `cabinet` / `weather` / `agent-http`)的**分工本身**也要钉住。
+ *
+ * 上面两组管的是简报字段;这一组管其余几张表。写法与上面**故意同款**:
+ * 每条都先**反着断言**——schema 现在**接受**这些非法值。
+ * 谁哪天把 `.max()` / 正则加回 schema,这里就红:那意味着同一条规则又有了第二个落点,
+ * 而 schema 的松紧决定**所有**入口会不会一起失守(§14-08)。
+ *
+ * 后半段是配套的另一半:**真正的把关一处都没松**,只是换了地方。
+ * 少了它,这一组就退化成"两边一起放过也全绿"。
+ */
+describe('★ §4.2 其余模块:schema 只答形状,规则在 validator', () => {
+  const tooLongBy = (n: number) => 'a'.repeat(n + 1);
+
+  it('schema 层统统放行(这些取值**不再**是形状问题)', () => {
+    expect(
+      credentialsSchema.safeParse({ nickname: tooLongBy(MAX_NICKNAME_RAW), password: 'x' }).success,
+    ).toBe(true);
+    expect(
+      credentialsSchema.safeParse({ nickname: '小美', password: tooLongBy(MAX_PASSWORD) }).success,
+    ).toBe(true);
+    expect(userIdSchema.safeParse('../../etc/passwd').success).toBe(true);
+
+    expect(createItemSchema.safeParse({ userId: 'u1', name: tooLongBy(MAX_NAME_RAW) }).success).toBe(
+      true,
+    );
+    expect(
+      createItemSchema.safeParse({
+        userId: 'u1',
+        name: '口红',
+        attributes: Array.from({ length: MAX_ATTRIBUTES + 1 }, (_, i) => ({
+          label: `L${i}`,
+          value: 'v',
+        })),
+      }).success,
+    ).toBe(true);
+    expect(itemIdSchema.safeParse('../etc').success).toBe(true);
+
+    expect(weatherQuerySchema.safeParse({ city: tooLongBy(MAX_CITY) }).success).toBe(true);
+  });
+
+  it('validator 层统统照旧拒(且说的是同一句话)', () => {
+    expect(() =>
+      validateCredentials({ nickname: tooLongBy(MAX_NICKNAME_RAW), password: 'x' }),
+    ).toThrow(`昵称原文最多 ${MAX_NICKNAME_RAW} 字`);
+    expect(() =>
+      validateCredentials({ nickname: '小美', password: tooLongBy(MAX_PASSWORD) }),
+    ).toThrow(`密码最多 ${MAX_PASSWORD} 位`);
+    expect(() => validateCreateInput({ userId: 'u1', name: tooLongBy(MAX_NAME_RAW) })).toThrow(
+      `名称原文最多 ${MAX_NAME_RAW} 字`,
+    );
+    expect(() =>
+      validateCreateInput({
+        userId: 'u1',
+        name: '口红',
+        attributes: Array.from({ length: MAX_ATTRIBUTES + 1 }, (_, i) => ({
+          label: `L${i}`,
+          value: 'v',
+        })),
+      }),
+    ).toThrow(`特性最多 ${MAX_ATTRIBUTES} 条`);
+    expect(() => validateWeatherQuery({ city: tooLongBy(MAX_CITY) })).toThrow(
+      `城市名最多 ${MAX_CITY} 字`,
+    );
+  });
+
+  it('★ agent 那条路也一样:长度不在 schema 里,但 validator 拦得住', () => {
+    const long = { userId: 'u1', text: tooLongBy(MAX_AGENT_TEXT) };
+    // 这一支**没有 HTTP 层测试**(6 条 agent 路由一条都没有),所以它是这条规则唯一的网。
+    expect(sendMessageSchema.safeParse(long).success).toBe(true);
+    expect(() => validateSendMessage(long)).toThrow(`消息最多 ${MAX_AGENT_TEXT} 字`);
   });
 });

@@ -9,6 +9,17 @@
  *
  * ⚠️ 这里是**内容**校验,不是入参校验:它抛的是普通 `Error`(启动即失败),
  *   不是 `AppError`——内容坏了和请求坏了不是一类事。
+ *
+ * ★ **`dimensionKeySchema` 的 `z.enum` 是 §4.2 之后**有意**留在 schema 里的一处**,不是漏搬。
+ *   理由与 `face-catalog` 那份不同,值得写下来:
+ *   · 内容校验**只有一个入口**(`parseLibraryFile`),而它的唯一调用者就是这个 validator
+ *     —— schema 是 validator 的私有件,§14-08「规则只在一个入口生效」那个风险在这里不存在;
+ *   · 这个键**嵌在一棵很深的树里**(`dimensions[].key` 与 `health.missing*.missing[]`),
+ *     而 validator 是把 `result.data` **原样**当 `ProductLibrary` 返回的。
+ *     要把它搬出去,就得在 validator 里**重建整棵树**才能收窄回 `DimensionKey`
+ *     —— 那是把这份形状写第二遍,比留一处 `z.enum` 糟得多。
+ *   · `face-catalog` 那边能搬,是因为它本来就在逐条 `new SkinToneTier(...)` /
+ *     `new FeatureValue(...)`,收窄是顺手的事。
  */
 import { z } from 'zod';
 import { DIMENSION_KEYS } from '../../entities/product.js';

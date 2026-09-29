@@ -155,6 +155,15 @@ export { briefPatchSchema } from './domain/schemas/index.js';
 export type { BriefPatchRaw } from './domain/schemas/index.js';
 export { checkBriefPatch } from './domain/validators/brief-patch.validator.js';
 export type { BriefPatchCheck } from './domain/validators/brief-patch.validator.js';
+/**
+ * ★ 「发一句话」的形状 + 校验行为。**导出理由同上面那条**:§4.2 把单条消息的**长度上限**
+ *   从 schema 搬进了 validator(`MAX_AGENT_TEXT` 也跟着搬了),而长度这种"松掉看不见"
+ *   的规则必须有一条测试钉着 —— 且要钉住的是**分工**(schema 放行、validator 拦),
+ *   所以**两半都得拿到**,只给 validator 就只能验一半。
+ *   ⚠️ 这条链**没有 HTTP 层测试**(6 条 agent 路由一条都没有),所以这是它目前唯一的网。
+ */
+export { sendMessageSchema } from './domain/schemas/index.js';
+export { MAX_AGENT_TEXT, validateSendMessage } from './domain/validators/agent-http.validator.js';
 export {
   DEFAULT_SESSION_TTL_HOURS,
   PurgeExpiredSessions,

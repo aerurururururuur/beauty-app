@@ -367,6 +367,10 @@
       `briefPatchSchema` 与 `POST /api/jobs` 的 `metaSchema` 现在铺开的是同一份字段定义，
       一致性由 `test/schemas.test.ts` 的**表驱动对拍**钉住（**故意不靠注释维持**）。
       只共用**字段**，不共用对象：`jobs` 多一个 `weather`，两边各自留 `.strict()`。
+      ✏️ **2026-09-29（§4.2）**：共用的是**形状**（`z.string()`）；枚举白名单与上限
+      （`MAX_SCENE_TEXT` / `MAX_DRESS`）搬去了 `shared/domain/validators/brief-fields.validator.ts`，
+      两条路都调那个 `checkBriefFields`。所以那张文件的角色从"唯一落点"变成"**唯一的形状落点**"，
+      规则那条命脉在 validator——一致性对拍（`test/schemas.test.ts`）验的仍是**两条路的答案相同**。
       ③ **`refusal` 收束补话**（见上面那张 stopReason 表）——它此前是四种收束里唯一不补的，
       用户看到的是一个**空气泡**，前端只好自己兜一句；现在服务端补，**前端那个兜底已删**。
 - [x] ✅ **`POST /agent/sessions` 的 userId 校验（2026-09-16 拍板：做，走端口）。**

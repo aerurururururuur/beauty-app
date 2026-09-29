@@ -2,22 +2,39 @@
  * domain/validators/user.validator.ts —— 账号入参的校验行为。
  * 真正被 presentation / application 调用的对象:
  *   ① 用 credentialsSchema(纯形状)检查结构是否合法;
- *   ② 执行形状表达不了的语义规则,统一映射成 VALIDATION_ERROR;
+ *   ② 执行形状表达不了的语义规则(长度上下限、格式正则、字符集),
+ *      统一映射成 VALIDATION_ERROR;
  *   ③ 清洗(trim 昵称)并产出可直接落库 / 比对的凭据。
+ *
+ * ★ §4.2:上面那些**上下限与格式常量定义在本文件里**,不在 `schemas/` ——
+ *   规则和它的错误文案放一起,改一处就生效;schema 那边只剩「是不是字符串」。
+ *   ⚠️ §4.3 欠账:这些上限仍是文件里的魔数,要真兑现得由组合根注入(单独一轮)。
  *
  * 注册与登录同形同规则,故共用一个校验器(将来若注册规则变严,在此按意图分叉)。
  * 密码**不做任何清洗**:空格、首尾空白都是密码的合法字符,动了就和用户之后输入的密码对不上。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import {
-  MAX_NICKNAME,
-  MAX_PASSWORD,
-  MIN_NICKNAME,
-  MIN_PASSWORD,
-  credentialsSchema,
-  userIdSchema,
-} from '../schemas/index.js';
+import { credentialsSchema, userIdSchema } from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
+
+/** 昵称原文上限(字,给 trim 留余量;清洗后的上下限另判)。 */
+export const MAX_NICKNAME_RAW = 64;
+/** 昵称清洗后上限(字)。 */
+export const MAX_NICKNAME = 32;
+/** 昵称清洗后下限(字)。 */
+export const MIN_NICKNAME = 2;
+/** 密码下限(位)。 */
+export const MIN_PASSWORD = 6;
+/** 密码上限(位,同时是防超长 payload 的闸门)。 */
+export const MAX_PASSWORD = 128;
+
+/**
+ * 用户 id 的格式:只认 URL 安全字符,1..80 位。
+ *
+ * ★ 与 `jobs` / `cabinet` 的同名正则**逐字同款但各持一份** —— 模块之间不互相 import
+ *   (见模块 README 的依赖方向约定),不为了一个正则破例。改这里请顺手看另外三处。
+ */
+const USER_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 
 /** 通过校验、可交给用例使用的账号凭据(密码仍是明文,仅在内存中流转)。 */
 export interface Credentials {
@@ -34,12 +51,17 @@ function hasControlChar(value: string): boolean {
   return false;
 }
 
+function fail(message: string): never {
+  throw new AppError(ErrorCode.VALIDATION_ERROR, message);
+}
+
 /** 校验账号 id,合法则原样返回,非法抛 AppError。 */
 export function validateUserId(raw: unknown): string {
   const parsed = userIdSchema.safeParse(raw);
   if (!parsed.success) {
     throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(parsed.error));
   }
+  if (!USER_ID_PATTERN.test(parsed.data)) fail('用户 id 不合法');
   return parsed.data;
 }
 
@@ -53,24 +75,32 @@ export function validateCredentials(raw: unknown): Credentials {
     });
   }
 
-  // ② 语义规则(形状表达不了的:长度夹逼、字符集)
+  // ② 原文上限(§4.2 后在这里;先挡住超大 payload,别拿超长串喂 scrypt)。
+  //    两条**一起报**,不中途返回:schema 时代它们是一次 parse 里的两个 issue。
+  const tooLong: string[] = [];
+  if (parsed.data.nickname.length > MAX_NICKNAME_RAW) {
+    tooLong.push(`昵称原文最多 ${MAX_NICKNAME_RAW} 字`);
+  }
+  if (parsed.data.password.length > MAX_PASSWORD) {
+    tooLong.push(`密码最多 ${MAX_PASSWORD} 位`);
+  }
+  if (tooLong.length > 0) fail(tooLong.join(';'));
+
+  // ③ 语义规则(形状表达不了的:长度夹逼、字符集)
   const nickname = parsed.data.nickname.trim();
   if (nickname.length < MIN_NICKNAME) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, `昵称至少 ${MIN_NICKNAME} 个字符(不含首尾空白)`);
+    fail(`昵称至少 ${MIN_NICKNAME} 个字符(不含首尾空白)`);
   }
   if (nickname.length > MAX_NICKNAME) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, `昵称最多 ${MAX_NICKNAME} 个字符`);
+    fail(`昵称最多 ${MAX_NICKNAME} 个字符`);
   }
   if (hasControlChar(nickname)) {
-    throw new AppError(ErrorCode.VALIDATION_ERROR, '昵称不能包含换行或控制字符');
+    fail('昵称不能包含换行或控制字符');
   }
   if (parsed.data.password.length < MIN_PASSWORD) {
-    throw new AppError(
-      ErrorCode.VALIDATION_ERROR,
-      `密码至少 ${MIN_PASSWORD} 位(最多 ${MAX_PASSWORD} 位)`,
-    );
+    fail(`密码至少 ${MIN_PASSWORD} 位(最多 ${MAX_PASSWORD} 位)`);
   }
 
-  // ③ 输出(密码原样透传,不清洗)
+  // ④ 输出(密码原样透传,不清洗)
   return { nickname, password: parsed.data.password };
 }

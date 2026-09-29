@@ -11,9 +11,11 @@ export type {
 export { CityNotFoundError, WeatherUpstreamError } from './domain/ports/weather-provider.js';
 
 // ---- schemas / validators(形状与校验行为)----
-export { MAX_CITY, weatherQuerySchema } from './domain/schemas/index.js';
+export { weatherQuerySchema } from './domain/schemas/index.js';
 export type { WeatherQueryRaw } from './domain/schemas/index.js';
-export { validateWeatherQuery } from './domain/validators/weather-query.validator.js';
+// ★ `MAX_CITY` 跟着它的规则搬进了 validator(§4.2)。**仍从这里转出**,不让既有调用方
+//   改 import 路径;新代码请直接从 `domain/validators/weather-query.validator.js` 引。
+export { MAX_CITY, validateWeatherQuery } from './domain/validators/weather-query.validator.js';
 
 // ---- 对外 API 契约 / DTO ----
 export type { WeatherView } from './domain/schemas/index.js';

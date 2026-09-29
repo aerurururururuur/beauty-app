@@ -6,7 +6,6 @@
  * HTTP 入参与 `patch_brief` 工具入参。
  */
 export {
-  MAX_AGENT_TEXT,
   startSessionSchema,
   confirmRenderSchema,
   sendMessageSchema,

@@ -1,18 +1,12 @@
 /**
  * agent/domain/schemas/api/agent-http.ts —— HTTP 入参的「形状」(zod,**无行为**)。
  *
- * 只声明结构;「会话不存在」「不是你的会话」「正文是空白」这类判断在用例里,
- * 用语义错误码表达(`schema ≠ validator` 的既有分工)。
+ * 只声明结构:**类型、必填(`min(1)` 是"非空",不是业务下限)、`.strict()`**。
+ * ★ §4.2:单条消息的**长度上限**(`MAX_AGENT_TEXT`)是业务规则,搬去了
+ *   `domain/validators/agent-http.validator.ts`,与它的错误文案同处一地。
+ * 其余判断(「会话不存在」「不是你的会话」「正文是空白」)在用例里,用语义错误码表达。
  */
 import { z } from 'zod';
-
-/**
- * 单条用户消息上限(字)。
- * 比 `jobs` 的 `MAX_SCENE_TEXT`(2000)小一个量级:那是**一次性把需求写完**的输入框,
- * 这是**对话里的一句话**。留 1000 已经远超正常一句话,同时挡住"贴一整篇需求文档进来"
- * 这种会把上下文预算一次烧掉的行为。
- */
-export const MAX_AGENT_TEXT = 1000;
 
 /**
  * 「只有 `userId`」的请求体。
@@ -51,7 +45,7 @@ export const confirmRenderSchema = userIdOnlySchema;
 export const sendMessageSchema = z
   .object({
     userId: z.string().min(1, '缺少 userId'),
-    text: z.string().min(1, '消息不能为空').max(MAX_AGENT_TEXT, `消息最多 ${MAX_AGENT_TEXT} 字`),
+    text: z.string().min(1, '消息不能为空'),
   })
   .strict();
 

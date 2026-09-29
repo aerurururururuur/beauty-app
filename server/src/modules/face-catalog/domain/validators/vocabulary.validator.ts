@@ -5,11 +5,20 @@
  *   少了它,一份 `toneKeys` 写空的词表会读成"这一档没什么色可选",而模型会照着
  *   一个残缺的色域往外配妆 —— **没有任何人会知道**。所以一律抛错,不返回 `null`、不留空壳。
  *
+ * ★ §4.2 之后,「取值本身合不合法」也归这里(从前在 schema 里):
+ *   `toneKeys` 每个值 ∈ `TONE_KEYS`、`route.slot` ∈ `GEOMETRY_SLOTS`、
+ *   `order` 从 1 起、`swatch` 是 `#rrggbb`。搬过来是**合并**而不是新增一层:
+ *   本文件本来就在做「档位 id 与代码对账」「死色」这类跨条目检查,取值检查放一起,
+ *   一份坏词表**全部**的拒收理由才说得完整、说得在同一处。
+ *   ⚠️ 与「死色」那条是**两个方向**,都要有:那条查 `TONE_KEYS ⊆ 用到的色`(不许有死色),
+ *   这里查 `用到的色 ⊆ TONE_KEYS`(不许发明色)。两条合起来才是集合相等。
+ *
  * 抛的是普通 `Error`,不是 `AppError`:词表坏了不是"这个请求不合法",
  * 是**这个服务不该以当前状态启动**(同 `products/domain/validators/content.validator.ts`)。
  */
 import { z } from 'zod';
-import { SKIN_TONES, TONE_KEYS, zodIssuesMessage } from '../../../shared/index.js';
+import { GEOMETRY_SLOTS, SKIN_TONES, TONE_KEYS, zodIssuesMessage } from '../../../shared/index.js';
+import type { FeatureRoute, GeometrySlot, ToneKey } from '../../../shared/index.js';
 import {
   FeatureDimension,
   FeatureValue,
@@ -25,6 +34,21 @@ import { featureFileSchema, skinToneFileSchema } from '../schemas/index.js';
  */
 const CODE_TONE_IDS = new Set<string>(SKIN_TONES);
 
+/** 界面色卡色值。 */
+const SWATCH_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * type predicate 而不是 `as`:收窄是真的,由编译器盯着。
+ * 这两个元组是**编译期常量**,`includes` 的运行时检查与类型说的是同一件事。
+ */
+function isToneKey(value: string): value is ToneKey {
+  return (TONE_KEYS as readonly string[]).includes(value);
+}
+
+function isGeometrySlot(value: string): value is GeometrySlot {
+  return (GEOMETRY_SLOTS as readonly string[]).includes(value);
+}
+
 /** `file` 是**相对词表根**的文件名,用来把话说清楚;调用方负责传对。 */
 function fail(file: string, message: string): never {
   // 句号在这里统一补:调用方写多句解释时容易自带结尾句号,补两次会出「。。」。
@@ -36,13 +60,31 @@ function fail(file: string, message: string): never {
 }
 
 /**
+ * 一个特征取值的去向:槽位必须来自 `shared` 的 `GEOMETRY_SLOTS`。
+ * **显式重建**收窄后的对象(不是 `as`),顺带把"目录不许发明新槽位"这条说清楚。
+ */
+function readRoute(file: string, where: string, route: { kind: 'geometry'; slot: string } | { kind: 'advisory' }): FeatureRoute {
+  if (route.kind === 'advisory') return { kind: 'advisory' };
+  if (!isGeometrySlot(route.slot)) {
+    fail(
+      file,
+      `${where} 的去向写成了 geometry,但槽位「${route.slot}」不在 shared 的 GEOMETRY_SLOTS 里` +
+        `—— 目录不许发明新槽位。可用:${GEOMETRY_SLOTS.join(' / ')}`,
+    );
+  }
+  return { kind: 'geometry', slot: route.slot };
+}
+
+/**
  * 两个文件 → 一份词表。形状不对、或跨条目规则破了,**都在这里抛错**。
  *
  * 跨条目规则(形状表达不了的那些):
  *   · ★ **档位 `id` 集合与代码里的 `SKIN_TONES` 逐字相同**(两个方向都查);
  *   · 档位 `id` / `order` 不重复,`isDefault` 恰好一条;
  *   · ★ **`isDefault` 那一档的 `order` 不得是最小值**(§13-3 红线的实质要求);
+ *   · ★ **色域里的每个色都必须是 `TONE_KEYS` 之一**(不许发明色);
  *   · `TONE_KEYS` 里每个色至少有一档能用它(否则是死色,任何肤色都配不出来);
+ *   · `order` 从 1 起、`swatch` 是 `#rrggbb`、槽位 ∈ `GEOMETRY_SLOTS`;
  *   · 特征类 `id` 不重复,同一类里取值 `id` 不重复;
  *   · 两个文件 `version` 一致(它们是一份词表的两半)。
  */
@@ -58,6 +100,8 @@ export function parseFaceVocabulary(
   const { tones, disclaimer, version } = tonesParsed.data;
   const { dimensions } = featuresParsed.data;
 
+  // ── 档位:逐条查重复 + 查取值,顺带把收窄后的实体建出来 ──
+  const tiers: SkinToneTier[] = [];
   const seenIds = new Set<string>();
   const seenOrders = new Set<number>();
   for (const tone of tones) {
@@ -67,6 +111,32 @@ export function parseFaceVocabulary(
       fail(files.skinTones, `order 重复:${tone.order}(${tone.label} 与另一档撞了)`);
     }
     seenOrders.add(tone.order);
+
+    // 取值(§4.2:这些从前在 schema 里)
+    if (tone.order < 1) {
+      fail(files.skinTones, `档位「${tone.label}」的 order 必须是 1 起的整数,现在是 ${tone.order}`);
+    }
+    if (tone.swatch !== undefined && !SWATCH_PATTERN.test(tone.swatch)) {
+      fail(
+        files.skinTones,
+        `档位「${tone.label}」的 swatch 要是 #rrggbb 形式的色值,现在是「${tone.swatch}」`,
+      );
+    }
+    const toneKeys: ToneKey[] = [];
+    const unknownTones: string[] = [];
+    for (const key of tone.toneKeys) {
+      if (isToneKey(key)) toneKeys.push(key);
+      else unknownTones.push(key);
+    }
+    if (unknownTones.length > 0) {
+      fail(
+        files.skinTones,
+        `档位「${tone.label}」的色域里有 shared 的 TONE_KEYS 里没有的色:${unknownTones.join('、')}` +
+          `(可用:${TONE_KEYS.join(' / ')})`,
+      );
+    }
+
+    tiers.push(new SkinToneTier(tone.id, tone.label, tone.order, tone.isDefault, toneKeys, tone.swatch));
   }
 
   // ── 与代码里的 `SKIN_TONES` 对账 ──
@@ -94,13 +164,13 @@ export function parseFaceVocabulary(
     );
   }
 
-  const defaults = tones.filter((t) => t.isDefault);
+  const defaults = tiers.filter((t) => t.isDefault);
   const fallbackTier = defaults[0];
   if (defaults.length !== 1 || !fallbackTier) {
     fail(files.skinTones, `isDefault 必须恰好一条,现在有 ${defaults.length} 条。`);
   }
 
-  const lightestOrder = Math.min(...tones.map((t) => t.order));
+  const lightestOrder = Math.min(...tiers.map((t) => t.order));
   if (fallbackTier.order === lightestOrder) {
     fail(
       files.skinTones,
@@ -109,16 +179,17 @@ export function parseFaceVocabulary(
     );
   }
 
-  const usableTones = new Set<string>(tones.flatMap((t) => t.toneKeys));
+  const usableTones = new Set<string>(tiers.flatMap((t) => t.toneKeys));
   const deadTones = TONE_KEYS.filter((key) => !usableTones.has(key));
   if (deadTones.length > 0) {
     fail(
       files.skinTones,
-      `${deadTones.join('、')} 在 ${tones.length} 档里没有任何一档可用(死色),` +
+      `${deadTones.join('、')} 在 ${tiers.length} 档里没有任何一档可用(死色),` +
         '任何肤色都配不出这几个色。',
     );
   }
 
+  const dims: FeatureDimension[] = [];
   const seenDimensions = new Set<string>();
   for (const dimension of dimensions) {
     if (seenDimensions.has(dimension.id)) {
@@ -126,13 +197,19 @@ export function parseFaceVocabulary(
     }
     seenDimensions.add(dimension.id);
 
+    const values: FeatureValue[] = [];
     const seenValues = new Set<string>();
     for (const value of dimension.values) {
       if (seenValues.has(value.id)) {
         fail(files.features, `同一类里取值 id 重复:${dimension.id}.${value.id}`);
       }
       seenValues.add(value.id);
+
+      const where = `特征类「${dimension.label}」的取值「${value.label}」`;
+      values.push(new FeatureValue(value.id, value.label, readRoute(files.features, where, value.route)));
     }
+
+    dims.push(new FeatureDimension(dimension.id, dimension.label, dimension.strategy, dimension.multi, values));
   }
 
   if (version !== featuresParsed.data.version) {
@@ -143,21 +220,5 @@ export function parseFaceVocabulary(
     );
   }
 
-  return new FaceVocabulary(
-    version,
-    tones.map(
-      (t) => new SkinToneTier(t.id, t.label, t.order, t.isDefault, t.toneKeys, t.swatch),
-    ),
-    dimensions.map(
-      (d) =>
-        new FeatureDimension(
-          d.id,
-          d.label,
-          d.strategy,
-          d.multi,
-          d.values.map((v) => new FeatureValue(v.id, v.label, v.route)),
-        ),
-    ),
-    disclaimer,
-  );
+  return new FaceVocabulary(version, tiers, dims, disclaimer);
 }

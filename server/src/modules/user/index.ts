@@ -10,19 +10,22 @@ export type { User } from './domain/entities/user.js';
 export { createUser } from './domain/entities/user.js';
 
 // ---- schemas(形状/契约,无行为)----
+export { credentialsSchema, userIdSchema } from './domain/schemas/index.js';
+export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
+
+// ---- validators(校验行为,语义错误码)----
+// ★ 五个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**,理由同 `jobs` 的
+//   `MAX_DRESS`/`MAX_SCENE_TEXT`:不让既有调用方改 import 路径。新代码请直接从
+//   `domain/validators/user.validator.js` 引——barrel 上这条转发只是兼容。
 export {
   MAX_NICKNAME,
   MAX_NICKNAME_RAW,
   MAX_PASSWORD,
   MIN_NICKNAME,
   MIN_PASSWORD,
-  credentialsSchema,
-  userIdSchema,
-} from './domain/schemas/index.js';
-export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
-
-// ---- validators(校验行为,语义错误码)----
-export { validateCredentials, validateUserId } from './domain/validators/user.validator.js';
+  validateCredentials,
+  validateUserId,
+} from './domain/validators/user.validator.js';
 export type { Credentials } from './domain/validators/user.validator.js';
 
 // ---- 对外 API 契约 / DTO ----
