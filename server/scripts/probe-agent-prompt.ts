@@ -277,6 +277,12 @@ const fakeArtifacts = {
   resolveFace: async () => {
     throw new Error('probe 不该走到解析照片这一步');
   },
+  putImage: async () => {
+    throw new Error('probe 不该走到传参考图这一步');
+  },
+  resolveImage: async () => {
+    throw new Error('probe 不该走到解析参考图这一步');
+  },
   putRender: async () => {
     throw new Error('probe 不该走到出图这一步');
   },
@@ -386,7 +392,6 @@ async function main(): Promise<void> {
     cosmetics: noopCosmetics,
     engine: neverUsedEngine,
     artifacts: fakeArtifacts,
-    maxRenders: 3,
     palette,
     ...(argv.products ? { products: fakeProducts } : {}),
   });

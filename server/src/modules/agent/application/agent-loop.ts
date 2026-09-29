@@ -47,7 +47,8 @@
 import { AppError } from '../../shared/index.js';
 import type { Session } from '../domain/entities/session.js';
 import { appendMessages } from '../domain/entities/session.js';
-import type { ToolResultBlock, ToolUseBlock } from '../domain/entities/message.js';
+import { ToolResultBlock } from '../domain/entities/message.js';
+import type { ToolUseBlock } from '../domain/entities/message.js';
 import {
   assistantMessage,
   danglingToolUses,
@@ -330,12 +331,7 @@ export class AgentLoop {
         continue;
       }
 
-      results.push({
-        type: 'tool_result',
-        toolUseId: call.id,
-        content: outcome.content,
-        ...(outcome.isError ? { isError: true } : {}),
-      });
+      results.push(new ToolResultBlock(call.id, outcome.content, outcome.isError));
     }
 
     return { results, session: current, pending };

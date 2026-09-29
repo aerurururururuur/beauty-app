@@ -67,8 +67,8 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 出图是全项目唯一会花钱的入口，而且分两步：模型只能在对话里**提议**，服务端不执行；
 界面上弹一个确认框，**用户点了**才真的生成。关掉页面或者干脆不点，都不会产生费用。
 
-单会话出图次数有上限，`AGENT_MAX_RENDERS` 缺省 3。这条不是为省钱，是防失控：
-没有上限时模型可以一直要，用户点烦了就会闭眼点，那时「每次确认」这道闸门就名存实亡了。
+会话里的出图与分析次数**都没有上限**，兜底的就是上面那道「每一次都要人点一遍确认」的闸门
+（✏️ 2026-09-29 前有 `AGENT_MAX_RENDERS` / `AGENT_MAX_ANALYSES` 两道配额，已随功能整条删除）。
 
 ### 4. key 没填会怎样
 
@@ -126,8 +126,9 @@ key 不会进 `ServerConfig` 对象，所以任何一次 `app.log.info(config)` 
 | `npm run build` | 编译到 `dist/` |
 | `npm run start` | 跑编译产物 |
 | `npm test` | 全部单测 |
-| `npm run typecheck` | `tsc --noEmit`。⚠️ 不覆盖 `test/`，见 [`docs/architecture.md` §8](../docs/architecture.md) |
+| `npm run typecheck` | `tsc --noEmit`，只覆盖 `src/` |
 | `npm run typecheck:scripts` | `scripts/` 那份单独的 tsconfig |
+| `npm run typecheck:test` | `test/` 那份单独的 tsconfig（2026-09-29 加）。⚠️ 前三者**缺一不可**：`test/` 此前掉在**所有** tsconfig 之外，假实现少一个方法也照样全绿 |
 | `npm run import-products` | 从源 docx 重新生成产品库内容，见 `scripts/README.md` |
 | `npm run probe:tools` | 试对话模型的工具调用能力。`--list` 只列模型，`--dry-run` 不发送请求 |
 | `npm run probe:agent-prompt` | 提示词变体的单变量对照实验，`--dry-run` 零成本 |

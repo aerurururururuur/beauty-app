@@ -36,15 +36,19 @@ async function main(): Promise<void> {
 
   // —— 各模块组合 ——
   // ★ MAKEUP_ENGINE **2026-09-16 起真的接通了**(在 makeup/compose.ts 里按 kind 分发):
-  //    mock(缺省,骨架)/ image(真出图,计费)/ replay(回放夹具,CI)。
+  //    mock(缺省,骨架)/ image(真出图,计费)。
   //    **仍然没有 off** —— 没有引擎就出不了成品,硬接一个 off 分支只会得到
   //    又一个假开关,而那正是本仓反复要修掉的东西。
   // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
   //   里的纯查表函数。它没有可换的实现,所以不该有开关。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  // 上妆引擎。★ `MAKEUP_ENGINE=image` 需要**妆面单(LookSpec)**,而只有对话 agent 会产出它——
-  //   所以缺省 mock 是唯一能让"没配 key 也起得来服务"的取值,不只是省钱。
-  const { engine } = createMakeupModule({
+  // 上妆引擎 + 读图分析。★ `MAKEUP_ENGINE=image` 需要**妆面单(LookSpec)**,
+  //   而只有对话 agent 会产出它——所以缺省 mock 是唯一能让"没配 key 也起得来服务"
+  //   的取值,不只是省钱。
+  // ★ `VISION_ANALYZER=real` 时这里一并装出三个读图适配器(同一个 key、同一个域名,
+  //   只多一个模型名);`off`(缺省)时返回 `undefined`,**下面那条口整个键不出现**
+  //   ⇒ 两条路由不注册。「关掉」= 入口不存在,不是"注册了但什么都不发生"。
+  const { engine, analyzers } = createMakeupModule({
     kind: config.makeupEngine,
     outputDir: config.makeupOutDir,
     model: config.makeupModel,
@@ -53,7 +57,15 @@ async function main(): Promise<void> {
       apiKey: readDashScopeApiKey(),
       apiHost: config.makeupApiHost,
     },
-    ...(config.makeupFixturesDir ? { fixturesDir: config.makeupFixturesDir } : {}),
+    // ⚠️ 这两项**无条件传**:`off` 时 `buildAnalyzers` 直接返回 `undefined`,
+    //   连 `vision` 都不看。所以这里不需要再写一遍"配了才传"的写法。
+    //   (`readDashScopeApiKey` 没配 key 时返回空串而不是抛错,理由同上面那个包。)
+    analyzerKind: config.visionAnalyzer,
+    vision: {
+      apiKey: readDashScopeApiKey(),
+      baseUrl: config.visionBaseUrl,
+      model: config.visionModel,
+    },
   });
 
   // ── 面部词表 ──
@@ -179,11 +191,14 @@ async function main(): Promise<void> {
       }
     : undefined;
 
-  // 对话 agent。「用户上传的信息」喂给它的现在有**三样**:
+  // 对话 agent。「用户上传的信息」喂给它的现在有**四样**:
   //   ① 结构化需求 `brief`——由 `patch_brief` 工具直接写进会话,不经过端口;
   //   ② 衣橱——★ 走的正是下面这个**包一层**的注入(§7.1 零 import 那条规矩);
   //   ③ ★ **用户本人的照片**——同样包一层,但底下是 `assets` 的 `ArtifactStore`
-  //      (2026-09-16 拍板:**不新写第二套照片存储**)。
+  //      (2026-09-16 拍板:**不新写第二套照片存储**);
+  //   ④ ✏️ **读图分析的结论**——`face` / `scene` 补进 `brief`, `style` 落成一条
+  //      「我传了张风格参考图」的说明进 `messages[]`。★ 它**不是工具**:由用户那次
+  //      HTTP 点击触发,模型自己碰不到(见 `agent/compose.ts` 的 `analyzers`)。
   // ⚠️ 从 ③ 起本会话**有隐私面**了:照片 + 出图都在盘上,所以
   //   `[I8]` 的 TTL 真删**不再是可选项**(见文件末尾那个定时器)。
   const cosmetics: CosmeticReader = {
@@ -230,7 +245,10 @@ async function main(): Promise<void> {
     // ★ 没配产品库时**整个键不出现在 options 里**(不是给一个 `undefined`)——
     //   语义上就是"这个部署没有产品库",agent 那边照此不注册那两个工具。
     ...(productLibrary ? { products: productLibrary } : {}),
-    maxRenders: config.agentMaxRenders,
+    // ★ 同上:`VISION_ANALYZER=off` 时**整个键不出现** ⇒ agent 不暴露收图与分析
+    //   那两条口(`/images` / `/analyses` 不注册)。**同一个 `analyzers` 实例**
+    //   与上面 `createMakeupModule` 那次调用共用,不是新造一份。
+    ...(analyzers ? { analyzers } : {}),
     sessionTtlHours: config.agentSessionTtlHours,
   });
 
@@ -260,6 +278,20 @@ async function main(): Promise<void> {
   if (fakes.length > 0) {
     app.log.info(`[agent] 当前为离线配置 —— ${fakes.join(';')}。详见 server/README.md 与 .env.example`);
   }
+
+  /**
+   * ★ **读图能力这一行。** 同上面那段:分析是"用户点一下才会去读图"的,
+   *   而 `off` 时那两条口**根本不注册**——前端若还摆着入口,点下去只会得到 404。
+   *   把"这个部署到底有没有读图能力"写在启动日志里,别让下一个人从 404 反推。
+   *   ⚠️ 这两条口**会花钱**(每次分析一次多模态调用),所以开着的时候也要说出来。
+   */
+  app.log.info(
+    config.visionAnalyzer === 'real'
+      ? `[analyzer] 读图分析已启用(${config.visionModel}):/agent/sessions/:id/images 收图、/analyses 分析,` +
+          '两条口已注册;次数不设上限。'
+      : '[analyzer] 读图分析未启用(VISION_ANALYZER=off,缺省):收图与分析那两条口没有注册。' +
+          '要开就配 DASHSCOPE_API_KEY 并把 VISION_ANALYZER 设为 real,见 .env.example。',
+  );
 
   /**
    * ★ **产品库的加载结果与体检报告摘要。**

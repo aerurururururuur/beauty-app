@@ -14,27 +14,37 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  BrowSpec,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
+  LookSpec,
+  LookSpecBase,
   TONE_KEYS,
+  ZoneSpec,
   describeLook,
   validateLookSpec,
 } from '../src/modules/makeup/index.js';
-import type { LookSpec, SkinTonePalette } from '../src/modules/makeup/index.js';
+import type { SkinTonePalette } from '../src/modules/makeup/index.js';
 import { realPalette } from './helpers/face-catalog.js';
 import { MAX_SCENE_TEXT, OCCASIONS } from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
   ListCabinetTool,
   ListProductsTool,
+  Message,
   PatchBriefTool,
   ProposeLookTool,
   READ_PRODUCT,
   RENDER_LOOK,
   ReadProductTool,
+  RenderRecord,
+  Session,
   TOOL_DEFINITIONS,
   TOOL_NAMES,
+  TextBlock,
+  ToolResultBlock,
+  ToolUseBlock,
   buildSystemPrompt,
   createSession,
   createToolRegistry,
@@ -48,7 +58,6 @@ import type {
   ProductDetailSnapshot,
   ProductLibrary,
   ProductLibraryOverview,
-  Session,
   ToolOutcome,
 } from '../src/modules/agent/index.js';
 
@@ -62,16 +71,12 @@ const palette: SkinTonePalette = realPalette();
 // ── 样例与替身 ───────────────────────────────────────────────────────────────
 
 /** 一份合法的妆面单,同时喂给 zod 与 JSON Schema 两边。 */
-const SAMPLE_LOOK: LookSpec = {
-  occasion: 'interview',
-  base: { coverage: 3, finish: 'satin', warmth: 0 },
-  zones: {
-    lip: { tone: 'rose', finish: 'matte', intensity: 3 },
-    cheek: { tone: 'coral', finish: 'satin', intensity: 2 },
-    eyeshadow: { tone: 'nude', finish: 'satin', intensity: 2 },
-    brow: { shape: 'natural', intensity: 2 },
-  },
-};
+const SAMPLE_LOOK = new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
+  lip: new ZoneSpec('rose', 'matte', 3),
+  cheek: new ZoneSpec('coral', 'satin', 2),
+  eyeshadow: new ZoneSpec('nude', 'satin', 2),
+  brow: new BrowSpec('natural', 2),
+});
 
 interface JsonSchema {
   type?: string;
@@ -185,7 +190,8 @@ const SAMPLE_DETAIL: ProductDetailSnapshot = {
 const fakeLibrary = (): FakeProductLibrary =>
   new FakeProductLibrary({ '42-rouge': SAMPLE_DETAIL });
 
-const session = (over: Partial<Session> = {}): Session => ({ ...createSession('s1', 'u1'), ...over });
+const session = (over: Partial<Session> = {}): Session =>
+  new Session({ ...createSession('s1', 'u1'), ...over });
 
 async function run(tool: { run(i: unknown, c: { session: Session }): Promise<ToolOutcome> }, input: unknown, s: Session) {
   return tool.run(input, { session: s });
@@ -214,7 +220,6 @@ describe('工具契约', () => {
       engine: { generate: async () => ({}) } as never,
       artifacts: {} as never,
       palette,
-      maxRenders: 3,
     };
     const without = createToolRegistry(base);
     expect([...without.keys()]).toEqual([
@@ -235,8 +240,8 @@ describe('工具契约', () => {
     const zones = props.properties?.zones?.properties ?? {};
 
     expect((props.properties?.occasion as JsonSchema).enum).toEqual([...OCCASIONS]);
-    expect(zones.lip?.properties?.tone.enum).toEqual([...TONE_KEYS]);
-    expect(zones.lip?.properties?.finish.enum).toEqual([...FINISHES]);
+    expect(zones.lip?.properties?.tone?.enum).toEqual([...TONE_KEYS]);
+    expect(zones.lip?.properties?.finish?.enum).toEqual([...FINISHES]);
     expect(zones.lip?.properties?.intensity).toMatchObject({
       minimum: INTENSITY_MIN,
       maximum: INTENSITY_MAX,
@@ -601,11 +606,8 @@ describe('系统提示', () => {
       session({
         faceRef: { storeKey: 'inputs/s1/face/me.png', mimeType: 'image/png' },
         messages: [
-          { role: 'user', content: [{ type: 'text', text: '出图' }] },
-          {
-            role: 'assistant',
-            content: [{ type: 'tool_use', id: 't1', name: TOOL_NAMES.renderLook, input: {} }],
-          },
+          new Message('user', [new TextBlock('出图')]),
+          new Message('assistant', [new ToolUseBlock('t1', TOOL_NAMES.renderLook, {})]),
         ],
         ...over,
       });
@@ -623,8 +625,8 @@ describe('系统提示', () => {
       const s = session({
         faceRef: { storeKey: 'k', mimeType: 'image/png' },
         renders: [
-          { seq: 1, ref: { storeKey: 'a', mimeType: 'image/png' }, input: { ref: { storeKey: 'f', mimeType: 'image/png' }, lookDescription: '' }, createdAt: '2026-09-16T00:00:00.000Z' },
-          { seq: 2, ref: { storeKey: 'b', mimeType: 'image/png' }, input: { ref: { storeKey: 'f', mimeType: 'image/png' }, lookDescription: '' }, createdAt: '2026-09-16T00:00:00.000Z' },
+          new RenderRecord(1, { storeKey: 'a', mimeType: 'image/png' }, '', '2026-09-16T00:00:00.000Z'),
+          new RenderRecord(2, { storeKey: 'b', mimeType: 'image/png' }, '', '2026-09-16T00:00:00.000Z'),
         ],
       });
 
@@ -653,20 +655,15 @@ describe('系统提示', () => {
         has(
           session({
             faceRef: { storeKey: 'k', mimeType: 'image/png' },
-            messages: [
-              {
-                role: 'assistant',
-                content: [{ type: 'tool_use', id: 't2', name: TOOL_NAMES.listProducts, input: {} }],
-              },
-            ],
+            messages: [new Message('assistant', [new ToolUseBlock('t2', TOOL_NAMES.listProducts, {})])],
           }),
         ),
       ).toBe(false);
     });
 
     it('★ 系统提示里真的带了这一行(不是只写了个没人调的函数)', () => {
-      expect(buildSystemPrompt(session({ brief: { occasion: 'work' } }))).toContain(
-        describeRenderState(session({ brief: { occasion: 'work' } })),
+      expect(buildSystemPrompt(session({ brief: { occasion: 'daily' } }))).toContain(
+        describeRenderState(session({ brief: { occasion: 'daily' } })),
       );
     });
 
@@ -712,15 +709,9 @@ describe('系统提示', () => {
   //    下一轮提示里只剩「当前还没有提出过妆面」——读不出"你被拒了""正文写了不算"。
   describe('妆面定下来没有(v11)', () => {
     /** 造一条「`propose_look` 的 `tool_use` + 它的结果」的消息对。 */
-    const proposeTurn = (isError: boolean) => [
-      {
-        role: 'assistant' as const,
-        content: [{ type: 'tool_use' as const, id: 'p1', name: TOOL_NAMES.proposeLook, input: {} }],
-      },
-      {
-        role: 'user' as const,
-        content: [{ type: 'tool_result' as const, toolUseId: 'p1', content: '…', isError }],
-      },
+    const proposeTurn = (isError: boolean): Message[] => [
+      new Message('assistant', [new ToolUseBlock('p1', TOOL_NAMES.proposeLook, {})]),
+      new Message('user', [new ToolResultBlock('p1', '…', isError)]),
     ];
 
     it('★★ 一次都没调过 `propose_look` → 也要说清"正文里描述过不算数"', () => {
@@ -752,14 +743,8 @@ describe('系统提示', () => {
           lookSpec: SAMPLE_LOOK,
           messages: [
             ...proposeTurn(true),
-            {
-              role: 'assistant',
-              content: [{ type: 'tool_use', id: 'p2', name: TOOL_NAMES.proposeLook, input: {} }],
-            },
-            {
-              role: 'user',
-              content: [{ type: 'tool_result', toolUseId: 'p2', content: '已记下', isError: false }],
-            },
+            new Message('assistant', [new ToolUseBlock('p2', TOOL_NAMES.proposeLook, {})]),
+            new Message('user', [new ToolResultBlock('p2', '已记下', false)]),
           ],
         }),
       );
@@ -785,14 +770,8 @@ describe('系统提示', () => {
       const line = describeLookState(
         session({
           messages: [
-            {
-              role: 'assistant',
-              content: [{ type: 'tool_use', id: 'x1', name: TOOL_NAMES.renderLook, input: {} }],
-            },
-            {
-              role: 'user',
-              content: [{ type: 'tool_result', toolUseId: 'x1', content: '没有照片', isError: true }],
-            },
+            new Message('assistant', [new ToolUseBlock('x1', TOOL_NAMES.renderLook, {})]),
+            new Message('user', [new ToolResultBlock('x1', '没有照片', true)]),
           ],
         }),
       );

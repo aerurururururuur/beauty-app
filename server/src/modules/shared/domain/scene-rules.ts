@@ -168,7 +168,7 @@ function appendModifiers(base: string, suffixes: string[]): string {
  *   `look-description.ts` / `prompt-builder.ts`),一张表两份文件拆不开;
  *   ②`vue/vite.config.js` 的 alias 与 `server.fs.allow` 还配着,而
  *   `server/test/scene-rules.test.ts` **读那个文件**钉着这两样在不在;
- *   ③前端设计那一轮很可能又要按场合显示中文名/方向(风格图进引擎是另一条)。
+ *   ③前端设计那一轮很可能又要按场合显示中文名/方向(风格参考图那条不走引擎,只做文本化分析)。
  *   真要删,是"alias + fs.allow + `options.js` 的注释 + 那条测试"一起动,**不是删这个文件**。
  *
  * 判定顺序:显式 `occasion` → 自由文字命中关键词 → `daily` 兜底。

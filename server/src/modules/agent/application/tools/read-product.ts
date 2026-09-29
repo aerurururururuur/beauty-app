@@ -17,7 +17,7 @@
 import { READ_PRODUCT } from '../../domain/tools/definitions.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import type { ProductDetailSnapshot, ProductLibrary } from '../../domain/ports/product-library.js';
-import { addConsultedProduct } from '../../domain/entities/session.js';
+import { addConsultedProduct, ConsultedProduct } from '../../domain/entities/session.js';
 
 /** 从入参里取 id。★ 入参是 `unknown`(注册表按名字分发,不保证形状),得自己挡。 */
 function readId(input: unknown): string | undefined {
@@ -82,11 +82,10 @@ export class ReadProductTool implements Tool {
     // ★ 记账(红线 §13-6 那个角标靠它)。按 id 去重;重复读时 `addConsultedProduct`
     //   返回**同一个对象**,于是这里不返回 `session` —— 满足 `tool.ts` 的
     //   「只在真的改了时才返回」,也让整轮重放不产生重复条目。
-    const next = addConsultedProduct(context.session, {
-      id: detail.id,
-      name: detail.name,
-      categoryLabel: detail.categoryLabel,
-    });
+    const next = addConsultedProduct(
+      context.session,
+      new ConsultedProduct(detail.id, detail.name, detail.categoryLabel),
+    );
 
     return next === context.session ? { content } : { content, session: next };
   }

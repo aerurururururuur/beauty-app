@@ -27,18 +27,22 @@ const zoneSchema = z
   })
   .strict();
 
+/** 底妆。★ 抽出来是为了被 `lookSpecSchema` 与 `styleReadSchema` **共用**：
+ *  风格图读数里的底妆与妆面单里的底妆是同一件事,写两遍就会有一天不一样(§4.1)。 */
+const baseSchema = z
+  .object({
+    coverage: intensitySchema,
+    finish: z.string(),
+    /** 明暗(负数偏冷、正数偏暖)。区间在 validator。 */
+    warmth: z.number(),
+  })
+  .strict();
+
 /** 妆面单的形状。 */
 export const lookSpecSchema = z
   .object({
     occasion: z.string(),
-    base: z
-      .object({
-        coverage: intensitySchema,
-        finish: z.string(),
-        /** 明暗(负数偏冷、正数偏暖)。区间在 validator。 */
-        warmth: z.number(),
-      })
-      .strict(),
+    base: baseSchema,
     zones: z
       .object({
         lip: zoneSchema,
@@ -61,3 +65,28 @@ export const lookSpecSchema = z
  *   要 `LookSpec` 请走 `validateLookSpec`(它逐字段收窄,不做断言)。
  */
 export type LookSpecRaw = z.output<typeof lookSpecSchema>;
+
+/**
+ * 「风格参考图读数」的形状 —— `lookSpecSchema` 的**子集**。
+ *
+ * ★ 只比妆面单少了 `occasion` 与 `zones.brow` 两块,理由写在 `entities/style-read.ts`。
+ *   其余部分**复用上面同几个子形状**,不复制 —— §4.1:同一个字段名出现在两个类型定义里,
+ *   就要问「这两份会不会有一天不一样」。
+ *
+ * ⚠️ 与 `lookSpecSchema` 一样,**这里一条取值都没查**:`tone` / `finish` 仍是宽泛的
+ *   `string`,浓度区间也没查。要 `StyleRead` 请走 `validateStyleRead`。
+ */
+export const styleReadSchema = z
+  .object({
+    base: baseSchema,
+    zones: z
+      .object({
+        lip: zoneSchema,
+        cheek: zoneSchema,
+        eyeshadow: zoneSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+export type StyleReadRaw = z.output<typeof styleReadSchema>;

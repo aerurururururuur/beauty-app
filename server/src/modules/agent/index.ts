@@ -51,23 +51,28 @@ export { LlmUnavailableError } from './domain/ports/llm.js';
 // ---- ③ 测试接缝 ----
 export { AgentLoop, DEFAULT_MAX_ITERATIONS, DEFAULT_MAX_TOKENS, DEFAULT_TURN_TIMEOUT_MS } from './application/agent-loop.js';
 export type { AgentEvent, AgentLoopOptions, AgentStopReason, AgentTurnResult } from './application/agent-loop.js';
+// ★ 实体**与那几个具名守卫都是值导出**(它们是类了,`export type` 会让调用方拿不到构造器)。
 export {
   createSession,
   appendMessages,
   patchBrief,
   setLookSpec,
   setFaceRef,
+  setImageRef,
+  setStyleRead,
   addRender,
   addConsultedProduct,
+  addAnalysis,
   renderReadiness,
-  rendersLeft,
-} from './domain/entities/session.js';
-export type {
+  analysisWouldOverwrite,
+  hasSourceImage,
+  sourceRefOf,
   Session,
   RenderRecord,
+  AnalysisRecord,
   ConsultedProduct,
-  RenderReadiness,
 } from './domain/entities/session.js';
+export type { RefImageKind, RenderReadiness } from './domain/entities/session.js';
 export {
   assistantMessage,
   danglingToolUses,
@@ -75,14 +80,12 @@ export {
   textOf,
   toolResults,
   toolUsesOf,
-} from './domain/entities/message.js';
-export type {
-  ContentBlock,
   Message,
   TextBlock,
   ToolResultBlock,
   ToolUseBlock,
 } from './domain/entities/message.js';
+export type { ContentBlock } from './domain/entities/message.js';
 export { indexTools } from './domain/tools/tool.js';
 export type { Tool, ToolContext, ToolOutcome, PendingConfirmation } from './domain/tools/tool.js';
 export {
@@ -99,7 +102,7 @@ export { ListProductsTool } from './application/tools/list-products.js';
 export { PatchBriefTool } from './application/tools/patch-brief.js';
 export { ProposeLookTool } from './application/tools/propose-look.js';
 export { ReadProductTool, renderProductDetail } from './application/tools/read-product.js';
-export { RenderLookTool, renderConfirmationSummary, DEFAULT_MAX_RENDERS } from './application/tools/render-look.js';
+export { RenderLookTool, renderConfirmationSummary } from './application/tools/render-look.js';
 export { MockLlm, mockText, mockTextAndToolCalls, mockToolCall } from './infrastructure/llm/mock-llm.js';
 /**
  * ★ `AGENT_LLM=mock` 时服务端实际用的那个实现(脚本化演示,不是模型)。
@@ -117,6 +120,7 @@ export {
   PHOTO_ATTACHED_NOTE,
   RENDER_DECLINED_PREFIX,
   RENDER_DONE_PREFIX,
+  styleReadNote,
 } from './domain/tools/observations.js';
 export { DashScopeLlm } from './infrastructure/llm/dashscope-llm.js';
 export type { DashScopeLlmOptions } from './infrastructure/llm/dashscope-llm.js';
@@ -125,10 +129,12 @@ export { InMemorySessionStore } from './infrastructure/memory/session-store.js';
 // ---- ① HTTP 层 ----
 export { registerAgentRoutes } from './presentation/routes/agent.route.js';
 export type { AgentDeps } from './presentation/agent.controller.js';
-export { toSessionView, toTurnView } from './application/agent-view.js';
+export { toAnalysisResultView, toSessionView, toTurnView } from './application/agent-view.js';
 export type {
   AgentSessionView,
   AgentTurnView,
+  AnalysisOfferView,
+  AnalysisResultView,
   ConsultedProductView,
   RenderOfferView,
   RenderView,
@@ -142,6 +148,9 @@ export { StartSession } from './application/usecases/start-session.js';
 export { GetSession } from './application/usecases/get-session.js';
 export { SendMessage } from './application/usecases/send-message.js';
 export { AttachPhoto } from './application/usecases/attach-photo.js';
+export { AttachImage } from './application/usecases/attach-image.js';
+export { AnalyzeImage } from './application/usecases/analyze-image.js';
+export type { AnalyzeOutcome, AnalyzeStatus } from './application/usecases/analyze-image.js';
 export { ConfirmRender } from './application/usecases/confirm-render.js';
 export { GetRender } from './application/usecases/get-render.js';
 export type { RenderArtifact } from './application/usecases/get-render.js';
@@ -161,10 +170,25 @@ export type { StartSessionInput } from './domain/validators/agent-http.validator
  *   从 schema 搬进了 validator(`MAX_AGENT_TEXT` 也跟着搬了),而长度这种"松掉看不见"
  *   的规则必须有一条测试钉着 —— 且要钉住的是**分工**(schema 放行、validator 拦),
  *   所以**两半都得拿到**,只给 validator 就只能验一半。
- *   ⚠️ 这条链**没有 HTTP 层测试**(6 条 agent 路由一条都没有),所以这是它目前唯一的网。
+ *   ⚠️ 这条链**没有 HTTP 层测试**(agent 路由一条都没有),所以这是它目前唯一的网。
  */
 export { sendMessageSchema } from './domain/schemas/index.js';
 export { MAX_AGENT_TEXT, validateSendMessage } from './domain/validators/agent-http.validator.js';
+/**
+ * ★ 读图那两条口的**词汇表 + 校验行为 + 解析器**。导出理由与上面两条同类:
+ *   三个 case 的闭集在**三处**各声明了一份(`agent` / `makeup` / `assets`,跨模块零 import),
+ *   而"三处是同一批词"这件事只有把能拿到的那几份**放到同一条测试里**才验得了。
+ */
+export { ANALYZE_CASES, REF_IMAGE_KINDS } from './domain/schemas/index.js';
+export {
+  validateAnalysesRequest,
+  validateAnalysisKind,
+  validateImageKindField,
+  validateImageUpload,
+} from './domain/validators/agent-http.validator.js';
+export type { AnalysesRequestInput } from './domain/validators/agent-http.validator.js';
+export { IMAGE_UPLOAD_FIELDS, PHOTO_UPLOAD_FIELDS, parseUploadRequest } from './presentation/multipart.js';
+export type { ParsedUpload, UploadFieldSpec } from './presentation/multipart.js';
 export {
   DEFAULT_SESSION_TTL_HOURS,
   PurgeExpiredSessions,

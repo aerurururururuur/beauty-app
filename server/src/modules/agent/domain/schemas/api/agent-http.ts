@@ -85,5 +85,35 @@ export const sendMessageSchema = z
   })
   .strict();
 
+/**
+ * ★ **读图分析的三个 case** —— 这张接口的词汇表,也是 `POST …/analyses` 的 `kind` 闭集。
+ *
+ * ⚠️ 与 `makeup` 的 `AnalyzeCase`、`assets` 的 `InputKind` 是**同一批词,三处各声明一份**
+ *   ——跨模块零 import 那条规矩(§7.1)的代价,`makeup` 那边同样点了名。
+ *   **改名要三处一起改**;漂开了由 `test/analysis.test.ts` 的 drift 用例报出来。
+ *
+ * ★ 它不是 `z.enum`:取值规则归 `agent-http.validator.ts`(§4.2),这里只是"有哪几个词"。
+ */
+export const ANALYZE_CASES = ['face', 'scene', 'style'] as const;
+
+/** 上传参考图收的 `kind`。★ **只有两种**——本人照片那条口已经是 `face` 了。 */
+export const REF_IMAGE_KINDS = ['style', 'scene'] as const;
+
+/**
+ * 触发一次读图分析(**花钱的那一下**)。
+ *
+ * ★ **只收「哪一张」,不收任何分析参数**——不传提示词、不传模型、不给"强制覆盖"的开关。
+ *   同 `confirmRenderSchema` 的口径:不让参数绕过服务端的规则。
+ *   「用户填的优先」是**服务端的规则**,所以它不由客户端开关决定。
+ */
+export const analysesRequestSchema = z
+  .object({
+    userId: z.string().min(1, '缺少 userId'),
+    /** 闭集校验在 validator(理由见 `ANALYZE_CASES`)。 */
+    kind: z.string().min(1, '缺少 kind'),
+  })
+  .strict();
+
 export type SendMessageRaw = z.output<typeof sendMessageSchema>;
 export type ConfirmRenderRaw = z.output<typeof confirmRenderSchema>;
+export type AnalysesRequestRaw = z.output<typeof analysesRequestSchema>;

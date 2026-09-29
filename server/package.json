@@ -14,8 +14,10 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
+    "typecheck:test": "tsc -p test/tsconfig.json",
     "qwen:makeup": "tsx scripts/qwen-image-makeup.ts",
     "probe:tools": "tsx scripts/probe-tool-calling.ts",
+    "probe:vision": "tsx scripts/probe-vision.ts",
     "import-products": "tsx scripts/import-products.ts",
     "probe:agent-prompt": "tsx scripts/probe-agent-prompt.ts"
   },

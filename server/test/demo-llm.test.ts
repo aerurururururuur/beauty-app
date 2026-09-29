@@ -21,8 +21,8 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FileSystemArtifactStore } from '../src/modules/assets/index.js';
-import { MockEngine } from '../src/modules/makeup/index.js';
-import type { EngineInput, EngineResult, LookSpec } from '../src/modules/makeup/index.js';
+import { BrowSpec, LookSpec, LookSpecBase, MockEngine, ZoneSpec } from '../src/modules/makeup/index.js';
+import type { EngineInput, EngineResult } from '../src/modules/makeup/index.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import {
   AgentLoop,
@@ -98,7 +98,6 @@ function setup() {
   const cosmetics: CosmeticReader = { listByUser: async () => [] };
 
   const engine = new RecordingMockEngine();
-  const maxRenders = 3;
   const sessions = new InMemorySessionStore();
   // ★ `DemoLlm` 是**装配里那一个**,不是测试自己的替身(见文件头)。
   const llm = new DemoLlm();
@@ -106,15 +105,14 @@ function setup() {
     llm,
     // ★ `palette` 是 `ToolDeps` 的必填项(缺了肤色收窄会**静默失效**)。
     //   这里用与组装根同一份真实词表 —— 拿假档位凑一个,测的就不是生产那条链路了。
-    tools: createToolRegistry({ cosmetics, engine, artifacts, maxRenders, palette: realPalette() }),
+    tools: createToolRegistry({ cosmetics, engine, artifacts, palette: realPalette() }),
   });
-  const renderTool = new RenderLookTool({ engine, artifacts, maxRenders });
+  const renderTool = new RenderLookTool({ engine, artifacts });
 
   return {
     dataDir,
     artifacts,
     engine,
-    maxRenders,
     sessions,
     loop,
     renderTool,
@@ -207,7 +205,7 @@ describe('离线演示的整条链路', () => {
     ]);
 
     // ── 对外视图 ──
-    const view = toSessionView(pending.session, { maxRenders: h.maxRenders });
+    const view = toSessionView(pending.session);
     expect(view.pendingRender).toBeDefined();
     expect(view.hasFace).toBe(true);
     expect(view.renders).toEqual([]);
@@ -243,7 +241,7 @@ describe('离线演示的整条链路', () => {
     expect(h.engine.inputs[0]?.lookSpec).toEqual(pending.session.lookSpec);
     expect(h.engine.inputs[0]?.face.filePath).toBeTruthy();
 
-    const view = toSessionView(done.session, { maxRenders: h.maxRenders });
+    const view = toSessionView(done.session);
     expect(view.renders).toHaveLength(1);
     expect(view.renders[0]?.seq).toBe(1);
     expect(view.renders[0]?.url).toBe(`/agent/sessions/${sessionId}/renders/1`);
@@ -289,7 +287,7 @@ describe('用户没点确认、而是说了句别的', () => {
     // ★ 这句话里必须说清"没花钱"——用户点的是拒绝,他要知道自己没被扣费。
     expect(result?.content).toContain('没有产生费用');
 
-    const view = toSessionView(after.session, { maxRenders: h.maxRenders });
+    const view = toSessionView(after.session);
     // ★ 这就是"刷新之后卡片不会又冒出来"的依据。
     expect('pendingRender' in view).toBe(false);
     expect(h.engine.inputs).toHaveLength(0);
@@ -312,7 +310,7 @@ describe('用户没点确认、而是说了句别的', () => {
     expect(callsOf(again.session, TOOL_NAMES.renderLook)).toBe(1);
     expect(danglingToolUses(again.session.messages)).toEqual([]);
     expect(
-      'pendingRender' in toSessionView(again.session, { maxRenders: h.maxRenders }),
+      'pendingRender' in toSessionView(again.session),
     ).toBe(false);
     expect(h.engine.inputs).toHaveLength(0);
     // 也不能沉默或现编一句"我改好了"——**如实说脚本演完了**。
@@ -369,14 +367,10 @@ describe('observation 标记', () => {
 
 /** 与 `demo-llm.ts` 里那份同形(场合换成面试,好认);只是给"钉标记"那组当输入。 */
 function interviewLook(): LookSpec {
-  return {
-    occasion: 'interview',
-    base: { coverage: 3, finish: 'satin', warmth: 0 },
-    zones: {
-      lip: { tone: 'rose', finish: 'matte', intensity: 3 },
-      cheek: { tone: 'coral', finish: 'satin', intensity: 2 },
-      eyeshadow: { tone: 'nude', finish: 'satin', intensity: 2 },
-      brow: { shape: 'natural', intensity: 2 },
-    },
-  };
+  return new LookSpec('interview', new LookSpecBase(3, 'satin', 0), {
+    lip: new ZoneSpec('rose', 'matte', 3),
+    cheek: new ZoneSpec('coral', 'satin', 2),
+    eyeshadow: new ZoneSpec('nude', 'satin', 2),
+    brow: new BrowSpec('natural', 2),
+  });
 }

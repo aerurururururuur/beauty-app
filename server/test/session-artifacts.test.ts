@@ -15,7 +15,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FileSystemArtifactStore } from '../src/modules/assets/index.js';
-import { InMemorySessionStore, PurgeExpiredSessions } from '../src/modules/agent/index.js';
+import { createSession, InMemorySessionStore, PurgeExpiredSessions } from '../src/modules/agent/index.js';
 import { createSessionArtifacts, renderId } from '../src/session-artifacts.js';
 
 const tempDirs: string[] = [];
@@ -151,7 +151,7 @@ describe('createSessionArtifacts', () => {
     // ⚠️ 这条是为了把**语义**钉住,不是找 bug:`putResult` 的语义是"拷进来",
     //    而这里额外承担了"收编后处置源文件"。于是**同一个路径不能再 put 第二次**
     //    (调 `putResult` 时会 ENOENT)。生产里不会有事——引擎每次出图都按时间戳
-    //    写**新的**文件名(`image-engine.ts` 的 `newFileStamp()`),`replay` 每次也重写一份。
+    //    写**新的**文件名(`image-engine.ts` 的 `newFileStamp()`)。
     //    但**写完这条之后要记住**:别写出"一份源文件喂给两次 putRender"的代码。
     await expect(artifacts.putRender('s1', 2, src, 'image/png')).rejects.toThrow();
     expect(await artifacts.readRender('s1', 2)).toBeNull();
@@ -258,16 +258,6 @@ describe('★ 重启残骸的端到端:真盘上那张照片真的被删掉', ()
     return { artifacts, abs };
   };
 
-  /** 造一个"还活着"的会话(未到期),用来当对照组。 */
-  const liveSession = (id: string) => ({
-    id,
-    userId: 'u1',
-    messages: [],
-    renders: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
-
   it('★ 会话存储空的 + 盘上有照片 → 跑一次清理,照片真的没了', async () => {
     const { dataDir } = setup();
     const { artifacts, abs } = await leftoverPhoto(dataDir);
@@ -293,7 +283,9 @@ describe('★ 重启残骸的端到端:真盘上那张照片真的被删掉', ()
 
     // 这一次 `ghost` 是有主的(还活着)。
     const sessions = new InMemorySessionStore();
-    await sessions.create(liveSession('ghost'));
+    // ★ 用真工厂造,不手搓字面量:手搓的那份少了 `brief`/`consultedProducts`/`analyses`,
+    //   而它是 `Session` 也照跑 —— test/ 现在被类型检查盯着了(见 test/tsconfig.json)。
+    await sessions.create(createSession('ghost', 'u1'));
 
     const { orphans } = await new PurgeExpiredSessions({
       sessions,

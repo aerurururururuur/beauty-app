@@ -11,6 +11,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DashScopeLlm,
   LlmUnavailableError,
+  TextBlock,
+  ToolResultBlock,
+  ToolUseBlock,
   assistantMessage,
   textMessage,
   toolResults,
@@ -186,14 +189,11 @@ describe('出站翻译', () => {
       messages: [
         textMessage('user', 'x'),
         assistantMessage([
-          { type: 'text', text: '我查一下' },
-          { type: 'tool_use', id: 'c1', name: 'a', input: { n: 1 } },
-          { type: 'tool_use', id: 'c2', name: 'b', input: {} },
+          new TextBlock('我查一下'),
+          new ToolUseBlock('c1', 'a', { n: 1 }),
+          new ToolUseBlock('c2', 'b', {}),
         ]),
-        toolResults([
-          { type: 'tool_result', toolUseId: 'c1', content: 'A' },
-          { type: 'tool_result', toolUseId: 'c2', content: 'B' },
-        ]),
+        toolResults([new ToolResultBlock('c1', 'A'), new ToolResultBlock('c2', 'B')]),
       ],
     });
 
@@ -215,7 +215,7 @@ describe('出站翻译', () => {
     const mock = stubFetch(completion());
     await adapter().chat({
       messages: [
-        assistantMessage([{ type: 'tool_use', id: 'c1', name: 'a', input: {} }]),
+        assistantMessage([new ToolUseBlock('c1', 'a', {})]),
       ],
     });
 
@@ -227,8 +227,8 @@ describe('出站翻译', () => {
     await adapter().chat({
       messages: [
         toolResults([
-          { type: 'tool_result', toolUseId: 'c1', content: '参数不合法' },
-          { type: 'tool_result', toolUseId: 'c2', content: '这次没成功', isError: true },
+          new ToolResultBlock('c1', '参数不合法'),
+          new ToolResultBlock('c2', '这次没成功', true),
         ]),
       ],
     });
@@ -327,7 +327,7 @@ describe('端口契约', () => {
   it('入参 message 数组不被适配器改写', async () => {
     const mock = stubFetch(completion());
     const request: LlmRequest = {
-      messages: [assistantMessage([{ type: 'tool_use', id: 'c1', name: 'a', input: { n: 1 } }])],
+      messages: [assistantMessage([new ToolUseBlock('c1', 'a', { n: 1 })])],
     };
     const snapshot = structuredClone(request.messages);
 

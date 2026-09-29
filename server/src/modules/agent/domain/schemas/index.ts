@@ -6,11 +6,18 @@
  * HTTP 入参与 `patch_brief` 工具入参。
  */
 export {
+  ANALYZE_CASES,
+  REF_IMAGE_KINDS,
   startSessionSchema,
   confirmRenderSchema,
   sendMessageSchema,
+  analysesRequestSchema,
 } from './api/agent-http.js';
-export type { SendMessageRaw, ConfirmRenderRaw } from './api/agent-http.js';
+export type {
+  SendMessageRaw,
+  ConfirmRenderRaw,
+  AnalysesRequestRaw,
+} from './api/agent-http.js';
 
 export { briefPatchSchema } from './api/brief-patch.js';
 export type { BriefPatchRaw } from './api/brief-patch.js';

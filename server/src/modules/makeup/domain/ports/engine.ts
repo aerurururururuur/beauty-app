@@ -18,8 +18,10 @@ export interface EngineInput {
   /**
    * 用户上传的风格参考图(本机文件)。
    *
-   * ⚠️ **当前无生产者,占位。** 唯一会传图的入口(`POST /agent/sessions/:id/photo`)
-   * 只认本人照片一张,而这条字段要等「风格图进引擎」那一轮才有上层去填它。
+   * ★ **已决定不进引擎**(2026-09-29):风格图只做**文本化分析** —— 读出的 `StyleRead`
+   * 经 `styleReadNote` 进 `messages[]` 交给模型填 `LookSpec`。
+   * 所以这条字段**当前无生产者,而这是决定,不是占位**;理由与代价记在
+   * `modules/makeup/README.md` 的待办里。
    * 引擎收到就该按"没有"处理,别在这里替上层编一份默认值。
    */
   references?: EngineSourceImage[];

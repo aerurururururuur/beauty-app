@@ -22,7 +22,7 @@
  *
  * ★ **为什么要嵌 `r<seq>` 这一层**:`putResult(id, …)` **固定**写
  *   `results/<id>/result.<ext>`——一个会话出第二张图时会把第一张**覆盖掉**。
- *   一个会话能出多张图是 `[I3]` 的前提,所以这一层是必须的,不是整理癖。
+ *   一个会话本来就能出多张图,所以这一层是必须的,不是整理癖。
  *   (`remove` 是递归删,所以删会话时那层嵌套不会变成删不掉的垃圾。)
  *
  * ★ **取图地址不在这里**:`putResult` 现在只回 `ref`(它以前还回一个
@@ -57,6 +57,11 @@ export function createSessionArtifacts(
   return {
     putFace: (sessionId, file) => store.putInputFile(sessionId, 'face', file),
     resolveFace: (sessionId, ref) => store.resolveToFilePath(sessionId, ref),
+    // ★ 两个新方法与上面两个**逐字同形**,只有 `kind` 不同 —— 落成
+    //   `inputs/<sessionId>/<style|scene>/…`,于是既有的 `removeAll` 与孤儿扫描
+    //   **原样覆盖它们**,不需要为分析图另写一套清理。这正是复用同一份存储的理由。
+    putImage: (sessionId, kind, file) => store.putInputFile(sessionId, kind, file),
+    resolveImage: (sessionId, ref) => store.resolveToFilePath(sessionId, ref),
     putRender: async (sessionId, seq, sourceFilePath, mimeType) => {
       const { ref } = await store.putResult(renderId(sessionId, seq), sourceFilePath, mimeType);
 

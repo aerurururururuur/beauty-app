@@ -6,6 +6,11 @@
  * POST /agent/sessions/:id/photo          上传本人照片(multipart,字段 face)→ 200
  * POST /agent/sessions/:id/render         ★ 出图(会花钱)→ 200
  * GET  /agent/sessions/:id/renders/:seq   取一张成品图(?userId=)→ 200(字节)
+ * POST /agent/sessions/:id/images         上传参考图(multipart,字段 file + kind)→ 200
+ * POST /agent/sessions/:id/analyses       ★ 读图分析(会花钱)→ 200
+ *
+ * ★ **后两条只在 `VISION_ANALYZER=real` 时存在**(见 `routes/agent.route.ts`)——
+ *   `off` 要表现为**入口不存在**,不是"注册了但什么都不发生"。
  *
  * 控制器很薄(同 `cabinet.controller.ts`):校验入参 → 调用用例 → 映成视图。
  * 所有业务判断都在用例与 `agent-loop` 里;错误统一抛 `AppError`,
@@ -25,9 +30,19 @@ import type { SendMessage } from '../application/usecases/send-message.js';
 import type { AttachPhoto } from '../application/usecases/attach-photo.js';
 import type { ConfirmRender } from '../application/usecases/confirm-render.js';
 import type { GetRender } from '../application/usecases/get-render.js';
-import { toSessionView, toTurnView } from '../application/agent-view.js';
+import type { AttachImage } from '../application/usecases/attach-image.js';
+import type { AnalyzeImage } from '../application/usecases/analyze-image.js';
 import {
+  toAnalysisResultView,
+  toSessionView,
+  toTurnView,
+} from '../application/agent-view.js';
+import type { SessionViewOptions } from '../application/agent-view.js';
+import {
+  validateAnalysesRequest,
   validateConfirmRender,
+  validateImageKindField,
+  validateImageUpload,
   validatePhotoUpload,
   validateRenderSeq,
   validateSendMessage,
@@ -36,7 +51,7 @@ import {
   validateUserIdField,
   validateUserIdQuery,
 } from '../domain/validators/agent-http.validator.js';
-import { parsePhotoRequest } from './multipart.js';
+import { IMAGE_UPLOAD_FIELDS, PHOTO_UPLOAD_FIELDS, parseUploadRequest } from './multipart.js';
 
 export interface AgentDeps {
   startSession: StartSession;
@@ -46,10 +61,13 @@ export interface AgentDeps {
   confirmRender: ConfirmRender;
   getRender: GetRender;
   /**
-   * §10 `[I3]` 的出图上限。★ 视图要它,因为确认框那句话里报"还剩几张"
-   * (与工具用的是**同一个** `renderConfirmationSummary`,不在这里重拼一遍)。
+   * ★ 读图那两条口。**缺省时整个键不出现** ⇒ 两条路由不注册(`VISION_ANALYZER=off`)。
+   *   收图与花钱那两步绑在一起——"只有分析没有收图口"是个说不通的部署。
    */
-  maxRenders: number;
+  analysis?: {
+    attachImage: AttachImage;
+    analyzeImage: AnalyzeImage;
+  };
 }
 
 /**
@@ -59,9 +77,10 @@ export interface AgentDeps {
  */
 function validateOrDestroy<T extends { mimeType: string; stream: { destroy(): void } }>(
   file: T | undefined,
+  validate: (file: T | undefined) => T,
 ): T {
   try {
-    return validatePhotoUpload(file);
+    return validate(file);
   } catch (err) {
     file?.stream.destroy();
     throw err;
@@ -69,8 +88,12 @@ function validateOrDestroy<T extends { mimeType: string; stream: { destroy(): vo
 }
 
 export function makeAgentController(deps: AgentDeps) {
-  // 每个 handler 都要拼视图,而视图选项只有一个值——提出来免得六处各写一遍。
-  const viewOptions = { maxRenders: deps.maxRenders };
+  // 每个 handler 都要拼视图,而视图选项是同一份——提出来免得八处各写一遍。
+  const analysis = deps.analysis;
+  const viewOptions: SessionViewOptions = {
+    // ★ 只在真有读图能力时才传:它就是"视图里摆不摆分析那块"的那个开关(见 `agent-view.ts`)。
+    ...(analysis ? { hasAnalysis: true } : {}),
+  };
 
   return {
     startSession: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -95,9 +118,9 @@ export function makeAgentController(deps: AgentDeps) {
 
     attachPhoto: async (request: FastifyRequest) => {
       const id = validateSessionId((request.params as { id?: unknown }).id);
-      const parts = await parsePhotoRequest(request);
-      const file = validateOrDestroy(parts.file);
-      const userId = validateUserIdField(parts.userId);
+      const parts = await parseUploadRequest(request, PHOTO_UPLOAD_FIELDS);
+      const file = validateOrDestroy(parts.file, validatePhotoUpload);
+      const userId = validateUserIdField(parts.scalars.userId);
       // ★ 直传:解析器产出的形状就是端口的 `PhotoUpload`(见 `multipart.ts`)。
       const session = await deps.attachPhoto.execute(id, userId, file);
       return toSessionView(session, viewOptions);
@@ -131,5 +154,40 @@ export function makeAgentController(deps: AgentDeps) {
       const artifact = await deps.getRender.execute(id, userId, seq);
       return reply.type(artifact.mimeType).send(artifact.stream);
     },
+
+    // ★★ 下面两条**只在 `analysis` 在时才有**(`VISION_ANALYZER=real`)。
+    //    `off` 时这里根本没有这两个键,路由那边也不会注册它们 —— 见 `routes/agent.route.ts`。
+    //    ⚠️ 别为了"形状整齐"给它们一个抛错的兜底实现:那会得到一条**存在但永远失败**的路,
+    //       而"关掉"要说的是"这条口不在"(先例:`PRODUCTS_DIR` 指空就不注册产品工具)。
+    // ★★ 这一组**只在 `analysis` 在时才有**(`VISION_ANALYZER=real`)。
+    //    `off` 时这个键根本不存在,路由那边也不会注册它们 —— 见 `routes/agent.route.ts`。
+    //    ⚠️ 别为了"形状整齐"给它们一个抛错的兜底实现:那会得到一条**存在但永远失败**的路,
+    //       而"关掉"要说的是"这条口不在"(先例:`PRODUCTS_DIR` 指空就不注册产品工具)。
+    ...(analysis
+      ? {
+          analysis: {
+            /** 收一张参考图。★ **这一步免费**,分析在下面那条。 */
+            attachImage: async (request: FastifyRequest) => {
+              const id = validateSessionId((request.params as { id?: unknown }).id);
+              const parts = await parseUploadRequest(request, IMAGE_UPLOAD_FIELDS);
+              const file = validateOrDestroy(parts.file, validateImageUpload);
+              // ★ `kind` 从表单里来,走与 JSON 那条**同一张闭集表**(`REF_IMAGE_KINDS`)。
+              const kind = validateImageKindField(parts.scalars.kind);
+              const userId = validateUserIdField(parts.scalars.userId);
+              const session = await analysis.attachImage.execute(id, userId, kind, file);
+              return toSessionView(session, viewOptions);
+            },
+
+            // ★ **这一条会花钱。** 只收「哪一张」(`kind`),不收任何分析参数 ——
+            //   同 `confirmRender` 的口径:不让参数绕过服务端的规则(见 `analysesRequestSchema`)。
+            analyzeImage: async (request: FastifyRequest) => {
+              const id = validateSessionId((request.params as { id?: unknown }).id);
+              const body = validateAnalysesRequest(request.body ?? {});
+              const outcome = await analysis.analyzeImage.execute(id, body.userId, body.kind);
+              return toAnalysisResultView(outcome, viewOptions);
+            },
+          },
+        }
+      : {}),
   };
 }

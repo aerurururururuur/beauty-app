@@ -13,11 +13,13 @@ export interface UploadFile {
 }
 
 /**
- * 输入图种类。
- * ⚠️ **`'scene'` 当前零生产者**(风格图还没进引擎,见 `EngineInput.references`)。
- *   收窄成 `'face'` 要动 `putInputFile` 的签名与全部调用点,收益不抵,记为欠账。
+ * 输入图种类。落成 `inputs/<id>/<kind>/` 这一层。
+ *
+ * ★ **三个成员现在都有生产者了**(✏️ 读图那一轮):
+ *   `'face'` 本人照片(`attach-photo`)、`'style'`/`'scene'` 分析用的参考图(`putImage`)。
+ *   ✏️ 此前 `'scene'` 一直零生产者,那条欠账本次销掉。
  */
-export type InputKind = 'face' | 'scene';
+export type InputKind = 'face' | 'style' | 'scene';
 
 /**
  * 收编好的产物。

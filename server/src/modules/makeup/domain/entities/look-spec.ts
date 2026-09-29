@@ -75,12 +75,53 @@ export type BrowShape = (typeof BROW_SHAPES)[number];
 export const ZONE_ROLES = ['lip', 'cheek', 'eyeshadow'] as const;
 export type ZoneRole = (typeof ZONE_ROLES)[number];
 
+// ── ★ 下面四个类为什么是类,不是 interface ──────────────────────────────────
+//
+// 每类里那个 `brand`(只声明、**谁也不许读**)只为一件事:**让字面量写不出来**。
+// TS 是结构化的:字段全 public 的 class 与 interface **类型上完全等价** ——
+// `const s: LookSpec = {...}` 照样编译通过,构造点就没被收拢,「改成类」等于没改。
+// 有了私有成员,两份才互不赋值,「`LookSpec` 只能由校验器产出」才是编译期事实。
+// 用 `declare` 而不是 `#` 私有字段:它**不产生任何运行时字段**,
+// 所以 JSON、`toEqual`、内存布局与改动前逐项一致。
+
+/**
+ * 底妆:遮瑕度 / 质地 / 冷暖偏移。
+ * ★ 抽出来是为了被 `LookSpec` 与 `StyleRead` 共用 —— 写两遍就会有一天不一样(§4.1)。
+ */
+export class LookSpecBase {
+  /** 名义化标记:只声明、不初始化、**不许读**。见本文件那段「为什么是类」。 */
+  declare private readonly brand: void;
+
+  constructor(
+    readonly coverage: Intensity,
+    readonly finish: Finish,
+    /** -2..+2,0 = 中性。 */
+    readonly warmth: number,
+  ) {}
+}
+
 /** 单区位的妆面:色 / 质地 / 浓度。 */
-export interface ZoneSpec {
-  tone: ToneKey;
-  finish: Finish;
-  /** 1..5。 */
-  intensity: Intensity;
+export class ZoneSpec {
+  /** 名义化标记:只声明、不初始化、**不许读**。见本文件那段「为什么是类」。 */
+  declare private readonly brand: void;
+
+  constructor(
+    readonly tone: ToneKey,
+    readonly finish: Finish,
+    /** 1..5。 */
+    readonly intensity: Intensity,
+  ) {}
+}
+
+/** 眉。⚠️ 几何字段,见 {@link BROW_SHAPES}。 */
+export class BrowSpec {
+  /** 名义化标记:只声明、不初始化、**不许读**。见本文件那段「为什么是类」。 */
+  declare private readonly brand: void;
+
+  constructor(
+    readonly shape: BrowShape,
+    readonly intensity: Intensity,
+  ) {}
 }
 
 /**
@@ -91,21 +132,21 @@ export interface ZoneSpec {
  * 「放大感美瞳」这类诉求目前无处安放,**一旦开了自由文本口子,§4.1 的约束就形同虚设**。
  * 要么给受控枚举,要么明确告诉用户这类诉求不支持。
  */
-export interface LookSpec {
-  /** 复用 shared 的场合枚举(单一源)。 */
-  occasion: Occasion;
-  /** 底妆:遮瑕度 / 质地 / 冷暖偏移。 */
-  base: {
-    coverage: Intensity;
-    finish: Finish;
-    /** -2..+2,0 = 中性。 */
-    warmth: number;
-  };
-  zones: {
-    lip: ZoneSpec;
-    cheek: ZoneSpec;
-    eyeshadow: ZoneSpec;
-    /** ⚠️ 几何字段(见 {@link BROW_SHAPES})。 */
-    brow: { shape: BrowShape; intensity: Intensity };
-  };
+export class LookSpec {
+  /** 名义化标记:只声明、不初始化、**不许读**。见本文件那段「为什么是类」。 */
+  declare private readonly brand: void;
+
+  constructor(
+    /** 复用 shared 的场合枚举(单一源)。 */
+    readonly occasion: Occasion,
+    readonly base: LookSpecBase,
+    /** 三个区 + 眉。分组用内联形状即可:成员全是名义类型,不必再加一层。 */
+    readonly zones: {
+      readonly lip: ZoneSpec;
+      readonly cheek: ZoneSpec;
+      readonly eyeshadow: ZoneSpec;
+      /** ⚠️ 几何字段(见 {@link BROW_SHAPES})。 */
+      readonly brow: BrowSpec;
+    },
+  ) {}
 }

@@ -18,13 +18,19 @@
  *   而模型两次没转达(实测见本模块 README / 设计文档 §7.4.3)。后者是那次改动的落点。
  */
 import { describeLook } from '../../makeup/index.js';
-import type { LookSpec } from '../../makeup/index.js';
+import type { AnalyzeCase, LookSpec, StyleRead } from '../../makeup/index.js';
 import type { MakeupBrief } from '../../shared/index.js';
-import { renderReadiness, rendersLeft } from '../domain/entities/session.js';
+import {
+  analysisWouldOverwrite,
+  hasSourceImage,
+  renderReadiness,
+} from '../domain/entities/session.js';
 import type { Session } from '../domain/entities/session.js';
 import { danglingToolUses } from '../domain/entities/message.js';
+import { ANALYZE_CASES } from '../domain/schemas/index.js';
 import { TOOL_NAMES } from '../domain/tools/definitions.js';
 import type { AgentEvent, AgentStopReason } from './agent-loop.js';
+import type { AnalyzeOutcome, AnalyzeStatus } from './usecases/analyze-image.js';
 import { renderConfirmationSummary } from './tools/render-look.js';
 
 /**
@@ -65,15 +71,6 @@ export interface RenderOfferView {
   /** ★ 费用与时长那句话。与 `pendingRender.summary` **是同一个函数的产出**,不另写一份。 */
   summary: string;
   /**
-   * 还能出几张。★ `max <= 0`(不限量)**时是 `null`**。
-   *
-   * ⚠️ 不能照 `rendersLeft()` 原样透出:配置不限量时它恒为 **0**,前端照字面读
-   *   就会把"随便出"读成"用完了",然后**把一个能用的按钮藏起来**。
-   */
-  left: number | null;
-  /** `[I3]` 的上限,`<= 0` = 不限量(与 `renderConfirmationSummary` 同一口径)。 */
-  max: number;
-  /**
    * 最后一次出图那**就是**当前这套妆面 ⇒ 按钮该改口叫「再生成一张」。
    *
    * ★ 为什么要有它:这条消息**不会**在出完图之后消失(见上),所以按钮会停在那里。
@@ -84,6 +81,26 @@ export interface RenderOfferView {
   alreadyRendered: boolean;
 }
 
+/**
+ * ★ **界面自己摆的分析入口**(与 `RenderOfferView` 同一个用意)。
+ *
+ * 它只报**事实**——有哪几种、那张图在不在、用户是不是已经填过了。
+ * 入口长什么样、摆在哪里是前端的事(本轮不做前端设计),这里不替它决定。
+ *
+ * ⚠️ **`off` 时这个键整个不出现**(两条路由根本没注册),所以它不是"恒在"的:
+ *   它表达的是"这个部署有没有读图能力"这件事在不在,与 `renderOffer` 同类。
+ */
+export interface AnalysisOfferView {
+  /** 三种 case 各自的现状。★ 全给,前端按需取。 */
+  cases: {
+    kind: AnalyzeCase;
+    /** 要读的那张图在不在。不在的话点下去必然失败,不该摆按钮。 */
+    hasImage: boolean;
+    /** 用户自己填过了 ⇒ 点了也**不会覆盖**、而且**不花钱**。 */
+    wouldOverwrite: boolean;
+  }[];
+}
+
 export interface AgentSessionView {
   sessionId: string;
   userId: string;
@@ -91,8 +108,14 @@ export interface AgentSessionView {
   lookSpec?: LookSpec;
   /** ★ `describeLook` 的渲染结果——给用户看的那段人话。 */
   lookDescription?: string;
+  /** `style` 分析的产物(闭集读数)。★ 空则无键——它表达"读出来了没有"。 */
+  styleRead?: StyleRead;
   /** 收到本人照片了没有。★ **不透出路径、也不透出字节**——前端只需要知道能不能出图。 */
   hasFace: boolean;
+  /** 收到风格参考图了没有(读图那一轮)。★ 同 `hasFace`:只说有没有,不给路径。 */
+  hasStyleRef: boolean;
+  /** 收到场景图了没有。 */
+  hasSceneRef: boolean;
   /** 已出的图(按 `seq` 升序)。 */
   renders: RenderView[];
   /**
@@ -120,15 +143,27 @@ export interface AgentSessionView {
    *
    * 省略语义同 `pendingRender`(不是就是没有这个键),而且**与它互斥**:
    * 有待确认的提议时这里一定是空的。**页面上只该有一个出图入口。**
-   *
-   * ⚠️ **额度用尽时它照旧在**(那一刻 `left === 0`)。为什么不干脆不摆:
-   *   用户手上那套妆已经定了、照片也有了,他当然会想"那图呢"——
-   *   一片空白什么都不说,比说一句"次数用完了"更像坏了。
-   *   前端据 `left === 0` **不给按钮**、只给一行说明。
    */
   renderOffer?: RenderOfferView;
+  /** ★ **这个部署有读图能力时才有值**——见 {@link AnalysisOfferView}。 */
+  analysisOffer?: AnalysisOfferView;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * ★ **一次分析调用的结果**(`POST …/analyses` 的响应,✏️ 读图那一轮)。
+ *
+ * 它不是 `AgentTurnView`:**分析不跑对话轮**,不产生 `events[]`、没有 `stopReason`。
+ * 把两者合成一个形状会让前端以为那里也有事件流可读。
+ */
+export interface AnalysisResultView {
+  session: AgentSessionView;
+  kind: AnalyzeCase;
+  /** `would_overwrite` = 用户填过了,**没读、也没花钱**(见 `analyze-image.ts`)。 */
+  status: AnalyzeStatus;
+  /** 没真读成的话,为什么。★ 空则无键(同 `pendingRender`)。 */
+  notice?: string;
 }
 
 export interface AgentTurnView extends AgentSessionView {
@@ -139,15 +174,27 @@ export interface AgentTurnView extends AgentSessionView {
 }
 
 /**
- * 视图选项。★ `maxRenders` 是 `[I3]` 的额度,确认框那句话里要报"还剩几张",
- * 所以它得从配置走到这里——**不在映射层写死一个数**,那会和配置里的值漂开。
+ * 视图选项。
+ *
+ * ★ **`hasAnalysis` 缺席 ≡ 这个部署没有读图能力** —— 于是 `analysisOffer` 整个不出现,
+ *   与"那两条路由没注册"是同一件事的两种表述。
+ *   ⚠️ 别给它一个缺省值:那会让"没配"变成"配了"。
+ * ★ 它是**能力开关**,不是额度:分析次数没有上限(2026-09-29 起)。
  */
 export interface SessionViewOptions {
-  maxRenders: number;
+  hasAnalysis?: boolean;
 }
 
-/** 会话快照(不含本轮事件)。 */
-export function toSessionView(session: Session, options: SessionViewOptions): AgentSessionView {
+/**
+ * 会话快照(不含本轮事件)。
+ *
+ * ★ `options` 可以整个省掉,等价于 `{}` = **这个部署没有读图能力**。
+ *   缺省的方向是**安全的那个**(不摆一个点下去 404 的入口),见 `SessionViewOptions`。
+ */
+export function toSessionView(
+  session: Session,
+  options: SessionViewOptions = {},
+): AgentSessionView {
   const pendingCall = danglingToolUses(session.messages).find(
     (call) => call.name === TOOL_NAMES.renderLook,
   );
@@ -157,13 +204,10 @@ export function toSessionView(session: Session, options: SessionViewOptions): Ag
 
   // ★ 出图那条消息摆不摆,判据只有两条:**妆面照片齐**(与工具用的是同一个
   //   `renderReadiness`)且**没有一条提议正等着用户点头**。
-  //   ⚠️ 额度**不在这两条里**——用完了也要摆(见 `renderOffer` 的注释)。
   const renderOffer: RenderOfferView | undefined =
     pendingCall === undefined && renderReadiness(session) === 'ready'
       ? {
-          summary: renderConfirmationSummary(session, options.maxRenders),
-          left: options.maxRenders > 0 ? rendersLeft(session, options.maxRenders) : null,
-          max: options.maxRenders,
+          summary: renderConfirmationSummary(),
           // 两个字符串都由 `describeLook` 产出 ⇒ 逐字可比(比的是**说法**,不是 spec 对象)。
           // ⚠️ 这一句**必须留在 `ready` 这一支里**:没有妆面时 `lookDescription` 是
           //    `undefined`,而那一边(`renders` 为空时)也是 `undefined` ——
@@ -174,13 +218,29 @@ export function toSessionView(session: Session, options: SessionViewOptions): Ag
         }
       : undefined;
 
+  // ★ 读图那块**只有这个部署真有能力时**才出现(见 `SessionViewOptions.hasAnalysis`)。
+  const analysisOffer: AnalysisOfferView | undefined = options.hasAnalysis
+    ? {
+        // 三种都给:前端要摆哪几个入口由它定(本轮不做前端设计),这里只报事实。
+        // ⚠️ 判据一律走实体那两个具名守卫,不在这里重写一遍(§8)。
+        cases: ANALYZE_CASES.map((kind) => ({
+          kind,
+          hasImage: hasSourceImage(session, kind),
+          wouldOverwrite: analysisWouldOverwrite(session, kind),
+        })),
+      }
+    : undefined;
+
   return {
     sessionId: session.id,
     userId: session.userId,
     brief: session.brief,
     ...(look ? { lookSpec: look } : {}),
     ...(lookDescription !== undefined ? { lookDescription } : {}),
+    ...(session.styleRead ? { styleRead: session.styleRead } : {}),
     hasFace: session.faceRef !== undefined,
+    hasStyleRef: session.styleRef !== undefined,
+    hasSceneRef: session.sceneRef !== undefined,
     renders: session.renders.map((r) => ({
       seq: r.seq,
       url: `/agent/sessions/${session.id}/renders/${r.seq}`,
@@ -196,13 +256,27 @@ export function toSessionView(session: Session, options: SessionViewOptions): Ag
       ? {
           pendingRender: {
             toolUseId: pendingCall.id,
-            summary: renderConfirmationSummary(session, options.maxRenders),
+            summary: renderConfirmationSummary(),
           },
         }
       : {}),
     ...(renderOffer ? { renderOffer } : {}),
+    ...(analysisOffer ? { analysisOffer } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
+  };
+}
+
+/** 一次分析的结果 → 对外视图。★ 不跑对话轮,所以**没有** `events[]` / `stopReason`。 */
+export function toAnalysisResultView(
+  outcome: AnalyzeOutcome,
+  options: SessionViewOptions,
+): AnalysisResultView {
+  return {
+    session: toSessionView(outcome.session, options),
+    kind: outcome.kind,
+    status: outcome.status,
+    ...(outcome.notice !== undefined ? { notice: outcome.notice } : {}),
   };
 }
 

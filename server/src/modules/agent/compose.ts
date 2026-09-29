@@ -6,7 +6,7 @@
  * 形状照 `weather/compose.ts`(`kind` union 在本模块**独立声明**,
  * 免得业务模块反向依赖组装层的配置类型;两处要一起改)。
  */
-import type { Engine, SkinTonePalette } from '../makeup/index.js';
+import type { Analyzers, Engine, SkinTonePalette } from '../makeup/index.js';
 import type { CosmeticReader } from './domain/ports/cosmetic-reader.js';
 import type { ProductLibrary } from './domain/ports/product-library.js';
 import type { UserDirectory } from './domain/ports/user-directory.js';
@@ -15,11 +15,12 @@ import type { SessionArtifacts } from './domain/ports/session-artifacts.js';
 import type { Llm } from './domain/ports/llm.js';
 import { AgentLoop } from './application/agent-loop.js';
 import { createToolRegistry } from './application/tools/registry.js';
-import { DEFAULT_MAX_RENDERS } from './application/tools/render-look.js';
 import { StartSession } from './application/usecases/start-session.js';
 import { GetSession } from './application/usecases/get-session.js';
 import { SendMessage } from './application/usecases/send-message.js';
 import { AttachPhoto } from './application/usecases/attach-photo.js';
+import { AttachImage } from './application/usecases/attach-image.js';
+import { AnalyzeImage } from './application/usecases/analyze-image.js';
 import { ConfirmRender } from './application/usecases/confirm-render.js';
 import { GetRender } from './application/usecases/get-render.js';
 import {
@@ -93,8 +94,13 @@ export interface AgentModuleOptions {
    *   ⚠️ **不是"注册了但返回空"**——那是假开关,理由写在 `tools/registry.ts` 那份注释里。
    */
   products?: ProductLibrary;
-  /** §10 `[I3]` 单会话出图上限,`<= 0` = 不限制。缺省 `DEFAULT_MAX_RENDERS`。 */
-  maxRenders?: number;
+  /**
+   * ★ 读图分析的三个适配器(`makeup` 的端口,**同一批实例**由组装根注进来)。
+   *
+   * **可选,而且缺省就是"这个部署没有读图能力"**:不传 = 那两条路由**不注册**、
+   * 视图里不出现分析那块。与 `products` 同一条口径——**不是"注册了但返回空"**。
+   */
+  analyzers?: Analyzers;
   /** §10 `[I8]` 会话 TTL(小时)。缺省 `DEFAULT_SESSION_TTL_HOURS`。 */
   sessionTtlHours?: number;
   /** 单轮最大 LLM 往返(§10 `[I4]`)。 */
@@ -111,19 +117,24 @@ export interface AgentModuleServices {
   loop: AgentLoop;
   /** ★ TTL 清理**不自动跑**——由组装根按时钟调它(见 `src/index.ts` 那段 `setInterval`)。 */
   purgeExpired: PurgeExpiredSessions;
-  /** 生效的出图上限(视图与工具都从这一份取值,免得两处各读一次配置)。 */
-  maxRenders: number;
   startSession: StartSession;
   getSession: GetSession;
   sendMessage: SendMessage;
   attachPhoto: AttachPhoto;
   confirmRender: ConfirmRender;
   getRender: GetRender;
+  /**
+   * ★ 读图那两个用例。**没配 `analyzers` 时整个键不出现** ——
+   * `app.ts` 把它原样转给路由,于是"关掉"表现为**入口不存在**。
+   */
+  analysis?: {
+    attachImage: AttachImage;
+    analyzeImage: AnalyzeImage;
+  };
 }
 
 export function createAgentModule(options: AgentModuleOptions): AgentModuleServices {
   const llm: Llm = buildLlm(options);
-  const maxRenders = options.maxRenders ?? DEFAULT_MAX_RENDERS;
   const sessionTtlHours = options.sessionTtlHours ?? DEFAULT_SESSION_TTL_HOURS;
 
   const sessions: SessionStore = new InMemorySessionStore();
@@ -135,7 +146,6 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
     engine: options.engine,
     artifacts: options.artifacts,
     palette: options.palette,
-    maxRenders,
     // 只在真有时才传:`exactOptionalPropertyTypes` 下不能塞一个 `undefined` 进去,
     // 而且"没有产品库"与"产品库是 undefined"在这里本来就是同一件事。
     ...(options.products ? { products: options.products } : {}),
@@ -157,13 +167,29 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
       artifacts: options.artifacts,
       ttlHours: sessionTtlHours,
     }),
-    maxRenders,
     startSession: new StartSession({ sessions, users }),
     getSession: new GetSession({ sessions }),
     sendMessage: new SendMessage({ sessions, loop }),
     attachPhoto: new AttachPhoto({ sessions, artifacts: options.artifacts }),
     confirmRender: new ConfirmRender({ sessions, loop }),
     getRender: new GetRender({ sessions, artifacts: options.artifacts }),
+    // ★ 没配分析器时**整个键不出现**(不是给一个 `undefined`)——语义上就是
+    //   "这个部署没有读图能力",路由那边照此不注册那两条口。
+    ...(options.analyzers
+      ? {
+          analysis: {
+            attachImage: new AttachImage({
+              sessions,
+              artifacts: options.artifacts,
+            }),
+            analyzeImage: new AnalyzeImage({
+              sessions,
+              artifacts: options.artifacts,
+              analyzers: options.analyzers,
+            }),
+          },
+        }
+      : {}),
   };
 }
 

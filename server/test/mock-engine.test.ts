@@ -36,7 +36,7 @@ describe('MockEngine', () => {
     for (let i = 0; i < light.palette.length; i++) {
       const l = light.palette[i]!.rgb;
       const d = deep.palette[i]!.rgb;
-      expect(d[0]).toBeLessThan(l[0]);
+      expect(d[0]!).toBeLessThan(l[0]!);
     }
   });
 

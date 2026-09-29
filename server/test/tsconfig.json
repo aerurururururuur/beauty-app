@@ -1,0 +1,13 @@
+{
+  // test/ 自己的项目。为什么需要它,与 scripts/tsconfig.json 逐条相同(那边写全了,不重复):
+  // 根 tsconfig 的 include 只有 src,test/ 此前落在**任何项目之外** —— 零类型检查。
+  // 后果已经咬过两次:给端口加方法后假实现漏了一个方法,`npm test` 照样全绿。
+  // 取向同样是 **noEmit**:测试不该进 dist/,`npm run build` 与它无关。
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts"]
+}

@@ -13,20 +13,30 @@
  */
 export type Look = Record<string, unknown>;
 
-/** 妆容叠加区(图片归一化坐标 0..1;骨架约定为正面自拍照片)。⚠️ 同文件头:今天无消费者。 */
-export interface MakeupZone {
-  /** '唇' | '颊' | '眼影' | … */
-  role: string;
-  /** 锚点(相对图片宽高比例)。 */
-  anchor: { x: number; y: number };
-  /** 尺寸(相对图片宽高比例)。 */
-  size: { w: number; h: number };
-  /** 叠加色 [r,g,b] 0..255。 */
-  rgb: [number, number, number];
-  /** CSS mix-blend-mode。 */
-  blend: string;
-  /** CSS 模糊像素。 */
-  blur: number;
-  /** 不透明度 0..1。 */
-  opacity: number;
+/**
+ * 妆容叠加区(图片归一化坐标 0..1;骨架约定为正面自拍照片)。⚠️ 同文件头:今天无消费者。
+ *
+ * ★ 7 个字段走位置参数,照 `face-vocabulary.ts` 的 `SkinToneTier`(6 个字段也是位置参数);
+ *   `#sealed` 的用处见 `look-spec.ts` 那段。
+ */
+export class MakeupZone {
+  /** 名义化标记:只声明、不初始化、**不许读**。见 `look-spec.ts` 那段「为什么是类」。 */
+  declare private readonly brand: void;
+
+  constructor(
+    /** '唇' | '颊' | '眼影' | … */
+    readonly role: string,
+    /** 锚点(相对图片宽高比例)。 */
+    readonly anchor: { readonly x: number; readonly y: number },
+    /** 尺寸(相对图片宽高比例)。 */
+    readonly size: { readonly w: number; readonly h: number },
+    /** 叠加色 [r,g,b] 0..255。 */
+    readonly rgb: readonly [number, number, number],
+    /** CSS mix-blend-mode。 */
+    readonly blend: string,
+    /** CSS 模糊像素。 */
+    readonly blur: number,
+    /** 不透明度 0..1。 */
+    readonly opacity: number,
+  ) {}
 }

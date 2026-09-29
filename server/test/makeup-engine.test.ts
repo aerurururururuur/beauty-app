@@ -1,39 +1,36 @@
 /**
- * 生图引擎单测 —— 「真实引擎」与「夹具回放」两组,全部**打桩 `fetch`,不联网不花钱**。
+ * 生图引擎单测 —— 全部**打桩 `fetch`,不联网不花钱**。
  *
- * ★ 这一组盯的是 §5.3 那四条坑的**处置是否真的落在代码里**,以及 record/replay 的核心前提:
- *   **录像与回放算出的键必须逐位相同**——键一漂,回放永远未命中,而现象看起来像"没录"。
+ * ★ 这一组盯的是 §5.3 那四条坑的**处置是否真的落在代码里**,外加提示词口径上
+ *   几条容易漂的不变量(见文件末尾那一组)。
  *
  * ⚠️ 真实联网的那一半(以及"平台方哪天改了行为")**这些测试管不了**。
- *   那要靠一次付费录制 + §12.1 的实测打分。**单测全绿不等于这条路已经验过。**
+ *   那要靠一次付费真跑 + §12.1 的实测打分。**单测全绿不等于这条路已经验过。**
  */
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  BrowSpec,
   ImageEngine,
-  ReplayEngine,
+  LookSpec,
+  LookSpecBase,
+  ZoneSpec,
   buildGenerateRequest,
-  fixtureKeyOf,
-  readFixture,
 } from '../src/modules/makeup/index.js';
-import type { EngineInput, GenerateRequest, LookSpec } from '../src/modules/makeup/index.js';
+import type { EngineInput } from '../src/modules/makeup/index.js';
 
-const SPEC: LookSpec = {
-  occasion: 'daily',
-  base: { coverage: 3, finish: 'satin', warmth: 0 },
-  zones: {
-    lip: { tone: 'rose', finish: 'matte', intensity: 3 },
-    cheek: { tone: 'coral', finish: 'satin', intensity: 2 },
-    eyeshadow: { tone: 'nude', finish: 'satin', intensity: 2 },
-    brow: { shape: 'natural', intensity: 2 },
-  },
-};
+const SPEC = new LookSpec('daily', new LookSpecBase(3, 'satin', 0), {
+  lip: new ZoneSpec('rose', 'matte', 3),
+  cheek: new ZoneSpec('coral', 'satin', 2),
+  eyeshadow: new ZoneSpec('nude', 'satin', 2),
+  brow: new BrowSpec('natural', 2),
+});
 
-/** 一张最小的"脸":内容任意,引擎只按字节算摘要。 */
+/** 一张最小的"脸":内容任意,引擎只把它读成 base64。 */
 const FACE_BYTES = Buffer.from('not-really-a-png-but-the-engine-only-hashes-it');
-/** 参考图夹具:★ 两份内容**必须不同**,否则"摘要按文件字节算"这件事验不出来。 */
+/** 参考图:★ 两份内容**必须不同**,否则"两张图各读各的"这件事验不出来。 */
 const REF_BYTES = [Buffer.from('ref-one-bytes'), Buffer.from('ref-two-bytes-differ')];
 
 let dir: string;
@@ -122,13 +119,7 @@ describe('buildGenerateRequest', () => {
       expect(content[i]!.image!.startsWith('data:image/png;base64,')).toBe(true);
     }
     expect(content[3]!.text).toBe(req.prompt);
-    // 摘要顺序与请求顺序一致,face 在最后。
-    expect(req.inputDigests.map((d) => d.role)).toEqual(['reference', 'reference', 'face']);
-    // ★ 参考图摘要的是**文件字节**,不再是 URL 文本(`bytes: 0` 那套随热链一起作废)。
-    expect(req.inputDigests[0]!.bytes).toBe(REF_BYTES[0]!.length);
-    expect(req.inputDigests[1]!.bytes).toBe(REF_BYTES[1]!.length);
-    expect(req.inputDigests[0]!.sha256).not.toBe(req.inputDigests[1]!.sha256);
-    expect(req.inputDigests[2]!.bytes).toBe(FACE_BYTES.length);
+    // 提示词永远压轴 —— 上面那条"最后一张图决定输出比例"要求图片都在它之前。
   });
 
   it('★ 参考图超上限**抛错,不静默截断**(截掉的那张谁都不会知道)', () => {
@@ -168,52 +159,43 @@ describe('buildGenerateRequest', () => {
   });
 });
 
-// ── 夹具键 ──────────────────────────────────────────────────────────────────
+// ── 提示词口径 ──────────────────────────────────────────────────────────────
 
-describe('fixtureKeyOf —— 录像与回放必须算出同一个键', () => {
-  const keyOf = (over: Partial<EngineInput> = {}, opts = OPTS): string =>
-    fixtureKeyOf(buildGenerateRequest(input(over), opts) as GenerateRequest);
+describe('提示词只随"会影响措辞"的东西变', () => {
+  const promptOf = (over: Partial<EngineInput> = {}, opts = OPTS): string =>
+    buildGenerateRequest(input(over), opts).prompt;
 
-  it('同一输入 → 同一键', () => {
-    expect(keyOf()).toBe(keyOf());
+  it('同一输入 → 同一份提示词(组装是纯函数)', () => {
+    expect(promptOf()).toBe(promptOf());
   });
 
-  it('★ 键不含本机路径:同样的字节换个路径、换个文件名,仍是同一个键', () => {
-    const other = path.join(dir, 'another-name.jpg');
-    writeFileSync(other, FACE_BYTES);
-    expect(keyOf({ face: { filePath: other, mimeType: 'image/jpeg' } })).toBe(keyOf());
-  });
+  it('★ 肤色:写不写它会改措辞,但写哪一档不会 —— 档位名根本不进提示词', () => {
+    // 「不提肤色」与「提了」是两份不同的提示词,必须分开。
+    expect(promptOf({ brief: {} })).not.toBe(promptOf());
 
-  it('★ 内容变了键就变(否则回放会把 A 的图当成 B 的结果)', () => {
-    const other = path.join(dir, 'face2.png');
-    writeFileSync(other, Buffer.from('different-bytes'));
-    expect(keyOf({ face: { filePath: other, mimeType: 'image/png' } })).not.toBe(keyOf());
-  });
-
-  it('模型 / 出图张数 任一变化 → 键变', () => {
-    expect(keyOf({}, { ...OPTS, model: 'qwen-image-edit-max' })).not.toBe(keyOf());
-    expect(keyOf({}, { ...OPTS, n: 3 })).not.toBe(keyOf());
-  });
-
-  it('★ 肤色:写不写它会让键变,但写哪一档不会 —— 因为档位根本不进提示词', () => {
-    // 「不提肤色」与「提了」是两份不同的请求,必须分开。
-    expect(keyOf({ brief: {} })).not.toBe(keyOf());
-    expect(keyOf({ brief: {} })).not.toBe(keyOf({ brief: { skinTone: 'deep_brown' } }));
-
-    // 但 deep 与 light 算出**同一个键**,这是**有意的,不是漏了**:
+    // 但 deep 与 light 得到**同一份**提示词,这是**有意的,不是漏了**:
     //   肤色只决定提示词里**有没有**那句「按本人真实肤色上妆,不要提亮」——
     //   **档位名本身刻意不进提示词**(§6 规矩 4:不许默认浅肤色审美,也就等于不许
     //   拿着一个色号去指挥模型)。真正随肤色变的是 `LookSpec` 的选色,那发生在 agent 侧,
-    //   到这里已经定死在 spec 里了。所以两者请求**逐字节相同**,回放给出同一个结果才是忠实的。
-    expect(keyOf({ brief: { skinTone: 'cool_porcelain' } })).toBe(keyOf({ brief: { skinTone: 'deep_brown' } }));
+    //   到这里已经定死在 spec 里了。
+    expect(promptOf({ brief: { skinTone: 'cool_porcelain' } })).toBe(
+      promptOf({ brief: { skinTone: 'deep_brown' } }),
+    );
   });
 
-  it('妆面单变了 → 键变', () => {
-    const other: LookSpec = {
-      ...SPEC,
-      zones: { ...SPEC.zones, lip: { tone: 'berry', finish: 'matte', intensity: 5 } },
-    };
-    expect(keyOf({ lookSpec: other })).not.toBe(keyOf());
+  it('妆面单变了 → 提示词变', () => {
+    // `SPEC.zones` 是普通对象(成员才是名义类型),所以展开它没问题;整体必须重新构造。
+    const other = new LookSpec(SPEC.occasion, SPEC.base, {
+      ...SPEC.zones,
+      lip: new ZoneSpec('berry', 'matte', 5),
+    });
+    expect(promptOf({ lookSpec: other })).not.toBe(promptOf());
+  });
+
+  it('出图张数只进 parameters,不改提示词(改的是这次请求,不是妆面)', () => {
+    const three = buildGenerateRequest(input(), { ...OPTS, n: 3 });
+    expect(three.prompt).toBe(promptOf());
+    expect((three.body.parameters as Record<string, unknown>).n).toBe(3);
   });
 });
 
@@ -291,86 +273,5 @@ describe('ImageEngine', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-not-a-real-key');
     expect(JSON.stringify(logs)).not.toContain('sk-not-a-real-key');
     spies.forEach((s) => s.mockRestore());
-  });
-
-  it('不给 fixturesDir 就不写盘(缺省无副作用)', async () => {
-    stubFetch();
-    const fixturesDir = path.join(dir, 'fixtures');
-    await engine().generate(input());
-    expect(readdirSync(dir)).not.toContain('fixtures');
-    expect(readFixture(fixturesDir, 'anything')).toBeNull();
-  });
-});
-
-// ── record → replay ────────────────────────────────────────────────────────
-
-describe('record / replay', () => {
-  it('★ 录完再回放:命中,拿回同一张图,且**不联网**', async () => {
-    const fixturesDir = path.join(dir, 'fixtures');
-    const { imageBytes } = stubFetch();
-    const recorded = await engine({ fixturesDir }).generate(input());
-
-    // 录制留下的两份东西:json 与图。
-    const files = readdirSync(fixturesDir);
-    expect(files.filter((f) => f.endsWith('.json'))).toHaveLength(1);
-    expect(files.filter((f) => f.endsWith('.png'))).toHaveLength(1);
-
-    // ★ 夹具 json 里**不许有 base64**(几 MB 的字符串会让夹具没法读、没法 diff、没法进 git)。
-    const fixtureJson = readFileSync(path.join(fixturesDir, files.find((f) => f.endsWith('.json'))!), 'utf8');
-    expect(fixtureJson).not.toContain('base64');
-    expect(fixtureJson).toContain('sha256');
-
-    // 回放:把 fetch 换成"一调就炸",证明它真的不联网。
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => {
-        throw new Error('回放引擎不该发任何请求');
-      }),
-    );
-    const replayed = await new ReplayEngine({
-      fixturesDir,
-      outputDir: path.join(dir, 'replay-out'),
-      model: OPTS.model,
-    }).generate(input());
-
-    expect(readFileSync(replayed.resultFilePath)).toEqual(imageBytes);
-    expect(readFileSync(replayed.resultFilePath)).toEqual(readFileSync(recorded.resultFilePath));
-    expect(replayed.look).toMatchObject({ engine: 'replay' });
-    // ★ 留一条线索:这张图是录的,不是当场生成的。
-    expect((replayed.look as { replayedFrom?: string }).replayedFrom).toBeTruthy();
-  });
-
-  it('★ 未命中要**显式炸**,并说清该录哪一条 —— 静默给假图会让 CI 全绿地骗人', async () => {
-    const fixturesDir = path.join(dir, 'empty-fixtures');
-    await expect(
-      new ReplayEngine({ fixturesDir, outputDir: path.join(dir, 'o'), model: OPTS.model }).generate(input()),
-    ).rejects.toThrow(/未录制|未命中/);
-  });
-
-  it('★ 模板版本变了也算未命中 —— 措辞已变,录的那张图不再对应这次输入', async () => {
-    const fixturesDir = path.join(dir, 'fixtures');
-    stubFetch();
-    await engine({ fixturesDir }).generate(input());
-
-    const jsonFile = readdirSync(fixturesDir).find((f) => f.endsWith('.json'))!;
-    const parsed = JSON.parse(readFileSync(path.join(fixturesDir, jsonFile), 'utf8')) as {
-      templateVersion: string;
-    };
-    parsed.templateVersion = 'v0';
-    writeFileSync(path.join(fixturesDir, jsonFile), JSON.stringify(parsed));
-
-    await expect(
-      new ReplayEngine({ fixturesDir, outputDir: path.join(dir, 'o'), model: OPTS.model }).generate(input()),
-    ).rejects.toThrow(/模板/);
-  });
-
-  it('格式版本对不上 → 当"没有这份夹具",不按旧格式读出半个对象', () => {
-    const fixturesDir = path.join(dir, 'fixtures');
-    mkdirSync(fixturesDir, { recursive: true });
-    writeFileSync(path.join(fixturesDir, 'wrongformat.json'), '{"formatVersion":0}');
-    expect(readFixture(fixturesDir, 'wrongformat')).toBeNull();
-
-    // 目录不存在也算"没有",不抛 —— 回放引擎要能把它变成"未录制"那句人话。
-    expect(readFixture(path.join(dir, 'never-created'), 'anything')).toBeNull();
   });
 });

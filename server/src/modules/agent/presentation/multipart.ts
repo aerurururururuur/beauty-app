@@ -1,9 +1,11 @@
 /**
- * presentation/multipart.ts —— `POST /agent/sessions/:id/photo` 的 multipart 解析。
+ * presentation/multipart.ts —— 上传路由的 multipart 解析。**全项目就这一份解析器。**
  *
- * ★ **只认两个字段**:文件 `face`,标量 `userId`。**全项目就这一份解析器**,
- * 而它只服务这一条路由——写成"可能有很多字段"的通用形状,
- * 得到的会是**没人走的分支**(同 `session-artifacts.ts` 对端口宽窄的理由)。
+ * ★ 收 `{ fileField, scalarFields }` 两份**字段名清单**,不认别的
+ *   (✏️ 读图那一轮泛化:此前写死文件 `face` + 标量 `userId`)。
+ *   两张图那两条路由的差别只在字段名上,别的逐字相同,所以差别就传进来。
+ *   ⚠️ **刻意只到这一步**:再做"任意字段 + 任意类型"的通用解析器,
+ *   多出来的分支没人走(同 `session-artifacts.ts` 对端口宽窄的理由)。
  *
  * ★ **产出的形状就是端口的 `PhotoUpload`,字段名逐字相同**(`originalName` /
  * `mimeType` / `stream`)。这样控制器那一步是**直传**,不需要一次改名——
@@ -37,13 +39,41 @@ import { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
 import type { PhotoUpload } from '../domain/ports/session-artifacts.js';
 
-export interface ParsedPhotoRequest {
+/** 一条上传路由认哪几个字段名。★ 差别只在这里,解析逻辑两边共用一份。 */
+export interface UploadFieldSpec {
+  /** 文件字段名(本人照片那条是 `face`,参考图那条是 `file`)。 */
+  fileField: string;
+  /** 标量字段名。**没点名的字段会进 `unknownFields`**。 */
+  scalarFields: readonly string[];
+}
+
+export interface ParsedUpload {
   /** 没传文件时为 `undefined`(交给校验器去说人话,这里不抢着抛)。 */
   file?: PhotoUpload;
-  /** 表单里的 `userId`。**与文件在同一个请求**——不像 GET 那样走查询串。 */
-  userId?: string;
+  /**
+   * 表单里的标量字段。**只含 `scalarFields` 点过名的键,没传的键不出现**
+   * ——"缺了哪个"由校验器说,这里不替它补一个空串。
+   * ★ 归属人走表单而不是查询串:那条请求体**只能是 multipart**(要带文件)。
+   */
+  scalars: Record<string, string>;
   unknownFields: string[];
 }
+
+/** 本人照片那条路由认的字段。✏️ 泛化前写死在解析器里,取值一字未改。 */
+export const PHOTO_UPLOAD_FIELDS: UploadFieldSpec = {
+  fileField: 'face',
+  scalarFields: ['userId'],
+};
+
+/**
+ * 参考图那条路由认的字段(风格图 / 场景图)。
+ * ★ 文件字段叫 `file`,**不是 `face`** —— 收的不是本人照片,两条口的隐私义务不同
+ *   (见 `entities/session.ts` 的 `RefImageKind`)。
+ */
+export const IMAGE_UPLOAD_FIELDS: UploadFieldSpec = {
+  fileField: 'file',
+  scalarFields: ['userId', 'kind'],
+};
 
 const EXT_MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -63,12 +93,16 @@ export function inferImageMime(declared: string | undefined, filename: string): 
   return declared ?? 'application/octet-stream';
 }
 
-export async function parsePhotoRequest(request: FastifyRequest): Promise<ParsedPhotoRequest> {
-  const out: ParsedPhotoRequest = { unknownFields: [] };
+export async function parseUploadRequest(
+  request: FastifyRequest,
+  spec: UploadFieldSpec,
+): Promise<ParsedUpload> {
+  const out: ParsedUpload = { scalars: {}, unknownFields: [] };
+  const isScalar = (name: string): boolean => spec.scalarFields.includes(name);
 
   for await (const part of request.parts()) {
     if (part.type === 'file') {
-      if (part.fieldname !== 'face') {
+      if (part.fieldname !== spec.fileField) {
         // ★ 未知字段的流**必须放掉**:不读也不销毁就是漏句柄,
         //   而这个坑只有真正传错字段名的人会踩到——他还会以为是别的地方错了。
         part.file.resume();
@@ -78,10 +112,10 @@ export async function parsePhotoRequest(request: FastifyRequest): Promise<Parsed
       if (out.file) {
         // 同名字段传了两次:留第一张,其余的放掉(校验器已保证只可能处理一张)。
         part.file.resume();
-        out.unknownFields.push('face(重复)');
+        out.unknownFields.push(`${spec.fileField}(重复)`);
         continue;
       }
-      const originalName = part.filename || 'face';
+      const originalName = part.filename || spec.fileField;
       out.file = {
         originalName,
         mimeType: inferImageMime(part.mimetype, originalName),
@@ -90,8 +124,8 @@ export async function parsePhotoRequest(request: FastifyRequest): Promise<Parsed
         //    `Readable.from(buffer)` 的形状与 `part.file` 一致,下游不用改。
         stream: Readable.from(await part.toBuffer()),
       };
-    } else if (part.fieldname === 'userId') {
-      out.userId = String((part as { value?: unknown }).value ?? '');
+    } else if (isScalar(part.fieldname)) {
+      out.scalars[part.fieldname] = String((part as { value?: unknown }).value ?? '');
     } else {
       out.unknownFields.push(part.fieldname);
     }

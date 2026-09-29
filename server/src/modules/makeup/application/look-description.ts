@@ -19,6 +19,7 @@
 import type { Occasion } from '../../shared/index.js';
 import { SCENE_RULES } from '../../shared/index.js';
 import type { BrowShape, Finish, Intensity, LookSpec, ToneKey, ZoneSpec } from '../domain/entities/look-spec.js';
+import type { StyleRead } from '../domain/entities/style-read.js';
 
 const FINISH_CN: Record<Finish, string> = {
   satin: '缎光(微光泽)',
@@ -80,6 +81,24 @@ function zoneCn(label: string, zone: ZoneSpec): string {
  * **不要在这段文案里加入 `LookSpec` 之外的信息**(比如"显得脸小"),那是拿描述
  * 偷偷扩权,而用户会拿它当成对成片的承诺。
  */
+/**
+ * 把一份**风格读数**写成中文(读图那一轮)。
+ *
+ * ★ 与 `describeLook` **共用上面那几个小函数**——说法只有一份,不另抄一套。
+ *   它比 `describeLook` 少两块(没有场合、没有眉形),理由见 `StyleRead` 的文件头。
+ * ★ 它的读者是**模型**(经 `agent` 的 `styleReadNote` 进 `messages[]`),
+ *   不是用户;但措辞照样只讲色 / 质地 / 浓度,同 `describeLook` 那条纪律。
+ */
+export function describeStyleRead(read: StyleRead): string {
+  const base = `底妆是${INTENSITY_CN[read.base.coverage]}遮瑕的${FINISH_CN[read.base.finish]},${warmthCn(read.base.warmth)}`;
+  return [
+    base,
+    zoneCn('唇', read.zones.lip),
+    zoneCn('颊', read.zones.cheek),
+    zoneCn('眼影', read.zones.eyeshadow),
+  ].join(';');
+}
+
 export function describeLook(spec: LookSpec): string {
   const base = `底妆是${INTENSITY_CN[spec.base.coverage]}遮瑕的${FINISH_CN[spec.base.finish]},${warmthCn(spec.base.warmth)}`;
   const parts = [

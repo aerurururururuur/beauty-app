@@ -1,26 +1,21 @@
 /**
- * infrastructure/engine/qwen-request.ts —— 「一次生成请求」的**唯一**组装处 + 它的夹具键。
+ * infrastructure/engine/qwen-request.ts —— 「一次生成请求」的**唯一**组装处。
  *
  * ★ **为什么单独一个文件,而不是写进 `image-engine.ts` 里。**
- * record/replay 的全部价值建立在一条上:**录像与回放算出的键必须逐位相同**。
- * 若录像侧与回放侧各写一遍请求组装,两边迟早会漂(改了一处忘另一处),
- * 而漂移的表现是"回放永远未命中"——**看起来像夹具没录,其实是键算错了**。
- * 所以组装只有这一份,两个引擎都调它。
- *
- * ★ 键的输入**刻意不含任何本机路径**。夹具要能跨机器、跨目录复用:
- *   路径进键 = 换台机器全部未命中。参与计算的是**图片字节的 sha256 与长度**。
+ *   组装是个**裸函数**:不碰网络、不读环境变量。这样"发出去的请求长什么样"
+ *   能在单测里当场断言,而不必花一次钱、等一次响应才知道。
+ *   接第二家图像 API 时,差异应当沉到这里,而不是让 `ImageEngine` 长出第二个厂商分支。
  *
  * 形状依据:阿里云百炼《千问-图像编辑 API 参考》,
  * 2026-09-15 用 curl 取原文核对过(见 `scripts/qwen-image-makeup.ts` 文件头)。
  * ⚠️ 官方文档站(`help.aliyun.com`)在开发环境**被网络策略拦截**,
  * 所以这里的形状来自那份 curl 原文 + 脚本实测,不是随时可复查的。
  */
-import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { EngineInput } from '../../domain/ports/engine.js';
-import { TEMPLATE_VERSION, buildPrompt } from './prompt-builder.js';
+import { buildPrompt } from './prompt-builder.js';
 
 export const GENERATION_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
 
@@ -60,8 +55,6 @@ export interface GenerateRequest {
   prompt: string;
   negativePrompt: string;
   model: string;
-  /** 参与键计算的输入摘要。**不含路径**(见文件头 ★)。 */
-  inputDigests: { role: 'reference' | 'face'; sha256: string; bytes: number }[];
 }
 
 /**
@@ -96,12 +89,6 @@ function toImageField(filePath: string): string {
   return `data:${mime};base64,${readFileSync(filePath).toString('base64')}`;
 }
 
-/** 图片字节摘要。**这是夹具键里唯一与"是哪张图"有关的部分。** */
-function digestOf(filePath: string): { sha256: string; bytes: number } {
-  const buf = readFileSync(filePath);
-  return { sha256: createHash('sha256').update(buf).digest('hex'), bytes: buf.length };
-}
-
 /**
  * 组装一次生成请求。
  *
@@ -128,12 +115,10 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
     ...(input.brief?.skinTone ? { skinTone: input.brief.skinTone } : {}),
   });
 
-  const faceDigest = digestOf(input.face.filePath);
-
   // ★ 参考图与本人照片走**同一条**本地文件路径(`toImageField`):接口要的是 URL,
   //   而我们给的是 base64 data URL,**照片不落到第三方存储桶**(见 `toImageField`)。
-  //   ⚠️ `[未验证]`:带参考图的请求**没有真实跑过**——当前无生产者(见 `EngineInput.references`),
-  //      所以这条分支目前只在理论上成立。
+  //   ⚠️ `[未验证]`:带参考图的请求**没有真实跑过**——已决定没有生产者
+  //      (风格图不进引擎,见 `EngineInput.references`),所以这条分支只在理论上成立。
   const refs = input.references ?? [];
   // ★ **超上限抛错,不静默截断。** 截断掉的那张既不出现在请求里、也不出现在任何日志里,
   //   表现是"图出了,只是没照那几张参考"——正是本仓最恨的"配置错了也照跑、只有结果不对"。
@@ -170,31 +155,5 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
     prompt,
     negativePrompt,
     model: opts.model,
-    inputDigests: [
-      // ★ 参考图**摘要的是文件字节**,与 face 同构:它们现在是本机文件,不再是热链 URL。
-      //   (URL 时代那套「把 URL 本身当字节的替身、bytes 记 0」的做法随之作废——
-      //   换 URL 就换键,而同一张图换个地址会被当成另一个请求。)
-      ...refs.map((r) => ({ role: 'reference' as const, ...digestOf(r.filePath) })),
-      { role: 'face' as const, ...faceDigest },
-    ],
   };
-}
-
-/**
- * 夹具键。**把"是什么请求"压成一个文件名。**
- *
- * 参与计算的是:模板版本 + 模型 + 提示词 + 反向提示词 + 参数 + 输入图摘要。
- * ⚠️ **`parameters` 里含 `n`**:改出图张数就是另一个请求,不能命中同一份夹具。
- * ⚠️ **键里没有 `createdAt` / 路径 / 主机名**——否则换台机器全部未命中。
- */
-export function fixtureKeyOf(req: GenerateRequest): string {
-  const canonical = JSON.stringify({
-    templateVersion: TEMPLATE_VERSION,
-    model: req.model,
-    prompt: req.prompt,
-    negativePrompt: req.negativePrompt,
-    parameters: req.body.parameters,
-    inputs: req.inputDigests,
-  });
-  return createHash('sha256').update(canonical).digest('hex').slice(0, 16);
 }

@@ -16,6 +16,8 @@ import {
   DEFAULT_MAX_ITERATIONS,
   LlmUnavailableError,
   MockLlm,
+  TextBlock,
+  ToolUseBlock,
   appendMessages,
   createSession,
   indexTools,
@@ -115,7 +117,7 @@ describe('单轮纯文字', () => {
   });
 
   it('拒答 / 截断被如实记进 stopReason,不假装成正常结束', async () => {
-    const refuse = loopWith([{ content: [{ type: 'text', text: '抱歉' }], stopReason: 'refusal' }], []);
+    const refuse = loopWith([{ content: [new TextBlock('抱歉')], stopReason: 'refusal' }], []);
     expect((await refuse.loop.run(SESSION(), 'x')).stopReason).toBe('refusal');
   });
 
@@ -143,7 +145,7 @@ describe('单轮纯文字', () => {
   });
 
   it('★ 拒答但模型自己说了话 → **不许**再补第二句(不在它嘴上说话)', async () => {
-    const spoke = loopWith([{ content: [{ type: 'text', text: '这个我不能帮你做。' }], stopReason: 'refusal' }], []);
+    const spoke = loopWith([{ content: [new TextBlock('这个我不能帮你做。')], stopReason: 'refusal' }], []);
     const res = await spoke.loop.run(SESSION(), 'x');
 
     expect(res.stopReason).toBe('refusal');
@@ -160,7 +162,7 @@ describe('单轮纯文字', () => {
 describe('[A] assistant 那一轮原样回填', () => {
   it('第二次请求里带着与产出**逐字相同**的 tool_use 块', async () => {
     const tool = new RecordingTool('do_thing', () => ({ content: '做完了' }));
-    const call = { type: 'tool_use' as const, id: 'call_1', name: 'do_thing', input: { a: 1 } };
+    const call = new ToolUseBlock('call_1', 'do_thing', { a: 1 });
     const { llm, loop } = loopWith(
       [{ content: [call], stopReason: 'tool_use' }, mockText('好了')],
       [tool],
@@ -183,8 +185,8 @@ describe('[B][C] 工具结果回填', () => {
     const { loop } = loopWith(
       [
         mockTextAndToolCalls('我先查两样', [
-          { type: 'tool_use', id: 'c1', name: 'a', input: {} },
-          { type: 'tool_use', id: 'c2', name: 'b', input: {} },
+          new ToolUseBlock('c1', 'a', {}),
+          new ToolUseBlock('c2', 'b', {}),
         ]),
         mockText('查完了'),
       ],
@@ -213,8 +215,8 @@ describe('[B][C] 工具结果回填', () => {
     const { loop } = loopWith(
       [
         mockTextAndToolCalls('', [
-          { type: 'tool_use', id: 'c1', name: 'write', input: {} },
-          { type: 'tool_use', id: 'c2', name: 'read', input: {} },
+          new ToolUseBlock('c1', 'write', {}),
+          new ToolUseBlock('c2', 'read', {}),
         ]),
         mockText('好'),
       ],
@@ -234,7 +236,7 @@ describe('[B][C] 工具结果回填', () => {
     const tool = new RecordingTool('t', () => ({ content: 'ok' }));
     const { llm, loop } = loopWith(
       [
-        { content: [{ type: 'tool_use', id: 'c1', name: 't', input: {} }], stopReason: 'end_turn' },
+        { content: [new ToolUseBlock('c1', 't', {})], stopReason: 'end_turn' },
         mockText('收尾'),
       ],
       [tool],
@@ -390,10 +392,7 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
     const { llm, loop } = loopWith(
       [
         {
-          content: [
-            { type: 'text', text: '被截断的' },
-            { type: 'tool_use', id: 'c1', name: 't', input: {} },
-          ],
+          content: [new TextBlock('被截断的'), new ToolUseBlock('c1', 't', {})],
           stopReason: 'max_tokens',
         },
       ],

@@ -64,7 +64,7 @@
 - **路径 / 行号对不上是常态。** 用户可能只粘了片段，行号会漂。本文档里的 `file:line` 只用来指路，
   **不要当成「第 138 行一定是那句」去对用户断言**。
 - **代码和这份文档冲突时，以代码为准**——用户手上跑的那个才是真相。并且**在回复里明说这个冲突**：
-  > 你粘的 `stores/makeup.js` 里 `skinTone` 默认是 `light`，但 AGENTS.md §8 红线 1 写的是必须 `medium`。
+  > 你粘的 `stores/makeup.js` 里 `skinTone` 默认是 `light`，但 AGENTS.md §8 红线 1 写的是必须 `olive`。
   > 是文档旧了，还是这里改坏了？
 
   **别默默按其中一边往下写。** 这类冲突往往正是用户最需要知道的事。
@@ -107,7 +107,7 @@
 ✏️ **2026-09-29：`/upload` 与 `/agent` 现在是同一条路。** 上传页提交之后做的是
 「开会话(带 brief)→ 传照片 → 发一句话」，也就是从 `/agent` 那条链进去的——`jobs` 那条
 表单流水线已删。**全项目只剩一条出图路径**，而它**没有 mock 轨**：照片与每一句话都真的
-发给后端，最后那一下「确认出图」是**全项目唯一真的会花钱**的动作（要用户点一次确认才发生）。
+发给后端，最后那一下「确认出图」是**真会花钱的两个动作之一**（另一条是读图分析，见 §6）。两者都**要用户点一次**才发生。
 所以 `VITE_USE_MOCK=true` 下这条链**整个不可用**——上传页提交按钮禁用、结果页如实报错。
 见 §6.3 与 §7.2。
 
@@ -119,7 +119,7 @@
 | `occasion` | `interview`/`date`/`stage`/`family`/`daily` | 场合，风格主判据 |
 | `sceneText` | ≤2000 字 | 自由文字需求，可**替代** occasion 作风格信号 |
 | `skinType` | `dry`/`oily`/`combination`/`sensitive`/`neutral` | 肤质（持妆策略） |
-| `skinTone` | `light`/`light_medium`/`medium`/`tan`/`deep` | 肤色 5 档，**缺省 `medium`** |
+| `skinTone` | `cool_porcelain`/`pink_porcelain`/`warm_ivory`/`warm_beige`/`olive`/`warm_tan`/`wheat`/`deep_brown` | 肤色 **8 档**，**缺省 `olive`** |
 | `dress` | ≤80 字 | 穿搭一句话（风格 + 主色） |
 | `weather` | `{condition?, temperatureC?, humidityPct?, uvIndex?}` | **整块可省**，拉不到就不带 |
 
@@ -206,7 +206,7 @@ vue/src/
 │   ├── weather.js             # GET /weather（mock 模式回离线示意值）
 │   ├── users.js               # POST /users · POST /users/login
 │   ├── cabinet.js             # 衣橱 CRUD 四个端点
-│   ├── agent.js               # ★ 对话定妆六条端点。**唯一没有 mock 分支**的模块（见 §6.3）
+│   ├── agent.js               # ★ 对话定妆八条端点（后两条条件注册）。**唯一没有 mock 分支**的模块（见 §6.3）
 │   └── mock.js                # ★ 假后端（账号 / 本地衣橱）。只准惰性引入。✏️ 2026-09-29：假任务流水线整段删了
 ├── stores/
 │   ├── makeup.js              # 需求简报表单 + 本人照 + **会话 id**。★ 全项目最核心的 store
@@ -424,8 +424,11 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 | `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView`；会话不在 / 不属于你 → **404**（不区分，免得能被枚举） |
 | `POST /agent/sessions/:id/messages` | `{ userId, text }`（≤1000 字） | **200** `AgentTurnView`（含 `stopReason` + `events`） |
 | `POST /agent/sessions/:id/photo` | multipart：`face`(1 张，字段名就是 `face`)、`userId` | **200** `AgentSessionView` |
-| `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView`；★ **全项目唯一真的会花钱的端点**。✏️ 2026-09-16 起它有**两个入口**（模型提的 `pendingRender` / 界面自己摆的 `renderOffer`），**前端不必区分**，请求体逐字相同。**422** 有四个真实原因：①没有妆面 ②没有照片 ③上一轮欠着的**不是**出图请求 ④✏️同一个会话**正在出图**时又点了一次（服务端的进程内锁）|
+| `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView`；★ **会花钱的端点之一**（另一条是 `POST /agent/sessions/:id/analyses`）。✏️ 2026-09-16 起它有**两个入口**（模型提的 `pendingRender` / 界面自己摆的 `renderOffer`），**前端不必区分**，请求体逐字相同。**422** 有四个真实原因：①没有妆面 ②没有照片 ③上一轮欠着的**不是**出图请求 ④✏️同一个会话**正在出图**时又点了一次（服务端的进程内锁）|
 | `GET /agent/sessions/:id/renders/:seq?userId=` | — | **200** 图片字节流（`renders[].url` 指向它） |
+| `POST /agent/sessions/:id/images` | multipart：`file`(1 张，**字段名就是 `file`**)、`kind`(`style`/`scene`)、`userId` | **200** `AgentSessionView`。**只收图，不分析**（免费）。✏️ 2026-09-29 新增 |
+| `POST /agent/sessions/:id/analyses` | `{ userId, kind }`，`kind`(`face`/`scene`/`style`) | **200** `{ session, kind, status, notice? }`；★ **会花钱的端点之一**（要用户点一次）。**只收「哪一张」**，不收任何分析参数。✏️ 2026-09-29 新增 |
+| ⚠️ 上面两条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404。** 「关掉」表现为**入口不存在**，不是「收了图什么都不发生」 |
 | `GET /health` | — | **200** `{ ok, name, uptimeSec, now }` |
 
 ### 7.2 DTO 形状（JS 视角）
@@ -451,8 +454,6 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
   pendingRender?: { toolUseId, summary },// ★ 有动作在等你点确认时才有（summary 同上，原样展示）
   renderOffer?: {                        // ✏️ 2026-09-16 新增：界面自己摆的那条出图消息
     summary,                             //   妆面+照片齐、没有待确认时才出现；summary 同上，原样展示
-    left: number | null,                 //   还能出几张 ★ null = 不限量（AGENT_MAX_RENDERS=0），别和 0 混
-    max: number,                         //   上限（0 = 不限量）
     alreadyRendered: boolean             //   最后出的那套就是当前这套 ⇒ 按钮改口叫「再生成一张」
   },
   createdAt, updatedAt
@@ -571,7 +572,7 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 > ✏️ 2026-09-29：那份 plan **已冻结**（见文件头），**这一节才是你要照着做的那份**。
 
 1. **不默认浅肤色审美。**
-   `stores/makeup.js` 的 `skinTone` 默认 `medium`——**不许改成 `light`**，不许出现 `skinTone || 'light'` 这种兜底。
+   `stores/makeup.js` 的 `skinTone` 默认 `olive`——**不许改成 `light`**，不许出现 `skinTone || 'light'` 这种兜底。
    色卡 `SKIN_TONE_OPTIONS[].swatch` 是真实肤底色，不许调成「更白更好看」。
    文案里**不出现「显白」**——用户写了也不迎合（后端有测试钉着这条）。
 
@@ -675,7 +676,7 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 
 1. 走完「需求 → 妆面 → 传照片」，**盯住对话末尾**：妆面与照片齐了就该出现一条
    **长得不像 assistant 气泡**的消息（左侧竖线 + 淡底），带「确认生成」按钮，文案里有
-   费用与时长、以及"还能出 N 张"。
+   费用与时长（✏️ 2026-09-29 起不再报次数，配额整条删了）。
 2. ★★ **验"不靠模型"**：整个过程中**模型一次工具都没调**（mock 脚本本来也不会在
    用户没明说时调 `render_look`）——这条消息**照样在**。这就是这次改动要的东西，
    以前唯一的入口是"模型提议 → 确认框"，模型不开口就没有路。
@@ -683,8 +684,8 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 4. 出完 → 按钮**改口叫「再生成一张」**（同一个妆面又出一次），那条消息**不消失**。
 5. **连点两次**（趁第一下还没回来）→ 只出一张（前端 `waiting` 挡住；就算绕过去，服务端还有锁）。
 6. 改动妆面（让它换唇色之类）→ 那条消息里的妆面描述跟着更新，按钮**回到「确认生成」**。
-7. `AGENT_MAX_RENDERS=1` 重启服务 → 出一张后**按钮消失**，只剩一行"用完了、新开一段对话"的说明。
-   再 `AGENT_MAX_RENDERS=0` → `left` 是 `null`、文案说"不限量"（★ **别把不限量显示成 0 次**）。
+7. 再出一张、再出一张 → 按钮**一直都在**（✏️ 2026-09-29 起没有次数上限，从前这里验的是
+   `AGENT_MAX_RENDERS=1` 时按钮消失）。
 8. 刷新页面 → 已出的图还在（页面另起一格「已出的图」），那条出图消息**也还在**
    （它来自会话视图）；**聊天原文照旧不回放**，页面如实说。
 9. ★ **模型真的提了出图请求时**（mock 脚本里有这条路）→ 屏幕上**只有那一条**，

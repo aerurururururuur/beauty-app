@@ -77,8 +77,6 @@ const lookDescription = computed(() => view.value?.lookDescription || '')
  * **互斥** —— 两个按钮指向同一次花钱的话,其中一个必然 422。
  */
 const renderRequest = computed(() => view.value?.renderOffer || view.value?.pendingRender || null)
-/** ★ 额度用尽(`left === 0`)⇒ 只剩一行说明,不给按钮。`left === null` 是**不限量**。 */
-const quotaOut = computed(() => view.value?.renderOffer?.left === 0)
 
 /** 成品图地址:路径式 URL 要配 `API_BASE` **再补 `?userId=`**(取图靠查询串判归属)。 */
 const resultSrc = computed(() => (latest.value ? renderImageHref(latest.value.url, user.id) : ''))
@@ -186,15 +184,8 @@ function restart() {
 
         <!-- 出图那条消息。⚠️ 措辞一个字都不自己加:费用与时长那句来自服务端。 -->
         <div v-if="renderRequest" class="offer">
-          <p class="offer-summary">
-            {{
-              quotaOut
-                ? `这个会话的出图次数已经用完了(上限 ${renderRequest.max} 张)。`
-                : renderRequest.summary
-            }}
-          </p>
+          <p class="offer-summary">{{ renderRequest.summary }}</p>
           <button
-            v-if="!quotaOut"
             class="btn btn-primary btn-block"
             :disabled="confirming"
             @click="confirm"

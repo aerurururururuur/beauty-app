@@ -34,8 +34,6 @@ export interface ToolDeps {
    * ★ **必填**——缺了它,收窄会静默失效(见 `makeup/domain/ports/skin-tone-palette.ts`)。
    */
   palette: SkinTonePalette;
-  /** §10 `[I3]` 单会话出图上限。 */
-  maxRenders: number;
   /**
    * ★ **唯一一个可选依赖。** 读品牌产品库。
    *
@@ -67,7 +65,6 @@ export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
     new RenderLookTool({
       engine: deps.engine,
       artifacts: deps.artifacts,
-      maxRenders: deps.maxRenders,
     }),
   ]);
 }

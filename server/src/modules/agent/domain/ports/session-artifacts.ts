@@ -22,11 +22,16 @@
  */
 import type { Readable } from 'node:stream';
 import type { ImageRef } from '../../../shared/index.js';
+import type { RefImageKind } from '../entities/session.js';
 
 /**
  * 一个上传文件。★ **形状与 `assets` 的 `UploadFile` 逐字相同**,但**刻意各声明一份**:
  * 本模块不 import `assets` 的内部(模块间只经 barrel),而它要的就是
  * `@fastify/multipart` 交出来的那三个字段。适配器透传,不做转换。
+ *
+ * ⚠️ **名字留着 `PhotoUpload`**,但它现在也装风格图与场景图(✏️ 读图那一轮)——
+ *   它说的是"上传来的那个文件形状",不是"照片"。改名会动 barrel 与若干测试里的
+ *   类型引用,而**测试目录不在任何 tsconfig 里**,改漏了不会有任何东西报错。
  */
 export interface PhotoUpload {
   originalName: string;
@@ -39,6 +44,13 @@ export interface SessionArtifacts {
   putFace(sessionId: string, file: PhotoUpload): Promise<ImageRef>;
   /** 把照片引用解析成本机绝对路径——引擎要的是路径,不是流。 */
   resolveFace(sessionId: string, ref: ImageRef): Promise<string>;
+  /**
+   * 存一张**分析用**的参考图(风格图 / 场景图)。★ **收图免费,分析才花钱**——
+   * 所以这一步与分析入口**刻意分开**(同 `PUT`/`POST` 那句口径)。
+   */
+  putImage(sessionId: string, kind: RefImageKind, file: PhotoUpload): Promise<ImageRef>;
+  /** 把参考图引用解析成本机绝对路径——分析器要的是路径,不是流。 */
+  resolveImage(sessionId: string, ref: ImageRef): Promise<string>;
   /**
    * 收编引擎产出的成品图。`seq` 即 `RenderRecord.seq`(**从 1 开始**)——
    * 它进存储键,所以两张图不会互相覆盖。

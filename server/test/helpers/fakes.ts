@@ -21,6 +21,17 @@ import type {
   CosmeticRepository,
   UserDirectory,
 } from '../../src/modules/cabinet/index.js';
+import { LookSpecBase, StyleRead, ZoneSpec } from '../../src/modules/makeup/index.js';
+import type {
+  AnalysisOf,
+  AnalyzeCase,
+  AnalyzeInput,
+  Analyzers,
+  ImageAnalyzer,
+  VisionClient,
+  VisionRequest,
+} from '../../src/modules/makeup/index.js';
+import type { EngineSourceImage, Occasion, SkinTone } from '../../src/modules/shared/index.js';
 
 /** 固定返回值(或固定抛错)的天气源,用来测用例的错误翻译。 */
 export class FakeWeatherProvider implements WeatherProvider {
@@ -93,5 +104,86 @@ export class FakeUserDirectory implements UserDirectory {
 
   async exists(userId: string): Promise<boolean> {
     return this.ids.includes(userId);
+  }
+}
+
+// ── 读图(✏️ 2026-09-29:用户点触发分析那一轮)────────────────────────────────
+
+/**
+ * 假的多模态客户端:**按队列回话,并记下每一次请求**。
+ *
+ * ★ 队列而不是单个固定值:"先越界、再合法"这种序列要有地方写得出来。
+ * ★ `calls` 是这组测试的主要断言对象 —— 尤其「用户填的优先」那条要断言的是
+ *   **一次都没调**,而不是"调了但结果没用"。
+ * ⚠️ 队列空了会抛:漏写一次预期调用时,失败点落在**这里**,
+ *   而不是落在一条看起来"结果也对"的断言上。
+ */
+export class FakeVisionClient implements VisionClient {
+  readonly name = 'fake-vision';
+  readonly calls: VisionRequest[] = [];
+  private readonly queue: (string | Error)[];
+
+  constructor(...replies: (string | Error)[]) {
+    this.queue = replies;
+  }
+
+  async ask(request: VisionRequest): Promise<string> {
+    this.calls.push(request);
+    const next = this.queue.shift();
+    if (next === undefined) {
+      throw new Error('FakeVisionClient:没有更多预设回话了(测试少写了一次调用)');
+    }
+    if (next instanceof Error) throw next;
+    return next;
+  }
+}
+
+/** 一份合法的风格读数。★ 闭集值必须走构造器(见 `entities/look-spec.ts`)。 */
+export const SAMPLE_STYLE_READ = new StyleRead(new LookSpecBase(3, 'satin', 0), {
+  lip: new ZoneSpec('rose', 'matte', 3),
+  cheek: new ZoneSpec('coral', 'satin', 2),
+  eyeshadow: new ZoneSpec('nude', 'satin', 2),
+});
+
+/**
+ * 三个 case 的假适配器。
+ *
+ * ★ **运行时刻意没有与它对应的 `VISION_ANALYZER=mock`。** 引擎的 mock 是安全的
+ *   (产物就是输入照,假得看得见);而分析的 mock 是**造一个结论**,一个编出来的
+ *   肤色会一路流进妆面单和提示词,**假得看不见**。所以假货只活在 `test/`。
+ */
+export class FakeAnalyzers implements Analyzers {
+  /** 每次 `read` 的 case,**按调用顺序**。 */
+  readonly calls: AnalyzeCase[] = [];
+  /** 每次 `read` 收到的输入图(验"交给分析器的是解析出来的本机路径")。 */
+  readonly images: EngineSourceImage[] = [];
+  /** 置一个错则三个 `read` 都抛(验"分析失败也照样记账"那一支)。 */
+  failWith: Error | undefined;
+  skinTone: SkinTone = 'warm_ivory';
+  occasion: Occasion = 'daily';
+  styleRead: StyleRead = SAMPLE_STYLE_READ;
+
+  readonly face: ImageAnalyzer<'face'> = {
+    case: 'face',
+    read: (input) => this.run('face', input, { skinTone: this.skinTone }),
+  };
+  readonly scene: ImageAnalyzer<'scene'> = {
+    case: 'scene',
+    read: (input) => this.run('scene', input, { occasion: this.occasion }),
+  };
+  readonly style: ImageAnalyzer<'style'> = {
+    case: 'style',
+    read: (input) => this.run('style', input, this.styleRead),
+  };
+
+  private async run<C extends AnalyzeCase>(
+    kind: C,
+    input: AnalyzeInput,
+    out: AnalysisOf[C],
+  ): Promise<AnalysisOf[C]> {
+    this.calls.push(kind);
+    this.images.push(input.image);
+    if (this.failWith) throw this.failWith;
+    return out;
   }
 }

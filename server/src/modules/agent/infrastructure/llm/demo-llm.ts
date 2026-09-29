@@ -32,7 +32,7 @@
  *   这也是它可以放心当缺省的原因——**它没有多花一分钱的能力**。
  */
 import type { Occasion } from '../../../shared/index.js';
-import type { LookSpec } from '../../../makeup/index.js';
+import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../../../makeup/index.js';
 // ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
 import { MAX_SCENE_TEXT } from '../../../shared/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
@@ -41,8 +41,8 @@ import {
   RENDER_DECLINED_PREFIX,
   RENDER_DONE_PREFIX,
 } from '../../domain/tools/observations.js';
-import type { Message, ToolResultBlock, ToolUseBlock } from '../../domain/entities/message.js';
-import { textOf, toolUsesOf } from '../../domain/entities/message.js';
+import type { Message, ToolResultBlock } from '../../domain/entities/message.js';
+import { ToolUseBlock, textOf, toolUsesOf } from '../../domain/entities/message.js';
 import type { Llm, LlmRequest, LlmResponse } from '../../domain/ports/llm.js';
 import { mockText, mockTextAndToolCalls } from './mock-llm.js';
 
@@ -70,16 +70,12 @@ const OCCASION_HINTS: readonly { readonly words: readonly string[]; readonly occ
  *   (`test/demo-llm.test.ts` 跑通整条链路,就是这份 spec 能过校验的证据。)
  */
 function demoLook(occasion: Occasion): LookSpec {
-  return {
-    occasion,
-    base: { coverage: 3, finish: 'satin', warmth: 0 },
-    zones: {
-      lip: { tone: 'rose', finish: 'matte', intensity: 3 },
-      cheek: { tone: 'coral', finish: 'satin', intensity: 2 },
-      eyeshadow: { tone: 'nude', finish: 'satin', intensity: 2 },
-      brow: { shape: 'natural', intensity: 2 },
-    },
-  };
+  return new LookSpec(occasion, new LookSpecBase(3, 'satin', 0), {
+    lip: new ZoneSpec('rose', 'matte', 3),
+    cheek: new ZoneSpec('coral', 'satin', 2),
+    eyeshadow: new ZoneSpec('nude', 'satin', 2),
+    brow: new BrowSpec('natural', 2),
+  });
 }
 
 // ── 它要说的话 ───────────────────────────────────────────────────────────────
@@ -166,7 +162,7 @@ export class DemoLlm implements Llm {
 
   private call(name: string, input: unknown): ToolUseBlock {
     this.calls += 1;
-    return { type: 'tool_use', id: `demo-${this.calls}`, name, input };
+    return new ToolUseBlock(`demo-${this.calls}`, name, input);
   }
 }
 

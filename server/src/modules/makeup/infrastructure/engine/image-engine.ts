@@ -2,7 +2,7 @@
  * infrastructure/engine/image-engine.ts —— `Engine` 端口的**真实**实现。
  *
  * ★ **类名刻意不带厂商**:`ImageEngine` 是"真的去画一张图"的那个实现,
- *   与 `MockEngine`(骨架)、`ReplayEngine`(回放)按**行为**区分,而不是按供应商区分。
+ *   与 `MockEngine`(骨架)按**行为**区分,而不是按供应商区分。
  *   接第二家图像 API 时,那里的差异应当沉到 `qwen-request.ts` 同类的位置去,
  *   而不是让本类长出第二个厂商分支。
  *
@@ -27,17 +27,16 @@
  * ⚠️ **本文件不做任何像素级判断。** 它不管妆好不好看、像不像本人——那是 §12.1 实测打分的活。
  *   这里只保证"请求发对了、图下来了"。
  */
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { describeLook } from '../../application/look-description.js';
+import { describeError, isConnectPhaseError, sleep } from '../connect-retry.js';
 import type { Look } from '../../domain/entities/look.js';
 import type { Engine, EngineInput, EngineResult } from '../../domain/ports/engine.js';
-import type { EngineFixture } from './engine-fixtures.js';
-import { FIXTURE_FORMAT_VERSION, imagePathOf, writeFixture } from './engine-fixtures.js';
 import { TEMPLATE_VERSION } from './prompt-builder.js';
 import type { GenerateRequest, QwenRequestOptions } from './qwen-request.js';
-import { buildGenerateRequest, fixtureKeyOf } from './qwen-request.js';
+import { buildGenerateRequest } from './qwen-request.js';
 
 export interface ImageEngineOptions extends Omit<QwenRequestOptions, 'apiHost'> {
   apiKey: string;
@@ -46,13 +45,6 @@ export interface ImageEngineOptions extends Omit<QwenRequestOptions, 'apiHost'> 
   /** 成品图落盘目录(引擎自己写,由调用方/ArtifactStore 收编)。 */
   outputDir: string;
   timeoutMs?: number;
-  /**
-   * 给了就**录制夹具**(§5.4)。
-   *
-   * ★ 缺省 `undefined` = 不录。与所有开关同一条规矩:**缺省值必须没有意外副作用**,
-   *   这里的副作用是"往盘上写文件"。要录就得显式给。
-   */
-  fixturesDir?: string;
 }
 
 const DEFAULT_API_HOST = 'https://dashscope.aliyuncs.com';
@@ -60,50 +52,6 @@ const DEFAULT_MODEL = 'qwen-image-edit-plus';
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DOWNLOAD_TIMEOUT_MS = 120_000;
 const ATTEMPTS = 3;
-
-/**
- * 只重试**连接阶段**错误。判据是「请求**不可能已经送达**」——
- * 连都没连上,重试不会产生第二次计费。
- * ⚠️ **刻意不含 `TimeoutError`**(`AbortSignal.timeout` 触发的那个),理由见文件头。
- */
-const RETRYABLE_CONNECT_CODES = new Set([
-  'UND_ERR_CONNECT_TIMEOUT',
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EPIPE',
-  'EAI_AGAIN',
-  'ENOTFOUND',
-  'UND_ERR_SOCKET',
-]);
-
-function isConnectPhaseError(err: unknown): boolean {
-  let cur: unknown = err;
-  for (let depth = 0; cur instanceof Error && depth < 5; depth++) {
-    const code = (cur as NodeJS.ErrnoException).code;
-    if (code && RETRYABLE_CONNECT_CODES.has(code)) return true;
-    if (cur.name === 'TimeoutError') return false;
-    cur = cur.cause;
-  }
-  return false;
-}
-
-/**
- * ★ `fetch` 失败时 `err.message` **只有 `fetch failed` 三个词**,
- * 真正的原因(ECONNRESET / 证书 / DNS / 代理 / 超时)全在 `err.cause` 里。
- * 不把它打出来,排查就只能靠猜 —— 脚本里第一版就踩了这个坑。
- */
-function describeError(err: unknown): string {
-  const parts: string[] = [];
-  let cur: unknown = err;
-  for (let depth = 0; cur instanceof Error && depth < 5; depth++) {
-    const code = (cur as NodeJS.ErrnoException).code;
-    parts.push(`${cur.message}${code ? ` [${code}]` : ''}`);
-    cur = cur.cause;
-  }
-  return parts.join(' ← ') || String(err);
-}
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 interface ApiSuccess {
   output?: { choices?: { message?: { content?: { image?: string }[] } }[] };
@@ -138,7 +86,7 @@ export class ImageEngine implements Engine {
 
   constructor(private readonly opts: ImageEngineOptions) {
     // ★ `name` 是**运行时值**(进日志、进 `JobResult.engine`),不是类名——
-    //   它要能把三个引擎区分开(mock / replay / 这个),所以带上模型名。
+    //   它要能把两个引擎区分开(mock / 这个),所以带上模型名。
     //   模型名本身来自配置(`QWEN_IMAGE_MODEL`),厂商信息在那里已经公开了。
     this.name = `image:${opts.model || DEFAULT_MODEL}`;
   }
@@ -178,7 +126,7 @@ export class ImageEngine implements Engine {
     // `spec` 必然存在 —— 缺了的话 `buildGenerateRequest` 已经抛过(见那里的注释)。
     // 这里再取一次只为拿到 describeLook 的输入;不要改成非空断言以外的写法。
     const look: Look = {
-      // ★ 与 `MockEngine`('mock')/`ReplayEngine`('replay')**同一套命名**:按做法,不按厂商。
+      // ★ 与 `MockEngine`('mock')**同一套命名**:按做法,不按厂商。
       //   这条不是洁癖:`look.engine` 与本类的 `name`(`image:<model>`,它会进
       //   `JobResult.engine`)是**同一件事的两种说法**,不一致时排查的人得先猜哪个算数。
       //   厂商信息在 `look.model` 与配置里已经写明了,不靠这个字段重复第二遍。
@@ -190,10 +138,6 @@ export class ImageEngine implements Engine {
       model: opts.model,
       templateVersion: TEMPLATE_VERSION,
     };
-
-    if (this.opts.fixturesDir) {
-      this.record(req, json, dest, bytes);
-    }
 
     console.log(
       `[makeup] 出图 ${(bytes / 1024).toFixed(0)}KB · ${(json as ApiSuccess).request_id ?? '无 request_id'}` +
@@ -278,41 +222,5 @@ export class ImageEngine implements Engine {
       ErrorCode.INTERNAL_ERROR,
       `结果图连续 ${ATTEMPTS} 次下载失败。图还在(URL 活 24 小时),可手动 curl 救:\n  ${url}\n  原因:${describeError(lastErr)}`,
     );
-  }
-
-  /** 录一份夹具。★ **写盘失败不影响出图**——录音是副产品,不是主流程的成败条件。 */
-  private record(req: GenerateRequest, json: unknown, imageFile: string, bytes: number): void {
-    const dir = this.opts.fixturesDir;
-    if (!dir) return;
-    try {
-      const key = fixtureKeyOf(req);
-      const recorded = imagePathOf(dir, key);
-      mkdirSync(dir, { recursive: true });
-      copyFileSync(imageFile, recorded);
-
-      const fixture: EngineFixture = {
-        formatVersion: FIXTURE_FORMAT_VERSION,
-        templateVersion: TEMPLATE_VERSION,
-        key,
-        createdAt: new Date().toISOString(),
-        request: {
-          model: req.model,
-          prompt: req.prompt,
-          negativePrompt: req.negativePrompt,
-          parameters: req.body.parameters as Record<string, unknown>,
-          inputs: req.inputDigests,
-        },
-        response: {
-          ...((json as ApiSuccess).request_id ? { requestId: (json as ApiSuccess).request_id } : {}),
-          imageFile: path.basename(recorded),
-          mimeType: 'image/png',
-          bytes,
-        },
-      };
-      const written = writeFixture(dir, fixture);
-      console.log(`[makeup] 已录夹具 ${written}`);
-    } catch (err) {
-      console.warn(`[makeup] 录夹具失败(不影响出图):${describeError(err)}`);
-    }
   }
 }

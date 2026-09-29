@@ -11,25 +11,25 @@
  *   (和它对应的 `declined` 兜底)设置。模型无论怎么措辞都改不了它,
  *   **它甚至连"用户已经同意了"这个谎都撒不出来**,因为那不经过它。
  *
- * ★ **额度与前置条件在"提议"阶段就查一遍**,不是在用户点确认之后才查:
+ * ★ **前置条件在"提议"阶段就查一遍**,不是在用户点确认之后才查:
  *   点完确认再告诉他"不行",是**最坏的一种交互**——用户已经做了决定,
- *   系统却在他决定之后才说自己没准备好。所以缺照片 / 缺妆面 / 超额都在提议时挡回,
+ *   系统却在他决定之后才说自己没准备好。所以缺照片 / 缺妆面都在提议时挡回,
  *   前端因此也拿不到一个点下去必然失败的确认框。
- *   ⚠️ 但 `'approved'` 分支**仍然再查一遍额度**:提议与确认之间隔着一次用户往返,
- *   期间他完全可能又出了一张。这第二遍不是冗余。
  *
  * ✏️ **2026-09-16 起,出图还有第二条入口**(`ConfirmRender` 的入口 B,见那个文件头):
  *   用户点的是**界面按状态自己摆的那条消息**,服务端**合成**一条提议后直接按批准执行。
- *   那一支**没有"提议阶段"**——它一进来就是 `'approved'`,所以那三查(缺妆面 / 缺照片 /
- *   超额)里只有 `render()` 里那第二遍额度检查会跑到。
- *   ★ 这不违背上面那条规矩:用户点下去的前提是**界面已经确认过 `readiness` 与额度**
- *   (视图的 `renderOffer` 只在齐备时才摆出来,额度用尽时连按钮都不给),
- *   所以"点了才说不行"那种形状不会出现。**两处判据同源**(`renderReadiness` / `rendersLeft`)。
+ *   那一支**没有"提议阶段"**——它一进来就是 `'approved'`。
+ *   ★ 这不违背上面那条规矩:用户点下去的前提是**界面已经确认过 `readiness`**
+ *   (视图的 `renderOffer` 只在齐备时才摆出来),所以"点了才说不行"那种形状不会出现。
+ *   **两处判据同源**(`renderReadiness`)。
+ *
+ * ✏️ **2026-09-29:单会话出图配额整条删掉**(原 `AGENT_MAX_RENDERS`,即 §10 `[I3]`)。
+ *   出图这道闸门此后只剩**每次都要人点一遍确认**,没有次数上限。
  */
 import { AppError } from '../../../shared/index.js';
 import { describeLook, validateEngineResult } from '../../../makeup/index.js';
 import type { Engine, EngineInput } from '../../../makeup/index.js';
-import { addRender, renderReadiness, rendersLeft } from '../../domain/entities/session.js';
+import { addRender, renderReadiness } from '../../domain/entities/session.js';
 import type { Session } from '../../domain/entities/session.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import { RENDER_LOOK } from '../../domain/tools/definitions.js';
@@ -47,30 +47,17 @@ import type { PendingConfirmation, Tool, ToolContext, ToolOutcome } from '../../
  *
  * 2026-09-16 端到端实测:缺照片那一支**漏了**这句,模型于是回了
  * 「确认之后我就开始出图」而什么都没弹出来(见 `NO_CONFIRMATION_NOTICE`)。
- * 五个分支各写一遍拼接,早晚还会有第六个分支漏掉——
+ * 三个分支各写一遍拼接,早晚还会有第四个分支漏掉——
  * 所以做成函数,**加分支时想不缀都难**。
  */
 function failure(content: string): ToolOutcome {
   return { content: `${content}${NO_CONFIRMATION_NOTICE}`, isError: true };
 }
 
-/**
- * §10 `[I3]` 的缺省上限。`<= 0` = 不限制。
- * ★ 与 `shared/infrastructure/config.ts` 的 `AGENT_MAX_RENDERS` 缺省值是同一个数,
- *   两处要一起改(同那几个 union 的规矩)。
- *
- * **为什么是 3**:一次对话里值得让用户点三次确认(初版 / 改一版 / 再改一版);
- * 到这个数还没满意,问题多半在妆面方向而不在次数上——
- * 而那件事该由**人**去说清楚,不是靠再多烧几张图碰运气。
- */
-export const DEFAULT_MAX_RENDERS = 3;
-
 export interface RenderLookDeps {
   /** 上妆引擎(makeup 的端口)。★ 依赖方向 agent → makeup,引擎不 import 本模块。 */
   engine: Engine;
   artifacts: SessionArtifacts;
-  /** §10 `[I3]`:`<= 0` 表示不限制(默认值见 `config.ts`,可配)。 */
-  maxRenders: number;
 }
 
 /**
@@ -80,13 +67,11 @@ export interface RenderLookDeps {
  * ⚠️ **刻意不报一个具体的金额**:§15.3 明确记着本项目**未核任何模型的价格**。
  *   编一个"约 0.3 元"出来,是拿一个没人验证过的数字去替用户做花钱的决定。
  *   说"按次计费"是准确的;说多少钱现在说不准。
+ * ⚠️ **同理刻意不报次数**(2026-09-29):出图没有上限了,报一句"还剩 N 张"
+ *   就是在说一件不存在的事。它现在**不带参数**——没有数可传。
  */
-export function renderConfirmationSummary(session: Session, maxRenders: number): string {
-  const left = rendersLeft(session, maxRenders);
-  return (
-    '要现在生成成片吗?这一步会真的出一张图,大约需要 7 秒,并按次计费。' +
-    (maxRenders > 0 ? `这个会话还可以出 ${left} 张(上限 ${maxRenders} 张)。` : '')
-  );
+export function renderConfirmationSummary(): string {
+  return '要现在生成成片吗?这一步会真的出一张图,大约需要 7 秒,并按次计费。';
 }
 
 export class RenderLookTool implements Tool {
@@ -124,16 +109,9 @@ export class RenderLookTool implements Tool {
 
     // ── 三态 ──
     if (context.confirmation === undefined) {
-      const left = rendersLeft(session, this.deps.maxRenders);
-      if (this.deps.maxRenders > 0 && left <= 0) {
-        return failure(
-          `这个会话的出图次数已经用完了(上限 ${this.deps.maxRenders} 张)。` +
-            '请如实告诉用户,并说明可以新开一个会话再出。',
-        );
-      }
       const pending: PendingConfirmation = {
         kind: 'render_look',
-        summary: renderConfirmationSummary(session, this.deps.maxRenders),
+        summary: renderConfirmationSummary(),
       };
       return {
         // ⚠️ **这一段模型读不到,别指望改它来纠行为。** 有 `pendingConfirmation` 时
@@ -165,11 +143,6 @@ export class RenderLookTool implements Tool {
     session: Session,
     spec: NonNullable<Session['lookSpec']>,
   ): Promise<ToolOutcome> {
-    // 第二遍额度检查(见文件头:提议与确认之间隔着一次用户往返)。
-    if (this.deps.maxRenders > 0 && rendersLeft(session, this.deps.maxRenders) <= 0) {
-      return failure(`出图次数已经用完了(上限 ${this.deps.maxRenders} 张),这次没有生成。`);
-    }
-
     const faceRef = session.faceRef!;
     try {
       const faceFilePath = await this.deps.artifacts.resolveFace(session.id, faceRef);
@@ -178,8 +151,8 @@ export class RenderLookTool implements Tool {
         brief: session.brief,
         lookSpec: spec,
       };
-      // ⚠️ `references`(用户上传的风格参考图)这里**故意不传**:照片口只认本人照片一张,
-      //    这条字段当前无生产者。等"风格图进引擎"那一轮再由这里填。
+      // ⚠️ `references`(风格参考图)**已决定不传**:那张图只做文本化分析
+      //    (`styleReadNote` 进 `messages[]`),不进引擎。见 `makeup/README.md` 待办。
       const result = validateEngineResult(await this.deps.engine.generate(engineInput));
 
       // ★ 先落盘再记会话:反过来的话,记完却写失败,会话里就有一张取不到的图。

@@ -42,9 +42,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: {
       fileSize: deps.config.maxUploadMb * 1024 * 1024,
-      // 唯一的 multipart 入口是 `POST /agent/sessions/:id/photo`,它只认两样东西:
-      // 文件 `face` 一个、标量 `userId` 一个(见 agent/presentation/multipart.ts)。
-      // `fields` 比实际多 1 —— 给照片路由将来加字段留的,不是给已删入口的余量。
+      // multipart 入口有**两条**,认的字段名不同(逐字见 agent/presentation/multipart.ts):
+      //   `…/photo`  文件 `face` + 标量 `userId`;
+      //   `…/images` 文件 `file` + 标量 `userId` / `kind`(这条口 `VISION_ANALYZER=off` 时不注册)。
+      // 所以 `files: 1`(每条路由只收一张图)、`fields: 2`(最宽的那条正好两个标量)。
+      // ⚠️ 超出的部分由 `@fastify/multipart` 直接报错,**不会**流进解析器——
+      //   解析器里那两处"放掉多余的流"是给它自己的重复字段用的,别把两者当一回事。
       files: 1,
       fields: 2,
     },
@@ -86,10 +89,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         getSession: deps.agent.getSession,
         sendMessage: deps.agent.sendMessage,
         attachPhoto: deps.agent.attachPhoto,
-        // ★ 唯一会让引擎花钱的入口。它在这里被接到路由上,除此之外没有别的调用点。
+        // ★ 会花钱的两条路之一(另一条是下面的 `analyses`)。它在这里被接到路由上,
+        //   除此之外没有别的调用点。
         confirmRender: deps.agent.confirmRender,
         getRender: deps.agent.getRender,
-        maxRenders: deps.agent.maxRenders,
+        // ★ 读图那两条口。**原样转手,这里一次都不判** —— "这个部署有没有读图能力"
+        //   的判据只有一处(`agent/compose.ts` 是否给 `analyzers`),转到这里已经是
+        //   "有就有、没有就整个键不存在"。⚠️ 漏了这一行就是本仓头号 bug:
+        //   配了 `VISION_ANALYZER=real`、日志也照打"已启用",而路由根本没注册。
+        ...(deps.agent.analysis ? { analysis: deps.agent.analysis } : {}),
       });
     },
     { prefix: API_PREFIX },

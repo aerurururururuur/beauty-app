@@ -17,15 +17,14 @@ export type WeatherProviderKind = 'mock' | 'live';
  * ★ **刻意没有 `off`。** 这一条从 `server/README.md` 到 `src/index.ts` 已经写过三遍:
  *   流水线没有引擎就出不了成品,**接一个 off 分支只会得到又一个假开关**。
  *
- * ★ **`replay` 不是"离线兜底",是"CI 模式"**(§5.4):它只回放录好的夹具,
- *   **未命中就报错**。所以它既不联网、也不出账单、**也不假装能处理任意输入**——
- *   这三件事与 `mock` 都不同,别把两者当同一类东西。
+ * ★ **2026-09-29:`replay` 取值连同 record/replay 夹具整条链删掉了。**
+ *   它从没兑现过(`__fixtures__/` 一直是空的,一份夹具都没录),
+ *   而一个没兑现的取值留在枚举里,读起来就像"离线验收这条路已经通了"。
  *
- * ★ **三个取值一律按「行为」命名,不按厂商**(2026-09-17 改)。
- *   改之前是 `mock | qwen | replay` —— `mock` / `replay` 是按行为,`qwen` 却是按厂商,
- *   一套枚举里混了两种命名法。而类名那边本来是对的(`MockEngine` / `ImageEngine` /
- *   `ReplayEngine`,后者的注释里明写"类名刻意不带厂商"),所以这一处是**配置层
- *   单方面把厂商名焊进了枚举**,读者会以为"真实出图"这件事本身就叫 qwen。
+ * ★ **两个取值一律按「行为」命名,不按厂商**(2026-09-17 改)。
+ *   改之前是 `mock | qwen` —— `mock` 是按行为,`qwen` 却是按厂商,
+ *   一套枚举里混了两种命名法。而类名那边本来是对的(`MockEngine` / `ImageEngine`),
+ *   所以这一处是**配置层单方面把厂商名焊进了枚举**,读者会以为"真实出图"这件事本身就叫 qwen。
  *   现在 `image` 与类名逐一对齐,**再接第二家生图 API 时不必动这个枚举**。
  *
  * ⚠️ **旧名 `qwen` 刻意不做兼容**(2026-09-17 定):它和任何拼错的值一样,
@@ -34,7 +33,7 @@ export type WeatherProviderKind = 'mock' | 'live';
  *   拦不住:`MAKEUP_ENGINE=qwen` 的 `.env` 会照常启动,而出图那一步悄悄把原图交回来
  *   ——正是本项目反复点名的"假开关",只不过是带着一行日志的假开关。
  */
-export type MakeupEngineKind = 'mock' | 'image' | 'replay';
+export type MakeupEngineKind = 'mock' | 'image';
 
 /**
  * 对话 agent 的 LLM 开关。与 `agent/compose.ts` 的同名 union 同形,两处要一起改。
@@ -48,6 +47,21 @@ export type MakeupEngineKind = 'mock' | 'image' | 'replay';
  */
 export type AgentLlmKind = 'mock' | 'real';
 
+/**
+ * 读图分析开关(`face` / `scene` / `style`)。与 `makeup/compose.ts` 的同名 union
+ * 同形,两处要一起改。
+ *
+ * ★ **这个开关可以有 `off`,与 `MakeupEngineKind` 的「刻意没有 off」不矛盾:**
+ *   没有引擎就出不了成品;而**分析今天本来就等于没有**,`off` 说的正是当下的真实状态。
+ *   代价是一条纪律:**`off` 时入口一条都不出现**——不许"收了图但什么都不发生",
+ *   那就是标准的假开关。
+ *
+ * ★ **刻意没有 `mock`。** 引擎的 mock 是安全的——它的产物**就是输入照**,假得**看得见**;
+ *   而分析的 mock 是**造一个结论**:一个编出来的肤色会一路流进妆面单和提示词,
+ *   **假得看不见**。测试要的假货放 `test/helpers/fakes.ts`,不进运行时。
+ */
+export type VisionAnalyzerKind = 'off' | 'real';
+
 export interface ServerConfig {
   host: string;
   port: number;
@@ -55,7 +69,7 @@ export interface ServerConfig {
   /** 数据目录(会话记录 + 输入/产物文件都在这下面)的绝对路径。 */
   dataDir: string;
   maxUploadMb: number;
-  /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)| replay(回放夹具,CI)。 */
+  /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)。 */
   makeupEngine: MakeupEngineKind;
   /** 生图模型名。缺省 `qwen-image-edit-plus`(§4.4 的四次实测全部基于它)。 */
   makeupModel: string;
@@ -63,11 +77,12 @@ export interface ServerConfig {
   makeupApiHost: string;
   /** 引擎成品图的落盘目录。 */
   makeupOutDir: string;
-  /**
-   * record/replay 夹具目录。`image` 时给了就**录**,`replay` 时**必填**(缺了启动即失败)。
-   * ★ 缺省不设:与所有开关同一条规矩——缺省值必须没有意外副作用,这里的副作用是**写盘**。
-   */
-  makeupFixturesDir?: string;
+  /** 读图分析:off(缺省,分析入口根本不注册)| real(真实多模态模型,按 token 计费)。 */
+  visionAnalyzer: VisionAnalyzerKind;
+  /** 视觉模型名。与生图模型并列的第二个模型名(同 key、同域名,不新增凭据)。 */
+  visionModel: string;
+  /** 视觉模型的兼容模式基址。拼法与 `agentBaseUrl` 相同(见那里的注释)。 */
+  visionBaseUrl: string;
   /** 天气源:live(无 key 实拉,缺省)| mock(离线示意兜底)。 */
   weatherProvider: WeatherProviderKind;
   /** 对话 agent 的模型来源:mock(离线兜底,缺省)| real(真实模型,按 token 计费)。 */
@@ -77,13 +92,6 @@ export interface ServerConfig {
   /** 对话模型端点基址。默认由 DASHSCOPE_API_HOST 拼出兼容模式路径。 */
   agentBaseUrl: string;
   /**
-   * §10 `[I3]`:单个会话最多出几张图。`0` 表示**不限制**。
-   * 上限存在的理由不是省钱(单张才几分钱),是**失控**:
-   * 没有上限时,一个循环里的模型可以连续要求出图,而每一次都要用户点确认——
-   * 用户点烦了就会开始闭眼点,那时候"每次确认"这道闸门就已经失效了。
-   */
-  agentMaxRenders: number;
-  /**
    * §10 `[I8]`:会话空闲多少小时算过期(到期**真删**照片与成品图,见 `[I8]` 隐私红线)。
    * 取值见 `.env.example` 那段说明;填 0 无意义(`asPositiveInt` 会回落到缺省)。
    */
@@ -91,13 +99,9 @@ export interface ServerConfig {
   /**
    * 产品库内容目录(`products/<库>/`)的绝对路径。缺省 `server/../products`。
    *
-   * ★ **这是全项目唯一一个「指向不存在 = 关掉功能」的配置项**,所以它的解析方式
-   *   也和其他目录**刻意不同**:`makeupFixturesDir` 走 `optionalAbsDir`
-   *   (空串 = 没给 = 变成 `undefined`),这里**永远返回一个路径**,不存在就让它不存在。
-   *
-   *   区别的理由:夹具目录"没给"和"给了但不存在"是两件事(前者是正常,后者是配错);
-   *   而产品库的**"不存在"本身就是那个开关**——`products/compose.ts` 靠它决定
-   *   agent 注不注册产品工具。若这里也做 `optionalAbsDir`,就没人能表达
+   * ★ **这是全项目唯一一个「指向不存在 = 关掉功能」的配置项**,所以它**永远返回一个路径**,
+   *   不存在就让它不存在(而不是解析成 `undefined`)——`products/compose.ts` 靠它决定
+   *   agent 注不注册产品工具。若这里也做"空串 = 没给"那套,就没人能表达
    *   "我确实不想装产品库"了。回归测试指向一个不存在的路径,靠的正是这一点。
    */
   productsDir: string;
@@ -151,7 +155,6 @@ interface KindChoice<T extends string> {
 const MAKEUP_ENGINE_CHOICES: readonly KindChoice<MakeupEngineKind>[] = [
   { value: 'mock', note: '骨架,把输入照片原样当成品返回' },
   { value: 'image', note: '真实出图,按次计费' },
-  { value: 'replay', note: '回放录好的夹具,不联网' },
 ];
 
 const WEATHER_PROVIDER_CHOICES: readonly KindChoice<WeatherProviderKind>[] = [
@@ -164,12 +167,17 @@ const AGENT_LLM_CHOICES: readonly KindChoice<AgentLlmKind>[] = [
   { value: 'real', note: '真实模型,按 token 计费' },
 ];
 
+const VISION_ANALYZER_CHOICES: readonly KindChoice<VisionAnalyzerKind>[] = [
+  { value: 'off', note: '不注册分析入口(缺省)' },
+  { value: 'real', note: '真实读图,按 token 计费' },
+];
+
 /**
  * ★ **开关取值的唯一解析口。认不出来就抛错——这就是「启动即失败」。**
  *
  * 三种情况分开处置:
  *   1. **没设 / 空串** → 用缺省。这不是错误,是"不配就用缺省"这个正常形态
- *      (`loadDotEnvIfPresent` 会把 `K=` 原样送进来,空串按没给算,同 `optionalAbsDir`)。
+ *      (`loadDotEnvIfPresent` 会把 `K=` 原样送进来,空串按没给算)。
  *   2. **认得的取值** → 用它。
  *   3. **设了但不认得** → 抛错,并把合法取值**连同说明**列全。
  *
@@ -200,31 +208,13 @@ function asKind<T extends string>(
   );
 }
 
-/** 可选目录:空串/空白视同**没给**(而不是"当前目录"),其余解析成绝对路径。 */
-function optionalAbsDir(value: string | undefined): string | undefined {
-  const dir = (value ?? '').trim();
-  return dir === '' ? undefined : path.resolve(dir);
-}
-
 /** 正整数毫秒;非法值回落到缺省,不抛错(与其它开关同一口径)。 */
 function asPositiveInt(value: string | undefined, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
-/**
- * 非负整数。与 `asPositiveInt` **只差在允不允许 0**——
- * 出图上限的 `0` 是一个有意义的取值("不限制"),而 TTL 的 `0` 没有意义,
- * 所以两者不能共用一个函数:共用就得在一处把 0 悄悄改成 1,那是撒谎。
- */
-function asNonNegativeInt(value: string | undefined, fallback: number): number {
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
-}
-
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
-  const makeupFixturesDir = optionalAbsDir(env.MAKEUP_FIXTURES_DIR);
-
   return {
     host: env.HOST ?? '127.0.0.1',
     port: Number(env.PORT ?? 3000),
@@ -241,8 +231,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // 引擎的中间产物放 dataDir 下:**它现在没有任何地方清理**(见 makeup/README 的待办,
     // 属 §10 [I8] 那条"会话 TTL 到期照片与产物被真实删除"的同一笔债)。
     makeupOutDir: path.join(env.DATA_DIR ?? './data', 'engine-out'),
-    // 夹具目录缺省**不设**(见 ServerConfig 里那条注释:缺省不能有写盘副作用)。
-    ...(makeupFixturesDir ? { makeupFixturesDir } : {}),
+    // 分析缺省 off:今天的真实状态就是"没有这个能力"(与两个 mock 缺省同一条理由)。
+    visionAnalyzer: asKind('VISION_ANALYZER', env.VISION_ANALYZER, 'off', VISION_ANALYZER_CHOICES),
+    // ⚠️ 这个缺省名**没实测过**:别把一次"模型不存在"的失败读成"读图形状不对"。
+    //    用之前先 `npm run probe:vision` 确认这个名字在该端点上存在。
+    visionModel: env.QWEN_VISION_MODEL ?? 'qwen-vl-max',
+    // 与 agentBaseUrl 同一个拼法(同 key、同域名开关);它没有单独的开盖变量,理由见 .env.example。
+    visionBaseUrl: `${env.DASHSCOPE_API_HOST ?? 'https://dashscope.aliyuncs.com'}/compatible-mode/v1`,
     // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。
     weatherProvider: asKind('WEATHER_PROVIDER', env.WEATHER_PROVIDER, 'live', WEATHER_PROVIDER_CHOICES),
     // 对话模型缺省 mock:不联网、不出账单(理由见 AgentLlmKind 的注释)。
@@ -254,9 +249,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     agentBaseUrl:
       env.AGENT_BASE_URL ??
       `${env.DASHSCOPE_API_HOST ?? 'https://dashscope.aliyuncs.com'}/compatible-mode/v1`,
-    // ★ 缺省 3 与 `agent/application/tools/render-look.ts` 的 `DEFAULT_MAX_RENDERS`
-    //   是**同一个数**,两处要一起改(同上面那几个 union 的规矩)。
-    agentMaxRenders: asNonNegativeInt(env.AGENT_MAX_RENDERS, 3),
     // ★ 缺省 24 与 `agent/application/usecases/purge-expired-sessions.ts` 的
     //   `DEFAULT_SESSION_TTL_HOURS` 是同一个数,两处要一起改。
     //   这个数**不是调优参数**:它同时是"用户本人的照片在服务端留多久"这个承诺,

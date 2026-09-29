@@ -83,13 +83,8 @@ services:
 volumes:
   olyhks-data:
 
-# ⚠️ 两条已知的"挂进来也用不了":
+# ⚠️ 一条已知的"挂进来也用不了":
 #
-# 1. MAKEUP_FIXTURES_DIR —— 它要的是**容器内**的绝对路径。server/.env 里若写的是宿主路径
-#    (如 D:\...\__fixtures__),容器里不存在,replay 模式会明确报错(不会给假图,这点是好的)。
-#    真要用 replay:把夹具目录也挂进去,并把这一项改成容器内路径。
-#    另外 __fixtures__ 目前只有 README,还没有录过夹具。
-#
-# 2. 数据是**命名卷** olyhks-data,不是宿主目录。想直接在宿主上看任务记录:
-#      docker compose cp server:/data ./data-copy
-#    或者把 volumes 换成 bind mount(- ./server/data:/data),但要自己解决属主。
+# 数据是**命名卷** olyhks-data,不是宿主目录。想直接在宿主上看任务记录:
+#   docker compose cp server:/data ./data-copy
+# 或者把 volumes 换成 bind mount(- ./server/data:/data),但要自己解决属主。

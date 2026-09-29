@@ -2,7 +2,7 @@
  * config.test.ts —— 开关取值的解析口径:**认不出来就抛错,不许静默回落**。
  *
  * 起因之一(2026-09-17):`MAKEUP_ENGINE` 的真出图取值从 `qwen` 改名为 `image`
- * (按行为命名,与 `MockEngine` / `ImageEngine` / `ReplayEngine` 对齐)。
+ * (按行为命名,与 `MockEngine` / `ImageEngine` 对齐)。
  * 改名本身不危险,**危险的是它怎么失败**:
  *
  * > 老 `.env` 里写着 `MAKEUP_ENGINE=qwen`,新代码不认识 → 静默回落 `mock`
@@ -31,10 +31,9 @@ import { loadConfig } from '../src/modules/shared/infrastructure/config.js';
 const envWith = (value: string): NodeJS.ProcessEnv => ({ MAKEUP_ENGINE: value });
 
 describe('MAKEUP_ENGINE —— 取值按行为命名,旧名与错拼都不许静默', () => {
-  it('三个当前取值都认', () => {
+  it('两个当前取值都认', () => {
     expect(loadConfig(envWith('mock')).makeupEngine).toBe('mock');
     expect(loadConfig(envWith('image')).makeupEngine).toBe('image');
-    expect(loadConfig(envWith('replay')).makeupEngine).toBe('replay');
   });
 
   it('★ 不设 = 回落到 mock(离线、不出账单),这不是错误', () => {
@@ -61,7 +60,6 @@ describe('MAKEUP_ENGINE —— 取值按行为命名,旧名与错拼都不许静
     expect(err).toContain('images'); // 把拼错的原值打出来,别让人去猜
     expect(err).toContain('mock'); // 合法取值里那个"本来没想写的"
     expect(err).toContain('image'); // 以及那个"本来想写的"
-    expect(err).toContain('replay');
     expect(err).toContain('.env.example'); // 去哪儿看完整说明
   });
 });
@@ -69,14 +67,16 @@ describe('MAKEUP_ENGINE —— 取值按行为命名,旧名与错拼都不许静
 describe('★ 三个开关同一个口径:认不出来 = 启动即失败', () => {
   // 每项:[环境变量名, 一个不认识的取值, 必须出现在报错里的合法取值]
   const CASES: Array<[string, string, string[]]> = [
-    ['MAKEUP_ENGINE', 'qwen', ['mock', 'image', 'replay']],
+    ['MAKEUP_ENGINE', 'qwen', ['mock', 'image']],
     ['WEATHER_PROVIDER', 'open-meteo', ['mock', 'live']],
     ['AGENT_LLM', 'dashscope', ['mock', 'real']],
   ];
 
   for (const [key, bogus, valid] of CASES) {
     it(`${key}=${bogus} 抛错,并列出合法取值`, () => {
-      const run = (): void => loadConfig({ [key]: bogus });
+      const run = (): void => {
+        loadConfig({ [key]: bogus });
+      };
       expect(run).toThrow(new RegExp(key));
       const msg = (() => {
         try {

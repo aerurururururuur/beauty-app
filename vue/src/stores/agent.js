@@ -109,9 +109,7 @@ export const useAgentStore = defineStore('agent', () => {
    * 这正是这次改动要的:出图不再串在"模型愿不愿意开口"后面。
    *
    * ⚠️ 它**不是"已经出了"的记录**:出完图之后它照旧在,只是 `alreadyRendered`
-   *   变成真、按钮改口叫「再生成一张」。额度用尽时它也在,`left` 是 0(那时不给按钮)。
-   * ⚠️ `left` 是 `null` 表示**不限量**(配置成 `AGENT_MAX_RENDERS=0`),
-   *   **别把 `null` 和 `0` 混起来**——一个是"随便出",一个是"用完了"。
+   *   变成真、按钮改口叫「再生成一张」。
    */
   const renderOffer = computed(() => session.value?.renderOffer || null)
   /**

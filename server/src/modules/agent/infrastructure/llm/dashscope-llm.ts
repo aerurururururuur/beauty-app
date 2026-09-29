@@ -14,7 +14,8 @@
  *                             function: { name: "get_weather", arguments: "{\"city\": \"北京\"}" } }] }
  *
  * ⚠️ **这个区别在平台方改行为时会先于文档失效**(§7.5.2 末)。所以 §11 要求
- * LLM 调用**也要做 record/replay**,别只对生图做——夹具是这条实测的唯一留存。
+ * LLM 调用**要做 record/replay**——这类形状依据全靠实测,而实测会随平台方改行为失效,
+ * 夹具是它唯一的留存(§11)。⚠️ 这条**还没做**;生图那边曾经做过一套,2026-09-29 已删掉。
  *
  * ── 三处必须显式处理的翻译(不做就是 bug,不是疏漏)────────────────────────
  * 1. **`arguments` 是 JSON 字符串,不是对象。** 这是与块式协议的分歧点。解析失败时
@@ -32,7 +33,7 @@
  *    这里一旦加了前缀就与普通正文同形。**换供应商时这一格要重新对一遍。**
  */
 import type { ContentBlock, Message } from '../../domain/entities/message.js';
-import { textOf, toolUsesOf } from '../../domain/entities/message.js';
+import { TextBlock, ToolUseBlock, textOf, toolUsesOf } from '../../domain/entities/message.js';
 import type {
   Llm,
   LlmRequest,
@@ -183,21 +184,22 @@ function toContent(message: Record<string, unknown>): ContentBlock[] {
 
   const text = message.content;
   if (typeof text === 'string' && text.trim() !== '') {
-    blocks.push({ type: 'text', text });
+    blocks.push(new TextBlock(text));
   }
 
   const calls = message.tool_calls;
   if (Array.isArray(calls)) {
     calls.forEach((raw, index) => {
       const call = raw as WireToolCall;
-      blocks.push({
-        type: 'tool_use',
-        // ★ id 缺失要兜底:没有 id 就配不上 tool_result,下一轮必 400。
-        //   实测里 id 是有的(`call_ce5648...`),这只是防御。
-        id: typeof call.id === 'string' && call.id !== '' ? call.id : `call_fallback_${index}`,
-        name: typeof call.function?.name === 'string' ? call.function.name : '',
-        input: parseToolArguments(call.function?.arguments),
-      });
+      blocks.push(
+        new ToolUseBlock(
+          // ★ id 缺失要兜底:没有 id 就配不上 tool_result,下一轮必 400。
+          //   实测里 id 是有的(`call_ce5648...`),这只是防御。
+          typeof call.id === 'string' && call.id !== '' ? call.id : `call_fallback_${index}`,
+          typeof call.function?.name === 'string' ? call.function.name : '',
+          parseToolArguments(call.function?.arguments),
+        ),
+      );
     });
   }
 

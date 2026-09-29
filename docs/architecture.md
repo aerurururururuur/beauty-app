@@ -14,7 +14,7 @@
 - [1. 分层与目录](#1-分层与目录)
 - [2. brief —— 输入的唯一结构化载体](#2-brief--输入的唯一结构化载体)
 - [3. schema vs validator](#3-schema-vs-validator)
-- [4. Job 聚合与进度](#4-job-聚合与进度)
+- [4. 场合判定（纯查表）](#4-场合判定纯查表)
 - [5. HTTP 契约（全部挂 `/api` 前缀）](#5-http-契约全部挂-api-前缀)
 - [6. 配置（env）](#6-配置env)
 - [7. 产品库（`PRODUCTS_DIR`）](#7-产品库products_dir)
@@ -39,11 +39,10 @@ src/
 ├── index.ts                 # 组装根:loadConfig → 各模块 createXxxModule → buildApp → 启停
 ├── app.ts                   # Fastify web shell:cors / multipart / 错误码→HTTP / 挂 /api 路由
 └── modules/                 # ★ 按功能拆模块;模块内部 domain/application/presentation/infrastructure
-    ├── shared/              # 地基:brief 枚举单源 / scene-rules(场合语义·前后端单一源) / AppError(+ compose)
+    ├── shared/              # 地基:brief 枚举单源 / scene-rules(场合语义·前后端单一源) / AppError
     ├── assets/              # 图片存储:ArtifactStore 端口 + 本地文件系统实现
-    ├── references/          # 参考妆面检索:ReferenceImage + 提供器端口 + mock(自绘授权诚实)
-    ├── makeup/              # 上妆引擎:Engine 端口 + Look/ResultText + narration + 输出校验 + mock 引擎
-    ├── jobs/                # Job 生命周期 + 流水线编排:状态机 / 仓库 / 队列 / 用例 / 控制器 / JobView DTO
+    ├── face-catalog/        # 肤色与色号词表:8 档肤色 → 可用色号,给 makeup 收窄色域
+    ├── makeup/              # 上妆引擎:Engine 端口 + 输出校验 + mock/image 引擎 + 读图分析(视觉模型)
     ├── user/                # 账号:昵称+密码(scrypt 哈希,不存明文) / 注册·登录核对·查档案 + JSON 落盘
     ├── weather/             # 当日天气:open-meteo 实拉(无 key)+ WMO 码映射 + mock 兜底 + 查询校验
     ├── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
@@ -52,7 +51,7 @@ src/
 ```
 
 每个模块 = `index.ts`(public barrel,跨模块协作只走它) + `compose.ts`(`createXxxModule` 组合根) + 模块内四层；
-`shared` 只被依赖;`jobs` 是编排者,依赖 assets / references / makeup 的公开端口与工具（妆容方向那一步例外：它是 `shared` 里的纯函数，流水线直接调用，不经端口）。
+`shared` 只被依赖;**没有编排模块**——谁用谁,由各 `compose.ts` 与 `src/index.ts` 装配。
 
 模块间只能走 barrel，是因为模块内部随时可以重构，只要 `index.ts` 不变，别的模块就不受影响。
 直达内部文件等于把内部结构变成了跨模块契约，那种耦合会在重构时以编译错误的形状出现，
@@ -73,41 +72,29 @@ src/
 
 ## 3. schema vs validator
 
-- `jobs/domain/schemas` 只声明**形状**：字段结构、枚举取值、类型、长度上限——没有跨字段规则，不做动作。
-- `jobs/domain/validators`（+ 校验输出的 `makeup/domain/validators`）才是**做校验行为的对象**：输入侧把 multipart 的 `metaRaw` JSON 解析 + 形状校验 + 业务规则一并执行，失败映射成语义错误码；输出侧把关外部引擎产物。
+- `<模块>/domain/schemas` 只声明**形状**：字段结构、枚举取值、类型、长度上限——没有跨字段规则，不做动作。
+- `<模块>/domain/validators` 才是**做校验行为的对象**：形状 + 业务规则一并执行，失败映射成语义错误码。
 
-| 校验器 | 模块·位置 | 行为 |
+| 校验器 | 方向 | 行为 |
 | --- | --- | --- |
-| `jobs/domain/validators/job-submit.validator.ts` | 输入 | face 单张、scene ≤6；`metaRaw` JSON 坏/越界枚举 → `VALIDATION_ERROR`；无 `occasion` 且无 `sceneText` → `CONTEXT_REQUIRED`；清洗 `sceneText`/`dress` 后产出 `SubmitJobInput { face, scenes, brief }` |
-| `jobs/domain/validators/job-id.validator.ts` | 输入 | 路径参数 `:id` 格式，非法抛 `VALIDATION_ERROR` |
-| `makeup/domain/validators/engine-output.validator.ts` | 输出 | 把关引擎产物：成品路径/类型存在；`look.zones/palette` 若声明则坐标/比例 `0..1`、RGB `0..255`、`opacity 0..1`、`blur ≥ 0`，非法抛 `INTERNAL_ERROR`（任务置 failed） |
+| `shared/domain/validators/brief-fields.validator.ts` | 输入 | 简报字段的跨字段规则：枚举闭集、长度；开会话与 `patch_brief` 共用同一份 |
+| `agent/domain/validators/agent-http.validator.ts` | 输入 | 对话那几条口的入参：`userId` 必填、发话 ≤1000 字、分析 `kind` ∈ 三个 case、上传 `kind` ∈ `{style, scene}` |
+| `makeup/domain/validators/look-spec.validator.ts` | 输入 | 妆面单的闭集与区间（`propose_look` 的入参） |
+| `makeup/domain/validators/analysis.validator.ts` | 输入 | 读图分析的越界即抛，**绝不就近映射** |
+| `makeup/domain/validators/engine-output.validator.ts` | 输出 | 成品路径/类型存在；`look.zones/palette` 若声明则坐标/比例 `0..1`、RGB `0..255`、`opacity 0..1`、`blur ≥ 0`，非法抛 `INTERNAL_ERROR` |
 
 形状和行为分成两层是有原因的：schema 管什么样的数据算合法，validator 管合法数据能不能做这件事。
 混在一起，前端复用 schema 做表单校验时就会连带拖进业务规则；分开之后 schema 可以被前端直接拿去用。
 
-## 4. Job 聚合与进度
+## 4. 场合判定（纯查表）
 
-状态机 `queued → running → done | failed`，步骤单调推进：
+`shared/domain/scene-rules.ts` 的**纯函数** `describeScene(brief)`：按 `brief.occasion` 定 `label`，
+取不到就试 `brief.sceneText` 的关键词命中，再取不到兜底 `daily`；然后**叠一层自由文字里的修饰词**
+（低调、加浓、利落、温柔、提气色各追加对应 tag 并在 `direction` 后接一句），
+产出 `SceneDescriptor{ label, direction, tags }`。修饰词**只改 `direction` 与 `tags`**，
+不改 `label`、不动色板。判定规则是前后端单一源，详见 `modules/shared/README.md`。
 
-| step | progress |
-| --- | --- |
-| `queued` | 0 |
-| `scene_understand` | 20 |
-| `reference_gather` | 40 |
-| `makeup_generate` | 70 |
-| `store_result` | 100(done) |
-
-流水线语义：第一步的妆容方向不是外接能力，而是 `shared/domain/scene-rules.ts` 的**纯函数**
-`describeScene(brief)`。它按 `brief.occasion` 定 `label`，取不到就试 `brief.sceneText` 的关键词命中，
-再取不到兜底 `daily`；然后**叠一层自由文字里的修饰词**，低调、加浓、利落、温柔、提气色各追加
-对应 tag 并在 `direction` 后接一句；最后产出 `SceneDescriptor{ label, direction, tags }`。
-`ReferenceProvider` 按 label 取场合样本，`Engine` 按 **occasion 基准风格 × skinTone 调深浅**
-生成 `Look`，其中 `zones` 供前端 CSS 叠加。标识符沿用 `scene` 这个词，中文写「场景」或「场合」
-都行，语义已场合化。
-
-修饰词**只改 `direction` 与 `tags`**，也就是只改文案和前端 chip，不改 `label`、不动色板，
-所以判定结果与妆效和从前一致。判定规则是前后端单一源，前端浏览器 mock 模式直读同一份，
-详见 `modules/shared/README.md`。
+⚠️ **当前零消费者**：表单流水线与前端 mock 那条消费链都随 `jobs` 删了（见 §8）。
 
 **没有「场景理解」模块**，2026-09-10 删掉了。方向是一个纯查表函数，它没有可替换的实现，
 所以既不该有端口，也不该有开关。曾经包着它的那个模块，全部内容是一个 `sleep`、
@@ -118,17 +105,14 @@ src/
 
 ## 5. HTTP 契约（全部挂 `/api` 前缀）
 
-契约类型唯一真源在 `modules/jobs/domain/api/job-view.ts`。
+契约类型：请求形状在 `<模块>/domain/schemas/api/`，响应视图在 `<模块>/application/*-view.ts`（agent 的是 `agent-view.ts`）。
 
 | 方法 & 路径 | 说明 |
 | --- | --- |
-| `POST /api/jobs` | multipart：`face`(1 张，必填)、`scene`(0..6，可选氛围参考图)、`meta`(JSON 简报，字符串标量)。`brief` 含 `occasion` 或 `sceneText` 至少其一 → **202** `{ id, status, progress, step }` |
-| `GET /api/jobs/:id` | 任务视图 `JobView`，轮询到 `status: done`；`inputs` 回显 `brief`，含 `scene` / `references` / `result` |
-| `GET /api/jobs/:id/result` | 成品图片字节流（带 Content-Type）。骨架 mock 引擎把本人照片原样收编为产物并返回 `resultUrl`；纯浏览器 mock（无后端）的 `resultUrl` 为空，预览由前端按 `look.zones` CSS 叠加 |
 | `POST /api/users` | JSON `{ nickname, password }` → **201** `UserView{ id, nickname, createdAt }`(昵称唯一；密码只存 scrypt 凭据) |
 | `POST /api/users/login` | JSON `{ nickname, password }` → **200** `UserView`；不符 → 401 `INVALID_CREDENTIALS`。**只核对，不签发 token**（登录态未做） |
 | `GET /api/users/:id` | 账号档案 `UserView`(响应**永不含密码/凭据**) |
-| `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /jobs` 的 `meta.weather`（`place`/`source` 是回显元信息，**不进 meta**——weather schema 是 `.strict()`）；失败就不填 |
+| `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /api/agent/sessions` 的 `weather`（`place`/`source` 是回显元信息，**不进 weather**——weather schema 是 `.strict()`）；失败就不填 |
 | `POST /api/cabinet/items` | JSON `{ userId, name, attributes? }` → **201** `CosmeticItemView`。`attributes` 是 `{label,value}[]` 的**自定义**键值（≤12 条，标签去重），名称 ≤40 字 |
 | `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
 | `PATCH /api/cabinet/items/:id` | JSON `{ userId, name?, attributes? }` → **200** `CosmeticItemView`。两者**至少给一个**（都不给 = 空操作，直接 422） |
@@ -137,7 +121,9 @@ src/
 | `GET /api/agent/sessions/:id?userId=` | → **200** 会话视图。刷新页面接着看；归属走查询串 |
 | `POST /api/agent/sessions/:id/messages` | JSON `{ userId, text }`（text ≤1000 字）→ **200** 会话视图 + `stopReason` + 本轮 `events[]` |
 | `POST /api/agent/sessions/:id/photo` | multipart，字段 `face`（文件，仅图片）+ `userId` → **200** 会话视图。照片**字节不进对话记录**，会话里只留一个引用 |
-| `POST /api/agent/sessions/:id/render` | JSON `{ userId }`，**一个出图参数都不收** → **200** 会话视图 + `events[]`。★ **全项目唯一会花钱的入口**：模型只能提议，出图必须由用户点这一下。没有挂着的待确认请求 → 422 |
+| `POST /api/agent/sessions/:id/images` | multipart，字段 `file` + `userId` + `kind`（`style` / `scene`）→ **200** 会话视图。收图，**不分析**（免费）。`VISION_ANALYZER=off` 时**不注册**（404） |
+| `POST /api/agent/sessions/:id/analyses` | JSON `{ userId, kind }`，`kind` ∈ `face` / `scene` / `style`，**不收任何分析参数** → **200** 分析结果视图。★ **会花钱的入口之一**（另一条是 `render`）：用户点了才跑。★ 「用户填的优先」——`brief` 已有值 ⇒ **不调分析器**，回 `would_overwrite`（没花钱）。`VISION_ANALYZER=off` 时**不注册**（404） |
+| `POST /api/agent/sessions/:id/render` | JSON `{ userId }`，**一个出图参数都不收** → **200** 会话视图 + `events[]`。★ **会花钱的入口之一**（另一条是 `analyses`）：模型只能提议，出图必须由用户点这一下。没有挂着的待确认请求 → 422 |
 | `GET /api/agent/sessions/:id/renders/:seq?userId=` | → **200** 图片字节（`content-type` 随产物；`seq` 从 1 起）。先查归属、再查记录、最后才碰存储 |
 | `GET /api/health` | 存活检查 `{ ok, name, uptimeSec, now }` |
 
@@ -150,11 +136,6 @@ src/
 
 | 错误码 | HTTP | 触发 |
 | --- | --- | --- |
-| `JOB_NOT_FOUND` | 404 | 任务不存在 |
-| `JOB_NOT_READY` / `JOB_FAILED` | 409 | 任务未就绪 / 已失败 |
-| `FACE_REQUIRED` | 422 | 未上传本人照片 |
-| `CONTEXT_REQUIRED` | 422 | 既无 occasion 也无自由文字 |
-| `SCENES_MAX_EXCEEDED` | 422 | 氛围参考图 >6 |
 | `LOCATION_REQUIRED` | 422 | 天气查询既没给 city 也没给 lat/lon |
 | `CITY_NOT_FOUND` | 404 | 城市名解析不到坐标 |
 | `WEATHER_UNAVAILABLE` | 502 | 上游天气源超时 / 断网 / 返回体不合预期（前端据此**整个不带 `weather` 提交**，不阻塞提交；没有手动预设这条回落路） |
@@ -165,7 +146,7 @@ src/
 | `RENDER_NOT_FOUND` | 404 | 成品图号不存在**或不属于该会话**。与上一条**分开**：归属已先查过，这里是真的没有那张图 |
 | `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
 | `INVALID_CREDENTIALS` | 401 | 昵称或密码不正确（两者共用，不泄露账号是否存在） |
-| `VALIDATION_ERROR` | 422 | meta JSON 非法 / 枚举越界 / face>1 / 昵称密码不合规等 |
+| `VALIDATION_ERROR` | 422 | 形状或业务规则不合规：枚举越界、缺图、昵称密码不合规等 |
 | `INTERNAL_ERROR` | 500 | 引擎输出不过关等内部错误 |
 | 框架级（如文件超限） | 保留原状态码(413) | — |
 
@@ -175,15 +156,6 @@ src/
 加新错误码时请沿用这一条。
 
 ### 5.2 提交示例
-
-```bash
-curl -s -F "face=@../vue/public/demo/demo-photo.svg" \
-     -F "scene=@../vue/public/demo/scenery.svg" \
-     -F 'meta={"occasion":"interview","sceneText":"正式终面","skinType":"combination","skinTone":"tan","dress":"西装·藏青","weather":{"condition":"晴","temperatureC":24,"humidityPct":45,"uvIndex":3}}' \
-     http://localhost:3000/api/jobs
-```
-
-> `face` 必填；`scene` 可省；`meta` 可省 `occasion`，但至少要带 `sceneText`（或用文字关键词）。curl 不带 `Content-Type` 时会按扩展名兜底推断为图片类型。
 
 账号（JSON 体，注意 `Content-Type: application/json`）：
 
@@ -241,24 +213,23 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
-| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）/ `replay`（回放夹具，不联网）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 会让**表单路径（`POST /api/jobs`）不可用**：真实引擎需要妆面单（`LookSpec`），而表单不传它。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**）。★ 2026-09-18：四个开关的取值一律**写错即启动失败**（报错列出合法取值），不再静默回落、也不再"喊一声继续跑" |
-| `MAKEUP_FIXTURES_DIR` | — | 录制/回放的夹具目录（绝对路径）。**不设就不录**——缺省值不能有意外副作用，这里的副作用是写盘。`replay` 时**必填** |
+| `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 只在**对话 agent** 那条路上可用：真实引擎需要妆面单（`LookSpec`）。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**）。✏️ 2026-09-29：删掉 `replay` 取值与整套 `MAKEUP_FIXTURES_DIR` 夹具链——那份夹具一份都没录过，「引擎离线可验」这条验收从未兑现，留着读起来却像"已经通了"。★ 2026-09-18：开关的取值一律**写错即启动失败**（报错列出合法取值），不再静默回落、也不再"喊一声继续跑" |
 | `QWEN_IMAGE_MODEL` | `qwen-image-edit-plus` | 仅 `MAKEUP_ENGINE=image` 用（这是个**模型名**，与那个开关值不是一回事）。`qwen-image-edit`（无后缀）不认 `size`/`prompt_extend`，代码按模型能力归一化 |
-| `REFERENCE_PROVIDER` | `mock` | `mock`（离线兜底）或 `live`（外部检索，**已接通**，见 `references/compose.ts`）。✏️ 2026-09-18：`live` 原名 `bing`，同时删掉了 `off`——它只会得到又一个假开关 |
+| `VISION_ANALYZER` | `off` | 读图分析（face→肤色 / scene→场合 / style→妆面读数）：`off`（那两条入口**根本不注册**）/ `real`（**按 token 计费**）。产物**只补空**——用户填过的不覆盖，也不为此花钱。★ 刻意**没有** `mock`（见 `.env.example`）。⚠️ `real` 的请求形状与模型名都没实测过，先跑 `npm run probe:vision` |
+| `QWEN_VISION_MODEL` | `qwen-vl-max` | 仅 `VISION_ANALYZER=real` 用。⚠️ 模型名未实测，同上 |
 | `WEATHER_PROVIDER` | `live` | `live`（无 key 实拉）或 `mock`（离线示意，**现场断网演示前切**）。✏️ 2026-09-18：`live` 原名 `open-meteo`（那是**上游名**，现在的开关值一律按行为命名；响应里的 `source` 仍报上游名） |
 | `AGENT_LLM` | `mock` | 对话 agent 的模型：`mock`（**脚本化演示**——离线、不花钱、**不是模型**）或 `real`（真实模型，**按 token 计费**）。★ 这里缺省**不是**实拉，与 `WEATHER_PROVIDER` 相反，理由是花钱——缺省值必须是「不会意外产生账单」的那个。✏️ 2026-09-18：`real` 原名 `dashscope`（那是**厂商名**，与 `MAKEUP_ENGINE` 的 `image` 同一条命名规矩） |
 | `AGENT_MODEL` | `qwen-flash` | 仅 `real` 用。实测候选（`flash` / `plus` / `max`）见 `scripts/probe-tool-calling.ts` |
 | `AGENT_BASE_URL` | 由 `DASHSCOPE_API_HOST` 拼出 | 仅 `real` 用。走自建代理/网关时才设 |
-| `AGENT_MAX_RENDERS` | `3` | 单会话最多出几张图（§10 `[I3]`），`0` = 不限制。★ 上限的理由**不是省钱**是**防失控**：没有它模型可以一直要，用户点烦了就会闭眼点，那时「每次确认」这道闸门就名存实亡 |
 | `AGENT_SESSION_TTL_HOURS` | `24` | 会话空闲多久算过期（§10 `[I8]`），到期**真删**照片与成品图。★ **它同时是「用户本人的照片在服务端最多留多久」这个承诺，改大它等于改隐私条款**。清理每小时扫一次（`src/index.ts` 的 `PURGE_INTERVAL_MS`），扫**两遍**：第二遍从盘上反查**没有会话认领的目录**并真删，所以**进程重启后上一轮留下的照片也会被删掉**（不是只在"没重启过"时才成立） |
 | `PRODUCTS_DIR` | `../products/ysl-property` | 产品库内容目录（绝对路径）。**用户主动问起产品时** agent 靠它推荐（★ 不是妆容做完就自动推，见 §7）。★ **三种加载结果口径不同，见 §7**——尤其是「坏数据启动即失败」这一条是**故意**的 |
-| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=real` 或 `MAKEUP_ENGINE=image` 时**必填**（缺 key 启动即失败） |
+| `DASHSCOPE_API_KEY` | — | `AGENT_LLM=real` / `MAKEUP_ENGINE=image` / `VISION_ANALYZER=real` 时**必填**（缺 key 启动即失败） |
 | `DASHSCOPE_API_HOST` | `https://dashscope.aliyuncs.com` | 上面两条路径共用的端点基址 |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
 
 ★ **缺省值的一贯规矩：缺省必须选不会意外产生副作用的那一个。**
-所以 `AGENT_LLM` 和 `MAKEUP_ENGINE` 都缺省 `mock`，副作用是账单；`MAKEUP_FIXTURES_DIR` 缺省不设，
-副作用是写盘。唯一相反的是 `WEATHER_PROVIDER` 缺省 `live`，因为那是免费公开接口，实拉没有代价。
+所以 `AGENT_LLM` / `MAKEUP_ENGINE` 缺省 `mock`、`VISION_ANALYZER` 缺省 `off`，副作用都是账单。
+唯一相反的是 `WEATHER_PROVIDER` 缺省 `live`，因为那是免费公开接口，实拉没有代价。
 
 ⚠️ **`DASHSCOPE_API_KEY` 刻意不是 `ServerConfig` 的一个字段，而是 `readDashScopeApiKey()` 函数读的。**
 `ServerConfig` 会被传进 `buildApp` 并长期挂在 `app` 上，任何一次 `app.log.info(config)` 式的调试
@@ -283,7 +254,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | 正常 | 打一行 `info`（条数 + 源资料），有已知数据债再打一行 `warn` | 见下 |
 
 ★ **「坏数据启动即失败」是本项目里唯一一处刻意偏离「懒读」惯例的地方。** 本项目此前没有
-「启动时急切扫目录」的先例（`references` 硬编码常量、`makeup` 夹具懒读、`assets`/`user` 懒读 +
+「启动时急切扫目录」的先例（`assets` / `user` 懒读 +
 `existsSync` 挡）。这里选急切，理由只有一条但足够：**懒读意味着一条字段损坏的产品要到
 「对话进行到一半、模型真去读它」时才暴露**，而那时用户正等着推荐。同 `makeup/compose.ts`
 那句话——配置错了却「能启动」，是最容易拖到演示当天才炸的一类问题。
@@ -325,20 +296,18 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 
 **业务与模块**
 
-- `job-state.test.ts` — Job 状态机与步骤迁移。
-- `submit-job.test.ts` / `run-pipeline.test.ts` — 用例端到端，走假端口，brief 驱动 occasion → look。
 - `schemas.test.ts` — 纯形状：结构、格式、长度、严格模式。
-- `validator.test.ts` — 输入业务规则码，含 `CONTEXT_REQUIRED` 与 meta JSON；输出几何与颜色把关。
+- `validator.test.ts` — 输入业务规则码；输出几何与颜色把关。
+- `face-catalog.test.ts` — 8 档肤色 → 色号词表。
 - `user.test.ts` — 注册、重名、登录成败、查档案；外加真实 JSON 仓库与 scrypt 凭据，守「明文不落库、视图不含凭据」。
 - `weather.test.ts` — WMO 码映射、查询校验、用例错误翻译；open-meteo 适配器打桩 fetch，单测不联网。
-- `references.test.ts` — 分两段。`parseBingHits` 是纯函数，喂真实形状的 HTML 片段；
-  `BingReferenceProvider` 测的是降级契约——抓取失败必须回空数组，绝不抛错。
 - `cabinet.test.ts` — 衣橱边界：空名、超长、特性重名、控制字符、空更新。用例层验 `USER_NOT_FOUND`
   与 `CABINET_FULL`，越权改删报 404 且原数据一个字没动，真实 JSON 仓库用 `mkdtemp` 验「重启后还在」。
-- `config.test.ts` — 四个开关的取值解析：合法值通过，**不认识的取值抛错**，报错里必须出现
+- `config.test.ts` — 各开关的取值解析：合法值通过，**不认识的取值抛错**，报错里必须出现
   环境变量名、收到的原值、全部合法取值与 `.env.example`。另钉住「留空/全空白 = 没给 = 走缺省，
   不抛错」这条边界。★ 2026-09-18 之前钉的是"回落 `mock` 并打一声 `warn`"。
-- `multipart-upload.test.ts` — ★ 两个 multipart 解析器 `agent/` 与 `jobs/` 的上传回归。
+- `multipart-upload.test.ts` — ★ `agent/` 那两条 multipart 口（`photo` 与 `images`）的上传回归：
+  大于 16 KB 的流必须在**出循环之前**开始读，否则永远挂住。
   在此之前 `test/` 里没有任何 HTTP 层的上传用例，两条路走的都是假的上传流，
   真实字节流的坑在单测里看不见。
 
@@ -346,8 +315,8 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 
 - `mock-engine.test.ts` — 调色行为：occasion 换风格、skinTone 深色加深、缺省取**词表 `isDefault` 那一档**
   （不写死档位名 —— 词表把缺省档挪走之后，写死的那条测试会照样绿）。
-- `makeup-engine.test.ts` — `ImageEngine` 的请求组装与下载重试，打桩 fetch。外加 record/replay：
-  录完能离线回放同一张图，**模板版本变了就算未命中**。
+- `makeup-engine.test.ts` — `ImageEngine` 的请求组装与下载重试，打桩 fetch；外加提示词口径那几条不变量
+  （肤色写不写会改措辞、写哪一档不会）。
 - `makeup-prompt.test.ts` — ★ 提示词模板的零漂移门槛：产出里不许出现几何词、构图词、服装词、背景词。
   依据是 §4.4 的四次实测，见 `makeup/README.md`。
 - `products.test.ts` — 内容库加载口径：「不存在的目录」关掉功能，「存在但坏」**启动即失败**；
@@ -363,15 +332,14 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 - `agent-loop.test.ts` — ★ harness 状态机。§11 称它是「这一层唯一真正的风险控制」。
   用 mock LLM 脚本驱动，逐个钉住 `agent-loop.ts` 文件头那六条不变量：assistant 原样回填、
   同轮结果装进同一条 user 消息、副作用按顺序折叠、工具失败与未知工具名都照样回 observation、
-  迭代上限与超时不抛错、LLM 不可达时点名 `POST /api/jobs` 那条出路。
+  迭代上限与超时不抛错、LLM 不可达时给一条可行动的出路。
 - `agent-tools.test.ts` — 工具行为与系统提示的硬规则。行为侧：空补丁标 isError、空串不覆盖旧值、
   肤色已知才收窄色域、自由文本塞不进来。另有手写 JSON Schema 与 zod 的样例双向校验——
   枚举从实体常量取，那份有测试兜；结构只能靠同一份样例喂两边。提示词侧：不许写提示词、
   肤色不许猜、调用 `render_look` 不等于出图必须停下等用户。
 - `agent-render.test.ts` — ★ 人在回路那条链，本模块最贵也最容易写错的一段。`render_look` 三态：
   首次只弹确认且引擎一次都没被调用，`declined` 明说没出图也没花钱，`approved` 才真调引擎并落盘。
-  缺妆面、缺照片、超额都在提议阶段挡回；上限在提议与确认之间被追平就不再出；重放整轮时其余工具
-  必须可重入，提两次确认引擎仍是 0 次调用。确认框文案含「按次计费」但不含任何金额。
+  缺妆面、缺照片都在提议阶段挡回；重放整轮时其余工具必须可重入，提两次确认引擎仍是 0 次调用。确认框文案含「按次计费」但不含任何金额。
   `attachPhoto` / `confirmRender` / `getRender` / `PurgeExpiredSessions` 的归属校验与顺序也在这里，
   包括「先删文件再删记录」和「一条失败不中断整轮」。视图只在真挂着待确认时给 `pendingRender`，
   永不透出 `messages[]`。真盘上的 `ArtifactStore.remove` 验递归删、`s10` 不受影响、`remove('..')` 被拦。
@@ -385,6 +353,10 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   停在等确认、引擎一次都没调；带 `'approved'` 重放后真出图并记下第 1 张；换句话变 `declined` 后
   待确认被收掉且不再提议出图，再聊一句也不提议，宁可如实说「脚本演完了」；新会话能从头再演一遍，
   这是它按状态求值、不按顺序取脚本的理由。
+- `analysis.test.ts` — ★ 读图那一轮（用户点了才跑）。三个适配器**越界一律抛错**（含 `unknown` 这条
+  失败通道）；「用户填的优先」断言的是**一次都没调**；`VISION_ANALYZER=off` 时两条入口 **404**；
+  端到端走 `buildApp` 验收图 → 分析 → 落点。★ 它管不了的那半句写在文件头：真实端点的请求形状
+  与回复长相全靠 `npm run probe:vision`，本轮**没跑过** —— 单测全绿不等于这条路验过。
 - `helpers/fakes.ts` — 共用的内存假端口。★ 给端口加方法时记得在这里补假实现。
 
 ## 9. 换真实实现（接缝在哪）
@@ -394,9 +366,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 - **真实上妆引擎**：实现 `modules/makeup/domain/ports/engine.ts` 的 `generate()`，
   产物仍交给 `makeup/domain/validators/engine-output.validator.ts` 把关。**已接通**，
   `MAKEUP_ENGINE=image`，2026-09-16 落地；该取值 2026-09-17 之前叫 `qwen`。
-  ★ 它的**唯一消费者是对话 agent**，见 §8.1——表单那条路不传妆面单，所以 `image` 下不可用。
-- **真实参考检索**：实现 `modules/references/domain/ports/reference-provider.ts`，网页或图库皆可。
-  需遵守授权条款并回填 `license` / `sourceUrl`。
+  ★ 它的**唯一消费者是对话 agent**：真实引擎需要妆面单（`LookSpec`）。
 - **换账号存储或哈希算法**：实现 `modules/user/domain/ports/user-repository.ts`
   或 `password-hasher.ts`，在 `user/compose.ts` 换实现。用例与路由不变。
 - **换天气源**：实现 `modules/weather/domain/ports/weather-provider.ts`，
@@ -412,11 +382,15 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   现在写第二个没人调用的分支，是一段没有实测支撑、也没人会发现的代码；真要换时再写，
   那时才有验证它的场合。
 
-**视觉大模型。** 想做的时候注意，`describeScene` 是纯函数，没有端口可换，所以接视觉模型
-不是「换个实现」，而是新建一个模块：在它自己的 `domain/ports` 里声明端口，
-在 `compose.ts` 里按 `config` 分发，由 `run-pipeline.ts` 代替直接调 `describeScene`。
-届时务必同时留一个 `off` 逃生门，模型现场翻车时退回纯查表，那正是已删的 `OffSceneAnalyzer`
-唯一的用途。另：它默认必须关闭，且**不得让氛围参考图重新变成风格主输入**，见红线 §13-1 / §13-3。
+**读图分析（视觉模型）。** ★ **已接通**，2026-09-29：`VISION_ANALYZER=real`。端口是
+`makeup/domain/ports/analyzer.ts`（一个 case 一个适配器）与 `infrastructure/vision/vision-client.ts`
+（唯一与厂商说话的缝），分发在 `makeup/compose.ts`。**用户点了才跑**——它不是工具，模型碰不到；
+`off` 时那两条入口**根本不注册**，退回用户自己填 brief。
+★ 三个 case 都只回答「把图分进哪个闭集」，越界即抛错、**不许兜底**：一个编出来的肤色会一路
+流进妆面单和提示词。⚠️ 请求形状与模型名都 `[未验证]`，先跑 `npm run probe:vision`。
+★ 端口放 `makeup` 而不新建模块的理由与代价见 `makeup/README.md`。
+另：**不得让氛围参考图重新变成风格主输入**（红线 §13-1 / §13-3）——风格图只做文本化分析，
+读数只能落进 `LookSpec` 的闭集，**不进引擎**。
 
 ★ 「接缝」和「假开关」的区别，就是这份清单存在的意义。上面每一条都是真有第二个实现、
 或者已经有明确要接的第二个实现，才值得留的口子。给一个永远不会拨到第二个值的开关，

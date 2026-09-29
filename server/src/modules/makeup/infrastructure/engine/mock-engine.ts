@@ -8,7 +8,8 @@
  * ★ 真实引擎(参数化上妆 / 第三方图像 API)只需实现 domain/ports/engine.ts 的 2 个成员。
  */
 import type { SkinTone } from '../../../shared/index.js';
-import type { Look, MakeupZone } from '../../domain/entities/look.js';
+import { MakeupZone } from '../../domain/entities/look.js';
+import type { Look } from '../../domain/entities/look.js';
 import type { Engine, EngineInput, EngineResult } from '../../domain/ports/engine.js';
 
 type RGB = [number, number, number];
@@ -110,15 +111,18 @@ export class MockEngine implements Engine {
     // 风格只认 brief 里的场合;拿不到就是 `STYLES.daily` 那套基线。
     const { style, palette } = specFor(input.brief?.occasion, tone);
 
-    const zones: MakeupZone[] = ZONES.map((z) => ({
-      role: z.role,
-      anchor: z.anchor,
-      size: z.size,
-      rgb: palette[z.role],
-      blend: 'multiply',
-      blur: z.blur,
-      opacity: z.opacity,
-    }));
+    const zones: MakeupZone[] = ZONES.map(
+      (z) =>
+        new MakeupZone(
+          z.role,
+          z.anchor,
+          z.size,
+          palette[z.role],
+          'multiply',
+          z.blur,
+          z.opacity,
+        ),
+    );
 
     // ⚠️ **这份 `look` 目前没有任何消费者读它。** 出图那条路(`agent` 的 `render_look`)只取
     //    `resultFilePath` / `mimeType`,给人看的那句话是 `describeLook(spec)` 现算的;

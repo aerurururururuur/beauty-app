@@ -175,14 +175,6 @@ const errorNote = ref('')
 // ---- 出图那条消息 ----
 
 /**
- * ★ 额度用尽(服务端说 `left === 0`)⇒ 那条消息只剩一行说明,**不给按钮**。
- * 一个点下去必然失败的动作不该出现在屏幕上——判据来自服务端,不是本页自己数张数。
- * ⚠️ `left === null` 是**不限量**(`AGENT_MAX_RENDERS=0`),别和"用完了"混起来:
- *   混了就会把一个能用的按钮藏起来。
- */
-const quotaOut = computed(() => store.renderOffer?.left === 0)
-
-/**
  * ★ 页面上**唯一**那条出图请求上那一下 —— 全项目唯一会花钱的点击。
  * ⚠️ **不再有第二个函数**:模型提的那条(`pendingRender`)与界面自己摆的那条
  * (`renderOffer`)走的是**同一条路由、同一个请求体**,由服务端按会话状态分派。
@@ -319,16 +311,10 @@ function captionFor(seq) {
              ⚠️ 文案**一个字的措辞都不自己加**:费用与时长那句来自服务端唯一一份
                 `renderConfirmationSummary`(不编金额,见那个函数)。 -->
         <div v-if="store.renderRequest" class="offer">
-          <p class="offer-text">
-            {{ quotaOut ? `这个会话的出图次数已经用完了(上限 ${store.renderOffer.max} 张)。` : store.renderRequest.summary }}
-          </p>
-          <!-- ★ 额度用尽 ⇒ 只留一行说明,**不给按钮**(不让用户看到一个点下去必然失败的动作)。
-               那条消息本身照旧显示:妆面定了、照片也有了,用户当然会想"那图呢"——
-               一片空白什么都不说,比说一句"次数用完了"更像坏了。 -->
-          <p v-if="quotaOut" class="offer-note">想接着出图,新开一段对话就行。</p>
+          <p class="offer-text">{{ store.renderRequest.summary }}</p>
           <!-- ★ 出图期间禁用:按下去就是花钱,不能让它在飞的时候还能再按第二下。
                (第二道在服务端——按会话的进程内锁;两道都是缓解,不是"已经安全了"。) -->
-          <button v-else class="btn btn-primary offer-btn" :disabled="busy" @click="onConfirm">
+          <button class="btn btn-primary offer-btn" :disabled="busy" @click="onConfirm">
             <Icon name="sparkle" :size="15" />
             <!-- ★ 出过这一套就改口:这条消息**不会**在出完图之后消失,
                  出完还写着「确认生成」读起来像"刚才那件事还没做完",诱着用户再点一次。 -->
@@ -595,13 +581,6 @@ function captionFor(seq) {
   font-size: 12.5px;
   line-height: 1.8;
   color: var(--c-ink-soft);
-}
-
-.offer-note {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.7;
-  color: var(--c-ink-faint);
 }
 
 .offer-btn {

@@ -27,12 +27,11 @@
  * ★ **两条入口共用一条重放链路**,所以额度检查、引擎调用、先落盘再记会话、
  *   `addRender` 的 `seq` 计算、事件协议**一行都不用抄第二份**。
  *
- * ⚠️ **它不自己判断额度**。额度在 `RenderLookTool` 里查(提议时与批准时各一次),
+ * ⚠️ **它不自己判断前置条件**。缺妆面 / 缺照片由 `RenderLookTool` 在提议时挡回,
  *   因为那里才看得见"这一轮重放里到底是谁在要出图"。
  *   在这里再查一遍等于把同一条规则抄第二份——而两份规则迟早会不一致。
- *   ★ 入口 B **没有"提议阶段"**,所以那一支实际只跑到 `render()` 里那第二遍;
- *   这不违背"别让用户点了才说不行":视图只在齐备且还有额度时才把按钮摆出来
- *   (判据同源:`renderReadiness` / `rendersLeft`)。
+ *   ★ 入口 B **没有"提议阶段"**:视图只在齐备时才把按钮摆出来(判据同源 `renderReadiness`),
+ *   所以"点了才说不行"那种形状不会出现。
  *
  * ── ⚠️ 残余空洞(如实记着,本次不关)────────────────────────────────────────
  *
@@ -47,7 +46,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { assistantMessage, danglingToolUses } from '../../domain/entities/message.js';
-import type { ToolUseBlock } from '../../domain/entities/message.js';
+import { ToolUseBlock } from '../../domain/entities/message.js';
 import { appendMessages, renderReadiness } from '../../domain/entities/session.js';
 import type { Session } from '../../domain/entities/session.js';
 import type { SessionStore } from '../../domain/ports/session-store.js';
@@ -160,12 +159,7 @@ export class ConfirmRender {
 
     // ★ `manual-` 前缀:转写里一眼认得出这条**不是供应商发的 id**(排查时有用),
     //   同时与模型给的 id 不会撞(那些是 `call_xxxx` 之类)。
-    const call: ToolUseBlock = {
-      type: 'tool_use',
-      id: `manual-${randomUUID()}`,
-      name: TOOL_NAMES.renderLook,
-      input: {},
-    };
+    const call = new ToolUseBlock(`manual-${randomUUID()}`, TOOL_NAMES.renderLook, {});
     // ★ **只带 `tool_use`、不带一个字的正文**:正文是"模型说的话",
     //   服务端替它写一句,就是在历史里伪造一句它没说过的话(同 `AgentView.vue` 不伪造开场白)。
     return appendMessages(session, [assistantMessage([call])]);

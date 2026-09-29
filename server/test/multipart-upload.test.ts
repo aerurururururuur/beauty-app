@@ -6,7 +6,9 @@
  * 在它之前,`test/` 里**没有任何一条 HTTP 层的上传用例**。multipart 解析器
  * (`agent/presentation/multipart.ts`,当时还有 `jobs` 那份)只在用例层被间接碰过,
  * 而那些路走的是**假的上传流**造出来的,真正的 busboy 一次都没进过测试。
- * (✏️ 2026-09-29:`jobs` 那份解析器随模块删除,本文件只剩 `parsePhotoRequest` 一族。)
+ * (✏️ 2026-09-29:`jobs` 那份解析器随模块删除,只剩下面这一个;
+ *  读图那一轮它从"写死 `face` + `userId`"泛化成收一份字段名清单,
+ *  **本人照片那条的字段与行为一字未改**——所以这里只把参数补上,断言一条没动。)
  *
  * 于是这个 bug 活了下来:**文件读不完 ⇒ 请求永远挂着**(不报错、不完成、半截文件都不写)。
  * 规矩是 busboy 的——**上一个 part 的流没被消费,它就不解析下一个**,
@@ -34,7 +36,10 @@ import multipart from '@fastify/multipart';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { describe, expect, it } from 'vitest';
-import { parsePhotoRequest } from '../src/modules/agent/presentation/multipart.js';
+import {
+  PHOTO_UPLOAD_FIELDS,
+  parseUploadRequest,
+} from '../src/modules/agent/presentation/multipart.js';
 import type { Readable } from 'node:stream';
 
 /** 两条用例共用的边界串。★ 手工拼 multipart 体,不引任何依赖(同本仓的"不加新 zip"那条规矩)。 */
@@ -93,9 +98,9 @@ function makeApp(): FastifyInstance {
   // 路由**只做一件事**:调解析器,然后把解析器交出来的流读干。
   // ⚠️ 读的动作写在这里(而不是解析器里),正是为了复现"出了循环才读"这个真实形状。
   app.post('/photo', async (request) => {
-    const parsed = await parsePhotoRequest(request);
+    const parsed = await parseUploadRequest(request, PHOTO_UPLOAD_FIELDS);
     return {
-      userId: parsed.userId,
+      userId: parsed.scalars.userId,
       unknownFields: parsed.unknownFields,
       file: parsed.file
         ? {
@@ -119,7 +124,7 @@ function post(app: FastifyInstance, url: string, parts: Part[]) {
   });
 }
 
-describe('parsePhotoRequest —— 大文件不能在出循环之后才读', () => {
+describe('parseUploadRequest —— 大文件不能在出循环之后才读', () => {
   it('★ 64 KB 的照片能读完,一个字节都不少(挂住的话这条会超时)', async () => {
     const app = makeApp();
     const body = pattern(BIG);
@@ -141,7 +146,7 @@ describe('parsePhotoRequest —— 大文件不能在出循环之后才读', () 
     const body = pattern(BIG);
     // 换个写法:直接照解析器交出来的流比字节。
     app.post('/raw', async (request) => {
-      const parsed = await parsePhotoRequest(request);
+      const parsed = await parseUploadRequest(request, PHOTO_UPLOAD_FIELDS);
       if (!parsed.file) return { same: false };
       const got = await drain(parsed.file.stream);
       return { same: got.equals(body), received: got.length };

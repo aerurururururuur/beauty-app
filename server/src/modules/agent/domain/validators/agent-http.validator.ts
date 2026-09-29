@@ -9,8 +9,17 @@
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { MakeupBrief, WeatherInfo } from '../../../shared/index.js';
 import { checkBriefFields } from '../../../shared/index.js';
-import { confirmRenderSchema, startSessionSchema, sendMessageSchema } from '../schemas/index.js';
+import {
+  ANALYZE_CASES,
+  REF_IMAGE_KINDS,
+  analysesRequestSchema,
+  confirmRenderSchema,
+  startSessionSchema,
+  sendMessageSchema,
+} from '../schemas/index.js';
 import type { ConfirmRenderRaw, SendMessageRaw } from '../schemas/index.js';
+import type { AnalyzeCase } from '../../../makeup/index.js';
+import type { RefImageKind } from '../entities/session.js';
 import { describeIssues } from './validate.js';
 
 /**
@@ -168,13 +177,14 @@ export function validateUserIdQuery(query: unknown): string {
 }
 
 /**
- * multipart 表单字段里的归属人(上传照片用)。
+ * multipart 表单字段里的归属人(**两条上传口共用**)。
  * ★ 为什么走表单而不是 JSON:那条请求体**只能是 multipart**(要带文件),
  *   混不进一个 JSON body。这一点与查询串那条是同一个理由——**能放的地方就是那里**。
+ * ✏️ 读图那一轮把「上传照片时」改成「上传时」:它现在也服务参考图那条口。
  */
 export function validateUserIdField(raw: unknown): string {
   if (typeof raw !== 'string' || raw.trim() === '') {
-    fail('缺少 userId。上传照片时请把 userId 作为表单字段一并提交。');
+    fail('缺少 userId。上传时请把 userId 作为表单字段一并提交。');
   }
   return raw.trim();
 }
@@ -189,26 +199,84 @@ export function validateRenderSeq(raw: unknown): number {
 }
 
 /**
- * 校验上传的照片。
+ * 校验上传的文件**是不是一张图片**。
  *
- * ⚠️ **只验"它是不是一张图片"**,不验别的——特别是**不做人脸检测**(§7.2:
- * 视觉读图那条腿本次"只预留、不实现")。这里说得出的话只有:
- * 类型对不对、有没有文件名。**判断不了的事就不要在这里假装判断了。**
+ * ⚠️ **只验这一件事。** 尤其**不做人脸检测**:`face` 分析读的是服务端**已经存下的**
+ *   那张图(见 `analyze-image.ts`),跟"这一份上传流里有没有脸"是两个时刻的事。
+ *   这里说得出的话只有:类型对不对、有没有文件名。
+ *   **判断不了的事就不要在这里假装判断了**(§7.2)。
  *
  * 大小与文件个数由 `@fastify/multipart` 的 limits 兜(见 `src/app.ts`,用 `maxUploadMb`)。
  */
-export function validatePhotoUpload<T extends { mimeType: string }>(
+function checkUploadedImage<T extends { mimeType: string }>(
   /**
    * ★ 只要求"有 `mimeType`"(结构类型):本函数不碰流,也不该看见流——
    * 传进来的具体类型它一概不动。
    */
   file: T | undefined,
+  /** 报错时点名的字段名。两条上传口各自不同,所以从调用点传进来。 */
+  fieldName: string,
 ): T {
-  if (!file) fail('没有收到文件。请用 multipart/form-data 上传,字段名 face。');
+  if (!file) fail(`没有收到文件。请用 multipart/form-data 上传,字段名 ${fieldName}。`);
   if (!file.mimeType.startsWith('image/')) {
     fail(`只收图片文件,收到的是「${file.mimeType || '未知类型'}」。`);
   }
   // ★ **原样交回入参**,不做转换。这不是偷懒:调用方因此拿到**收窄过的**类型,
   //   不必再写一遍 `if (!file)`——而那段判断的文案只该有一份。
   return file;
+}
+
+/** 校验上传的**本人照片**(字段 `face`)。 */
+export function validatePhotoUpload<T extends { mimeType: string }>(file: T | undefined): T {
+  return checkUploadedImage(file, 'face');
+}
+
+/** 校验上传的**参考图**(风格图 / 场景图,字段 `file`)。 */
+export function validateImageUpload<T extends { mimeType: string }>(file: T | undefined): T {
+  return checkUploadedImage(file, 'file');
+}
+
+/**
+ * 从一个闭集里挑出 `raw`,挑不到就当场失败并**列出全部合法取值**。
+ *
+ * ★ 不用 `as` 把字符串硬塞成联合类型(§7.3):`find` 返回的是**元组里那个字面量本身**,
+ *   所以返回类型天然正确 —— 而且当元组与目标 union 漂开时**这里编译不过**
+ *   (`ANALYZE_CASES` / `REF_IMAGE_KINDS` 与 `makeup` / 本模块那两个 union 的交叉校验
+ *   就落在这一行上,不用另写一条类型级断言)。
+ */
+function pick<T extends string>(allowed: readonly T[], raw: unknown, label: string): T {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  const hit = allowed.find((a) => a === value);
+  if (!hit) fail(`${label} 取值「${value || '(空)'}」不合法;可用:${allowed.join(' / ')}`);
+  return hit;
+}
+
+/**
+ * 触发分析时收的 `kind`。
+ * ★ 不认识的值**当场失败并列出合法取值**,绝不兜到某一个缺省上——
+ *   兜底的话,"用户点了风格分析、实际跑的是肤色"会变成一个静默的成功(本仓头号 bug)。
+ */
+export function validateAnalysisKind(raw: unknown): AnalyzeCase {
+  return pick<AnalyzeCase>(ANALYZE_CASES, raw, 'kind');
+}
+
+/** multipart 表单里那条上传口收的 `kind`(只可能是风格图 / 场景图)。 */
+export function validateImageKindField(raw: unknown): RefImageKind {
+  return pick<RefImageKind>(REF_IMAGE_KINDS, raw, 'kind');
+}
+
+/** 校验「触发一次分析」入参。 */
+export interface AnalysesRequestInput {
+  userId: string;
+  kind: AnalyzeCase;
+}
+
+export function validateAnalysesRequest(raw: unknown): AnalysesRequestInput {
+  const parsed = analysesRequestSchema.safeParse(raw ?? {});
+  if (!parsed.success) fail(describeIssues(parsed.error));
+
+  const userId = parsed.data.userId.trim();
+  if (userId === '') fail('userId 不能是空白');
+
+  return { userId, kind: validateAnalysisKind(parsed.data.kind) };
 }
