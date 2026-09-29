@@ -1,10 +1,10 @@
 /**
- * application/mapping/weather-view.mapper.ts —— WeatherResult → 对外 WeatherView。
+ * application/weather-view.ts —— WeatherResult → 对外 WeatherView。
  * 只做纯投影:展开 WeatherInfo 里**有值**的字段(不塞一串 undefined),
  * 再补上回显用的 place / source。无 IO、无框架。
  */
-import type { WeatherResult } from '../../domain/ports/weather-provider.js';
-import type { WeatherView } from '../../domain/api/weather-view.js';
+import type { WeatherResult } from '../domain/ports/weather-provider.js';
+import type { WeatherView } from '../domain/api/weather-view.js';
 
 export function toWeatherView(result: WeatherResult): WeatherView {
   const view: WeatherView = { source: result.source };

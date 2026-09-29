@@ -11,7 +11,7 @@ import type { UserView } from '../../domain/api/user-view.js';
 import { validateCredentials } from '../../domain/validators/user.validator.js';
 import type { PasswordHasher } from '../../domain/ports/password-hasher.js';
 import type { UserRepository } from '../../domain/ports/user-repository.js';
-import { toUserView } from '../mapping/user-view.mapper.js';
+import { toUserView } from '../user-view.js';
 
 export class RegisterUser {
   constructor(

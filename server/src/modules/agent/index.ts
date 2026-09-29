@@ -125,7 +125,7 @@ export { InMemorySessionStore } from './infrastructure/memory/session-store.js';
 // ---- ① HTTP 层 ----
 export { registerAgentRoutes } from './presentation/routes/agent.route.js';
 export type { AgentDeps } from './presentation/agent.controller.js';
-export { toSessionView, toTurnView } from './application/mapping/turn-view.mapper.js';
+export { toSessionView, toTurnView } from './application/agent-view.js';
 export type {
   AgentSessionView,
   AgentTurnView,
@@ -133,7 +133,7 @@ export type {
   RenderOfferView,
   RenderView,
   SessionViewOptions,
-} from './application/mapping/turn-view.mapper.js';
+} from './application/agent-view.js';
 export { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from './application/system-prompt.js';
 export { describeBrief } from './application/brief-description.js';
 export { describeRenderState } from './application/render-state-description.js';

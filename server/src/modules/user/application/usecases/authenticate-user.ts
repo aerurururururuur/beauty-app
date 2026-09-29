@@ -10,7 +10,7 @@ import type { UserView } from '../../domain/api/user-view.js';
 import { validateCredentials } from '../../domain/validators/user.validator.js';
 import type { PasswordHasher } from '../../domain/ports/password-hasher.js';
 import type { UserRepository } from '../../domain/ports/user-repository.js';
-import { toUserView } from '../mapping/user-view.mapper.js';
+import { toUserView } from '../user-view.js';
 
 /** 账号不存在与密码错误共用的对外话术——不泄露「这个名字有没有被注册过」。 */
 const REJECT_MESSAGE = '昵称或密码不正确';

@@ -28,7 +28,7 @@
 | `application/tools/` | 工具的注册表（注册表**同时就是白名单**）。**没配产品库是四个，配了是六个**；`render-look.ts` 另导出 `renderConfirmationSummary`——确认框那句话的**唯一**来源 |
 | `application/look-state-description.ts` | 把"妆面定下来没有"讲成一行字。★ 比"有没有 `lookSpec`"多报一件事：**上一次 `propose_look` 被拒了没有**——`propose-look.ts` 的失败文案只管当轮，模型若用正文把妆面讲完就收尾，下一轮得有人告诉它"那不算数"（见文件头 v11） |
 | `application/usecases/` | `StartSession` / `GetSession` / `SendMessage` / `AttachPhoto` / `ConfirmRender` / `GetRender` / `PurgeExpiredSessions` |
-| `application/mapping/` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在） |
+| `application/agent-view.ts` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在） |
 | `infrastructure/llm/dashscope-llm.ts` | 阿里云百炼适配器（**实测夹具**为形状依据，不是读文档来的） |
 | `infrastructure/llm/mock-llm.ts` | 脚本化假 LLM：**单测**的驱动源（按脚本顺序回话）——`AGENT_LLM=mock` 现在**不用它**，见下一行 |
 | `infrastructure/llm/demo-llm.ts` | ★ `AGENT_LLM=mock` 实际用的那个：**按请求状态求值的离线演示脚本**（见下） |

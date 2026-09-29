@@ -14,7 +14,7 @@
 | `domain/validators/weather-query.validator.ts` | 行为：city 与坐标二选一、坐标解析与夹逼、`city` trim |
 | `domain/api/weather-view.ts` | ★ 对外契约 `WeatherView`（前端可直接塞进 `brief.weather`） |
 | `application/usecases/get-weather.ts` | `GetWeather`：**上游错误 → 业务错误码的唯一翻译点** |
-| `application/mapping/weather-view.mapper.ts` | `WeatherResult` → `WeatherView`（只展开有值的字段） |
+| `application/weather-view.ts` | `WeatherResult` → `WeatherView`（只展开有值的字段） |
 | `infrastructure/open-meteo/` | 实拉适配器 + `wmo.ts`（WMO 码 → 中文简述） |
 | `infrastructure/weather-provider/mock-weather-provider.ts` | 离线示意兜底（不联网、不失败） |
 | `presentation/weather.controller.ts` + `presentation/routes/weather.route.ts` | `GET /api/weather` |

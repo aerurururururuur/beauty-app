@@ -25,7 +25,7 @@ import type { SendMessage } from '../application/usecases/send-message.js';
 import type { AttachPhoto } from '../application/usecases/attach-photo.js';
 import type { ConfirmRender } from '../application/usecases/confirm-render.js';
 import type { GetRender } from '../application/usecases/get-render.js';
-import { toSessionView, toTurnView } from '../application/mapping/turn-view.mapper.js';
+import { toSessionView, toTurnView } from '../application/agent-view.js';
 import {
   validateConfirmRender,
   validatePhotoUpload,

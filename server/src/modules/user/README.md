@@ -17,7 +17,7 @@
 | `domain/validators/user.validator.ts` | 行为：清洗昵称（trim）、长度夹逼、拒控制字符、`VALIDATION_ERROR` |
 | `domain/api/user-view.ts` | ★ 对外契约 `UserView`——**不含 passwordHash** |
 | `application/usecases/` | `RegisterUser` / `AuthenticateUser` / `GetUser` |
-| `application/mapping/user-view.mapper.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体） |
+| `application/user-view.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体） |
 | `infrastructure/json/user-repository.ts` | 账号表落 `dataDir/users/users.json`（tmp + rename 原子写） |
 | `infrastructure/crypto/scrypt-password-hasher.ts` | scrypt 凭据 `scrypt$<salt>$<key>`，核对走定时安全比较 |
 | `presentation/users.controller.ts` + `presentation/routes/users.route.ts` | `POST /users` · `POST /users/login` · `GET /users/:id` |

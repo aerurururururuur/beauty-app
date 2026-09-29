@@ -1,5 +1,5 @@
 /**
- * application/mapping/turn-view.mapper.ts —— 会话 → 对外视图。
+ * application/agent-view.ts —— 会话 → 对外视图。
  *
  * ★ **不把 `messages[]` 透出去。** 理由有两条,第二条是硬的:
  *   ① 它是内部形状(带 `tool_use` / `tool_result` 块),前端拿到也没法直接渲染;
@@ -17,15 +17,15 @@
  *   ✏️ 2026-09-16 之前只有前者——于是"用户想要成片"这件事**必须由模型转达**,
  *   而模型两次没转达(实测见本模块 README / 设计文档 §7.4.3)。后者是那次改动的落点。
  */
-import { describeLook } from '../../../makeup/index.js';
-import type { LookSpec } from '../../../makeup/index.js';
-import type { MakeupBrief } from '../../../shared/index.js';
-import { renderReadiness, rendersLeft } from '../../domain/entities/session.js';
-import type { Session } from '../../domain/entities/session.js';
-import { danglingToolUses } from '../../domain/entities/message.js';
-import { TOOL_NAMES } from '../../domain/tools/definitions.js';
-import type { AgentEvent, AgentStopReason } from '../agent-loop.js';
-import { renderConfirmationSummary } from '../tools/render-look.js';
+import { describeLook } from '../../makeup/index.js';
+import type { LookSpec } from '../../makeup/index.js';
+import type { MakeupBrief } from '../../shared/index.js';
+import { renderReadiness, rendersLeft } from '../domain/entities/session.js';
+import type { Session } from '../domain/entities/session.js';
+import { danglingToolUses } from '../domain/entities/message.js';
+import { TOOL_NAMES } from '../domain/tools/definitions.js';
+import type { AgentEvent, AgentStopReason } from './agent-loop.js';
+import { renderConfirmationSummary } from './tools/render-look.js';
 
 /** 出过的一张图,给前端用。★ `url` 是**本模块**的取图路由,不是 `jobs` 那条。 */
 export interface RenderView {

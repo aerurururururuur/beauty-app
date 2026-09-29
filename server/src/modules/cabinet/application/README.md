@@ -1,7 +1,7 @@
 # modules/cabinet/application —— 应用层
 
 放「衣橱用例」：`usecases/add-cosmetic.ts`、`list-cosmetics.ts`、`update-cosmetic.ts`、`remove-cosmetic.ts`，
-外加 `mapping/cosmetic-item-view.mapper.ts`（实体 → 对外视图）。
+外加 `cabinet-view.ts`（实体 → 对外视图）。
 
 - **现状**：四个用例都已实现并接线。
 - **写法**：用例只做编排——调 `domain/validators` 校验入参、经端口（`CosmeticRepository` / `UserDirectory`）

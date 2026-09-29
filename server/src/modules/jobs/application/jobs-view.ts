@@ -1,10 +1,10 @@
 /**
- * application/mapping/job-view.mapper.ts —— 领域 JobRecord → 对外 JobView。
+ * application/jobs-view.ts —— 领域 JobRecord → 对外 JobView。
  * 只做纯投影(剥掉内部存储引用),不含任何 IO。
  */
-import { displayInputs } from '../../domain/entities/job.js';
-import type { JobRecord } from '../../domain/entities/job.js';
-import type { JobView } from '../../domain/api/job-view.js';
+import { displayInputs } from '../domain/entities/job.js';
+import type { JobRecord } from '../domain/entities/job.js';
+import type { JobView } from '../domain/api/job-view.js';
 
 export function toJobView(rec: JobRecord): JobView {
   return {

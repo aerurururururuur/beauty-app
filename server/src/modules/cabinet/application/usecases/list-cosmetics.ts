@@ -8,7 +8,7 @@ import type { CosmeticListView } from '../../domain/api/cosmetic-item-view.js';
 import type { CosmeticRepository } from '../../domain/ports/cosmetic-repository.js';
 import type { UserDirectory } from '../../domain/ports/user-directory.js';
 import { validateOwnerQuery } from '../../domain/validators/cosmetic-item.validator.js';
-import { toCosmeticItemView } from '../mapping/cosmetic-item-view.mapper.js';
+import { toCosmeticItemView } from '../cabinet-view.js';
 
 export class ListCosmetics {
   constructor(

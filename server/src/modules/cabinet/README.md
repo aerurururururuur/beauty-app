@@ -20,7 +20,7 @@
 | `domain/ports/user-directory.ts` | `UserDirectory`：`exists(userId)`——本模块唯一与 user 有关的接缝 |
 | `domain/api/cosmetic-item-view.ts` | ★ 对外契约 `CosmeticItemView` / `CosmeticListView` |
 | `application/usecases/` | `AddCosmetic` / `ListCosmetics` / `UpdateCosmetic` / `RemoveCosmetic` |
-| `application/mapping/cosmetic-item-view.mapper.ts` | 实体 → 视图（特性是新建对象，不共享引用） |
+| `application/cabinet-view.ts` | 实体 → 视图（特性是新建对象，不共享引用） |
 | `infrastructure/json/cosmetic-repository.ts` | 衣橱表落 `dataDir/cabinet/items.json`（tmp + rename 原子写） |
 | `presentation/cabinet.controller.ts` + `presentation/routes/cabinet.route.ts` | `POST` / `GET` / `PATCH` / `DELETE /cabinet/items…` |
 | `index.ts` / `compose.ts` | public barrel / `createCabinetModule({ dataDir, userExists })` |

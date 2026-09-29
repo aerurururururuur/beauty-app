@@ -4,7 +4,7 @@
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { JobView } from '../../domain/api/job-view.js';
 import type { JobRepository } from '../../domain/ports/job-repository.js';
-import { toJobView } from '../mapping/job-view.mapper.js';
+import { toJobView } from '../jobs-view.js';
 
 export class GetJob {
   constructor(private readonly jobs: JobRepository) {}

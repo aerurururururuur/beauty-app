@@ -1,7 +1,7 @@
 # modules/user/application —— 应用层
 
 放「账号用例」：`usecases/register-user.ts`（注册）、`authenticate-user.ts`（登录核对）、`get-user.ts`（查档案），
-外加 `mapping/user-view.mapper.ts`（实体 → 对外视图，凭据在这一步剥掉）。
+外加 `user-view.ts`（实体 → 对外视图，凭据在这一步剥掉）。
 
 - **现状**：已实现并接线。
 - **写法**：用例只做编排——调 `domain/validators` 校验入参、经端口(`UserRepository` / `PasswordHasher`)读写，

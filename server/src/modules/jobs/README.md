@@ -14,7 +14,7 @@
 | `domain/ports/job-repository.ts` / `job-queue.ts` | 仓库 / 队列端口（本模块持契约） |
 | `domain/api/job-view.ts` | ★ 对外契约 DTO：`JobView/SubmitJobResponse/ErrorBody…`（联调唯一真源） |
 | `application/usecases/*` | `SubmitJob` / `RunPipeline` / `GetJob` / `GetJobResult` |
-| `application/mapping/job-view.mapper.ts` | 领域对象 → JobView |
+| `application/jobs-view.ts` | 领域对象 → JobView |
 | `presentation/multipart.ts` | 归口 `face`(1) / `scene`(0..6) 文件 + `meta`(JSON) 标量 |
 | `presentation/jobs.controller.ts` + `presentation/routes/jobs.route.ts` | `registerJobsRoutes`：薄路由层 |
 | `infrastructure/json/job-repository.ts` | 临时 JSON 仓库 + rename 原子写 |
