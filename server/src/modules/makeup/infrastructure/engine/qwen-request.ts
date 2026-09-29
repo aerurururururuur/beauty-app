@@ -115,12 +115,12 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
     //   没有 LookSpec = 没有任何关于"要画什么妆"的信息。此时**编一套妆是错的**——
     //   色板必须按 skinTone 与实测收窄(§6 规矩 4),而那份收窄表是占位、没有实测支撑;
     //   引擎自己造一份等于伪造一个"用户要求过的妆"。
-    //   所以宁可明确失败。**这条后果是 §8.1 的直接产物**:`jobs` 表单路径从不传 LookSpec,
-    //   因此**表单路径在 `MAKEUP_ENGINE=image` 下不可用**(见 `modules/makeup/README.md`)。
+    //   所以宁可明确失败。**这条后果是 §8.1 的直接产物**:全项目只有 `propose_look`
+    //   产出 LookSpec,而它只挂在对话 agent 这条路上(见 `modules/makeup/README.md`)。
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
       '本引擎需要妆面单(LookSpec),而这次调用没有传。' +
-        '它只能由对话 agent 路径调用;表单路径请把 MAKEUP_ENGINE 设回 mock。',
+        '这条路由对话 agent 专用:妆面单只能由 propose_look 产出。',
     );
   }
 
@@ -130,17 +130,24 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
 
   const faceDigest = digestOf(input.face.filePath);
 
-  // ★ 参考图按 URL 直传(它们是热链,**没有落到本地**——见 references 模块 README 的「已知代价」)。
-  //   ⚠️ `[未验证]`:带参考图的请求**没有真实跑过**。agent 路径不传 references,
+  // ★ 参考图与本人照片走**同一条**本地文件路径(`toImageField`):接口要的是 URL,
+  //   而我们给的是 base64 data URL,**照片不落到第三方存储桶**(见 `toImageField`)。
+  //   ⚠️ `[未验证]`:带参考图的请求**没有真实跑过**——当前无生产者(见 `EngineInput.references`),
   //      所以这条分支目前只在理论上成立。
-  const refUrls = (input.references ?? [])
-    .map((r) => r.imageUrl)
-    .slice(0, MAX_IMAGES - 1);
+  const refs = input.references ?? [];
+  // ★ **超上限抛错,不静默截断。** 截断掉的那张既不出现在请求里、也不出现在任何日志里,
+  //   表现是"图出了,只是没照那几张参考"——正是本仓最恨的"配置错了也照跑、只有结果不对"。
+  if (refs.length > MAX_IMAGES - 1) {
+    throw new AppError(
+      ErrorCode.INTERNAL_ERROR,
+      `参考图最多 ${MAX_IMAGES - 1} 张(接口 content 上限 ${MAX_IMAGES} 张图,含本人照片),收到 ${refs.length} 张`,
+    );
+  }
 
-  const images: { image: string }[] = refUrls.map((url) => ({ image: url }));
+  const images: { image: string }[] = refs.map((r) => ({ image: toImageField(r.filePath) }));
 
   // ★ **顺序有讲究:最后一张决定输出比例**,所以本人照片必须压轴(§5.3 坑 1)。
-  //   反过来放会让输出尺寸跟着参考图走。
+  //   反过来放会让输出尺寸跟着参考图走。**新增的任何输入图都必须排在这一行之前。**
   images.push({ image: toImageField(input.face.filePath) });
 
   const parameters: Record<string, unknown> = { n: opts.n ?? 1, watermark: false };
@@ -164,12 +171,10 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
     negativePrompt,
     model: opts.model,
     inputDigests: [
-      ...refUrls.map((url) => ({
-        role: 'reference' as const,
-        // 参考图是 URL,没有字节可摘要;把它本身当"字节"的替身。
-        sha256: createHash('sha256').update(url).digest('hex'),
-        bytes: 0,
-      })),
+      // ★ 参考图**摘要的是文件字节**,与 face 同构:它们现在是本机文件,不再是热链 URL。
+      //   (URL 时代那套「把 URL 本身当字节的替身、bytes 记 0」的做法随之作废——
+      //   换 URL 就换键,而同一张图换个地址会被当成另一个请求。)
+      ...refs.map((r) => ({ role: 'reference' as const, ...digestOf(r.filePath) })),
       { role: 'face' as const, ...faceDigest },
     ],
   };

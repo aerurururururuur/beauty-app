@@ -1,6 +1,6 @@
 /**
  * domain/ports/user-repository.ts —— 用户仓库端口(本模块持契约)。
- * 实现见 infrastructure(JSON 落盘,仿 jobs/infrastructure/json/job-repository)。
+ * 实现见 infrastructure(JSON 落盘,与 `cabinet` 的 `cosmetic-repository.ts` 同一路数)。
  * 只有本模块自己实现/装配它,别处经 public barrel 拿不到具体实现——保持单向依赖。
  */
 import type { User } from '../entities/user.js';

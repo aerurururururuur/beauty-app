@@ -5,7 +5,7 @@
  *
  * ★ 校验**全部**走 `domain/validators/brief-patch.validator.ts`,本文件不自己判:
  *   形状由 `briefPatchSchema` 管,取值与长度由 `shared` 的 `checkBriefFields` 管
- *   ——与表单那条路(`POST /api/jobs`)是**同一份规则**。
+ *   ——与开会话那条路(`POST /agent/sessions` 带初始 brief)是**同一份规则**。
  *   ⚠️ 此前这里有一段 `cleanPatch` 注释写着「枚举已由 schema 保证,照搬即可」,
  *      并且**后面没有 validator**。§4.2 把规则搬出 schema 后那句话就不再成立,
  *      模型给的非法取值会静默写进会话。现在不靠那句话了。

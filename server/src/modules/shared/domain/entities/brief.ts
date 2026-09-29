@@ -7,8 +7,8 @@
  *   - 穿搭 tag + 日期天气 只作为可选的辅助回显/文案素材,不深建模
  *   - sceneText 仍是自由输入自定义板
  *
- * 枚举常量数组作为「单源」:schema(z.enum)、validator、mock 适配器、
- * narration、前端契约都从这里取,避免各自再写一遍字符串集合。
+ * 枚举常量数组作为「单源」:schema、validator、mock 适配器、
+ * 前端契约都从这里取,避免各自再写一遍字符串集合。
  */
 export const OCCASIONS = ['interview', 'date', 'stage', 'family', 'daily'] as const;
 export type Occasion = (typeof OCCASIONS)[number];

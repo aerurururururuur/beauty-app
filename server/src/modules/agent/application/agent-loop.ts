@@ -129,10 +129,14 @@ export interface AgentLoopOptions {
   now?: () => number;
 }
 
-/** LLM 不可达时的收束话术。★ 要点名出路,不是只说"出错了"(§12.2 / `[I7]`)。 */
-const LLM_DOWN_TEXT =
-  '我这会儿连不上后台,没能回你这句话。你可以先用「直接生成」那条路(POST /api/jobs)拿图,' +
-  '我恢复之后再接着帮你调妆。';
+/**
+ * LLM 不可达时的收束话术。
+ *
+ * ⚠️ **原来这里写着「你可以先用 `POST /api/jobs` 拿图」——那条路已经不存在了**,
+ *   而 `[I7]`「要点名出路」这条原则随之**降级**:现在唯一诚实的出路就是再发一次。
+ *   留着一个指向 404 的建议,比只说"出错了"更糟。
+ */
+const LLM_DOWN_TEXT = '我这会儿连不上后台,没能回你这句话。稍后再发一次,我接着帮你调。';
 
 /**
  * 会补话的收束原因。★ **不带 `llm_unavailable`**(它有自己那句,见上)
@@ -227,7 +231,7 @@ export class AgentLoop {
         });
       } catch (err) {
         // 传输层挂了。★ 这里**吞掉异常换一句话**是老式写法,但在这个位置是对的:
-        // 用户在对话中间,看到 500 不如看到"我这会儿连不上,你可以先走表单"。
+        // 用户在对话中间,看到 500 不如看到"我这会儿连不上,稍后再发一次"。
         console.warn(`[agent] LLM 调用失败:${err instanceof Error ? err.message : String(err)}`);
         events.push({ type: 'text_delta', text: LLM_DOWN_TEXT });
         const withReply = appendMessages(current, [textMessage('assistant', LLM_DOWN_TEXT)]);

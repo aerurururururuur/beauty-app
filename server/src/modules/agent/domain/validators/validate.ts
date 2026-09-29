@@ -1,7 +1,7 @@
 /**
  * agent/domain/validators/validate.ts —— 把 zod 错误说成「模型读得懂」的话。
  *
- * ★ **那份"上提"已经做完了**(2026-09-16):jobs / user / weather / cabinet 那四份
+ * ★ **那份"上提"已经做完了**(2026-09-16):user / weather / cabinet 那几份
  *   逐字相同的副本合并成了 `shared/domain/validators/zod-issues.ts`。
  *   本文件**没有**跟着并进去,而且**不该并**——见下面那条差别。
  *

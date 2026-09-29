@@ -128,7 +128,7 @@ export class RenderLookTool implements Tool {
       if (this.deps.maxRenders > 0 && left <= 0) {
         return failure(
           `这个会话的出图次数已经用完了(上限 ${this.deps.maxRenders} 张)。` +
-            '请如实告诉用户,并说明可以用「直接生成」那条路再拿图,或新开一个会话。',
+            '请如实告诉用户,并说明可以新开一个会话再出。',
         );
       }
       const pending: PendingConfirmation = {
@@ -175,11 +175,11 @@ export class RenderLookTool implements Tool {
       const faceFilePath = await this.deps.artifacts.resolveFace(session.id, faceRef);
       const engineInput: EngineInput = {
         face: { filePath: faceFilePath, mimeType: faceRef.mimeType },
-        // 风景与氛围参考图**不参与**妆容方向(§4.1),这里就是空的。
-        scenes: [],
         brief: session.brief,
         lookSpec: spec,
       };
+      // ⚠️ `references`(用户上传的风格参考图)这里**故意不传**:照片口只认本人照片一张,
+      //    这条字段当前无生产者。等"风格图进引擎"那一轮再由这里填。
       const result = validateEngineResult(await this.deps.engine.generate(engineInput));
 
       // ★ 先落盘再记会话:反过来的话,记完却写失败,会话里就有一张取不到的图。
@@ -209,8 +209,7 @@ export class RenderLookTool implements Tool {
       console.warn(`[agent] render_look 失败:${detail}`);
       return failure(
         `这次没能出图:${detail}。` +
-          '请如实告诉用户这张图没出来(不要假装已经出好),并说明可以稍后再试一次,' +
-          '或者改用「直接生成」那条路。',
+          '请如实告诉用户这张图没出来(不要假装已经出好),并说明可以稍后再试一次。',
       );
     }
   }

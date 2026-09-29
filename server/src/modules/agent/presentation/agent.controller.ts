@@ -53,7 +53,7 @@ export interface AgentDeps {
 }
 
 /**
- * 校验上传的文件,**不过就先把流销毁再抛**(同 `jobs.controller.ts` 的 `destroyFiles`)。
+ * 校验上传的文件,**不过就先把流销毁再抛**。
  * ★ 销毁这一步属于 HTTP 层,不属于校验器——校验器只该回答"行不行",
  *   它若顺手关流,今后被别处复用时就会关掉一个不归它管的东西。
  */
@@ -74,8 +74,8 @@ export function makeAgentController(deps: AgentDeps) {
 
   return {
     startSession: async (request: FastifyRequest, reply: FastifyReply) => {
-      const { userId } = validateStartSession(request.body ?? {});
-      const session = await deps.startSession.execute(userId);
+      const { userId, brief } = validateStartSession(request.body ?? {});
+      const session = await deps.startSession.execute(userId, brief);
       return reply.code(201).send(toSessionView(session, viewOptions));
     },
 

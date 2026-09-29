@@ -33,14 +33,23 @@ const SPEC: LookSpec = {
 
 /** 一张最小的"脸":内容任意,引擎只按字节算摘要。 */
 const FACE_BYTES = Buffer.from('not-really-a-png-but-the-engine-only-hashes-it');
+/** 参考图夹具:★ 两份内容**必须不同**,否则"摘要按文件字节算"这件事验不出来。 */
+const REF_BYTES = [Buffer.from('ref-one-bytes'), Buffer.from('ref-two-bytes-differ')];
 
 let dir: string;
 let faceFile: string;
+let refFiles: string[];
 
 beforeEach(() => {
   dir = mkdtempSync(path.join(tmpdir(), 'makeup-engine-'));
   faceFile = path.join(dir, 'face.png');
   writeFileSync(faceFile, FACE_BYTES);
+  // ★ 参考图与本人照片一样是**本机文件**,`toImageField` 会真去读它。
+  refFiles = REF_BYTES.map((buf, i) => {
+    const file = path.join(dir, `ref${i + 1}.png`);
+    writeFileSync(file, buf);
+    return file;
+  });
 });
 
 afterEach(() => {
@@ -51,7 +60,6 @@ afterEach(() => {
 function input(over: Partial<EngineInput> = {}): EngineInput {
   return {
     face: { filePath: faceFile, mimeType: 'image/png' },
-    scenes: [],
     brief: { skinTone: 'olive' },
     lookSpec: SPEC,
     ...over,
@@ -101,24 +109,33 @@ describe('buildGenerateRequest', () => {
   it('★ 坑 1:本人照片压轴 —— 多图输入时输出比例以最后一张为准', () => {
     const req = buildGenerateRequest(
       input({
-        references: [
-          { id: 'r1', title: 't', imageUrl: 'https://example.com/ref1.png', sourceUrl: 's' },
-          { id: 'r2', title: 't', imageUrl: 'https://example.com/ref2.png', sourceUrl: 's' },
-        ],
-      } as Partial<EngineInput>),
+        references: refFiles.map((filePath) => ({ filePath, mimeType: 'image/png' })),
+      }),
       OPTS,
     );
 
     const content = (req.body.input as { messages: { content: unknown[] }[] }).messages[0]!
       .content as { image?: string; text?: string }[];
     expect(content).toHaveLength(4); // 2 参考 + 本人 + 提示词
-    expect(content[0]!.image).toBe('https://example.com/ref1.png');
-    expect(content[1]!.image).toBe('https://example.com/ref2.png');
-    expect(content[2]!.image!.startsWith('data:image/png;base64,')).toBe(true);
-    expect(content[2]!.text).toBeUndefined();
+    // ★ 参考图与本人照片走**同一条**本地文件路径,所以三张都是 base64 data URL。
+    for (const i of [0, 1, 2]) {
+      expect(content[i]!.image!.startsWith('data:image/png;base64,')).toBe(true);
+    }
     expect(content[3]!.text).toBe(req.prompt);
     // 摘要顺序与请求顺序一致,face 在最后。
     expect(req.inputDigests.map((d) => d.role)).toEqual(['reference', 'reference', 'face']);
+    // ★ 参考图摘要的是**文件字节**,不再是 URL 文本(`bytes: 0` 那套随热链一起作废)。
+    expect(req.inputDigests[0]!.bytes).toBe(REF_BYTES[0]!.length);
+    expect(req.inputDigests[1]!.bytes).toBe(REF_BYTES[1]!.length);
+    expect(req.inputDigests[0]!.sha256).not.toBe(req.inputDigests[1]!.sha256);
+    expect(req.inputDigests[2]!.bytes).toBe(FACE_BYTES.length);
+  });
+
+  it('★ 参考图超上限**抛错,不静默截断**(截掉的那张谁都不会知道)', () => {
+    const tooMany = [0, 0, 0].map(() => ({ filePath: refFiles[0]!, mimeType: 'image/png' }));
+    expect(() => buildGenerateRequest(input({ references: tooMany }), OPTS)).toThrow(
+      /参考图最多 2 张.*收到 3 张/,
+    );
   });
 
   it('★ 坑 2:无后缀模型按能力归一化 —— 不传 size / prompt_extend,而不是告警后照发', () => {
@@ -141,9 +158,9 @@ describe('buildGenerateRequest', () => {
     expect((buildGenerateRequest(input(), OPTS).body.parameters as Record<string, unknown>).watermark).toBe(false);
   });
 
-  it('★ 没有 LookSpec 就明确报错,并点出表单路径的出路 —— 不瞎编一套妆', () => {
+  it('★ 没有 LookSpec 就明确报错,并点出只走对话 agent —— 不瞎编一套妆', () => {
     expect(() => buildGenerateRequest(input({ lookSpec: undefined }), OPTS)).toThrow(/LookSpec/);
-    expect(() => buildGenerateRequest(input({ lookSpec: undefined }), OPTS)).toThrow(/MAKEUP_ENGINE/);
+    expect(() => buildGenerateRequest(input({ lookSpec: undefined }), OPTS)).toThrow(/propose_look/);
   });
 
   it('body 里不含密钥相关字段(密钥只走请求头)', () => {

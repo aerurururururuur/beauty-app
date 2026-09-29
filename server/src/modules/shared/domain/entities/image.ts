@@ -5,7 +5,7 @@
  *   infrastructure 经端口解析,domain 不持有文件系统路径。
  * EngineSourceImage:已解析为本机绝对路径、可直接交给引擎/分析器读取的输入图。
  *
- * EngineSourceImage 之所以放 shared:makeup(上妆引擎端口)与 jobs(流水线负责解析路径后
+ * EngineSourceImage 之所以放 shared:makeup(上妆引擎端口)与 agent(负责解析路径后
  * 构造它)都要引用,放公共处避免模块间互相 import 造成环。
  */
 export interface ImageRef {

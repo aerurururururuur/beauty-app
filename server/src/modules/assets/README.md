@@ -14,7 +14,7 @@
 ## 依赖 / 被依赖
 
 - 依赖：`shared`（`ImageRef` 类型）。
-- 被依赖：`jobs`（经 `jobs/compose.ts` 注入 `artifactStore`）。
+- 被依赖：`agent`（经组装根注入 `artifactStore`，见 `src/session-artifacts.ts`）。
 
 ## 现状与改法
 

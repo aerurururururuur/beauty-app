@@ -23,7 +23,7 @@
 | `domain/schemas/` | `api/brief-patch.ts` / `api/agent-http.ts`（纯形状；无 `entities/`——会话不落盘）+ `domain/validators/`（行为与中文错误） |
 | `application/agent-loop.ts` | ★ **harness**。本模块唯一有真实复杂度的地方；文件头列了六条被结构钉死的不变量 |
 | `application/system-prompt.ts` | 每轮现拼的系统提示（嵌当前 brief / LookSpec / 出图状态 + 七条硬规则；★ 版本号与沿革都在文件头） |
-| `application/brief-description.ts` | 把"agent 现在知道什么"讲成一行字。★ 值**原样透出**，不建中文标签表（那会是第三份，见 `narration.ts` 记的教训） |
+| `application/brief-description.ts` | 把"agent 现在知道什么"讲成一行字。★ 值**原样透出**，不建中文标签表（中文名在前端 constants 已有一份） |
 | `application/render-state-description.ts` | 把"出图走到哪一步了"讲成一行字（照片在不在 / 出过几张 / **此刻有没有确认框在等**）。★ 与视图的 `pendingRender` **同源**（都用 `danglingToolUses`），免得两边一个说有、一个说没有——模型会照提示词行事 |
 | `application/tools/` | 工具的注册表（注册表**同时就是白名单**）。**没配产品库是四个，配了是六个**；`render-look.ts` 另导出 `renderConfirmationSummary`——确认框那句话的**唯一**来源 |
 | `application/look-state-description.ts` | 把"妆面定下来没有"讲成一行字。★ 比"有没有 `lookSpec`"多报一件事：**上一次 `propose_look` 被拒了没有**——`propose-look.ts` 的失败文案只管当轮，模型若用正文把妆面讲完就收尾，下一轮得有人告诉它"那不算数"（见文件头 v11） |
@@ -69,7 +69,7 @@
 | ✏️ 调 `render` 时**条件不齐**：没有妆面 / 没有照片 / 上一轮欠着的不是出图请求 | `VALIDATION_ERROR` | 422（message 点名缺什么） |
 | ✏️ 同一个会话**正在出图**时又点了一次（并发连点） | `VALIDATION_ERROR` | 422（服务端按会话的进程内锁） |
 | 照片不是图片 / 没收到文件 / 缺表单里的 `userId` | `VALIDATION_ERROR` | 422 |
-| 后台连不上 | **不是错误**——循环收束成一句话，并点名 `POST /api/jobs` 这条出路 | 200 |
+| 后台连不上 | **不是错误**——循环收束成一句话，并说明「稍后再发一次」 | 200 |
 
 > ★ **每一轮收束都保证有一句话给用户。** 四种收束（`timeout` / `max_iterations` /
 > `max_tokens` / `refusal`）由 `agent-loop.ts` 的 `CLOSING_WORDS` 补，`llm_unavailable`
@@ -254,8 +254,8 @@
 - **不依赖 `cabinet` / `assets` / `user`**：读衣橱、存取照片与产物、查用户是否存在
   都走**本模块自己声明的端口**，实现由**组装根**（`src/index.ts`）包一层注入（§7.1）。
   依赖图仍无环、模块间仍零 import。
-- ★ **依赖方向 agent → makeup**：引擎不 import 本模块。§8.1 拍板**引擎的第一个消费者就是本模块**
-  （不再先接给 `jobs` 表单路径），所以 `makeup` 的 `Engine` 端口是为此而留的。
+- ★ **依赖方向 agent → makeup**：引擎不 import 本模块。§8.1 拍板**引擎的第一个消费者就是本模块**，
+  所以 `makeup` 的 `Engine` 端口是为此而留的。
 - 被依赖：`src/index.ts`（组装）、`src/app.ts`（挂路由）。
 
 ## 开关与接线
@@ -311,9 +311,8 @@
 别的一律不动。边界与那道"前缀相近不算"的规矩都有测试
 （`★★ 源文件不在引擎输出目录里 → 一个字节都不许动它`）。
 
-⚠️ `jobs` 那条路**不走这个适配器**，它的中间产物照旧只增不减（`jobs` 已冻结、`image` 下表单路径
-不可用，所以当前没有真实泄漏，但**别当它已关闭**）。细节与那个 `MAKEUP_FIXTURES_DIR`
-的配置坑记在 `modules/makeup/README.md` 的待办里。
+★ **全项目只有 agent 这一条出图路径**，所以中间产物的清理没有第二个入口要顾。
+细节与那个 `MAKEUP_FIXTURES_DIR` 的配置坑记在 `modules/makeup/README.md` 的待办里。
 
 ★ **照片的字节永远不进 `messages[]`。** 会话里只有 `faceRef`（一个带 `storeKey` 的引用），
 模型看到的是"用户已经上传了照片"，看不到图。上传之后循环会往会话里补一条说明，
@@ -359,14 +358,14 @@
       ⚠️ 第二遍**不判过期**：没有会话认领的目录**永远不可达**，早删只有好处；
       也正因此不必拿目录 mtime 当"年龄"（跨平台语义不一致，是个会骗人的近似）。
 - [x] ✅ **2026-09-16 收口三条（本轮小修）**：
-      ① **`zodIssuesMessage` 上提到 `shared`**——jobs / user / weather / cabinet 四份逐字相同的副本
+      ① **`zodIssuesMessage` 上提到 `shared`**——user / weather / cabinet 那几份逐字相同的副本
       合成 `shared/domain/validators/zod-issues.ts`。★ 本模块那份 `describeIssues` **没有**跟着合并，
       而且不该并：它给**模型**看（错误会回填成 observation），必须带上合法取值清单；
       shared 那份给**人**看（HTTP 错误体）。**两份的消费者不同 ⇒ 不是重复。**
       ② **简报字段共用一份**（`shared/domain/schemas/contracts/brief-fields.ts`）——`patch_brief` 的
-      `briefPatchSchema` 与 `POST /api/jobs` 的 `metaSchema` 现在铺开的是同一份字段定义，
+      `briefPatchSchema` 与开会话的 `startSessionSchema` 现在铺开的是同一份字段定义，
       一致性由 `test/schemas.test.ts` 的**表驱动对拍**钉住（**故意不靠注释维持**）。
-      只共用**字段**，不共用对象：`jobs` 多一个 `weather`，两边各自留 `.strict()`。
+      只共用**字段**，不共用对象：开会话多一个 `weather`，两边各自留 `.strict()`。
       ✏️ **2026-09-29（§4.2）**：共用的是**形状**（`z.string()`）；枚举白名单与上限
       （`MAX_SCENE_TEXT` / `MAX_DRESS`）搬去了 `shared/domain/validators/brief-fields.validator.ts`，
       两条路都调那个 `checkBriefFields`。所以那张文件的角色从"唯一落点"变成"**唯一的形状落点**"，
@@ -378,7 +377,7 @@
       **选了前者**，理由按分量排：
       ① **仓库已经答过一次这个问题**：同样会把 userId 存进数据的 `cabinet` 就是这么做的
       （端口文件自己写着「否则条目会变成孤儿」）。而全仓库**只有两个模块存 userId**——
-      `agent` 与 `cabinet`（`jobs` 根本没有 userId）。**不校验的那个才是少数派。**
+      `agent` 与 `cabinet`。**不校验的那个才是少数派。**
       ② ★ **原来那条不是"无害"，是"更坏的一种失败"**：ghost 用户拿到 201 后能正常聊，
       直到模型调 `list_cabinet`——`ListCosmetics` 对不存在的用户**刻意**报 `USER_NOT_FOUND`
       （它不装作"衣橱是空的"），那个错误按 `[D]`/`[E]` 回填成 observation 喂给模型，
@@ -398,7 +397,5 @@
       （卫生问题，无越权风险——会话仍只能由同一个 userId 取到）。
       两条的唯一共同点是都跟"孤儿"沾边。
 - [ ] LLM 调用的 record/replay 夹具（设计文档 §11：形状依据是实测，而实测会随平台方改行为失效）
-- [ ] **类型推断表是第二份拷贝**（`presentation/multipart.ts` 的 `EXT_MIME` vs
-      `jobs/presentation/multipart.ts` 的那份）。它不是外部依赖也不是业务规则，就七个扩展名；
-      要合成一份得先在 `assets` 的 barrel 上开口子。**等第三处出现时再合**——
-      那时它才有第二个调用方之外的正当性。
+- [ ] **类型推断表还在 `presentation/multipart.ts` 里**（那个 `EXT_MIME`）。它不是外部依赖也不是
+      业务规则，就七个扩展名；要挪进 `assets` 得先在它的 barrel 上开口子。**等第二处出现时再合。**

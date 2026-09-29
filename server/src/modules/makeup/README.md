@@ -6,13 +6,11 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/look.ts` | `Look`（引擎私有契约，对流水线不透明）+ `MakeupZone`（归一化叠加区，供前端 CSS 渲染） |
-| `domain/entities/result-text.ts` | `ResultText`：`{ analysis, explain, tips }`（本模块持有，贴近 look/文案） |
-| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, scenes, brief, scene?, references?, lookSpec? }` |
+| `domain/entities/look.ts` | `Look`（引擎私有契约，对调用方不透明）+ `MakeupZone`（归一化叠加区）。★ ✏️ 2026-09-29：`look` **今天零消费者**——`render_look` 只取 `resultFilePath`/`mimeType`，验完形状就丢；见该文件头 |
+| `domain/ports/engine.ts` | ★ `Engine` 端口（本模块持契约）：`{ name, generate(EngineInput) → EngineResult }`；`EngineInput{ face, brief, references?, lookSpec? }` |
 | `domain/validators/engine-output.validator.ts` | `validateEngineResult`：把关外部引擎产物（路径/类型存在、坐标 0..1、RGB 0..255、opacity 0..1、blur≥0，非法 → `INTERNAL_ERROR`） |
-| `application/narration.ts` | `buildNarrative`：纯函数组装「为什么这套」（场合 formality × 肤质持妆 × 肤色选色 × 穿搭/天气 tip） |
 | `application/look-description.ts` | `describeLook`：`LookSpec` → 一句给用户看的人话（**唯一**一份说法，引擎的 `look.style` 也复用它） |
-| `infrastructure/engine/mock-engine.ts` | `MockEngine`：occasion 基准风格 × skinTone 调深浅，产物 = 本人照片原样收编 + `zones/palette` 供前端叠加 |
+| `infrastructure/engine/mock-engine.ts` | `MockEngine`：occasion 基准风格 × skinTone 调深浅，产物 = 本人照片原样收编 + `zones/palette`。★ ✏️ 2026-09-29：`zones/palette` **今天没人读**（「供前端叠加」那个前端随 `jobs` 一起没了） |
 | `infrastructure/engine/prompt-builder.ts` | ★★ `buildPrompt(spec, opts)`：`LookSpec` → 提示词。**纯函数**，只输出色/质地/浓度 |
 | `infrastructure/engine/qwen-request.ts` | `buildGenerateRequest` + `fixtureKeyOf`：**请求组装与夹具键的唯一来源**（录制与回放靠它算出同一个键） |
 | `infrastructure/engine/image-engine.ts` | `ImageEngine`：真实出图（`Engine` 的第二个实现，端口一字节没改） |
@@ -45,9 +43,9 @@
 
 ⚠️ **未命中夹具时 `ReplayEngine` 会明确报错，不静默返回假图。** 静默假图会让 CI 全绿地骗人——那比没有 CI 更坏。
 
-## ⚠️ `MAKEUP_ENGINE=image` 让表单路径**不可用**
+## ⚠️ `MAKEUP_ENGINE=image` 只有对话 agent 那条路能用
 
-真实引擎**需要妆面单（`LookSpec`）**，而 `POST /api/jobs` 那条表单路径**从来不传它**（见 `domain/ports/engine.ts` 里 `lookSpec` 的注释：它是「算出来的」，不是「用户填的」，且 `brief` 会泄漏进 `JobView`）。
+真实引擎**需要妆面单（`LookSpec`）**，而全项目只有 `propose_look` 产出它（见 `domain/ports/engine.ts` 里 `lookSpec` 的注释：它是「算出来的」，不是「用户填的」，也不该从 HTTP 边界进来）。
 
 所以这个取值下：
 
@@ -76,8 +74,8 @@
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared`（`SceneDescriptor` / `SCENE_RULES` 等）、`references`（`ReferenceImage` 类型）。
-- 被依赖：`jobs`（注入 `engine`，产物交 `validateEngineResult` 把关）；`agent`（阶段 3 起经 `render_look` 调用）。
+- 依赖：`shared`（`EngineSourceImage` / `MakeupBrief` / `SceneDescriptor` 等）。**不依赖任何业务模块**。
+- 被依赖：`agent`（经 `render_look` 调用，产物交 `validateEngineResult` 把关）。
 - **`makeup` 不认识 `agent`**：出图能力是**被调用**的，依赖方向单向。引擎本身与消费者无关。
 
 ## 现状与待办
@@ -85,10 +83,9 @@
 - **现状**：`mock` 可用；`image` / `replay` 代码就位、单测绿，**但从未真跑过一次付费生成**（`__fixtures__/` 是空的）。
 - **待办**：
   1. ★ **录一份真实夹具**（要花钱）：证明「引擎离线可验」这条验收真的成立。在那之前它只满足一半。
-  2. ✏️ **`data/engine-out/` 的清理：agent 那条路已经做了，`jobs` 那条路还没。**（2026-09-16）
+  2. ✏️ **`data/engine-out/` 的清理已经做了。**（2026-09-16 起；2026-09-29 起这是唯一一条出图路径）
      - **已解决的部分**：`agent` 收编一张成品图之后会把引擎那份中间产物**删掉**（见 `src/session-artifacts.ts` 的 `putRender`）。这一步是必须的——那张图**就是用户的脸上了妆**，不删的话 §10 `[I8]` 那句"照片与产物被真实删除"就是**假的**：会话那份删了，`engine-out/` 里的副本永远留着，而且**没有任何模块会去枚举它**。
      - ⚠️ **那道删除带边界：只删确实落在引擎输出目录里的文件。** 少了它就会删掉用户的照片——`MockEngine` 返回的"产物"**就是输入照片自己**（`resultFilePath: input.face.filePath`），而照片在 `inputs/` 下。这是落地时踩到的，不是假想。
-     - ⚠️ **仍未解决的**：`jobs` 那条路（`run-pipeline` → `artifactStore.putResult`）**不走那个适配器**，它的中间产物照旧只增不减。`jobs` 已冻结（§8.1），而且 `image` 下表单路径**本来就不可用**（见本文件上面那节 / 设计文档 §8.1），所以这条**当前没有真实泄漏**——但**只要有人让表单路径重新能用，它就立刻变成一笔隐私债**。别当它已经关掉了。
      - ⚠️ **一个配置上的坑**：收编会删源文件，所以 **`MAKEUP_FIXTURES_DIR` 绝不能指到引擎输出目录**（`DATA_DIR/engine-out`）。指过去的话，`replay` 每次的"产物"就是夹具图片自己，收编一删，**花钱录的那张夹具就没了**。
   3. `brow.shape` 要么找到色/质地/浓度维度的替代表达并删字段，要么补实测证明眉形安全。
   4. 自研参数化渲染那条路（关键点 + 局部调色合成）**没有选**：本轮的实测表明第三方编辑模型只改妆是可行的，先把这条路走通。

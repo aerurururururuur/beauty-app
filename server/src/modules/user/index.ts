@@ -1,8 +1,8 @@
 /**
  * modules/user —— 用户模块(public barrel)。
  * 账号 = 昵称 + 密码(只存哈希,不存明文);提供注册 / 登录核对 / 按 id 查档案。
- * 本轮不做登录态(不签发 token、不建会话),也尚未与 jobs 联动
- * (任务归属 userId 是未来接缝,见模块 README)。跨模块协作只经由这里。
+ * 本轮不做登录态(不签发 token、不建会话),也**不与任何出图模块联动**
+ * (会话归属 userId 是既有的事实,见模块 README 的「接缝」一节)。跨模块协作只经由这里。
  */
 
 // ---- 领域实体(纯数据 + 工厂)----
@@ -14,8 +14,8 @@ export { credentialsSchema, userIdSchema } from './domain/schemas/index.js';
 export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
-// ★ 五个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**,理由同 `jobs` 的
-//   `MAX_DRESS`/`MAX_SCENE_TEXT`:不让既有调用方改 import 路径。新代码请直接从
+// ★ 五个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**:不让既有调用方改
+//   import 路径(同样的转发在 `shared` 的 `MAX_SCENE_TEXT` 上也有)。新代码请直接从
 //   `domain/validators/user.validator.js` 引——barrel 上这条转发只是兼容。
 export {
   MAX_NICKNAME,

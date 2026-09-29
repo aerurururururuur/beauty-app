@@ -1,6 +1,6 @@
 /**
  * infrastructure/json/user-repository.ts —— UserRepository 的磁盘 JSON 实现。
- * 与 jobs 的「一实体一文件」不同,账号是**一张小表**:全部用户收在
+ * 与 `cabinet` 的衣橱表同一个形状,账号也是**一张小表**:全部用户收在
  * dataDir/users/users.json 的 { [id]: User } 里——按昵称查号要扫全表,
  * 单文件才不必翻目录;账号量级(演示期)远没到需要索引的程度。
  * 写入读-改-写:先写临时文件再 rename,保证原子性(单进程内足以避免半截文件)。

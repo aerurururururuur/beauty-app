@@ -7,34 +7,35 @@
  * 说明:引擎收到的是已解析到本机磁盘的图片路径;将来若换云存储/把图片转交远端 API,
  * 由上层用例在调用处解析/适配,端口形状可保持不变。
  */
-import type { EngineSourceImage, MakeupBrief, SceneDescriptor } from '../../../shared/index.js';
-import type { ReferenceImage } from '../../../references/index.js';
+import type { EngineSourceImage, MakeupBrief } from '../../../shared/index.js';
 import type { Look } from '../entities/look.js';
 import type { LookSpec } from '../entities/look-spec.js';
 
 export interface EngineInput {
   face: EngineSourceImage;
-  /** 可选风景/氛围参考图(不驱动风格)。 */
-  scenes: EngineSourceImage[];
   /** 用户需求简报:occasion / 肤质肤色 / 穿搭 / 天气 / 自由文字。 */
   brief: MakeupBrief;
-  /** 流水线算出的妆容方向(场合 label 驱动 style/palette 基准)。 */
-  scene?: SceneDescriptor;
-  references?: ReferenceImage[]; // 参考图阶段开启时传入
   /**
-   * ★ **妆面单:只有 agent 路径会传**(设计文档 §8.1)。
+   * 用户上传的风格参考图(本机文件)。
    *
-   * §5.1 原话说「`LookSpec` 塞进 `brief` 也行、作为新字段也行」,2026-09-16 拍板**走新字段**:
+   * ⚠️ **当前无生产者,占位。** 唯一会传图的入口(`POST /agent/sessions/:id/photo`)
+   * 只认本人照片一张,而这条字段要等「风格图进引擎」那一轮才有上层去填它。
+   * 引擎收到就该按"没有"处理,别在这里替上层编一份默认值。
+   */
+  references?: EngineSourceImage[];
+  /**
+   * ★ **妆面单:只有 agent 路径会传。**
+   *
+   * `LookSpec` 走**新字段**、不塞进 `brief`,两条理由:
    *
    * 1. **`brief` 是"用户填的",`LookSpec` 是"算出来的"。** 两者的来源与可信度都不是一回事,
    *    混进同一个包里,"同一层里 occasion 以谁为准"就变成一个需要解释的问题。
-   * 2. ★ **`brief` 会泄漏进 `JobView`**(`jobs/domain/schemas/api/job-view.ts:17`),
-   *    而 §6 规矩 3 明写「**不要让它泄漏进 `JobView`**」。塞进 `brief` 会**同时**让
-   *    `POST /api/jobs` 的校验器接受它——那是把一条引擎私有契约接上了 HTTP 边界。
+   * 2. ★ **`brief` 是从 HTTP 边界进来的**(`POST /agent/sessions` 带初始 brief)。
+   *    塞进 `brief` 就等于**让那条入口的校验器顺手接受 `lookSpec`**——
+   *    把一条引擎私有契约接上了 HTTP 边界。妆面单只该由 `propose_look` 产出。
    *
-   * ⚠️ **可选,且缺省不传时不代表"没有妆面要求"**:`jobs` 那条路(冻结中)从来不传它,
-   * 所以**依赖它的引擎在表单路径上不可用**——`ImageEngine` 会明确报错而不是瞎编一套妆。
-   * 这条后果记在 `modules/makeup/README.md` 与设计文档 §8.1。
+   * ⚠️ **可选,且缺省不传时不代表"没有妆面要求"**:`ImageEngine` 缺它时会**明确报错**
+   * 而不是瞎编一套妆。这条后果记在 `modules/makeup/README.md`。
    */
   lookSpec?: LookSpec;
 }

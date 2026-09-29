@@ -6,16 +6,14 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../domain/errors/app-error.js';
 import type { ErrorCodeValue } from '../domain/errors/app-error.js';
 
+// ⚠️ `Record<ErrorCodeValue, number>` 是**完备性约束**:`ErrorCode` 里加一个成员而这里漏配,
+//    编译不过。所以下面这张表与 `domain/errors/app-error.ts` 是一对,两边一起改。
+// ✏️ 2026-09-29:删掉六个没有抛出点的码(见 `app-error.ts` 的注释)。
 const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
-  JOB_NOT_FOUND: 404,
-  JOB_NOT_READY: 409,
-  JOB_FAILED: 409,
-  FACE_REQUIRED: 422,
-  CONTEXT_REQUIRED: 422,
-  SCENES_MAX_EXCEEDED: 422,
   LOCATION_REQUIRED: 422,
   CITY_NOT_FOUND: 404,
-  // 上游天气源挂了:网关类错误,前端据此回落到手动预设(不是本服务的锅)。
+  // 上游天气源挂了:网关类错误,说明白就行,**不阻塞提交**——没有"手动预设"可回落,
+  // 拉不到就是不带天气(红线 §8-4，前端 `clearWeather()` 后整块省掉 `brief.weather`)。
   WEATHER_UNAVAILABLE: 502,
   USER_NOT_FOUND: 404,
   NICKNAME_TAKEN: 409,

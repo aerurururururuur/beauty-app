@@ -9,8 +9,6 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import type { ServerConfig } from './modules/shared/infrastructure/config.js';
 import { makeErrorHandler } from './modules/shared/presentation/error-handler.js';
-import type { JobsModuleServices } from './modules/jobs/index.js';
-import { registerJobsRoutes } from './modules/jobs/index.js';
 import type { UserModuleServices } from './modules/user/index.js';
 import { registerUsersRoutes } from './modules/user/index.js';
 import type { WeatherModuleServices } from './modules/weather/index.js';
@@ -22,7 +20,6 @@ import { registerAgentRoutes } from './modules/agent/index.js';
 
 export interface AppDeps {
   config: ServerConfig;
-  jobs: JobsModuleServices;
   user: UserModuleServices;
   weather: WeatherModuleServices;
   cabinet: CabinetModuleServices;
@@ -31,7 +28,8 @@ export interface AppDeps {
 
 /**
  * 对外 URL 前缀。前端 VITE_API_BASE 默认 '/api',产物资源也用同一前缀,
- * 因此所有路由(含 GET /jobs/:id/result)统一挂在 /api 之下,前后端只认一个前缀。
+ * 因此所有路由(含 GET /agent/sessions/:id/renders/:seq)统一挂在 /api 之下,
+ * 前后端只认一个前缀。
  */
 const API_PREFIX = '/api';
 
@@ -44,8 +42,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: {
       fileSize: deps.config.maxUploadMb * 1024 * 1024,
-      files: 12, // face 1 + scene ≤ 6(可选氛围参考图),留余量
-      fields: 8, // meta(JSON 简报)一个标量 + 余量
+      // 唯一的 multipart 入口是 `POST /agent/sessions/:id/photo`,它只认两样东西:
+      // 文件 `face` 一个、标量 `userId` 一个(见 agent/presentation/multipart.ts)。
+      // `fields` 比实际多 1 —— 给照片路由将来加字段留的,不是给已删入口的余量。
+      files: 1,
+      fields: 2,
     },
   });
 
@@ -61,12 +62,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         uptimeSec: Math.round(process.uptime()),
         now: new Date().toISOString(),
       }));
-
-      registerJobsRoutes(scoped, {
-        submitJob: deps.jobs.submitJob,
-        getJob: deps.jobs.getJob,
-        getJobResult: deps.jobs.getJobResult,
-      });
 
       registerUsersRoutes(scoped, {
         registerUser: deps.user.registerUser,

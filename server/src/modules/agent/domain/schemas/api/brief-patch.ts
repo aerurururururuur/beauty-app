@@ -2,16 +2,16 @@
  * agent/domain/schemas/api/brief-patch.ts —— `patch_brief` 工具入参的「形状」(zod,**无行为**)。
  *
  * 这是**同构于 `MakeupBrief` 的一个子集**,不是 `MakeupBrief` 本身,原因是分工不同:
- *   - `MakeupBrief` 是**流水线的输入契约**,由 `POST /api/jobs` 一次给全;
+ *   - `MakeupBrief` 是**整份契约**,由 `POST /agent/sessions` 开会话时一次给全;
  *   - 这个 schema 是**增量补丁的契约**,全部字段可选,而且**没有 `weather`**
  *     ——§7.2 给 `patch_brief` 列的面是「场合/肤质/肤色/穿搭/自由文字」,
  *     天气不是对话里问出来的,是 `weather` 模块实拉的。
  *
  * ★ **字段形状从 `shared` 的 `briefFields` 来,不在这里再写一遍。**
- *   此前这里和 `jobs/domain/schemas/api/job-submit.ts` 的 `metaSchema` 各写了一遍同样五行,
- *   风险不是"重复"本身,而是**改一边忘一边**:同一个用户输入会因为从哪条路进来
- *   而受不同限制。现在两边展开同一份字段,各自只添自己的成员
- *   (表单多一个 `weather`,补丁没有)。
+ *   此前本文件与另一条入口各写了一遍同样五行,风险不是"重复"本身,
+ *   而是**改一边忘一边**:同一个用户输入会因为从哪条路进来而受不同限制。
+ *   现在两条路(`startSessionSchema` / 本 schema)展开同一份字段,
+ *   各自只添自己的成员(开会话多一个 `weather`,补丁没有)。
  *
  * ★ **这里只有形状**(§4.2):五个字段都是「可选字符串」,所以 `BriefPatchRaw`
  *   此刻**确实可能装着非法取值**——这不是漏洞,是分工:规则(枚举白名单 / 上限 / trim)

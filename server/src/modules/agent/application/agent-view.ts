@@ -27,7 +27,10 @@ import { TOOL_NAMES } from '../domain/tools/definitions.js';
 import type { AgentEvent, AgentStopReason } from './agent-loop.js';
 import { renderConfirmationSummary } from './tools/render-look.js';
 
-/** 出过的一张图,给前端用。★ `url` 是**本模块**的取图路由,不是 `jobs` 那条。 */
+/**
+ * 出过的一张图,给前端用。★ `url` 由**本模块**生成
+ * (`/agent/sessions/:id/renders/:seq`)——取图地址归表现层,存储层不给 URL。
+ */
 export interface RenderView {
   seq: number;
   url: string;

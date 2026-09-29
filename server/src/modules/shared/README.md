@@ -35,12 +35,21 @@
 ## 依赖 / 被依赖
 
 - 依赖：无（纯 TypeScript，不碰框架 / IO）。
-- 被依赖：`assets / references / makeup / jobs`（经 `shared/index.js`）。
-  `scene-rules.ts` 另被 `vue/src/api/mock.js` 直读（唯一跨端消费者）。
+- 被依赖：`agent / assets / cabinet / face-catalog / makeup / products / user / weather`（经 `shared/index.js`）。
+  ✏️ 2026-09-29：`references` / `jobs` 两个模块已删，不在此列。
+  ⚠️ `scene-rules.ts` 的 `describeScene` **当前一处都没人引**——前端那个消费者
+  （`vue/src/api/mock.js` 的假任务流水线）随 `jobs` 一起删了。文件仍在、alias 仍配着，
+  理由写在 `scene-rules.ts` 文件末。
 
 ## 现状与改法
 
 - **现状**：地基稳定，`config`/`error-handler` 已接好；场合语义已单源化并被测试覆盖。
-- **怎么改**：未来要新增输入维度（如妆品偏好），先在 `brief.ts` 加枚举与类型 → 同步 `jobs` 的 `metaSchema` / validator / 测试 → `vue` 表单。**枚举只在 `brief.ts` 定义一处**，别到处复写。
+- **怎么改**：未来要新增输入维度（如妆品偏好），先在 `brief.ts` 加枚举与类型 → 同步
+  `shared/domain/schemas/contracts/brief-fields.ts` 的形状与 `brief-fields.validator.ts` 的规则
+  （枚举白名单 / 长度上限 / trim）→ 跑 `server/test/schemas.test.ts`（它钉着「两条入口给同一个答案」）
+  → `vue` 表单。**枚举只在 `brief.ts` 定义一处**，别到处复写。
+  ✏️ 2026-09-29:此前这一步写的是「同步 `jobs` 的 `metaSchema` / validator / 测试」。
+  `jobs` 已删，那两条入口现在是 **`POST /agent/sessions`（随会话建立带初值）** 与
+  **`patch_brief`（对话里改）**——它们共用上面那份形状与规则，改一处两处一起变。
 - **加减场合时是两处**：`brief.ts` 的 `OCCASIONS` + `scene-rules.ts` 的 `SCENE_RULES` / `SCENE_MATCH_ORDER`（漏配后两者会编译不过 / 测试红）。前端 `OCCASION_OPTIONS` 是纯展示，也要跟着加。
 - **红线**：`SKIN_TONES` 5 档、缺省 `medium`，不要默认浅肤色审美。场合语义里**刻意不收「显白」**（见 `scene-rules.ts` 文件头）。

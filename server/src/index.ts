@@ -10,9 +10,7 @@ import {
   readDashScopeApiKey,
 } from './modules/shared/infrastructure/config.js';
 import { createAssetsModule } from './modules/assets/index.js';
-import { createReferencesModule } from './modules/references/index.js';
 import { createMakeupModule } from './modules/makeup/index.js';
-import { createJobsModule } from './modules/jobs/index.js';
 import { createUserModule } from './modules/user/index.js';
 import { createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
@@ -37,23 +35,15 @@ async function main(): Promise<void> {
   const config = loadConfig();
 
   // —— 各模块组合 ——
-  // REFERENCE_PROVIDER 已真正接通(在 references/compose.ts 里按 kind 分发)。
-  // ★ MAKEUP_ENGINE **2026-09-16 起也真的接通了**(在 makeup/compose.ts 里按 kind 分发):
+  // ★ MAKEUP_ENGINE **2026-09-16 起真的接通了**(在 makeup/compose.ts 里按 kind 分发):
   //    mock(缺省,骨架)/ image(真出图,计费)/ replay(回放夹具,CI)。
-  //    **仍然没有 off** —— 流水线没有引擎就出不了成品,硬接一个 off 分支只会得到
-  //    又一个假开关,而那正是本轮要修掉的东西。
+  //    **仍然没有 off** —— 没有引擎就出不了成品,硬接一个 off 分支只会得到
+  //    又一个假开关,而那正是本仓反复要修掉的东西。
   // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
-  //   里的纯查表函数,由 run-pipeline 直接调用。它没有可换的实现,所以不该有开关。
+  //   里的纯查表函数。它没有可换的实现,所以不该有开关。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  // 参考源:缺省 mock(离线即用);REFERENCE_PROVIDER=live 走外部检索,
-  // 站点基址经 REFERENCE_BASE_URL 配(部署环境出站策略不同,换站点不该改代码)。
-  const { referenceProvider } = createReferencesModule({
-    kind: config.referenceProvider,
-    baseUrl: config.referenceBaseUrl,
-    timeoutMs: config.referenceTimeoutMs,
-  });
-  // 上妆引擎。★ `MAKEUP_ENGINE=image` 时表单路径**不可用**(引擎需要妆面单,而表单不传它),
-  //   这是 §8.1「出图能力接给 agent」的直接后果——缺省 mock 因此不只是省钱,也是 `[I7]` 的兜底。
+  // 上妆引擎。★ `MAKEUP_ENGINE=image` 需要**妆面单(LookSpec)**,而只有对话 agent 会产出它——
+  //   所以缺省 mock 是唯一能让"没配 key 也起得来服务"的取值,不只是省钱。
   const { engine } = createMakeupModule({
     kind: config.makeupEngine,
     outputDir: config.makeupOutDir,
@@ -75,29 +65,21 @@ async function main(): Promise<void> {
   const faceCatalog = createFaceCatalogModule({ contentDir: config.faceCatalogDir });
 
   /**
-   * `FaceVocabulary` → `makeup` / `jobs` / `agent` 的 `SkinTonePalette`
+   * `FaceVocabulary` → `makeup` / `agent` 的 `SkinTonePalette`
    * (第 N 处跨模块粘合,同下面的 `userExists` / `cosmetics` / `productLibrary`)。
    *
    * ★ **显式挑字段,而不是把 `vocabulary` 直接塞过去。** 结构上也许能凑合,但那样
    *   **经过这条缝的字段就没人负责了**:词表哪天多一列,它会静默地跟着流进妆面校验。
    *   这条缝该是决定"谁看得见什么"的唯一地方 —— 同 `productLibrary` 那段。
    *
-   * ⚠️ **位置由 jobs 决定**:流水线也要用 `labelOf`,所以它必须排在
-   *   `createJobsModule` 之前(第一版排在产品库那段,`tsc` 直接报了
-   *   「used before its declaration」——这个顺序不是风格,是依赖)。
+   * ⚠️ **必须排在 `createAgentModule` 之前**:agent 的 propose-look 要用它换肤色调色盘
+   *   (第一版排在后面,`tsc` 直接报了「used before its declaration」——
+   *   这个顺序不是风格,是依赖)。
    */
   const palette: SkinTonePalette = {
     toneKeysFor: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.toneKeys,
     labelOf: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.label,
   };
-
-  const jobs = createJobsModule({
-    dataDir: config.dataDir,
-    artifactStore,
-    referenceProvider,
-    engine,
-    palette,
-  });
 
   // 账号表落 dataDir/users/users.json;密码只存 scrypt 凭据,不存明文。
   const user = createUserModule({ dataDir: config.dataDir });
@@ -217,7 +199,7 @@ async function main(): Promise<void> {
   };
 
   // ★ `SessionArtifacts` 端口 → `ArtifactStore` 的适配(§7.1,消费者声明端口)。
-  //   **底下就是同一个 `artifactStore` 实例**,和 `jobs` 用的那个是同一个。
+  //   **底下就是上面那个 `artifactStore` 实例本身**——没有第二套照片存储。
   //   映射规则(尤其是"一图一键"那条嵌套 id)在 `src/session-artifacts.ts`,
   //   那里有测试;这里只是一行装配。
   // ★ `engineOutDir` 是**给删的**:收编一张成品图之后把引擎那份中间产物删掉。
@@ -240,8 +222,8 @@ async function main(): Promise<void> {
     //   挡的是"给一个不存在的用户开会话"——理由在
     //   `agent/domain/ports/user-directory.ts` 的文件头。
     userExists,
-    // ★ **同一个引擎实例**,不是一个新的:出图那条路与表单那条路用同一份配置,
-    //   于是"`MAKEUP_ENGINE` 换一个值,两边一起变"——这正是 §8.1 想要的。
+    // ★ **同一个引擎实例**,不是新造的:它和上面对 `createMakeupModule` 的调用共用
+    //   同一份配置,于是"`MAKEUP_ENGINE` 换一个值,出图跟着变"。
     engine,
     artifacts: sessionArtifacts,
     palette,
@@ -253,7 +235,7 @@ async function main(): Promise<void> {
   });
 
   // —— web shell ——
-  const app = await buildApp({ config, jobs, user, weather, cabinet, agent });
+  const app = await buildApp({ config, user, weather, cabinet, agent });
 
   /**
    * ★ **启动时把「对面是真的还是假的」打出来。**
@@ -372,8 +354,7 @@ async function main(): Promise<void> {
   }
 
   const shutdown = async (signal: string): Promise<void> => {
-    app.log.info(`收到 ${signal},排空队列后退出`);
-    await jobs.queue.whenIdle();
+    app.log.info(`收到 ${signal},等在途请求收尾后退出`);
     await app.close();
     process.exit(0);
   };

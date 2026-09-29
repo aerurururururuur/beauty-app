@@ -7,11 +7,11 @@
  * 其余判断(「会话不存在」「不是你的会话」「正文是空白」)在用例里,用语义错误码表达。
  */
 import { z } from 'zod';
+import { briefFields } from '../../../../shared/index.js';
 
 /**
- * 「只有 `userId`」的请求体。
- * ★ 开会话、确认出图这两条路由的入参**逐字相同**,所以由同一个 schema 派生——
- * 不是省事:两份写在一起的东西迟早会只改一份。
+ * 「只有 `userId`」的请求体。★ **确认出图专用**(开会话那条不再与它共用,见下)。
+ * 它一个字都不多收——理由见 `confirmRenderSchema`。
  */
 const userIdOnlySchema = z
   .object({
@@ -20,8 +20,39 @@ const userIdOnlySchema = z
   })
   .strict();
 
-/** 开一个会话。 */
-export const startSessionSchema = userIdOnlySchema;
+/**
+ * 天气。★ **这是本入口独有的成员。** 对话那条路的 `patch_brief` 刻意没有它
+ *   (天气不是问出来的,是 `weather` 模块实拉的),所以它不进 `shared` 那份共用字段,
+ *   形状与规则都归这里。⚠️ 这里只有形状;数值区间是**规则**,在 validator 里。
+ */
+const weatherShape = z
+  .object({
+    condition: z.string().optional(),
+    temperatureC: z.number().optional(),
+    humidityPct: z.number().optional(),
+    uvIndex: z.number().optional(),
+  })
+  .strict();
+
+/**
+ * 开一个会话。
+ *
+ * ★ **可以随请求带一份初始 `brief`**——表单那条路要用:用户在表单里一次填完,
+ *   不是聊出来的。**不带 brief 的调用与本条新增之前逐字相同。**
+ *   简报字段从 `shared` 的 `briefFields` 展开,与 `patch_brief` 是**同一份形状**。
+ *
+ * ⚠️ 这是「能改变 agent 知道什么」的**第二条路**(第一条是对话里的 `patch_brief`)。
+ *   它与确认出图那条路由「一个出图参数都不收」的口径**不冲突**:那条防的是
+ *   「让用户确认一份他还没看过的妆面单」,而 `brief` 是**输入**,不是出图参数。
+ *   **别照此为出图参数开口子。**
+ */
+export const startSessionSchema = z
+  .object({
+    userId: z.string().min(1, '缺少 userId'),
+    ...briefFields,
+    weather: weatherShape.optional(),
+  })
+  .strict();
 
 /**
  * 出图。
@@ -33,6 +64,11 @@ export const startSessionSchema = userIdOnlySchema;
  * 「确认生成」),但入参**照样只有 `userId`** —— 两个入口要出的都是"屏幕上那一套",
  * 没有任何一个入口需要多说一个字。★ 所以那个"幂等键"的洞没有为它破例,见
  * `confirm-render.ts` 文件头的「残余空洞」。
+ *
+ * ✏️ 2026-09-29:开会话那条**不再与它共用这个 schema**(那条现在可以带初始 brief 了)。
+ *   两条路由的入参从这天起**故意不同** —— 开会话收输入,出图只认归属人。
+ *   ★ 别为了"少写一份"把它们再合并回去:那会让出图那条重新能收参数,
+ *   而它一个字都不该收。
  */
 export const confirmRenderSchema = userIdOnlySchema;
 
@@ -49,6 +85,5 @@ export const sendMessageSchema = z
   })
   .strict();
 
-export type StartSessionRaw = z.output<typeof startSessionSchema>;
 export type SendMessageRaw = z.output<typeof sendMessageSchema>;
 export type ConfirmRenderRaw = z.output<typeof confirmRenderSchema>;

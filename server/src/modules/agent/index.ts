@@ -145,16 +145,17 @@ export { AttachPhoto } from './application/usecases/attach-photo.js';
 export { ConfirmRender } from './application/usecases/confirm-render.js';
 export { GetRender } from './application/usecases/get-render.js';
 export type { RenderArtifact } from './application/usecases/get-render.js';
-// ★ `patch_brief` 的入参形状与**校验行为**。**导出它们是为了让一条跨模块的契约可测**:
-//   表单那条路(`jobs` 的 `metaSchema` + `validateSubmitJob`)与本模块这条补丁路
-//   共用同一份字段规则(`shared/domain/validators/brief-fields.validator.ts`),
-//   而"两条路给同一个答案"这件事只有把**两边**都拿到同一处才验得了
-//   (`test/schemas.test.ts`)。没有这些 export,那条测试就只能各写一遍断言
-//   ——那正是它要防的东西。
-export { briefPatchSchema } from './domain/schemas/index.js';
+// ★ 简报的**两条入口**(开会话带初始 brief ↔ 对话里 `patch_brief`)的入参形状与校验行为。
+//   **导出它们是为了让一条跨入口的契约可测**:两条路共用同一份字段规则
+//   (`shared/domain/validators/brief-fields.validator.ts`),而"两条路给同一个答案"
+//   这件事只有把**两边**都拿到同一处才验得了(`test/schemas.test.ts`)。
+//   没有这些 export,那条测试就只能各写一遍断言——那正是它要防的东西。
+export { briefPatchSchema, startSessionSchema } from './domain/schemas/index.js';
 export type { BriefPatchRaw } from './domain/schemas/index.js';
 export { checkBriefPatch } from './domain/validators/brief-patch.validator.js';
 export type { BriefPatchCheck } from './domain/validators/brief-patch.validator.js';
+export { validateStartSession } from './domain/validators/agent-http.validator.js';
+export type { StartSessionInput } from './domain/validators/agent-http.validator.js';
 /**
  * ★ 「发一句话」的形状 + 校验行为。**导出理由同上面那条**:§4.2 把单条消息的**长度上限**
  *   从 schema 搬进了 validator(`MAX_AGENT_TEXT` 也跟着搬了),而长度这种"松掉看不见"

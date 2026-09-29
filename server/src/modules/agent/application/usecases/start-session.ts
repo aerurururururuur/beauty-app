@@ -12,6 +12,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { AppError, ErrorCode } from '../../../shared/index.js';
+import type { MakeupBrief } from '../../../shared/index.js';
 import type { SessionStore } from '../../domain/ports/session-store.js';
 import type { UserDirectory } from '../../domain/ports/user-directory.js';
 import type { Session } from '../../domain/entities/session.js';
@@ -25,7 +26,11 @@ export class StartSession {
     },
   ) {}
 
-  async execute(userId: string): Promise<Session> {
+  /**
+   * `brief` 是**可选的初始需求**(表单那条路一次填完)。★ 已经在 HTTP 层过完规则了
+   * (见 `validateStartSession`)——这里不再校验一遍,同 `attach-photo` 对文件的处理。
+   */
+  async execute(userId: string, brief: MakeupBrief = {}): Promise<Session> {
     // ★ 顺序:**先问"这人存在吗",再谈存什么**——所以检查在建实体、落库之前。
     //   同 `AddCosmetic`,连错误文案都一致(`用户不存在:<id>`)。
     //   这和"多一条垃圾记录"不是一个量级的问题,理由见端口文件头。
@@ -34,7 +39,7 @@ export class StartSession {
     }
 
     // id 由调用方生成(同 `createCosmeticItem` 的约定:实体工厂不自己抽 id)。
-    const session = createSession(randomUUID(), userId);
+    const session = createSession(randomUUID(), userId, brief);
     await this.deps.sessions.create(session);
     return session;
   }

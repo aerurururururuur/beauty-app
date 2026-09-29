@@ -1,10 +1,9 @@
 /**
  * modules/makeup —— 上妆引擎模块(public barrel)。
- * 依赖 shared;引擎端口还引用 references(参考图)的类型。
- * 业务「文案组装 narration」与「引擎输出校验」也归本模块(都贴近 look/引擎契约)。
+ * 依赖 shared,`EngineInput` 的输入图一律用 shared 的 `EngineSourceImage`,**不依赖别的模块**。
+ * 业务「引擎输出校验」也归本模块(贴近 look/引擎契约)。
  */
 export type { Look, MakeupZone } from './domain/entities/look.js';
-export type { ResultText } from './domain/entities/result-text.js';
 export type { Engine, EngineInput, EngineResult } from './domain/ports/engine.js';
 export { validateEngineResult } from './domain/validators/engine-output.validator.js';
 
@@ -36,7 +35,6 @@ export { validateLookSpec } from './domain/validators/look-spec.validator.js';
 export type { SkinTonePalette } from './domain/ports/skin-tone-palette.js';
 // ★ 把 LookSpec 讲成人话——砍掉 CSS 预览后它是「预览」的替代品(设计文档 §7.4.2)。
 export { describeLook } from './application/look-description.js';
-export { buildNarrative } from './application/narration.js';
 
 // ---- 引擎实现(三个,**按行为区分,不按厂商区分**:骨架 / 真出图 / 回放)----
 export { MockEngine } from './infrastructure/engine/mock-engine.js';

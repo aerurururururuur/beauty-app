@@ -9,7 +9,7 @@
  *    `mockToolCall` / `mockText` 两个构造器就是为了让脚本读起来像一段对话。
  *
  * 2. **离线兜底**:`AGENT_LLM=mock` 时服务仍能起来并回话,不联网、不花钱。
- *    同 `WEATHER_PROVIDER=mock` / `REFERENCE_PROVIDER=mock` 的用法
+ *    同 `WEATHER_PROVIDER=mock` / `MAKEUP_ENGINE=mock` 的用法
  *    (红线 §13-1:演示现场第一约束是稳)。
  *
  * ⚠️ **它不会假装自己是真的。** 脚本用完后回的话术明确说"演示模式",

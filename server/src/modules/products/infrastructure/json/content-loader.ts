@@ -2,7 +2,7 @@
  * infrastructure/json/content-loader.ts —— 把 `products/<库>/` 那份内容目录读进内存。
  *
  * ★ **刻意急切加载**(启动时整个读进来、物化成一个 Map),这和本项目其它地方
- *   (references 硬编码常量、makeup 夹具懒读、assets/user 懒读 + `existsSync` 挡)
+ *   (makeup 夹具懒读、assets/user 懒读 + `existsSync` 挡)
  *   **都不一样**。理由只有一条,但它足够:
  *
  *   **只有急切才拿得到"坏数据启动即失败"。**

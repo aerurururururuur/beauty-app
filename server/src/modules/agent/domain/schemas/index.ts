@@ -10,7 +10,7 @@ export {
   confirmRenderSchema,
   sendMessageSchema,
 } from './api/agent-http.js';
-export type { StartSessionRaw, SendMessageRaw, ConfirmRenderRaw } from './api/agent-http.js';
+export type { SendMessageRaw, ConfirmRenderRaw } from './api/agent-http.js';
 
 export { briefPatchSchema } from './api/brief-patch.js';
 export type { BriefPatchRaw } from './api/brief-patch.js';

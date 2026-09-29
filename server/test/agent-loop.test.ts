@@ -368,7 +368,7 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
     expect(llm.requests).toHaveLength(1);
   });
 
-  it('LLM 连不上时优雅收束,并点名还能走哪条路', async () => {
+  it('LLM 连不上时优雅收束,并说清下一步是「稍后再发一次」', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const llm = new ThrowingLlm();
     const loop = new AgentLoop({ llm, tools: new Map() });
@@ -377,7 +377,9 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
 
     expect(result.stopReason).toBe('llm_unavailable');
     const text = (result.session.messages.at(-1)?.content[0] as { text: string }).text;
-    expect(text).toContain('POST /api/jobs');
+    // ★ 这里**不能再指向 `POST /api/jobs`**——那条路随 `jobs` 模块一起删了(`[I7]` 随之降级)。
+    expect(text).toContain('稍后再发一次');
+    expect(text).not.toContain('/api/jobs');
     // 用户那句话要留在历史里 —— 不然「我没说过」说不清。
     expect(result.session.messages[0]).toEqual(textMessage('user', '在吗'));
     expect(warn).toHaveBeenCalled();

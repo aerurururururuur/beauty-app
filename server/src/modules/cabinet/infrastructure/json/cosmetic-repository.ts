@@ -1,7 +1,7 @@
 /**
  * infrastructure/json/cosmetic-repository.ts —— CosmeticRepository 的磁盘 JSON 实现。
  * 与 user 的账号表同款:**一张小表**——全部条目收在 dataDir/cabinet/items.json 的
- * { [id]: CosmeticItem } 里。之所以单文件而不是"一实体一文件"(jobs 那样):
+ * { [id]: CosmeticItem } 里。之所以单文件而不是"一实体一文件":
  * 列表要按 userId 过滤,单表一次 JSON.parse 就能扫完,不必翻目录读 N 个文件。
  * 代价(README 也写了):写入是整表读-改-写,并发写会互相覆盖;
  * 演示期单进程、量级(每人 ≤ 100 件)远没到需要索引或分片的程度。

@@ -107,7 +107,8 @@ export class MockEngine implements Engine {
     // 模拟“渲染”耗时,让前端轮询能看到进度。
     await sleep(450);
     const tone = input.brief?.skinTone ?? DEFAULT_TONE;
-    const { style, palette } = specFor(input.scene?.label, tone);
+    // 风格只认 brief 里的场合;拿不到就是 `STYLES.daily` 那套基线。
+    const { style, palette } = specFor(input.brief?.occasion, tone);
 
     const zones: MakeupZone[] = ZONES.map((z) => ({
       role: z.role,
@@ -119,6 +120,12 @@ export class MockEngine implements Engine {
       opacity: z.opacity,
     }));
 
+    // ⚠️ **这份 `look` 目前没有任何消费者读它。** 出图那条路(`agent` 的 `render_look`)只取
+    //    `resultFilePath` / `mimeType`,给人看的那句话是 `describeLook(spec)` 现算的;
+    //    `validateEngineResult` 会验 `zones` / `palette` 的形状,**验完就丢**。
+    //    所以下面这些格子今天等于**写完不读**——留着是因为前端设计那一轮可能要把
+    //    `zones` 拿回去做「本人照片 + CSS 叠加」的预览(红线没变:要展示就得先让会话视图
+    //    把它透出来)。**别当成"有人正在用"往下改**;真要删是单独一件事。
     const look: Look = {
       engine: 'mock',
       style,
@@ -129,7 +136,9 @@ export class MockEngine implements Engine {
         { role: '眼影', rgb: palette['眼影'] },
       ],
       zones,
-      note: '骨架演示:产物为本人照片原图,妆容按 look.zones 由前端 CSS 叠加预览;真实像素渲染在 roadmap W2 替换。',
+      // ✏️ 2026-09-29:这句原来写着「妆容按 look.zones 由前端 CSS 叠加预览」——那句话现在是假的
+      //   (前端不再做这件事,而且它根本看不到 `look`)。改成只描述产物本身。
+      note: '骨架演示:产物为本人照片原图,像素未改。真实像素渲染在 roadmap W2 替换。',
     };
 
     return {

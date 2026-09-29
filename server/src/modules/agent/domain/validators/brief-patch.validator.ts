@@ -9,17 +9,16 @@
  *
  * 于是 §4.2 一旦把规则搬出 schema，**这条路就再没有任何地方判过**
  * `occasion: "随便"`、5000 字的 `sceneText`、`skinTone: "fair"` —— 而 schema 变松之后
- * 它们会**静默写进会话 brief**，一路带到最后 `POST /api/jobs` 提交时
- * 才在**另一条路**上炸掉。那正是 spec §14-08
- * 「某个校验规则只在一个入口生效」逐字描述的那一格。
+ * 它们会**静默写进会话 brief**，一路带到出图那一步才在**别的地方**炸掉。
+ * 那正是 spec §14-08「某个校验规则只在一个入口生效」逐字描述的那一格。
  *
- * 所以补这个文件，让它与表单那条路**调同一个 `checkBriefFields`**：
+ * 所以补这个文件，让它与开会话那条路**调同一个 `checkBriefFields`**：
  * 同一个用户输入，不会因为从哪条路进来而受不同限制。
  *
  * 分工：
  *   ① 形状 —— `briefPatchSchema`（是不是对象 / 字段是不是字符串 / `.strict()`）；
  *   ② 规则 —— `checkBriefFields`（枚举白名单 / 长度上限 / trim），来自 `shared`，
- *      **与 `jobs/domain/validators/job-submit.validator.ts` 是同一份**。
+ *      **与 `validateStartSession` 是同一份**。
  *
  * ★ 返回**结果对象而不是抛异常**：工具失败要**回填成给模型看的 observation**
  *   （§7.3 第 4 条：工具错误不抛穿 agent 循环），怎么呈现失败由工具自己决定。

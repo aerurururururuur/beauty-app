@@ -7,13 +7,15 @@
  *   ⚠️ §4.3 欠账:`MAX_AGENT_TEXT` 仍是文件里的魔数,要真兑现得由组合根注入(单独一轮)。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
+import type { MakeupBrief, WeatherInfo } from '../../../shared/index.js';
+import { checkBriefFields } from '../../../shared/index.js';
 import { confirmRenderSchema, startSessionSchema, sendMessageSchema } from '../schemas/index.js';
-import type { ConfirmRenderRaw, SendMessageRaw, StartSessionRaw } from '../schemas/index.js';
+import type { ConfirmRenderRaw, SendMessageRaw } from '../schemas/index.js';
 import { describeIssues } from './validate.js';
 
 /**
  * 单条用户消息上限(字)。
- * 比 `jobs` 的 `MAX_SCENE_TEXT`(2000)小一个量级:那是**一次性把需求写完**的输入框,
+ * 比 `shared` 的 `MAX_SCENE_TEXT`(2000)小一个量级:那是**一次性把需求写完**的输入框,
  * 这是**对话里的一句话**。留 1000 已经远超正常一句话,同时挡住"贴一整篇需求文档进来"
  * 这种会把上下文预算一次烧掉的行为。
  *
@@ -43,9 +45,80 @@ function validateUserIdOnly(raw: unknown): { userId: string } {
   return { userId };
 }
 
+/**
+ * 「开会话」校验后的入参:归属人 + 一份**可选的**初始简报(已经过规则校验与清洗)。
+ * ★ 简报字段的规则与 `patch_brief` **共用 `shared` 的 `checkBriefFields`**——
+ *   同一份字段在两条路上受不同限制,是「表单里能写 2000 字、对话里却报错」
+ *   那类极难归因的 bug 的来源。
+ */
+export interface StartSessionInput {
+  userId: string;
+  brief: MakeupBrief;
+}
+
 /** 校验「开会话」入参。 */
-export function validateStartSession(raw: unknown): StartSessionRaw {
-  return validateUserIdOnly(raw);
+export function validateStartSession(raw: unknown): StartSessionInput {
+  const parsed = startSessionSchema.safeParse(raw ?? {});
+  if (!parsed.success) fail(describeIssues(parsed.error));
+
+  const userId = parsed.data.userId.trim();
+  if (userId === '') fail('userId 不能是空白');
+
+  const checked = checkBriefFields(parsed.data);
+  if (!checked.ok) fail(checked.message);
+
+  // ★ `weather` 是这条入口独有的成员,不在 `checkBriefFields` 里(那条路没有天气),
+  //   所以在这里单独过一遍。
+  const weather = checkWeather(parsed.data.weather);
+  return { userId, brief: weather ? { ...checked.brief, weather } : checked.brief };
+}
+
+/** 天气简述上限(字)。 */
+const MAX_WEATHER_CONDITION = 20;
+
+/**
+ * 天气数值的合理区间。★ 越界的数**原样进模型上下文不是"信息更丰富",只是噪音**——
+ * 而它会一路流进提示词。区间是**规则**(§4.2),所以在这里而不在 schema。
+ */
+const WEATHER_BOUNDS = {
+  temperatureC: [-60, 60],
+  humidityPct: [0, 100],
+  uvIndex: [0, 15],
+} as const;
+
+/**
+ * 校验并清洗天气。四个成员**逐个显式处理**(新增成员时这里编译期会提醒)。
+ * 全部被拒或为空 → 返回 `undefined`(视同没带天气),**不留一个空对象**:
+ * 空对象在 `describeBrief` 那边会被当成"上游填过"而透出一句空话。
+ */
+function checkWeather(raw: WeatherInfo | undefined): WeatherInfo | undefined {
+  if (!raw) return undefined;
+
+  const out: WeatherInfo = {};
+  const problems: string[] = [];
+
+  if (raw.condition !== undefined) {
+    const condition = raw.condition.trim();
+    if (condition.length > MAX_WEATHER_CONDITION) {
+      problems.push(`天气简述最多 ${MAX_WEATHER_CONDITION} 字`);
+    } else if (condition) {
+      out.condition = condition;
+    }
+  }
+
+  for (const key of ['temperatureC', 'humidityPct', 'uvIndex'] as const) {
+    const value = raw[key];
+    if (value === undefined) continue;
+    const [min, max] = WEATHER_BOUNDS[key];
+    if (!Number.isFinite(value) || value < min || value > max) {
+      problems.push(`${key} 超出合理区间 ${min}~${max}`);
+    } else {
+      out[key] = value;
+    }
+  }
+
+  if (problems.length > 0) fail(problems.join(';'));
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** 校验「确认出图」入参。★ 除了归属人什么都没得校验——**这是有意的**,见 schema 注释。 */
@@ -122,7 +195,7 @@ export function validateRenderSeq(raw: unknown): number {
  * 视觉读图那条腿本次"只预留、不实现")。这里说得出的话只有:
  * 类型对不对、有没有文件名。**判断不了的事就不要在这里假装判断了。**
  *
- * 大小与文件个数由 `@fastify/multipart` 的 limits 兜(`maxUploadMb`,同 `jobs`)。
+ * 大小与文件个数由 `@fastify/multipart` 的 limits 兜(见 `src/app.ts`,用 `maxUploadMb`)。
  */
 export function validatePhotoUpload<T extends { mimeType: string }>(
   /**

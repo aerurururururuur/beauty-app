@@ -12,15 +12,6 @@ import path from 'node:path';
 export type WeatherProviderKind = 'mock' | 'live';
 
 /**
- * 参考源开关。与 `references/compose.ts` 的同名 union 同形,两处要一起改。
- *
- * ★ **刻意不复用别的 union**：曾经的 `AdapterKind` 由 `referenceProvider` 与 `makeupEngine`
- *   共用，往里加 `'live'` 会顺带让 `MAKEUP_ENGINE=live` 变成一个语法合法但语义荒谬的取值。
- *   2026-09-16 引擎接线时把那个共用 union 拆掉了——现在每类开关各有一个。
- */
-export type ReferenceProviderKind = 'mock' | 'live';
-
-/**
  * 上妆引擎开关。与 `makeup/compose.ts` 的同名 union 同形,两处要一起改。
  *
  * ★ **刻意没有 `off`。** 这一条从 `server/README.md` 到 `src/index.ts` 已经写过三遍:
@@ -61,14 +52,9 @@ export interface ServerConfig {
   host: string;
   port: number;
   logLevel: string;
-  /** 数据目录(任务记录 + 输入/产物文件都在这下面)的绝对路径。 */
+  /** 数据目录(会话记录 + 输入/产物文件都在这下面)的绝对路径。 */
   dataDir: string;
   maxUploadMb: number;
-  referenceProvider: ReferenceProviderKind;
-  /** 参考检索站点基址;仅 referenceProvider='live' 用。换镜像/代理只改这里。 */
-  referenceBaseUrl: string;
-  /** 参考检索超时毫秒;仅 referenceProvider='live' 用。 */
-  referenceTimeoutMs: number;
   /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)| replay(回放夹具,CI)。 */
   makeupEngine: MakeupEngineKind;
   /** 生图模型名。缺省 `qwen-image-edit-plus`(§4.4 的四次实测全部基于它)。 */
@@ -173,11 +159,6 @@ const WEATHER_PROVIDER_CHOICES: readonly KindChoice<WeatherProviderKind>[] = [
   { value: 'live', note: '无 key 实拉' },
 ];
 
-const REFERENCE_PROVIDER_CHOICES: readonly KindChoice<ReferenceProviderKind>[] = [
-  { value: 'mock', note: '离线兜底,只出文字' },
-  { value: 'live', note: '外部检索' },
-];
-
 const AGENT_LLM_CHOICES: readonly KindChoice<AgentLlmKind>[] = [
   { value: 'mock', note: '离线演示脚本,不是模型' },
   { value: 'real', note: '真实模型,按 token 计费' },
@@ -250,16 +231,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     logLevel: env.LOG_LEVEL ?? 'info',
     dataDir: path.resolve(env.DATA_DIR ?? './data'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 25),
-    // 参考检索缺省仍是 mock:不联网、启动即用。要用真实检索显式设为 live
-    // (它失败会降级为空列表,不会拖垮任务,但会让每个任务多几次网络往返)。
-    referenceProvider: asKind(
-      'REFERENCE_PROVIDER',
-      env.REFERENCE_PROVIDER,
-      'mock',
-      REFERENCE_PROVIDER_CHOICES,
-    ),
-    referenceBaseUrl: env.REFERENCE_BASE_URL ?? 'https://cn.bing.com',
-    referenceTimeoutMs: asPositiveInt(env.REFERENCE_TIMEOUT_MS, 5000),
     // 引擎缺省**仍是 mock**:它不联网、不出账单,是"不会意外花钱"的那一个
     // (与 AGENT_LLM 缺省 mock 同一条理由)。
     makeupEngine: asKind('MAKEUP_ENGINE', env.MAKEUP_ENGINE, 'mock', MAKEUP_ENGINE_CHOICES),

@@ -302,7 +302,7 @@ describe('patch_brief', () => {
   it('★ 取值非法 / 超长一律打回,且**会话一个字没动**(§4.2 后规则在 validator)', async () => {
     // ★ 这两条此前是**裸奔**的。形状层的 `z.enum` / `.max()` 一按 §4.2 降成纯形状,
     //   `occasion` 与 `sceneText` 就再没有第二道网 —— 非法值会**静默写进会话 brief**,
-    //   一路带到最后 `POST /api/jobs` 提交时才在**另一条路**上炸掉。
+    //   一路带到最后出图那一步才在**别的地方**炸掉。
     //   那正是 spec §14-08「某个校验规则只在一个入口生效」那一格。
     //   (`skinTone: 'very_deep'` 上面那条碰巧覆盖到了肤色,occasion 与长度没有。)
     const cases: Array<[unknown, string]> = [

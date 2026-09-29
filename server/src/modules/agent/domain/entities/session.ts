@@ -99,14 +99,19 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** 开一个新会话(初始为空,brief 为空对象)。 */
-export function createSession(id: string, userId: string): Session {
+/**
+ * 开一个新会话。
+ *
+ * `brief` 可带一份**初始值**——表单那条路一次填完需求,不经过对话
+ * (`POST /agent/sessions` 带 brief)。缺省为空对象,与本参数新增之前**逐字相同**。
+ */
+export function createSession(id: string, userId: string, brief: MakeupBrief = {}): Session {
   const at = nowIso();
   return {
     id,
     userId,
     messages: [],
-    brief: {},
+    brief: { ...brief },
     renders: [],
     consultedProducts: [],
     createdAt: at,

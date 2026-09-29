@@ -1,8 +1,8 @@
 /**
  * agent/domain/ports/session-store.ts —— 会话持久化端口。
  *
- * 形状照 `jobs/domain/ports/job-repository.ts` 与 `cabinet/domain/ports/cosmetic-repository.ts`
- * 的既有分工:端口只声明行为,实现见 `infrastructure/`。
+ * 形状照 `cabinet/domain/ports/cosmetic-repository.ts` 的既有分工:
+ * 端口只声明行为,实现见 `infrastructure/`。
  *
  * ⚠️ **目前仍只有内存实现**(落盘是另一笔待办),但**TTL 的接口已经在这里了**——
  * 它到阶段 3 才有意义,而阶段 3 到了:`render_look` 一进来,**会话里就有真人照片了**,

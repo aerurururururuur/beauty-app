@@ -31,8 +31,11 @@ export const MAX_PASSWORD = 128;
 /**
  * 用户 id 的格式:只认 URL 安全字符,1..80 位。
  *
- * ★ 与 `jobs` / `cabinet` 的同名正则**逐字同款但各持一份** —— 模块之间不互相 import
- *   (见模块 README 的依赖方向约定),不为了一个正则破例。改这里请顺手看另外三处。
+ * ★ 与 `cabinet` 的同名正则(`ITEM_ID_PATTERN` / `OWNER_ID_PATTERN`)**逐字同款但各持一份**
+ *   —— 模块之间不互相 import(见模块 README 的依赖方向约定),不为了一个正则破例。
+ *   ✏️ 2026-09-29:此前这里数的是"另外三处",`jobs` 那份随模块删了 —— 实测全仓**只剩两处**
+ *   (本文件与 `cabinet/domain/validators/cosmetic-item.validator.ts`,后者两份里
+ *   `ITEM_ID_PATTERN` 管条目 id、`OWNER_ID_PATTERN` 管归属人 id)。改这里请顺手看那一处。
  */
 const USER_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 

@@ -185,7 +185,7 @@ export class ImageEngine implements Engine {
       engine: 'image',
       // ★ `style` 复用 `describeLook`:确定性的、与 `LookSpec` 一一对应的那一份说法。
       //   不另写一个"风格名"——那会是**第二套说法**,而两者不一致时用户会照着错的那个判断
-      //   (`narration.ts` / `look-description.ts` 都记过这条教训)。
+      //   (`look-description.ts` 记过这条教训)。
       style: spec ? describeLook(spec) : '',
       model: opts.model,
       templateVersion: TEMPLATE_VERSION,

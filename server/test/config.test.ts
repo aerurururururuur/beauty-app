@@ -11,7 +11,8 @@
  * 那正是本项目反复点名的"假开关"。
  *
  * ★ **2026-09-18:四个开关一律改成「不认识的取值 = 抛错」**,连同原先静默回落的
- *   `WEATHER_PROVIDER` / `REFERENCE_PROVIDER` / `AGENT_LLM`(`MAKEUP_ENGINE` 当时
+ *   (2026-09-29 起剩三个:`REFERENCE_PROVIDER` 随 `references` 模块一起删掉。)
+ *   `WEATHER_PROVIDER` / `AGENT_LLM`(`MAKEUP_ENGINE` 当时
  *   只是"回落 + 一声 `warn`",现在也一并抛错)。旧理由——"那三个回落的是增强项或
  *   离线兜底,所以静默没关系"——经不起看:`AGENT_LLM=dashscope` 静默变成 `mock`,
  *   表现是**对话被换成了那段离线脚本**,而服务在跑、端口通、日志干净,
@@ -65,12 +66,11 @@ describe('MAKEUP_ENGINE —— 取值按行为命名,旧名与错拼都不许静
   });
 });
 
-describe('★ 四个开关同一个口径:认不出来 = 启动即失败', () => {
+describe('★ 三个开关同一个口径:认不出来 = 启动即失败', () => {
   // 每项:[环境变量名, 一个不认识的取值, 必须出现在报错里的合法取值]
   const CASES: Array<[string, string, string[]]> = [
     ['MAKEUP_ENGINE', 'qwen', ['mock', 'image', 'replay']],
     ['WEATHER_PROVIDER', 'open-meteo', ['mock', 'live']],
-    ['REFERENCE_PROVIDER', 'bing', ['mock', 'live']],
     ['AGENT_LLM', 'dashscope', ['mock', 'real']],
   ];
 

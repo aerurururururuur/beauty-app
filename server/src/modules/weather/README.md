@@ -38,15 +38,19 @@
 | 上游超时 / 断网 / 返回体不合预期 | `WEATHER_UNAVAILABLE` | 502 | **回落到手动预设，不阻塞提交** |
 | 坐标越界 / 非数字 | `VALIDATION_ERROR` | 422 | 提示输入有误 |
 
-**绝不返回编造的天气冒充实时**：拿不到就说拿不到（502），让前端去用用户手填的值。
+**绝不返回编造的天气冒充实时**：拿不到就说拿不到（502）。
+★ **没有"手填天气"的回落路**（曾经有过，已删）：前端 `clearWeather()` 清空后**整块省掉**
+`brief.weather`，照样能提交 —— 拉不到就是不带天气，比留着一份对不上城市的值更诚实（红线 §8-4）。
 
 ## 开关与接线
 
 - `WEATHER_PROVIDER=live`（缺省，实拉）| `mock`（离线示意，演示断网前切）。
   ★ `source` 字段报的是**上游名**（实拉时为 `open-meteo`），不是开关取值 —— **UI 要据此标注**，
   `mock` 时标「离线示意」，别当实况展示。
-- `web shell` 在 `src/app.ts` 挂 `/api/weather`；`brief.weather` 由**前端**调本端点后填进 `POST /jobs` 的 meta——
-  jobs 不感知本模块（本轮未动 jobs 的 schema/编排）。
+- `web shell` 在 `src/app.ts` 挂 `/api/weather`；`brief.weather` 由**前端**调本端点后填进
+  `POST /agent/sessions` 的 `brief`（会话建立时随 brief 一起进会话）——
+  ✏️ 2026-09-29:此前这里写的是 `POST /api/jobs` 的 `meta`，那个模块连同它的表单流水线一起删了。
+  **本模块仍然不感知任何出图路径**:它只回一份 `WeatherView`，谁拿去用、怎么用不归它管。
 
 ## 依赖 / 被依赖
 

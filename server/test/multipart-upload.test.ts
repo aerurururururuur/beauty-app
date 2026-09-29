@@ -3,10 +3,10 @@
  *
  * ── 它为什么存在 ─────────────────────────────────────────────────────────────
  *
- * 在它之前,`test/` 里**没有任何一条 HTTP 层的上传用例**。两个 multipart 解析器
- * (`agent/presentation/multipart.ts`、`jobs/presentation/multipart.ts`)都只在
- * 用例层被间接碰过,而那两条路走的是**假的上传流**(`test/helpers/fakes.ts` 造的),
- * 真正的 busboy 一次都没进过测试。
+ * 在它之前,`test/` 里**没有任何一条 HTTP 层的上传用例**。multipart 解析器
+ * (`agent/presentation/multipart.ts`,当时还有 `jobs` 那份)只在用例层被间接碰过,
+ * 而那些路走的是**假的上传流**造出来的,真正的 busboy 一次都没进过测试。
+ * (✏️ 2026-09-29:`jobs` 那份解析器随模块删除,本文件只剩 `parsePhotoRequest` 一族。)
  *
  * 于是这个 bug 活了下来:**文件读不完 ⇒ 请求永远挂着**(不报错、不完成、半截文件都不写)。
  * 规矩是 busboy 的——**上一个 part 的流没被消费,它就不解析下一个**,
@@ -35,7 +35,6 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { describe, expect, it } from 'vitest';
 import { parsePhotoRequest } from '../src/modules/agent/presentation/multipart.js';
-import { parseJobParts } from '../src/modules/jobs/presentation/multipart.js';
 import type { Readable } from 'node:stream';
 
 /** 两条用例共用的边界串。★ 手工拼 multipart 体,不引任何依赖(同本仓的"不加新 zip"那条规矩)。 */
@@ -87,9 +86,11 @@ const SMALL = 1024;
 
 function makeApp(): FastifyInstance {
   const app = Fastify({ logger: false });
-  app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 12, fields: 8 } });
+  // ⚠️ 这里的 limits 与 `src/app.ts` **无关**,别去跟它对齐:本文件有一条用例
+  //    **故意多送一个多余部件**来测未知字段处理,所以它必须比真实应用宽松。
+  app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 4, fields: 4 } });
 
-  // 两条路由都**只做一件事**:调解析器,然后把解析器交出来的流读干。
+  // 路由**只做一件事**:调解析器,然后把解析器交出来的流读干。
   // ⚠️ 读的动作写在这里(而不是解析器里),正是为了复现"出了循环才读"这个真实形状。
   app.post('/photo', async (request) => {
     const parsed = await parsePhotoRequest(request);
@@ -103,24 +104,6 @@ function makeApp(): FastifyInstance {
             bytes: (await drain(parsed.file.stream)).length,
           }
         : null,
-    };
-  });
-
-  app.post('/jobs', async (request) => {
-    const parsed = await parseJobParts(request);
-    const shape = async (files: { originalName: string; mimeType: string; stream: Readable }[]) =>
-      Promise.all(
-        files.map(async (f) => ({
-          originalName: f.originalName,
-          mimeType: f.mimeType,
-          bytes: (await drain(f.stream)).length,
-        })),
-      );
-    return {
-      metaRaw: parsed.metaRaw,
-      unknownFields: parsed.unknownFields,
-      face: await shape(parsed.faceFiles),
-      scene: await shape(parsed.sceneFiles),
     };
   });
 
@@ -228,47 +211,5 @@ describe('parsePhotoRequest —— 大文件不能在出循环之后才读', () 
     expect(res.statusCode).toBe(200);
     expect(res.json().file.mimeType).toBe('image/png');
     expect(res.json().file.bytes).toBe(SMALL);
-  });
-});
-
-describe('parseJobParts —— 同一个毛病,同一个改法', () => {
-  it('★ 64 KB 的本人照 + 64 KB 的氛围参考,两张都读得完', async () => {
-    const app = makeApp();
-    const face = pattern(BIG);
-    const scene = pattern(BIG);
-    const res = await post(app, '/jobs', [
-      { name: 'face', filename: 'face.png', bytes: face },
-      { name: 'scene', filename: 'scene.png', bytes: scene },
-      { name: 'meta', value: JSON.stringify({ sceneText: '面试' }) },
-    ]);
-    await app.close();
-
-    expect(res.statusCode).toBe(200);
-    const json = res.json();
-    expect(json.face).toEqual([{ originalName: 'face.png', mimeType: 'image/png', bytes: BIG }]);
-    expect(json.scene).toEqual([{ originalName: 'scene.png', mimeType: 'image/png', bytes: BIG }]);
-    expect(json.metaRaw).toBe(JSON.stringify({ sceneText: '面试' }));
-    expect(json.unknownFields).toEqual([]);
-  });
-
-  it('小文件照旧(1 KB)', async () => {
-    const app = makeApp();
-    const res = await post(app, '/jobs', [
-      { name: 'face', filename: 'face.png', bytes: pattern(SMALL) },
-      { name: 'meta', value: '{}' },
-    ]);
-    await app.close();
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().face[0].bytes).toBe(SMALL);
-  });
-
-  it('没带 meta:metaRaw 缺省,不是空串(调用方按"没给"处理)', async () => {
-    const app = makeApp();
-    const res = await post(app, '/jobs', [{ name: 'face', filename: 'face.png', bytes: pattern(SMALL) }]);
-    await app.close();
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().metaRaw).toBeUndefined();
   });
 });

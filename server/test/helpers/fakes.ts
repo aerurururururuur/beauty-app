@@ -1,18 +1,12 @@
 /**
  * test/helpers/fakes.ts —— 用例单测用的内存假端口。
+ *
+ * ★ **每个导出都要有活着的消费者。** 删到只剩这些时顺手清过一轮:
+ *   `memFile` / `FakeJobRepository` / `FakeArtifactStore` / `FakeQueue` /
+ *   `FakeReferenceProvider` / `FakeEngine` / `ThrowingEngine` 随 jobs 与 references
+ *   两个模块的删除一起变死,已移除。`Engine` 那类假实现现在由
+ *   `agent-render.test.ts` / `demo-llm.test.ts` 各自就地定义(它们要记录输入,形状不同)。
  */
-import { Readable } from 'node:stream';
-import type { ImageRef, SceneDescriptor } from '../../src/modules/shared/index.js';
-import type { JobRecord } from '../../src/modules/jobs/index.js';
-import type { ReferenceImage } from '../../src/modules/references/index.js';
-import type {
-  ArtifactStore,
-  StoredResult,
-  UploadFile,
-} from '../../src/modules/assets/index.js';
-import type { JobQueue, JobRepository } from '../../src/modules/jobs/index.js';
-import type { Engine, EngineInput, EngineResult } from '../../src/modules/makeup/index.js';
-import type { ReferenceProvider } from '../../src/modules/references/index.js';
 import type {
   PasswordHasher,
   User,
@@ -27,145 +21,6 @@ import type {
   CosmeticRepository,
   UserDirectory,
 } from '../../src/modules/cabinet/index.js';
-
-export function memFile(
-  originalName = 'me.png',
-  mimeType = 'image/png',
-  data = 'fake-bytes',
-): UploadFile {
-  return { originalName, mimeType, stream: Readable.from([data]) };
-}
-
-export class FakeJobRepository implements JobRepository {
-  private map = new Map<string, JobRecord>();
-
-  async create(record: JobRecord): Promise<void> {
-    this.map.set(record.id, record);
-  }
-  async find(id: string): Promise<JobRecord | null> {
-    return this.map.get(id) ?? null;
-  }
-  async update(id: string, mutate: (prev: JobRecord) => JobRecord): Promise<JobRecord> {
-    const prev = this.map.get(id);
-    if (!prev) throw new Error(`job ${id} 不存在`);
-    const next = mutate(prev);
-    this.map.set(id, next);
-    return next;
-  }
-  get(id: string): JobRecord | undefined {
-    return this.map.get(id);
-  }
-}
-
-export class FakeArtifactStore implements ArtifactStore {
-  private files = new Map<string, { data: Buffer; mimeType: string }>();
-  private seq = 0;
-
-  async putInputFile(jobId: string, kind: 'face' | 'scene', file: UploadFile): Promise<ImageRef> {
-    const data = await collectStream(file.stream);
-    const key = `inputs/${jobId}/${kind}/${++this.seq}`;
-    this.files.set(key, { data, mimeType: file.mimeType });
-    return { storeKey: key, mimeType: file.mimeType, originalName: file.originalName };
-  }
-
-  async putResult(jobId: string, sourceFilePath: string, mimeType: string): Promise<StoredResult> {
-    // 假实现不真正复制文件;仅登记结果。
-    const key = `results/${jobId}/result`;
-    this.files.set(key, { data: Buffer.from(`result-of:${sourceFilePath}`), mimeType });
-    return { ref: { storeKey: key, mimeType }, url: `/jobs/${jobId}/result` };
-  }
-
-  async resolveToFilePath(_jobId: string): Promise<string> {
-    return 'mem://face.png';
-  }
-
-  async readResult(jobId: string): Promise<{ stream: Readable; mimeType: string } | null> {
-    const entry = this.files.get(`results/${jobId}/result`);
-    return entry ? { stream: Readable.from(entry.data), mimeType: entry.mimeType } : null;
-  }
-
-  /**
-   * ★ 真删两个区。**按前缀删**,所以 `id` 带嵌套层(`<sessionId>/r1`)时,
-   * `remove(sessionId)` 连带把 `<sessionId>/r1/…` 一起删掉——与文件系统实现同一口径。
-   */
-  async remove(id: string): Promise<void> {
-    for (const key of [...this.files.keys()]) {
-      // `inputs/<id>/…` 或 `results/<id>/…`(含更深的嵌套)。
-      // ★ 两边的斜杠都要:只匹配 `s1/` 会连 `s10/` 一起删掉。
-      if (key.includes(`/${id}/`)) this.files.delete(key);
-    }
-  }
-
-  /**
-   * ★ 列出登记过的顶层 id(与文件系统实现同口径:只到第一段,`s1/r1` 报 `s1`)。
-   * 内存实现里没有"目录"这个概念,所以从 `inputs/<id>/…` / `results/<id>/…`
-   * 这两条键的形状里把 id 切出来。
-   */
-  async listIds(): Promise<string[]> {
-    const ids = new Set<string>();
-    for (const key of this.files.keys()) {
-      const [, id] = key.split('/');
-      if (id) ids.add(id);
-    }
-    return [...ids];
-  }
-
-  /** 断言辅助:已登记文件数。 */
-  fileCount(): number {
-    return this.files.size;
-  }
-}
-
-function collectStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (c: Buffer) => chunks.push(Buffer.from(c)));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
-
-export class FakeQueue implements JobQueue {
-  readonly enqueued: string[] = [];
-  enqueue(jobId: string): void {
-    this.enqueued.push(jobId);
-  }
-  async whenIdle(): Promise<void> {
-    /* no-op */
-  }
-}
-
-export class FakeReferenceProvider implements ReferenceProvider {
-  readonly name = 'fake';
-  async fetch(scene: SceneDescriptor): Promise<ReferenceImage[]> {
-    return [
-      {
-        id: 'r1',
-        title: `参考:${scene.label}`,
-        imageUrl: 'https://example.invalid/r1.jpg',
-        sourceUrl: 'https://example.invalid/page-1',
-        role: '唇',
-        retrievedAt: '2026-09-11T00:00:00.000Z',
-      },
-    ];
-  }
-}
-
-export class FakeEngine implements Engine {
-  readonly name = 'fake';
-  async generate(input: EngineInput): Promise<EngineResult> {
-    return {
-      resultFilePath: 'mem://rendered.png',
-      mimeType: 'image/png',
-      look: {
-        style: input.scene?.direction ?? '默认',
-        skinTone: input.brief?.skinTone,
-        palette: [],
-        zones: [],
-      },
-    };
-  }
-}
 
 /** 固定返回值(或固定抛错)的天气源,用来测用例的错误翻译。 */
 export class FakeWeatherProvider implements WeatherProvider {
@@ -208,13 +63,6 @@ export class FakePasswordHasher implements PasswordHasher {
   }
   async verify(plain: string, encoded: string): Promise<boolean> {
     return encoded === `${FakePasswordHasher.PREFIX}${plain}`;
-  }
-}
-
-export class ThrowingEngine implements Engine {
-  readonly name = 'throwing';
-  async generate(): Promise<EngineResult> {
-    throw new Error('引擎炸了');
   }
 }
 

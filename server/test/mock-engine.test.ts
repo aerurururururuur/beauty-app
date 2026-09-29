@@ -14,13 +14,7 @@ const CATALOG = realVocabulary();
 async function run(occasion: string, skinTone: string): Promise<EngineResult> {
   const input: EngineInput = {
     face: { filePath: 'mem://face.png', mimeType: 'image/png' },
-    scenes: [],
     brief: { occasion: occasion as 'interview', skinTone: skinTone as 'cool_porcelain' },
-    scene: {
-      label: occasion,
-      direction: 'x',
-      tags: [],
-    },
   };
   return eng.generate(input);
 }
@@ -54,9 +48,7 @@ describe('MockEngine', () => {
   it('★ 肤色档缺省时落到词表的 isDefault 档,且那一档不是最浅档(不默认浅肤色)', async () => {
     const input: EngineInput = {
       face: { filePath: 'mem://face.png', mimeType: 'image/png' },
-      scenes: [],
       brief: { occasion: 'daily' },
-      scene: { label: 'daily', direction: 'x', tags: [] },
     };
     const out = await eng.generate(input);
     const fallback = CATALOG.defaultTier();

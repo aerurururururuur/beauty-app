@@ -352,8 +352,9 @@ describe('render_look 三态', () => {
     expect(engine.inputs).toHaveLength(1);
     expect(engine.inputs[0]?.lookSpec).toEqual(SAMPLE_LOOK);
     expect(engine.inputs[0]?.face.filePath).toBe('mem://s1/face.png');
-    // §4.1:风景不参与妆容方向,所以这条路**永远是空的**。
-    expect(engine.inputs[0]?.scenes).toEqual([]);
+    // §4.1:风景不参与妆容方向;而参考图这条字段**当前无生产者**(照片口只认本人照片),
+    // 所以 agent 这条路传下去的就是"没有"。
+    expect(engine.inputs[0]?.references).toBeUndefined();
 
     expect(out.isError).toBeUndefined();
     expect(out.session?.renders).toHaveLength(1);

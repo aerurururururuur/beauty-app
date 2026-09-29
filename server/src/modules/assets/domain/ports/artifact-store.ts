@@ -12,11 +12,24 @@ export interface UploadFile {
   stream: Readable;
 }
 
+/**
+ * 输入图种类。
+ * ⚠️ **`'scene'` 当前零生产者**(风格图还没进引擎,见 `EngineInput.references`)。
+ *   收窄成 `'face'` 要动 `putInputFile` 的签名与全部调用点,收益不抵,记为欠账。
+ */
 export type InputKind = 'face' | 'scene';
 
+/**
+ * 收编好的产物。
+ *
+ * ★ **刻意只有一个成员。** 以前这里还有个 `url: '/jobs/<id>/result'`——
+ *   它是**只写不读**的:唯一消费者(`session-artifacts.ts`)明说不看它、
+ *   自己按 `/agent/sessions/:id/renders/:seq` 生成取图地址。
+ *   而 `jobs` 删掉之后,那个字段里装着的就是**一条不存在的路由**——
+ *   客户端哪天真去用它,拿到的是 404 而不是图。**取图地址归表现层生成,不归存储层。**
+ */
 export interface StoredResult {
   ref: ImageRef; // 相对路径 + mimeType
-  url: string; // 形如 /jobs/<id>/result
 }
 
 export interface ArtifactStore {

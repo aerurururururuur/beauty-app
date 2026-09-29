@@ -25,10 +25,9 @@
  *   一个会话能出多张图是 `[I3]` 的前提,所以这一层是必须的,不是整理癖。
  *   (`remove` 是递归删,所以删会话时那层嵌套不会变成删不掉的垃圾。)
  *
- * ⚠️ **`url` 被丢掉了**:`putResult` 返回的 `url` 是 `jobs` 形状的
- *   (`/jobs/<id>/result`),而这里的取图路由是 agent 自己的
- *   `/agent/sessions/:id/renders/:seq`(由 `turn-view.mapper.ts` 生成)。
- *   两套 URL 混用会让前端去请求一条不存在的路由。
+ * ★ **取图地址不在这里**:`putResult` 现在只回 `ref`(它以前还回一个
+ *   `jobs` 形状的 `url`,`jobs` 一删就成了指向 404 的值,已摘掉)。
+ *   本会话的取图路由是 `/agent/sessions/:id/renders/:seq`,由 `turn-view.mapper.ts` 生成。
  *
  * ★ **`putRender` 收编之后会把引擎那份原图删掉**——但**只在它确实是引擎的临时产物时**。
  *   理由是隐私,边界为什么是必需的见 `disposeScratch` 的注释。

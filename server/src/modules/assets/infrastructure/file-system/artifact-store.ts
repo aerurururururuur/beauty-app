@@ -75,7 +75,7 @@ export class FileSystemArtifactStore implements ArtifactStore {
     const name = `result${extFor(mimeType)}`;
     await copyFile(sourceFilePath, path.join(dir, name));
     const storeKey = path.relative(this.dataDir, path.join(dir, name)).split(path.sep).join('/');
-    return { ref: { storeKey, mimeType }, url: `/jobs/${jobId}/result` };
+    return { ref: { storeKey, mimeType } };
   }
 
   async resolveToFilePath(_jobId: string, ref: ImageRef): Promise<string> {

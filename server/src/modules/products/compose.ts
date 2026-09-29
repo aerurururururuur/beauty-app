@@ -4,7 +4,7 @@
  * ★ **刻意没有 `kind` union / 开关分发。** 内容库没有"可替换的实现"，
  *   只有一份真实数据(和一份将来可能有的第二库)。这正是 roadmap §4 删掉
  *   `understanding` 模块时立下的规矩:**没有可替换实现的端口，不该有开关。**
- *   (对照 `references` 有 `mock|live` —— 那是真有可替换的实现。)
+ *   (对照 `weather` 有 `mock|live`、`makeup` 有 `mock|image|replay` —— 那些是真有可替换的实现。)
  *
  * ★ 两种"没有内容"要**区别对待**，这是本文件最重要的判断:
  *
@@ -20,7 +20,7 @@
  *   见 `resolveLibraryRoot` 与其上的注释,以及 `test/products.test.ts` 钉着这条的用例。
  *
  *   第二行是本模块唯一一处**刻意偏离项目惯例**的地方:本项目此前没有任何
- *   "启动时急切扫目录"的先例(`references` 硬编码常量、`makeup` 夹具懒读、
+ *   "启动时急切扫目录"的先例(`makeup` 夹具懒读、
  *   `assets`/`user` 懒读 + `existsSync` 挡)。这里选急切，是为了拿这个"启动即失败"。
  *   详见 `infrastructure/json/content-loader.ts` 的文件头，以及模块 README 的「已知取舍」。
  */

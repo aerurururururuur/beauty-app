@@ -2,13 +2,14 @@
  * domain/errors/app-error.ts —— 领域错误基类与错误码。
  * 本类不携带 HTTP 状态码;状态码映射集中在 presentation/error-handler.ts。
  */
+/**
+ * ✏️ 2026-09-29:删掉六个**没有任何抛出点**的错误码——`JOB_NOT_FOUND` / `JOB_NOT_READY` /
+ * `JOB_FAILED` / `FACE_REQUIRED` / `CONTEXT_REQUIRED` / `SCENES_MAX_EXCEEDED`。
+ * 它们的抛出点全在 `jobs` 模块里,随模块一起没了;留下来的是**一份还带着 HTTP 状态码映射的
+ * 空声明**,读起来像"这条路由还在"。同 `presentation/error-handler.ts` 一并删。
+ * ★ 判据:一个错误码没有抛出点 = 一段永远不会发生的对话,和假开关是同一个病。
+ */
 export const ErrorCode = {
-  JOB_NOT_FOUND: 'JOB_NOT_FOUND',
-  JOB_NOT_READY: 'JOB_NOT_READY',
-  JOB_FAILED: 'JOB_FAILED',
-  FACE_REQUIRED: 'FACE_REQUIRED',
-  CONTEXT_REQUIRED: 'CONTEXT_REQUIRED',
-  SCENES_MAX_EXCEEDED: 'SCENES_MAX_EXCEEDED',
   LOCATION_REQUIRED: 'LOCATION_REQUIRED',
   CITY_NOT_FOUND: 'CITY_NOT_FOUND',
   WEATHER_UNAVAILABLE: 'WEATHER_UNAVAILABLE',

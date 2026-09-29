@@ -22,8 +22,13 @@ import path from 'node:path';
  * 夹具的**格式**版本。与 `TEMPLATE_VERSION`(提示词模板版本)是两件事,别混:
  * 这个变了说明"读数的方式变了",那个变了说明"发出去的措辞变了"。
  * 两者都进键/进记录,因为**任一改变都让旧夹具不再可比**。
+ *
+ * ✏️ 2026-09-29 1 → 2:参考图从「热链 URL」变成「本机文件」,所以 `inputs` 里
+ * `role: 'reference'` 那条的 `sha256` 从「URL 的 hash、`bytes` 恒 0」变成**文件字节的 hash**。
+ * 读数方式变了 ⇒ 旧夹具的键在新算法下对不上,**必须让它们显式未命中**。
+ * (夹具目录实测为空,所以这次 bump 零成本;忘了它才会出问题——回放会"命中但答非所问"。)
  */
-export const FIXTURE_FORMAT_VERSION = 1;
+export const FIXTURE_FORMAT_VERSION = 2;
 
 export interface EngineFixture {
   formatVersion: number;

@@ -25,7 +25,7 @@
 
 ## 依赖 / 被依赖
 
-- 依赖：`shared`（`AppError` / `ErrorCode`）、`node:crypto`、zod。不碰 jobs。
+- 依赖：`shared`（`AppError` / `ErrorCode`）、`node:crypto`、zod。不碰任何出图模块。
 - 被依赖：`src/index.ts` 组装、`src/app.ts` 挂 `/api` 路由。
 
 ## 关键决策与它们的代价
@@ -38,7 +38,10 @@
 
 ## 接缝（将来）
 
-- **任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史（需同改 jobs 的 schema / 实体 / DTO 三处）。**本轮未动 jobs**。
+- ~~**任务归属用户**：`JobRecord` / `JobView` 加可选 `userId` →「我的妆造间」历史~~
+  ✏️ 2026-09-29:**这条接缝的两个前提都没了**——`jobs` 模块已删。现在的等价物是 agent 会话，
+  而 `AgentSessionView` **本来就带 `userId`**（会话一直就归属用户，取会话还按它判归属）。
+  要「我的妆造间」历史，入口是**枚举会话**，不是给一条任务记录补字段。
 - **偏好并入档案**：skinType / skinTone / 常用 occasion 预设 → 喂上传预填（字段扩展点见 `domain/entities/user.ts` 注释）。**已拥有品不在档案里**——它归 `cabinet` 衣橱（roadmap §9）。
 - **改密 / 注销 / 找回**：新用例放 `application/usecases/`，`UserRepository` 已有 `save` 可覆盖写。
 
