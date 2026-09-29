@@ -22,7 +22,11 @@ export const useMakeupStore = defineStore('makeup', () => {
   const occasion = ref('') // Occasion | ''(未选)
   const sceneText = ref('') // 自由文字自定义板
   const skinType = ref('') // SkinType | ''(未选)
-  const skinTone = ref('medium') // SkinTone(默认中间档,不以浅肤色为默认)
+  // SkinTone。★ 缺省 = 词表里标了 isDefault 的那一档(`olive`,橄榄皮·橄榄调),红线 §8-1:
+  //   **不许改成最浅那一档**(`cool_porcelain`),也不许出现 `skinTone || 'cool_porcelain'` 这种兜底。
+  //   改了这里前端自己不会红,但服务端 `z.enum(SKIN_TONES)` 认这个值——档位名要与
+  //   `constants/options.js` 和 `assests/face-catalog/skin-tones.json` 一致。
+  const skinTone = ref('olive')
   const dress = ref('') // 穿搭一句话(风格 + 主色)
 
   // ---- 天气:只有「实拉」一条路(无手动预设)。没拉成功就是空,不编数据 ----
@@ -141,7 +145,7 @@ export const useMakeupStore = defineStore('makeup', () => {
     occasion.value = ''
     sceneText.value = ''
     skinType.value = ''
-    skinTone.value = 'medium'
+    skinTone.value = 'olive' // ★ 与上面那个 `ref('olive')` 必须一致,改一处要改两处
     dress.value = ''
     weather.value = {}
     weatherCity.value = ''

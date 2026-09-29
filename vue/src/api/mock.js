@@ -17,7 +17,7 @@ const DEMO_BRIEF = {
   occasion: 'interview',
   sceneText: '正式终面 · 干练得体',
   skinType: 'combination',
-  skinTone: 'medium',
+  skinTone: 'olive',
   dress: '西装 · 藏青',
   weather: { condition: '晴', temperatureC: 24, humidityPct: 45, uvIndex: 3 }
 }
@@ -33,9 +33,22 @@ function occCn(label) {
   return SCENE_RULES[label]?.cn || label
 }
 
-/** 肤色档 → 色板校正(与 server mock-engine 一致):浅向白提亮、深向黑加深,medium 基准。 */
-const TONE_MIX = { light: 0.22, light_medium: 0.1, medium: 0, tan: -0.08, deep: -0.16 }
-const DEFAULT_TONE = 'medium'
+/**
+ * 肤色档 → 色板校正(与 server `mock-engine.ts` 的 `TONE_MIX` 一致):
+ * 浅向白提亮、深向黑加深,`olive` 为基准(= 词表里标了 isDefault 的那一档)。
+ * ⚠️ 这仍是**知情拷贝**(见 AGENTS.md §6.2),档位改了要两处一起改。
+ */
+const TONE_MIX = {
+  cool_porcelain: 0.22,
+  pink_porcelain: 0.16,
+  warm_ivory: 0.1,
+  warm_beige: 0.05,
+  olive: 0,
+  warm_tan: -0.08,
+  wheat: -0.12,
+  deep_brown: -0.18
+}
+const DEFAULT_TONE = 'olive'
 
 /**
  * 场合 → 基准风格文案 + 基准色板(与 server mock-engine 的 STYLES 同源)。

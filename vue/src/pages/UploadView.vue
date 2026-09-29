@@ -34,7 +34,7 @@ async function fillPortrait() {
   store.setPortrait(file, DEMO_PORTRAIT)
 }
 
-// ---- 选择型字段：点选/再点取消；肤色为单档默认 medium，不 toggle 成空 ----
+// ---- 选择型字段：点选/再点取消；肤色为单档默认 olive（词表的 isDefault 档），不 toggle 成空 ----
 function toggleOccasion(v) {
   store.occasion = store.occasion === v ? '' : v
 }
@@ -369,9 +369,12 @@ async function submit() {
 
 /* ---- 肤色 5 档 ----
    以「中间档」为中性默认、深肤色同样如实呈现，色卡与后端 skinTone 枚举一一对应。 */
+/* 8 档排两行:一行放不下 8 个(440px 页宽 ÷ 8 ≈ 55px,而「深棕皮·中性偏暖」要 77px)。
+   刻意不把标签改短 —— 中文名以词表为准,前端另造一套短名就又多一个漂移点。 */
 .tone-row {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px 6px;
 }
 
 .tone {

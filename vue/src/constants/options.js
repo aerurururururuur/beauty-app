@@ -33,13 +33,24 @@ export const SKIN_TYPE_CN = Object.fromEntries(
   SKIN_TYPE_OPTIONS.map((o) => [o.value, o.label])
 )
 
-/** 肤色 5 档(roadmap 拍板):swatch 为示意肤底色卡,浅到深。 */
+/**
+ * 肤色 8 档,浅 → 深。
+ *
+ * ★ **逐字照抄 `assests/face-catalog/skin-tones.json`**:`value` = 那边的 `tones[].id`,
+ *   `label` / `swatch` 也一并照抄。改档位要改**两处**(那个 JSON + 这里)。
+ * ⚠️ **这份拷贝没有任何东西盯着**(前端零类型、零测试)——但它的坏法不是静默的:
+ *   `value` 写错服务端会 422(`z.enum(SKIN_TONES)` 挡下),用户会看到明确报错。
+ * ★ `swatch` 是真实肤底色,红线 §8-1:不许调成「更白更好看」。
+ */
 export const SKIN_TONE_OPTIONS = [
-  { value: 'light', label: '浅', swatch: '#f3d4c0' },
-  { value: 'light_medium', label: '浅中', swatch: '#e4b194' },
-  { value: 'medium', label: '中', swatch: '#c88f70' },
-  { value: 'tan', label: '小麦', swatch: '#a06a4e' },
-  { value: 'deep', label: '深', swatch: '#613b2a' }
+  { value: 'cool_porcelain', label: '冷白皮·冷调', swatch: '#f6e7e1' },
+  { value: 'pink_porcelain', label: '粉一白·冷调', swatch: '#f7e3df' },
+  { value: 'warm_ivory', label: '黄一白·暖调', swatch: '#f0dcc0' },
+  { value: 'warm_beige', label: '黄二白·暖调', swatch: '#e8cfae' },
+  { value: 'olive', label: '橄榄皮·橄榄调', swatch: '#d9c79e' },
+  { value: 'warm_tan', label: '黄黑皮·暖调', swatch: '#c79a6b' },
+  { value: 'wheat', label: '小麦色·暖调', swatch: '#bd8f62' },
+  { value: 'deep_brown', label: '深棕皮·中性偏暖', swatch: '#8a5f44' }
 ]
 
 export const SKIN_TONE_CN = Object.fromEntries(
