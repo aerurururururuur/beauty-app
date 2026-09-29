@@ -4,10 +4,11 @@
  * 输入附加 MakeupBrief(occasion / 肤质肤色 / 穿搭 / 天气),拼出「为什么这套」——
  * 呼应 roadmap:场合 formality 决定风格、肤质决定持妆选择、肤色决定色板(不默认浅肤色审美)。
  */
-import type { MakeupBrief, Occasion, SceneDescriptor, SkinTone, SkinType } from '../../shared/index.js';
+import type { MakeupBrief, Occasion, SceneDescriptor, SkinType } from '../../shared/index.js';
 import { SCENE_RULES } from '../../shared/index.js';
 import type { Look } from '../domain/entities/look.js';
 import type { ResultText } from '../domain/entities/result-text.js';
+import type { SkinTonePalette } from '../domain/ports/skin-tone-palette.js';
 
 /**
  * 场合英文 label → 中文名。
@@ -29,13 +30,9 @@ const SKIN_TYPE_CN: Record<SkinType, string> = {
   neutral: '中性',
 };
 
-const SKIN_TONE_CN: Record<SkinTone, string> = {
-  light: '浅',
-  light_medium: '浅中',
-  medium: '中',
-  tan: '小麦',
-  deep: '深',
-};
+// ⚠️ 肤色档中文名**不在这里** —— 它是词表的内容(`assests/face-catalog/skin-tones.json`
+//    的 `label`),从 `SkinTonePalette` 端口查进来(见 `buildNarrative` 的 `palette` 参数)。
+//    曾经这里有第二份 `SKIN_TONE_CN`,与 `look-spec.validator.ts` 那份逐字相同。
 
 /** 肤质对应的上妆选择话术。 */
 const TYPE_STRATEGY: Record<SkinType, string> = {
@@ -50,7 +47,9 @@ export function buildNarrative(
   scene: SceneDescriptor,
   engineName: string,
   look: Look,
-  brief?: MakeupBrief,
+  brief: MakeupBrief | undefined,
+  /** 词表端口。只用它的 `labelOf`(把肤色档 id 说成中文)。 */
+  palette: SkinTonePalette,
 ): ResultText {
   const isOccasion = brief?.occasion !== undefined;
   const sceneCn = isOccasion && brief?.occasion
@@ -58,7 +57,9 @@ export function buildNarrative(
     : brief?.sceneText?.trim()
       ? '自定义需求'
       : occasionCn(scene.label);
-  const palette = Array.isArray(look.palette) ? (look.palette as unknown[]) : [];
+  // ⚠️ 叫 `paletteColors` 不叫 `palette`:后者是**本函数的参数**(肤色档词表端口),
+  //    两者在同一个作用域里,重名会让 `palette.labelOf` 撞进 TDZ(第一版就是这么红的)。
+  const paletteColors = Array.isArray(look.palette) ? (look.palette as unknown[]) : [];
   const style = typeof look.style === 'string' && look.style ? (look.style as string) : '自然日常';
 
   const basisParts: string[] = [];
@@ -72,9 +73,9 @@ export function buildNarrative(
 
   const explainParts = [`为「${sceneCn}」场合选配「${style}」妆容。`];
   if (brief?.skinTone) {
-    explainParts.push(
-      `按你的肤色(深浅·${SKIN_TONE_CN[brief.skinTone]})挑色板——不为「显白」而牺牲素颜真实度。`,
-    );
+    // 查不到名字就退回 id 本身:文案难看,但比悄悄少一句强(缺档是启动校验该拦的事)。
+    const toneCn = palette.labelOf(brief.skinTone) ?? brief.skinTone;
+    explainParts.push(`按你的肤色(${toneCn})挑色板——不为「显白」而牺牲素颜真实度。`);
   }
   if (brief?.skinType) {
     explainParts.push(`${SKIN_TYPE_CN[brief.skinType]}肤质:${TYPE_STRATEGY[brief.skinType]}。`);
@@ -82,7 +83,7 @@ export function buildNarrative(
   if (brief?.dress?.trim()) {
     explainParts.push(`穿搭「${brief.dress.trim()}」的主色可与妆容呼应,保持整体利落不抢镜。`);
   }
-  explainParts.push(`由 ${engineName} 引擎生成,主色板 ${palette.length} 色。`);
+  explainParts.push(`由 ${engineName} 引擎生成,主色板 ${paletteColors.length} 色。`);
   const explain = explainParts.join('');
 
   // 3 条 tips:肤质持妆 / 肤色/穿搭 / 天气。

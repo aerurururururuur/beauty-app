@@ -1,0 +1,85 @@
+{
+  "version": "2026-09-29.1",
+  "note": "面部特征词表。strategy 是 owner 给的原文,直接当界面提示文案用,一个字都不改。route 只回答一个问题:这个取值要不要求助于几何词?kind=geometry 的项只有 LOOK_GEOMETRY=on 时才进图像提示词,off 时降级成 advisory(界面照常显示、照常给用户建议,只是不进出图文案)。⚠️ route 的分类依据是 §4.4 run 3/run 4 的实测:凡是要写「眼线/眼尾/上扬/拉长/轮廓/唇线/眉形/鼻影」才能表达的,一律 geometry,因为这些词正是 run 3 翻车的那批。⚠️ 本文件不含任何「这个特征把妆面调成什么样」的映射——那是化妆策略,没有任何实测依据,编进来就是又一张占位表。它留到 P3 由 route 驱动。",
+  "dimensions": [
+    {
+      "id": "eye_shape",
+      "label": "眼型",
+      "strategy": "决定眼线与眼影的走向",
+      "multi": true,
+      "values": [
+        { "id": "downturned", "label": "眼尾下垂", "route": { "kind": "geometry", "slot": "eyeliner" } },
+        { "id": "upturned", "label": "眼尾上扬（吊梢眼）", "route": { "kind": "geometry", "slot": "eyeliner" } },
+        { "id": "puffy", "label": "肿眼泡", "route": { "kind": "advisory" } },
+        { "id": "monolid", "label": "单眼皮·内双", "route": { "kind": "advisory" } },
+        { "id": "round", "label": "圆眼·杏眼", "route": { "kind": "geometry", "slot": "eyeliner" } },
+        { "id": "fox", "label": "细长眼·狐狸眼", "route": { "kind": "advisory" } },
+        { "id": "deep_set", "label": "深眼窝", "route": { "kind": "advisory" } }
+      ]
+    },
+    {
+      "id": "face_shape",
+      "label": "脸型",
+      "strategy": "决定腮红位置与修容范围",
+      "multi": true,
+      "values": [
+        { "id": "round_face", "label": "圆脸", "route": { "kind": "geometry", "slot": "cheekPlacement" } },
+        { "id": "square", "label": "方脸·方圆脸", "route": { "kind": "geometry", "slot": "contour" } },
+        { "id": "long", "label": "长脸", "route": { "kind": "geometry", "slot": "cheekPlacement" } },
+        { "id": "diamond", "label": "菱形脸·高颧骨", "route": { "kind": "geometry", "slot": "contour" } },
+        { "id": "heart", "label": "心形脸·倒三角", "route": { "kind": "geometry", "slot": "cheekPlacement" } },
+        { "id": "oval", "label": "鹅蛋脸", "route": { "kind": "advisory" } },
+        { "id": "pear", "label": "梨形脸·正三角脸", "route": { "kind": "geometry", "slot": "contour" } }
+      ]
+    },
+    {
+      "id": "cheekbone",
+      "label": "颧骨",
+      "strategy": "决定高光与收缩色的用法",
+      "multi": false,
+      "values": [
+        { "id": "prominent", "label": "颧骨高·外扩", "route": { "kind": "geometry", "slot": "contour" } },
+        { "id": "flat", "label": "颧骨扁平·面部折叠度低", "route": { "kind": "advisory" } }
+      ]
+    },
+    {
+      "id": "lip_shape",
+      "label": "唇形",
+      "strategy": "决定唇线怎么勾",
+      "multi": true,
+      "values": [
+        { "id": "thin", "label": "薄唇", "route": { "kind": "geometry", "slot": "lipLining" } },
+        { "id": "full", "label": "厚唇", "route": { "kind": "geometry", "slot": "lipLining" } },
+        { "id": "lined", "label": "唇纹深", "route": { "kind": "advisory" } },
+        { "id": "asymmetric", "label": "不对称唇形", "route": { "kind": "geometry", "slot": "lipLining" } },
+        { "id": "downturned_mouth", "label": "嘴角下垂", "route": { "kind": "geometry", "slot": "lipLining" } }
+      ]
+    },
+    {
+      "id": "skin_type",
+      "label": "肤质",
+      "strategy": "决定妆前与定妆策略",
+      "multi": false,
+      "values": [
+        { "id": "dry", "label": "干性肌肤", "route": { "kind": "advisory" } },
+        { "id": "oily", "label": "油性肌肤", "route": { "kind": "advisory" } },
+        { "id": "combination", "label": "混合性肌肤", "route": { "kind": "advisory" } },
+        { "id": "sensitive", "label": "敏感性肌肤", "route": { "kind": "advisory" } }
+      ]
+    },
+    {
+      "id": "proportion",
+      "label": "五官比例",
+      "strategy": "决定眉毛与鼻影的走向",
+      "multi": true,
+      "values": [
+        { "id": "long_midface", "label": "中庭偏长", "route": { "kind": "geometry", "slot": "browShape" } },
+        { "id": "short_midface", "label": "中庭偏短", "route": { "kind": "geometry", "slot": "browShape" } },
+        { "id": "close_brows_eyes", "label": "眉眼距近", "route": { "kind": "geometry", "slot": "browShape" } },
+        { "id": "far_brows_eyes", "label": "眉眼距远", "route": { "kind": "geometry", "slot": "browShape" } },
+        { "id": "close_eyes", "label": "眼距近", "route": { "kind": "geometry", "slot": "noseContour" } },
+        { "id": "far_eyes", "label": "眼距远", "route": { "kind": "geometry", "slot": "noseContour" } }
+      ]
+    }
+  ]
+}

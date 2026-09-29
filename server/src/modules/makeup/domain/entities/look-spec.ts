@@ -25,7 +25,13 @@
  *   在取值未定(§15.1)的阶段就把它固化成 shared 级公共契约,是反过来的顺序。
  *   **待前端 chips 落地时再迁,那时规矩 1 才真正生效。**
  */
-import type { Occasion } from '../../../shared/index.js';
+// ★ 色汇表按 `look-spec.ts` 头部那条待办迁去了 `shared`(条件:"待前端 chips 落地时再迁"),
+//   这里**再导出**而不是另写一份——`makeup/index.ts` 的对外契约一个字不变。
+//   ⚠️ `export ... from` 只再导出、**不建立本地绑定**,所以下面还有一条 import
+//   —— 本文件自己要用 `ToneKey`(见 `ZoneSpec`)。
+import type { Occasion, ToneKey } from '../../../shared/index.js';
+export { TONE_KEYS } from '../../../shared/index.js';
+export type { ToneKey } from '../../../shared/index.js';
 
 /** 浓度档位(1..5)。§6 里 `coverage` / `intensity` 共用同一档。 */
 export type Intensity = 1 | 2 | 3 | 4 | 5;
@@ -46,15 +52,9 @@ export const WARMTH_MAX = 2;
 export const FINISHES = ['satin', 'matte', 'glossy'] as const;
 export type Finish = (typeof FINISHES)[number];
 
-/**
- * ⚠️ **PLACEHOLDER** —— 低饱和色相族,取值待定。
- * §6 规矩 4:合法取值空间**本身就要按 `skinTone` 收窄**,而不是生成完再检查
- *   (红线 §13-3 肤色包容;依据是 ICCCW 2026 肤色偏差审计,DOI `10.1145/3810417.3810425`:
- *   Black-presenting 脸退化最严重且出现**非预期肤色漂移**)。
- * 收窄表见 `validators/look-spec.validator.ts` 的 `TONE_KEYS_BY_SKIN_TONE`——**同样是占位**。
- */
-export const TONE_KEYS = ['rose', 'coral', 'peach', 'berry', 'brick', 'nude', 'plum'] as const;
-export type ToneKey = (typeof TONE_KEYS)[number];
+// `TONE_KEYS` / `ToneKey` 已迁至 `shared/domain/entities/look-vocabulary.ts`(见文件头 import 处)。
+// ⚠️ 它们仍是 **PLACEHOLDER**:§15.1 说枚举取值「一个都没定」,这里是让类型能编译的最小词表。
+//    按肤色收窄的那张表现在在 `face-catalog/skin-tones.json` 的 `toneKeys` 里,同样占位。
 
 /**
  * ⚠️ **PLACEHOLDER,且是几何维度。**

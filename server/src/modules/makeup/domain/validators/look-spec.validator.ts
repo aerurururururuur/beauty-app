@@ -18,34 +18,17 @@
 import type { z } from 'zod';
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import type { SkinTone } from '../../../shared/index.js';
-import type { LookSpec, ToneKey } from '../entities/look-spec.js';
+import type { LookSpec } from '../entities/look-spec.js';
 import { ZONE_ROLES } from '../entities/look-spec.js';
+import type { SkinTonePalette } from '../ports/skin-tone-palette.js';
 import { lookSpecSchema } from '../schemas/look-spec.js';
 
-/**
- * ⚠️ **PLACEHOLDER —— 这张表的内容没有实测依据。**
- * §15.1:`LookSpec` 的枚举取值「一个都没定」;§14.1 更直接——颜色安全区的实测
- * **`n=1`**,只在一种肤色上验证过,「颜色安全区是否跨肤色成立**没有数据**」。
- *
- * 形状是对的(§6 规矩 4 要求的「按肤色收窄」),**内容是占位的**:
- * 它现在只是「深肤色避开过浅的裸色系」这类常识性排布,**不是**评测结论。
- * 接线前必须用 5 档肤色的实测结果替换(评分口径见 `ai-engine-api-spike.md` §4.4)。
- */
-export const TONE_KEYS_BY_SKIN_TONE: Record<SkinTone, readonly ToneKey[]> = {
-  light: ['rose', 'coral', 'peach', 'nude'],
-  light_medium: ['rose', 'coral', 'peach', 'nude', 'berry'],
-  medium: ['rose', 'coral', 'berry', 'brick', 'nude', 'plum'],
-  tan: ['berry', 'brick', 'plum', 'coral'],
-  deep: ['berry', 'brick', 'plum'],
-};
-
-const SKIN_TONE_CN: Record<SkinTone, string> = {
-  light: '浅',
-  light_medium: '浅中',
-  medium: '中',
-  tan: '小麦',
-  deep: '深',
-};
+// ⚠️ 那张 `TONE_KEYS_BY_SKIN_TONE` 已经不在这里了 —— 它连同 `SKIN_TONE_CN` 一起
+//    变成了**词表目录里的内容**(`assests/face-catalog/skin-tones.json` 的 `toneKeys` /
+//    `label`),从 `SkinTonePalette` 端口查进来。见该端口的文件头:
+//    **这层间接是必须的,不是过度设计** —— 档位表可配置的代价就是它得被查,不能被 import。
+//    那张表本身仍然是 **PLACEHOLDER**(§15.1 枚举取值「一个都没定」、§14.1 颜色安全区实测 n=1),
+//    接线前必须用实测结果替换词表里的 `toneKeys`。
 
 /**
  * 把一个 zod issue 说成中文,并在取值类错误里**带上合法选项**。
@@ -73,8 +56,13 @@ function fail(reason: string): never {
  * @param raw      待校验的原始值(通常直接来自 LLM 的工具入参,形状不可信)。
  * @param opts.skinTone 已知的肤色。**给了才收窄**——没给时不做肤色限制,
  *   因为「不知道肤色」和「知道了但违反了」是两回事:前者该让对话继续问,后者才该打回。
+ * @param opts.palette  词表端口。**必填**:不给就没法按肤色收窄,
+ *   而"悄悄不收窄"正是本仓库的头号 bug 类型(见该端口的文件头)。
  */
-export function validateLookSpec(raw: unknown, opts: { skinTone?: SkinTone } = {}): LookSpec {
+export function validateLookSpec(
+  raw: unknown,
+  opts: { skinTone?: SkinTone; palette: SkinTonePalette },
+): LookSpec {
   // ① 形状
   const parsed = lookSpecSchema.safeParse(raw);
   if (!parsed.success) {
@@ -83,9 +71,14 @@ export function validateLookSpec(raw: unknown, opts: { skinTone?: SkinTone } = {
   const spec = parsed.data as LookSpec;
 
   // ② 肤色收窄(§6 规矩 4)——只有知道了肤色才谈得上"违反"
-  const skinTone = opts.skinTone;
+  const { skinTone, palette } = opts;
   if (skinTone) {
-    const allowed = TONE_KEYS_BY_SKIN_TONE[skinTone];
+    const allowed = palette.toneKeysFor(skinTone);
+    if (!allowed) {
+      // 代码里有这一档、词表里没有。启动校验本该拦住它(见 face-catalog 的 validator),
+      // 真走到这里说明有人绕过了启动校验 —— 直说,不要静默放过。
+      fail(`肤色「${skinTone}」在词表里查不到,无法判断可用色域。`);
+    }
     const violations: string[] = [];
     for (const role of ZONE_ROLES) {
       const tone = spec.zones[role].tone;
@@ -95,7 +88,7 @@ export function validateLookSpec(raw: unknown, opts: { skinTone?: SkinTone } = {
     }
     if (violations.length > 0) {
       fail(
-        `${violations.join('、')}不在肤色「${SKIN_TONE_CN[skinTone]}」的可用色域内;` +
+        `${violations.join('、')}不在肤色「${palette.labelOf(skinTone) ?? skinTone}」的可用色域内;` +
           `该肤色可用:${allowed.join(' / ')}。` +
           `请改选其中之一,或先确认肤色是否填错了。`,
       );

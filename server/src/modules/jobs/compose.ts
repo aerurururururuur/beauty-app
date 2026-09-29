@@ -7,7 +7,7 @@
  */
 import path from 'node:path';
 import type { ArtifactStore } from '../assets/index.js';
-import type { Engine } from '../makeup/index.js';
+import type { Engine, SkinTonePalette } from '../makeup/index.js';
 import type { ReferenceProvider } from '../references/index.js';
 
 import { RunPipeline } from './application/usecases/run-pipeline.js';
@@ -25,6 +25,11 @@ export interface JobsModuleOptions {
   artifactStore: ArtifactStore;
   referenceProvider: ReferenceProvider;
   engine: Engine;
+  /**
+   * 词表端口。由组装根把 `face-catalog` 的 `FaceVocabulary` 包一层接上来
+   * (业务模块之间零 import,§7.1)。流水线只拿它把肤色档 id 说成中文。
+   */
+  palette: SkinTonePalette;
 }
 
 export interface JobsModuleServices {
@@ -44,6 +49,7 @@ export function createJobsModule(options: JobsModuleOptions): JobsModuleServices
     artifactStore: options.artifactStore,
     referenceProvider: options.referenceProvider,
     engine: options.engine,
+    palette: options.palette,
   });
   // 进程内串行队列;优雅停机时经 whenIdle 排空。
   const queue: JobQueue = new InMemoryJobQueue((jobId) => runPipeline.execute(jobId));

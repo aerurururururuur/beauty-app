@@ -52,7 +52,7 @@ function input(over: Partial<EngineInput> = {}): EngineInput {
   return {
     face: { filePath: faceFile, mimeType: 'image/png' },
     scenes: [],
-    brief: { skinTone: 'medium' },
+    brief: { skinTone: 'olive' },
     lookSpec: SPEC,
     ...over,
   };
@@ -181,14 +181,14 @@ describe('fixtureKeyOf —— 录像与回放必须算出同一个键', () => {
   it('★ 肤色:写不写它会让键变,但写哪一档不会 —— 因为档位根本不进提示词', () => {
     // 「不提肤色」与「提了」是两份不同的请求,必须分开。
     expect(keyOf({ brief: {} })).not.toBe(keyOf());
-    expect(keyOf({ brief: {} })).not.toBe(keyOf({ brief: { skinTone: 'deep' } }));
+    expect(keyOf({ brief: {} })).not.toBe(keyOf({ brief: { skinTone: 'deep_brown' } }));
 
     // 但 deep 与 light 算出**同一个键**,这是**有意的,不是漏了**:
     //   肤色只决定提示词里**有没有**那句「按本人真实肤色上妆,不要提亮」——
     //   **档位名本身刻意不进提示词**(§6 规矩 4:不许默认浅肤色审美,也就等于不许
     //   拿着一个色号去指挥模型)。真正随肤色变的是 `LookSpec` 的选色,那发生在 agent 侧,
     //   到这里已经定死在 spec 里了。所以两者请求**逐字节相同**,回放给出同一个结果才是忠实的。
-    expect(keyOf({ brief: { skinTone: 'light' } })).toBe(keyOf({ brief: { skinTone: 'deep' } }));
+    expect(keyOf({ brief: { skinTone: 'cool_porcelain' } })).toBe(keyOf({ brief: { skinTone: 'deep_brown' } }));
   });
 
   it('妆面单变了 → 键变', () => {

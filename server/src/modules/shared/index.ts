@@ -15,6 +15,12 @@ export type {
 
 export type { EngineSourceImage, ImageRef } from './domain/entities/image.js';
 
+// ★ 引擎的**封闭词汇表**(色汇表 + 几何槽位)。从 `makeup` 迁来,理由见其文件头:
+//   `look-spec.ts` 头部预言的搬迁条件("待前端 chips 落地时再迁")已经成立,
+//   而且 `face-catalog` 要校验目录里的 `toneKeys` / `route.slot`,不能反向依赖 `makeup`。
+export { GEOMETRY_SLOTS, TONE_KEYS } from './domain/entities/look-vocabulary.js';
+export type { FeatureRoute, GeometrySlot, ToneKey } from './domain/entities/look-vocabulary.js';
+
 // 场合语义单一源(中文名/方向/标签/关键词 + 纯函数 describeScene)。
 // ★ 本文件同时被前端经 vite alias `@scene-rules` 直接执行,规矩见其文件头。
 export {

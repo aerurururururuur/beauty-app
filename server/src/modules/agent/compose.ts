@@ -6,7 +6,7 @@
  * 形状照 `weather/compose.ts`(`kind` union 在本模块**独立声明**,
  * 免得业务模块反向依赖组装层的配置类型;两处要一起改)。
  */
-import type { Engine } from '../makeup/index.js';
+import type { Engine, SkinTonePalette } from '../makeup/index.js';
 import type { CosmeticReader } from './domain/ports/cosmetic-reader.js';
 import type { ProductLibrary } from './domain/ports/product-library.js';
 import type { UserDirectory } from './domain/ports/user-directory.js';
@@ -81,6 +81,11 @@ export interface AgentModuleOptions {
   /** 照片与成品图。★ 同样由组装根包一层 `assets` 的 `ArtifactStore` 传进来。 */
   artifacts: SessionArtifacts;
   /**
+   * 词表端口。★ 由组装根把 `face-catalog` 的 `FaceVocabulary` 包一层传进来(§7.1)。
+   * **必填**:缺了它 `propose_look` 就没法按肤色收窄色域,理由同 `userExists` / `engine`。
+   */
+  palette: SkinTonePalette;
+  /**
    * 读品牌产品库。★ 由组装根把 `products` 模块的 `ProductCatalog` 包一层传进来(§7.1)。
    *
    * ★ **可选,而且这是本模块唯一一个可选依赖。** 不传 = 这个部署没有内容目录 →
@@ -129,6 +134,7 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
     cosmetics: options.cosmetics,
     engine: options.engine,
     artifacts: options.artifacts,
+    palette: options.palette,
     maxRenders,
     // 只在真有时才传:`exactOptionalPropertyTypes` 下不能塞一个 `undefined` 进去,
     // 而且"没有产品库"与"产品库是 undefined"在这里本来就是同一件事。

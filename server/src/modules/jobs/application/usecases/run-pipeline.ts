@@ -11,7 +11,7 @@
 import { AppError, ErrorCode, describeScene } from '../../../shared/index.js';
 import type { EngineSourceImage, ImageRef } from '../../../shared/index.js';
 import type { ArtifactStore } from '../../../assets/index.js';
-import type { Engine } from '../../../makeup/index.js';
+import type { Engine, SkinTonePalette } from '../../../makeup/index.js';
 import { buildNarrative, validateEngineResult } from '../../../makeup/index.js';
 import type { ReferenceProvider } from '../../../references/index.js';
 import { advanceTo, failJob, finishJob, recordReferences, recordScene, startJob } from '../../domain/entities/job.js';
@@ -25,6 +25,8 @@ export class RunPipeline {
       artifactStore: ArtifactStore;
       referenceProvider: ReferenceProvider;
       engine: Engine;
+      /** 词表端口:只用来把肤色档 id 说成中文(`buildNarrative`)。 */
+      palette: SkinTonePalette;
     },
   ) {}
 
@@ -77,7 +79,13 @@ export class RunPipeline {
         generated.resultFilePath,
         generated.mimeType,
       );
-      const text = buildNarrative(scene, this.deps.engine.name, generated.look, brief);
+      const text = buildNarrative(
+        scene,
+        this.deps.engine.name,
+        generated.look,
+        brief,
+        this.deps.palette,
+      );
       const result: JobResult = {
         engine: this.deps.engine.name,
         resultUrl: stored.url,

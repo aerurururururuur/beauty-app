@@ -25,7 +25,7 @@ describe('SubmitJob', () => {
     const res = await submitJob.execute({
       face: memFile('me.png', 'image/png', 'FACE'),
       scenes: [memFile('scene1.png', 'image/png', 'SCENE1')],
-      brief: { occasion: 'interview', skinType: 'oily', skinTone: 'medium' },
+      brief: { occasion: 'interview', skinType: 'oily', skinTone: 'olive' },
     });
 
     expect(res.status).toBe('queued');

@@ -37,7 +37,7 @@ describe('validateSubmitJob(输入)', () => {
       metaRaw: briefRaw({
         occasion: 'interview',
         skinType: 'oily',
-        skinTone: 'tan',
+        skinTone: 'warm_tan',
         sceneText: '  正式终面  ',
         dress: ' 西装 · 藏青 ',
       }),
@@ -66,7 +66,7 @@ describe('validateSubmitJob(输入)', () => {
         validateSubmitJob({
           faces: [meta()],
           scenes: [],
-          metaRaw: briefRaw({ skinType: 'dry', skinTone: 'deep' }),
+          metaRaw: briefRaw({ skinType: 'dry', skinTone: 'deep_brown' }),
         }),
       ErrorCode.CONTEXT_REQUIRED,
     );

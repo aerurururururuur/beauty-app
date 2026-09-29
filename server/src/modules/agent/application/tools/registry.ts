@@ -9,7 +9,7 @@
  * 依赖注入照 `AddCosmetic({ items, users })`:工具需要的端口从构造参数进来,
  * 由 `compose.ts` 装配。**本文件不 import 任何别的业务模块。**
  */
-import type { Engine } from '../../../makeup/index.js';
+import type { Engine, SkinTonePalette } from '../../../makeup/index.js';
 import type { CosmeticReader } from '../../domain/ports/cosmetic-reader.js';
 import type { ProductLibrary } from '../../domain/ports/product-library.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
@@ -29,6 +29,11 @@ export interface ToolDeps {
   engine: Engine;
   /** 照片与成品图。同样由组装根包一层 `assets` 的那个存储喂进来。 */
   artifacts: SessionArtifacts;
+  /**
+   * 词表端口:`propose_look` 拿它按肤色收窄色域(§6 规矩 4)。
+   * ★ **必填**——缺了它,收窄会静默失效(见 `makeup/domain/ports/skin-tone-palette.ts`)。
+   */
+  palette: SkinTonePalette;
   /** §10 `[I3]` 单会话出图上限。 */
   maxRenders: number;
   /**
@@ -54,7 +59,7 @@ export interface ToolDeps {
 export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
   return indexTools([
     new PatchBriefTool(),
-    new ProposeLookTool(),
+    new ProposeLookTool(deps.palette),
     new ListCabinetTool(deps.cosmetics),
     ...(deps.products
       ? [new ListProductsTool(deps.products), new ReadProductTool(deps.products)]

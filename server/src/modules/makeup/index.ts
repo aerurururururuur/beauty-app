@@ -30,7 +30,10 @@ export {
   ZONE_ROLES,
 } from './domain/entities/look-spec.js';
 export { lookSpecSchema } from './domain/schemas/look-spec.js';
-export { TONE_KEYS_BY_SKIN_TONE, validateLookSpec } from './domain/validators/look-spec.validator.js';
+// ★ **色域表不再从这里导出**(`TONE_KEYS_BY_SKIN_TONE` 已删):档位表进了词表目录,
+//   要按肤色取色域请走 `SkinTonePalette` 端口,由组装根注入。
+export { validateLookSpec } from './domain/validators/look-spec.validator.js';
+export type { SkinTonePalette } from './domain/ports/skin-tone-palette.js';
 // ★ 把 LookSpec 讲成人话——砍掉 CSS 预览后它是「预览」的替代品(设计文档 §7.4.2)。
 export { describeLook } from './application/look-description.js';
 export { buildNarrative } from './application/narration.js';

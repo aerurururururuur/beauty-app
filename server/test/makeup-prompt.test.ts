@@ -28,6 +28,7 @@ import {
 } from '../src/modules/makeup/index.js';
 import type { LookSpec } from '../src/modules/makeup/index.js';
 import { INTENSITY_MAX, INTENSITY_MIN } from '../src/modules/makeup/index.js';
+import { SKIN_TONES } from '../src/modules/shared/index.js';
 
 /** 一份合法的底稿,各用例在它上面改一处。 */
 const SPEC: LookSpec = {
@@ -188,7 +189,7 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
 
 describe('buildPrompt', () => {
   it('★ 锚句之外的部分不含构图 / 服装 / 头发词', () => {
-    const { prompt } = buildPrompt(SPEC, { skinTone: 'medium' });
+    const { prompt } = buildPrompt(SPEC, { skinTone: 'olive' });
 
     // ★ 必须先剥掉锚句再扫,这不是为了让测试变绿:
     //   锚句是**固定文本**,里面有「背景」「发型」——那是**保护性**表述(「…背景、光线 全部不变」),
@@ -210,13 +211,15 @@ describe('buildPrompt', () => {
   });
 
   it('★ 肤色知道才写肤色锚句 —— 「不知道」和「知道但不提」是两回事', () => {
-    const known = buildPrompt(SPEC, { skinTone: 'deep' }).prompt;
+    const known = buildPrompt(SPEC, { skinTone: 'deep_brown' }).prompt;
     expect(known).toContain('真实肤色');
 
     const unknown = buildPrompt(SPEC).prompt;
     expect(unknown).not.toContain('真实肤色');
     // 而且不许暗示任何一档肤色(那等于默认了一个浅肤色审美)。
-    for (const t of ['浅肤色', 'light', 'deep', 'tan']) expect(unknown).not.toContain(t);
+    // ★ 扫的是**代码里那份元组的全部 8 档**,不是手抄几个:手抄的清单会在加档时静默过期,
+    //   而"新加的那一档没被扫到"恰好是这条断言唯一会漏的方式。
+    for (const t of ['浅肤色', ...SKIN_TONES]) expect(unknown).not.toContain(t);
   });
 
   it('反向提示词覆盖身份保真的四项', () => {
@@ -227,8 +230,8 @@ describe('buildPrompt', () => {
   });
 
   it('纯函数:同输入必同输出(夹具才可复现)', () => {
-    const a = buildPrompt(SPEC, { skinTone: 'tan' });
-    const b = buildPrompt(SPEC, { skinTone: 'tan' });
+    const a = buildPrompt(SPEC, { skinTone: 'warm_tan' });
+    const b = buildPrompt(SPEC, { skinTone: 'warm_tan' });
     expect(a).toEqual(b);
   });
 

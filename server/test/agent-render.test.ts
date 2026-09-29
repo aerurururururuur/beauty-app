@@ -235,7 +235,7 @@ class FreeTool implements Tool {
   calls = 0;
   async run(_input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
     this.calls++;
-    return { content: '免费工具跑完了', session: patchBrief(ctx.session, { skinTone: 'deep' }) };
+    return { content: '免费工具跑完了', session: patchBrief(ctx.session, { skinTone: 'deep_brown' }) };
   }
 }
 
@@ -584,7 +584,7 @@ describe('循环遇到「等确认」', () => {
 
     expect(free.calls).toBe(1);
     // 副作用留下了……
-    expect(result.session.brief.skinTone).toBe('deep');
+    expect(result.session.brief.skinTone).toBe('deep_brown');
     expect(result.session.brief.occasion).toBe('interview');
     // ……但**一条 tool_result 都没还**(两条都欠着)。
     expect(danglingToolUses(result.session.messages).map((c) => c.id)).toEqual(['c1', 'c2']);

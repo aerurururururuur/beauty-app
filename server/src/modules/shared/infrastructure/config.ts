@@ -115,6 +115,14 @@ export interface ServerConfig {
    *   "我确实不想装产品库"了。回归测试指向一个不存在的路径,靠的正是这一点。
    */
   productsDir: string;
+  /**
+   * 面部词表内容目录的绝对路径。缺省 `server/../assests/face-catalog`。
+   *
+   * ⚠️ **与 `productsDir` 相反:指向不存在的路径 = 启动即失败**,不是"关掉识别"。
+   *   词表是 `skinTone` 合法档位的来源,缺了它整条 brief 校验无从谈起 ——
+   *   所以"没有词表"不是一种部署形态,是配置错误(详见 `face-catalog/compose.ts`)。
+   */
+  faceCatalogDir: string;
 }
 
 /**
@@ -287,5 +295,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // **不校验存在性**:目录不在 = 关掉产品库,是合法形态(见 ServerConfig 里那条注释);
     // 而"目录在但内容坏"由 `products/compose.ts` 启动即失败,那才是要拦的那种错。
     productsDir: path.resolve(env.PRODUCTS_DIR ?? '../products'),
+    // 缺省指向仓库里真实存在的那一份。★ 这里**不校验存在性**,但也不像 productsDir
+    // 那样"不存在 = 关掉功能":不存在会在 `createFaceCatalogModule` 里启动即失败。
+    faceCatalogDir: path.resolve(env.FACE_CATALOG_DIR ?? '../assests/face-catalog'),
   };
 }

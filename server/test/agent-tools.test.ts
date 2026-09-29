@@ -21,7 +21,8 @@ import {
   describeLook,
   validateLookSpec,
 } from '../src/modules/makeup/index.js';
-import type { LookSpec } from '../src/modules/makeup/index.js';
+import type { LookSpec, SkinTonePalette } from '../src/modules/makeup/index.js';
+import { realPalette } from './helpers/face-catalog.js';
 import { OCCASIONS } from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
@@ -50,6 +51,13 @@ import type {
   Session,
   ToolOutcome,
 } from '../src/modules/agent/index.js';
+
+/**
+ * 组装根那道缝的测试版:`FaceVocabulary` → `SkinTonePalette`。
+ * ★ **真词表**(`helpers/face-catalog.ts`),不是假表 —— 收窄是这条链路上唯一有
+ *   "内容依据"的判断,拿假表测它,测到的只是假表自洽。词表本身的合规另有 `face-catalog.test.ts` 盯着。
+ */
+const palette: SkinTonePalette = realPalette();
 
 // ── 样例与替身 ───────────────────────────────────────────────────────────────
 
@@ -205,6 +213,7 @@ describe('工具契约', () => {
       cosmetics: new FakeCosmeticReader(),
       engine: { generate: async () => ({}) } as never,
       artifacts: {} as never,
+      palette,
       maxRenders: 3,
     };
     const without = createToolRegistry(base);
@@ -244,8 +253,8 @@ describe('工具契约', () => {
 
     // 一侧:JSON Schema 认这份样例。
     assertSchemaCoversSample(propose.inputSchema as JsonSchema, SAMPLE_LOOK, '$');
-    // 另一侧:zod 也认同一份样例(不收窄肤色,只看形状)。
-    expect(() => validateLookSpec(SAMPLE_LOOK)).not.toThrow();
+    // 另一侧:zod 也认同一份样例(不传 `skinTone` ⇒ 不收窄,只看形状)。
+    expect(() => validateLookSpec(SAMPLE_LOOK, { palette })).not.toThrow();
   });
 });
 
@@ -255,11 +264,13 @@ describe('patch_brief', () => {
   const tool = new PatchBriefTool();
 
   it('记下并回显当前已知需求', async () => {
-    const out = await run(tool, { occasion: 'interview', skinTone: 'deep' }, session());
+    const out = await run(tool, { occasion: 'interview', skinTone: 'deep_brown' }, session());
 
-    expect(out.session?.brief).toEqual({ occasion: 'interview', skinTone: 'deep' });
+    expect(out.session?.brief).toEqual({ occasion: 'interview', skinTone: 'deep_brown' });
     expect(out.content).toContain('场合=interview');
-    expect(out.content).toContain('肤色深浅=deep');
+    // ★ 写全 id,不写 `'肤色深浅=deep'` —— 那样写成前缀匹配,'deep_brown' / 'deep_xxx'
+    //   都会被它放过去,断言会变成一条永远为真的装饰。
+    expect(out.content).toContain('肤色深浅=deep_brown');
     expect(out.isError).toBeUndefined();
   });
 
@@ -298,7 +309,7 @@ describe('patch_brief', () => {
 // ── propose_look ────────────────────────────────────────────────────────────
 
 describe('propose_look', () => {
-  const tool = new ProposeLookTool();
+  const tool = new ProposeLookTool(palette);
 
   it('产出记进会话,并把 describeLook 的结果交回去(那段文字就是"预览")', async () => {
     const out = await run(tool, SAMPLE_LOOK, session());
@@ -337,8 +348,8 @@ describe('propose_look', () => {
   });
 
   it('★ 肤色已知时按肤色收窄色域 —— 「生成完再检查」变成「根本生成不出来」', async () => {
-    const deep = session({ brief: { skinTone: 'deep' } });
-    // nude 不在 deep 的可用色域里(占位表),应当被打回。
+    const deep = session({ brief: { skinTone: 'deep_brown' } });
+    // nude 不在 deep_brown 的可用色域里(词表占位值),应当被打回。
     const out = await run(
       tool,
       { ...SAMPLE_LOOK, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
@@ -513,7 +524,7 @@ describe('read_product', () => {
 describe('系统提示', () => {
   it('每轮嵌**当前** brief 与 LookSpec(留住的是这两个的当前值,不是聊天原文)', async () => {
     const s = session({
-      brief: { occasion: 'interview', skinTone: 'deep' },
+      brief: { occasion: 'interview', skinTone: 'deep_brown' },
       lookSpec: SAMPLE_LOOK,
     });
     const prompt = buildSystemPrompt(s);

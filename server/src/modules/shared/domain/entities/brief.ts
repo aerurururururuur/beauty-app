@@ -16,8 +16,30 @@ export type Occasion = (typeof OCCASIONS)[number];
 export const SKIN_TYPES = ['dry', 'oily', 'combination', 'sensitive', 'neutral'] as const;
 export type SkinType = (typeof SKIN_TYPES)[number];
 
-/** 肤色深浅 5 档(roadmap 拍板)。缺省走中间档 medium,不以浅肤色为默认。 */
-export const SKIN_TONES = ['light', 'light_medium', 'medium', 'tan', 'deep'] as const;
+/**
+ * 肤色 8 档(2026-09-29 owner 拍板;此前是 roadmap 定的 5 档)。
+ *
+ * ★ **这 8 个 id 是「代码」,不是「内容」。** 它们必须与词表目录
+ *   `assests/face-catalog/skin-tones.json` 里 `tones[].id` 的集合**完全一致** ——
+ *   启动时逐项对账,多一个少一个都起不来(见 `face-catalog` 的 `vocabulary.validator.ts`)。
+ *   **加一档 = 改 JSON + 这里加一行。**
+ *
+ *   档位的**名字 / 色卡 / 深浅次序 / 可用色域 / 哪一档是缺省**全在目录里,这里只放 id。
+ *   与 `TONE_KEYS` 同一条理由:靠编译期元组才拿得到穷尽检查,挪进 JSON 就只剩运行时。
+ *
+ * ★ 缺省档由目录的 `isDefault` 标出,**且它不许是最浅那一档** —— 那是启动校验,
+ *   不是注释(§13-3 那条肤色包容红线的实质要求)。
+ */
+export const SKIN_TONES = [
+  'cool_porcelain',
+  'pink_porcelain',
+  'warm_ivory',
+  'warm_beige',
+  'olive',
+  'warm_tan',
+  'wheat',
+  'deep_brown',
+] as const;
 export type SkinTone = (typeof SKIN_TONES)[number];
 
 /**

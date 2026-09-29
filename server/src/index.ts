@@ -17,8 +17,10 @@ import { createUserModule } from './modules/user/index.js';
 import { createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
 import { createProductsModule } from './modules/products/index.js';
+import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { createAgentModule } from './modules/agent/index.js';
 import type { CosmeticReader, ProductLibrary } from './modules/agent/index.js';
+import type { SkinTonePalette } from './modules/makeup/index.js';
 import { AppError, ErrorCode } from './modules/shared/index.js';
 import { createSessionArtifacts } from './session-artifacts.js';
 import { buildApp } from './app.js';
@@ -64,11 +66,37 @@ async function main(): Promise<void> {
     ...(config.makeupFixturesDir ? { fixturesDir: config.makeupFixturesDir } : {}),
   });
 
+  // ── 面部词表 ──
+  // ★ **这一处与产品库刻意相反:没有"目录不存在"这一格。**
+  //   产品库是增强项(没有它只是不注册产品工具),词表是 `skinTone` 合法档位的来源——
+  //   缺了它整条 brief 校验无从谈起。所以这里**不接 `undefined`**:读不到就抛错,
+  //   进程起不来。见 `face-catalog/compose.ts` 的文件头。
+  // ⚠️ 副作用是那一串红线校验(§13-3「缺省档不许是最浅档」等)**在这一行跑**。
+  const faceCatalog = createFaceCatalogModule({ contentDir: config.faceCatalogDir });
+
+  /**
+   * `FaceVocabulary` → `makeup` / `jobs` / `agent` 的 `SkinTonePalette`
+   * (第 N 处跨模块粘合,同下面的 `userExists` / `cosmetics` / `productLibrary`)。
+   *
+   * ★ **显式挑字段,而不是把 `vocabulary` 直接塞过去。** 结构上也许能凑合,但那样
+   *   **经过这条缝的字段就没人负责了**:词表哪天多一列,它会静默地跟着流进妆面校验。
+   *   这条缝该是决定"谁看得见什么"的唯一地方 —— 同 `productLibrary` 那段。
+   *
+   * ⚠️ **位置由 jobs 决定**:流水线也要用 `labelOf`,所以它必须排在
+   *   `createJobsModule` 之前(第一版排在产品库那段,`tsc` 直接报了
+   *   「used before its declaration」——这个顺序不是风格,是依赖)。
+   */
+  const palette: SkinTonePalette = {
+    toneKeysFor: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.toneKeys,
+    labelOf: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.label,
+  };
+
   const jobs = createJobsModule({
     dataDir: config.dataDir,
     artifactStore,
     referenceProvider,
     engine,
+    palette,
   });
 
   // 账号表落 dataDir/users/users.json;密码只存 scrypt 凭据,不存明文。
@@ -216,6 +244,7 @@ async function main(): Promise<void> {
     //   于是"`MAKEUP_ENGINE` 换一个值,两边一起变"——这正是 §8.1 想要的。
     engine,
     artifacts: sessionArtifacts,
+    palette,
     // ★ 没配产品库时**整个键不出现在 options 里**(不是给一个 `undefined`)——
     //   语义上就是"这个部署没有产品库",agent 那边照此不注册那两个工具。
     ...(productLibrary ? { products: productLibrary } : {}),
@@ -292,6 +321,19 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  /**
+   * ★ **词表的加载结果。** 与上面两段同一个用意:不让任何人**误以为**识别在按这张表走。
+   *   档位表是 §13-3 红线盯的东西,而它现在**不在代码里**(在 `assests/face-catalog/`),
+   *   所以"实际读的是哪一版、几档、缺省哪一档"必须在启动日志里留一行 ——
+   *   否则改坏了词表的人只会看到服务照常起来。
+   */
+  app.log.info(
+    `[face-catalog] 已加载词表 ${faceCatalog.vocabulary.version}:` +
+      `${faceCatalog.vocabulary.tones.length} 档` +
+      `(缺省「${faceCatalog.vocabulary.defaultTier().label}」)` +
+      ` / ${faceCatalog.vocabulary.dimensions.length} 类特征。`,
+  );
 
   /**
    * ★ **会话 TTL 清理**(§10 `[I8]` / 隐私红线)。

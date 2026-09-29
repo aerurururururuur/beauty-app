@@ -60,7 +60,7 @@ describe('metaSchema(简报形状)', () => {
     const res = metaSchema.safeParse({
       occasion: 'interview',
       skinType: 'oily',
-      skinTone: 'tan',
+      skinTone: 'warm_tan',
       dress: '西装 · 藏青',
       sceneText: '正式终面',
       weather: { condition: '晴', temperatureC: 24, humidityPct: 45, uvIndex: 3 },
@@ -117,7 +117,7 @@ describe('★ 两条入口共用同一份简报字段(表单 ↔ 对话)', () =>
     ['空对象', {}],
     ['合法场合', { occasion: 'interview' }],
     ['不存在的场合', { occasion: 'snow' }],
-    ['合法肤质 + 肤色', { skinType: 'oily', skinTone: 'tan' }],
+    ['合法肤质 + 肤色', { skinType: 'oily', skinTone: 'warm_tan' }],
     ['不存在的肤色', { skinTone: 'fair' }],
     ['自由文字到上限', { sceneText: 'a'.repeat(MAX_SCENE_TEXT) }],
     ['自由文字超一个字', { sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1) }],

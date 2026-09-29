@@ -48,17 +48,27 @@ const STYLES: Record<string, StyleSpec> = {
   },
 };
 
-/** 肤色档 → 色板校正系数(>0 向白提亮偏柔,<0 向黑加深偏实;medium 为基准)。 */
+/**
+ * 肤色档 → 色板校正系数(>0 向白提亮偏柔,<0 向黑加深偏实;`olive` 为基准 0)。
+ * ⚠️ 档位 id 改了要跟着改(`shared/domain/entities/brief.ts` 那 8 个)。
+ */
 const TONE_MIX: Record<SkinTone, number> = {
-  light: 0.22,
-  light_medium: 0.1,
-  medium: 0,
-  tan: -0.08,
-  deep: -0.16,
+  cool_porcelain: 0.22,
+  pink_porcelain: 0.16,
+  warm_ivory: 0.1,
+  warm_beige: 0.05,
+  olive: 0,
+  warm_tan: -0.08,
+  wheat: -0.12,
+  deep_brown: -0.18,
 };
 
-/** 肤色档缺省走中间档(不以浅肤色为默认)。 */
-const DEFAULT_TONE: SkinTone = 'medium';
+/**
+ * 肤色档缺省。★ **必须与词表的 `isDefault` 那一档一致**(现在是 `olive`)——
+ * 不一致会让"没填肤色"走的色板和界面显示的缺省档对不上。
+ * 有一条测试钉着这件事(`test/mock-engine.test.ts` 里对着真词表断言)。
+ */
+const DEFAULT_TONE: SkinTone = 'olive';
 
 function mixWith(c: RGB, towardWhite: number): RGB {
   const target = towardWhite >= 0 ? 255 : 0;

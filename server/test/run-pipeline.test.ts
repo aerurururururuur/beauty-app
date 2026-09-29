@@ -16,6 +16,7 @@ import {
   ThrowingEngine,
   memFile,
 } from './helpers/fakes.js';
+import { realPalette } from './helpers/face-catalog.js';
 
 function setup(engine = new FakeEngine()) {
   const jobs = new FakeJobRepository();
@@ -28,6 +29,7 @@ function setup(engine = new FakeEngine()) {
     artifactStore,
     referenceProvider,
     engine,
+    palette: realPalette(),
   });
   const getJob = new GetJob(jobs);
   const getJobResult = new GetJobResult({ jobs, artifactStore });
@@ -40,7 +42,7 @@ describe('RunPipeline', () => {
     const created = await submitJob.execute({
       face: memFile('me.png', 'image/png', 'FACE'),
       scenes: [],
-      brief: { occasion: 'interview', sceneText: '正式终面', skinTone: 'deep' },
+      brief: { occasion: 'interview', sceneText: '正式终面', skinTone: 'deep_brown' },
     });
     expect(queue.enqueued).toEqual([created.id]);
 
@@ -55,7 +57,7 @@ describe('RunPipeline', () => {
     expect(rec.result?.resultUrl).toBe(`/jobs/${created.id}/result`);
     expect(rec.result?.explain.length).toBeGreaterThan(0);
     // 引擎确实收到了 brief.skinTone
-    expect((rec.result?.look as { skinTone?: string }).skinTone).toBe('deep');
+    expect((rec.result?.look as { skinTone?: string }).skinTone).toBe('deep_brown');
 
     // 查询视图 & 产物可读
     const view = await getJob.execute(created.id);

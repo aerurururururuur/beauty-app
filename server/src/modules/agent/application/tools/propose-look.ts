@@ -13,7 +13,7 @@
  */
 import { AppError } from '../../../shared/index.js';
 import { describeLook, validateLookSpec } from '../../../makeup/index.js';
-import type { LookSpec } from '../../../makeup/index.js';
+import type { LookSpec, SkinTonePalette } from '../../../makeup/index.js';
 import { PROPOSE_LOOK } from '../../domain/tools/definitions.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import { setLookSpec } from '../../domain/entities/session.js';
@@ -21,10 +21,20 @@ import { setLookSpec } from '../../domain/entities/session.js';
 export class ProposeLookTool implements Tool {
   readonly definition = PROPOSE_LOOK;
 
+  /**
+   * `palette` 是**词表端口**,由组装根注入(cabinet / products 那条先例)。
+   * ★ 它必填而不是可选:少传它就等于「按肤色收窄」静默关闭(妆面照过、色域不再受限),
+   *   而那正是本仓库的头号 bug 类型。见 `makeup/domain/ports/skin-tone-palette.ts`。
+   */
+  constructor(private readonly palette: SkinTonePalette) {}
+
   async run(input: unknown, context: ToolContext): Promise<ToolOutcome> {
     let spec: LookSpec;
     try {
-      spec = validateLookSpec(input, { skinTone: context.session.brief.skinTone });
+      spec = validateLookSpec(input, {
+        skinTone: context.session.brief.skinTone,
+        palette: this.palette,
+      });
     } catch (err) {
       // 校验失败的 message 已经写成"带合法取值清单"的形状(见 look-spec.validator.ts),
       // 可以**原样**回填给模型——这就是把错误消息当 prompt 写的好处,这里不需要再加工。
