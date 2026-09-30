@@ -67,7 +67,7 @@
           <a class="auth__forget" href="#">忘记密码？</a>
         </div>
 
-        <!-- 失败原因直接用后端那句话(如「昵称已被占用」),前端不另写一份文案 -->
+        <!-- 失败原因直接用后端那句话(如「桃妆 ID 已被占用」),前端不另写一份文案 -->
         <ErrorNote :text="user.error" />
 
         <button type="submit" class="auth__submit" :disabled="user.busy">

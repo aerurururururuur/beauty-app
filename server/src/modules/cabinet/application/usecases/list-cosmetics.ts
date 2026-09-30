@@ -23,7 +23,7 @@ export class ListCosmetics {
 
     // 与新增同口径:用户不存在就明说,别回一个空列表让人以为"衣橱是空的"。
     if (!(await this.deps.users.exists(userId))) {
-      throw new AppError(ErrorCode.USER_NOT_FOUND, `用户不存在:${userId}`);
+      throw new AppError(ErrorCode.USER_NOT_FOUND, '桃妆账号不存在');
     }
 
     const items = await this.deps.items.listByUser(userId);

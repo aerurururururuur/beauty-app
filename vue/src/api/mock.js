@@ -17,21 +17,21 @@
 /**
  * 演示模式下**不校验密码**——没有后端就没有 scrypt,也没有凭据表;
  * 这里刻意不存明文密码、不做"假登录校验",免得给人"前端也算了密码"的错觉。
- * 昵称只用来推一个稳定的假 userId(见下),好让衣橱数据在同一昵称下刷新不丢。
+ * 昵称只用来推一个稳定的假 userId(见下),好让化妆包数据在同一昵称下刷新不丢。
  */
 export async function mockLoginUser({ nickname = '' } = {}) {
   await sleep(120)
   return { id: stableUserId(nickname), nickname, createdAt: new Date().toISOString() }
 }
 
-/** 昵称 → 稳定的假 userId:同一昵称每次得到同一个 id,衣橱才能对上同一份数据。 */
+/** 昵称 → 稳定的假 userId:同一昵称每次得到同一个 id,化妆包才能对上同一份数据。 */
 function stableUserId(nickname) {
   let h = 0
   for (const ch of nickname) h = (h * 31 + (ch.codePointAt(0) || 0)) >>> 0
   return `mock-user-${h.toString(16)}`
 }
 
-// ---------------- 衣橱(演示模式) ----------------
+// ---------------- 化妆包(演示模式) ----------------
 /**
  * 用 localStorage 存一份,复刻后端「落盘后重启还在」的行为——
  * 纯前端演示时刷新页面不该把用户刚录的化妆品弄丢。仅演示模式走这条路。
@@ -80,26 +80,6 @@ export async function mockAddCosmetic({ userId, name, attributes = [] }) {
   table[userId] = [...(table[userId] || []), item]
   writeCabinet(table)
   return item
-}
-
-export async function mockUpdateCosmetic(id, { userId, name, attributes }) {
-  await sleep(160)
-  const table = readCabinet()
-  const list = table[userId] || []
-  const idx = list.findIndex((i) => i.id === id)
-  if (idx < 0) throw new Error('找不到这条化妆品')
-  const next = {
-    ...list[idx],
-    ...(name !== undefined ? { name: String(name).trim() } : {}),
-    ...(attributes !== undefined
-      ? { attributes: attributes.map((a) => ({ label: String(a.label).trim(), value: String(a.value).trim() })) }
-      : {}),
-    updatedAt: new Date().toISOString()
-  }
-  list[idx] = next
-  table[userId] = list
-  writeCabinet(table)
-  return next
 }
 
 export async function mockRemoveCosmetic({ id, userId }) {

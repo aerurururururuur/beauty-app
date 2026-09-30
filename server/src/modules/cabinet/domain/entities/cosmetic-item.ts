@@ -50,7 +50,8 @@ export interface CosmeticItem extends CosmeticItemRow {}
  *   两种情况的码与文案必须逐字相同 —— 分两处写的那天,差异就从文案里漏出去了。
  */
 export function itemNotFound(itemId: string): AppError {
-  return new AppError(ErrorCode.CABINET_ITEM_NOT_FOUND, `衣橱条目不存在:${itemId}`);
+  // ★ 文案用前端的词;不回显 itemId——那是 UUID,用户从没见过它(见 validator 文件头)
+  return new AppError(ErrorCode.CABINET_ITEM_NOT_FOUND, '我的化妆包里没有这条');
 }
 
 /**

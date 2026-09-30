@@ -26,7 +26,7 @@ export class AddCosmetic {
 
     // 归属必须指向真实用户,否则条目会变成孤儿,一路漏到推荐模块。
     if (!(await this.deps.users.exists(input.userId))) {
-      throw new AppError(ErrorCode.USER_NOT_FOUND, `用户不存在:${input.userId}`);
+      throw new AppError(ErrorCode.USER_NOT_FOUND, '桃妆账号不存在');
     }
 
     // 件数上限:先查后写。演示期单进程,竞态窗口可忽略;
@@ -35,7 +35,7 @@ export class AddCosmetic {
     if (current.length >= MAX_ITEMS_PER_USER) {
       throw new AppError(
         ErrorCode.CABINET_FULL,
-        `衣橱最多 ${MAX_ITEMS_PER_USER} 件,请先删掉一些再加`,
+        `我的化妆包最多 ${MAX_ITEMS_PER_USER} 件,请先删掉一些再加`,
         { limit: MAX_ITEMS_PER_USER },
       );
     }

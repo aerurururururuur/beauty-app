@@ -1,5 +1,9 @@
 # modules/user —— 用户账号（已接线）
 
+> ★ **本模块内部一律叫「昵称」；但对外 message 用前端页面上的词「桃妆 ID」/「桃妆账号」。**
+> 只换用户看得见的那几句 message，`nickname` / 本 README 全篇**照旧**。
+> 缘由：`domain/validators/user.validator.ts` 文件头、`vue/AGENTS.md` §7.3。
+
 账号 = **昵称（登录身份，唯一）+ 密码**。提供三个能力：注册建档、登录核对、按 id 查档案。
 密码只以 **scrypt 凭据**落盘（每条独立随机盐），明文永不落库、不进日志、不回视图。
 

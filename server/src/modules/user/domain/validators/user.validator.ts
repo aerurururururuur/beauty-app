@@ -12,6 +12,15 @@
  *
  * 注册与登录同形同规则,故共用一个校验器(将来若注册规则变严,在此按意图分叉)。
  * 密码**不做任何清洗**:空格、首尾空白都是密码的合法字符,动了就和用户之后输入的密码对不上。
+ *
+ * ★ **对外文案用前端页面上的词**:身份字段叫「桃妆 ID」、账号叫「桃妆账号」——
+ *   不叫「昵称」「用户」。理由:前端不按 `code` 分支,把这里的 message **原样**打在
+ *   输入框旁边(vue/AGENTS.md §3 第 2 条),所以这几句就是 UI 文案,必须用用户看得见的词。
+ *   ⚠️ **只换文案,不换标识符**:`nickname` / `USER_ID_PATTERN` / 本文件与模块 README 里的
+ *   「昵称」全部照旧。内部术语与对外文案是两套,**别为了"统一"去改字段名**。
+ *   ⚠️ `agent` 模块的 `start-session.ts` 另有一句 `用户不存在:<id>`——**刻意不同步**:
+ *   那条路由今天没有任何前端在调,它的读者不是桃妆用户(该仓原则见 agent/README「各写面向
+ *   自己读者的文案」)。别照着这里把那句也改了。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import { credentialsSchema, userIdSchema, userTableSchema } from '../schemas/index.js';
@@ -65,7 +74,7 @@ export function validateUserId(raw: unknown): string {
   if (!parsed.success) {
     throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(parsed.error));
   }
-  if (!USER_ID_PATTERN.test(parsed.data)) fail('用户 id 不合法');
+  if (!USER_ID_PATTERN.test(parsed.data)) fail('桃妆账号不合法');
   return parsed.data;
 }
 
@@ -83,7 +92,7 @@ export function validateCredentials(raw: unknown): Credentials {
   //    两条**一起报**,不中途返回:schema 时代它们是一次 parse 里的两个 issue。
   const tooLong: string[] = [];
   if (parsed.data.nickname.length > MAX_NICKNAME_RAW) {
-    tooLong.push(`昵称原文最多 ${MAX_NICKNAME_RAW} 字`);
+    tooLong.push(`桃妆 ID 原文最多 ${MAX_NICKNAME_RAW} 字`);
   }
   if (parsed.data.password.length > MAX_PASSWORD) {
     tooLong.push(`密码最多 ${MAX_PASSWORD} 位`);
@@ -93,13 +102,13 @@ export function validateCredentials(raw: unknown): Credentials {
   // ③ 语义规则(形状表达不了的:长度夹逼、字符集)
   const nickname = parsed.data.nickname.trim();
   if (nickname.length < MIN_NICKNAME) {
-    fail(`昵称至少 ${MIN_NICKNAME} 个字符(不含首尾空白)`);
+    fail(`桃妆 ID 至少 ${MIN_NICKNAME} 个字符(不含首尾空白)`);
   }
   if (nickname.length > MAX_NICKNAME) {
-    fail(`昵称最多 ${MAX_NICKNAME} 个字符`);
+    fail(`桃妆 ID 最多 ${MAX_NICKNAME} 个字符`);
   }
   if (hasControlChar(nickname)) {
-    fail('昵称不能包含换行或控制字符');
+    fail('桃妆 ID 不能包含换行或控制字符');
   }
   if (parsed.data.password.length < MIN_PASSWORD) {
     fail(`密码至少 ${MIN_PASSWORD} 位(最多 ${MAX_PASSWORD} 位)`);

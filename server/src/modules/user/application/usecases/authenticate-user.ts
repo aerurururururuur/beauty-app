@@ -13,7 +13,8 @@ import type { UserRepository } from '../../domain/ports/user-repository.js';
 import { toUserView } from '../user-view.js';
 
 /** 账号不存在与密码错误共用的对外话术——不泄露「这个名字有没有被注册过」。 */
-const REJECT_MESSAGE = '昵称或密码不正确';
+// ★ 文案用前端的词(「桃妆 ID」),字段名仍是 nickname——见 validator 文件头
+const REJECT_MESSAGE = '桃妆 ID 或密码不正确';
 
 export class AuthenticateUser {
   constructor(

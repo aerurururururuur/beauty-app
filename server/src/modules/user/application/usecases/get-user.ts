@@ -12,7 +12,8 @@ export class GetUser {
   async execute(id: string): Promise<UserView> {
     const user = await this.users.findById(id);
     if (!user) {
-      throw new AppError(ErrorCode.USER_NOT_FOUND, `用户不存在:${id}`);
+      // ★ 文案用前端的词;不回显那个 id——用户从没见过它(UUID),读了也没用
+      throw new AppError(ErrorCode.USER_NOT_FOUND, '桃妆账号不存在');
     }
     return toUserView(user);
   }

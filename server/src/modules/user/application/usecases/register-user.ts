@@ -28,7 +28,8 @@ export class RegisterUser {
     // 若将来并发建档,唯一约束要下沉到仓库实现里兜底(端口契约不变)。
     const existing = await this.deps.users.findByNickname(nickname);
     if (existing) {
-      throw new AppError(ErrorCode.NICKNAME_TAKEN, `昵称已被占用:${nickname}`);
+      // ★ 文案用前端的词(「桃妆 ID」),字段名仍是 nickname——见 validator 文件头
+      throw new AppError(ErrorCode.NICKNAME_TAKEN, `桃妆 ID 已被占用:${nickname}`);
     }
 
     const passwordHash = await this.deps.hasher.hash(password);

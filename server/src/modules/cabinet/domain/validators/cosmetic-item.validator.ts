@@ -12,6 +12,12 @@
  *
  * 特性名与值都**照用户原样存**(只 trim),不猜、不改写——
  * 衣橱是用户自己的账本,系统没有资格替他规范用词。
+ *
+ * ★ **对外文案用前端页面上的词**:这个集合叫「我的化妆包」、归属人叫「桃妆账号」——
+ *   不叫「衣橱」「用户」。理由:前端不按 `code` 分支,把这里的 message **原样**打在页面上
+ *   (vue/AGENTS.md §3 第 2 条),所以这几句就是 UI 文案,必须用用户看得见的词。
+ *   ⚠️ **只换文案,不换标识符**:`cabinet` / `衣橱` / `CosmeticItem` / `ITEM_ID_PATTERN`
+ *   以及本模块 README 全篇**照旧**。内部术语与对外文案是两套,**别为了"统一"去重命名模块**。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
 import {
@@ -90,7 +96,7 @@ function fail(message: string): never {
 
 /** 归属用户 id:形状已由 schema 保证,格式在这里判(§4.2)。 */
 function checkOwnerId(userId: string): string {
-  if (!OWNER_ID_PATTERN.test(userId)) fail('用户 id 不合法');
+  if (!OWNER_ID_PATTERN.test(userId)) fail('桃妆账号不合法');
   return userId;
 }
 
@@ -167,7 +173,7 @@ export function validateItemId(raw: unknown): string {
     throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(parsed.error));
   }
   // ② 格式(§4.2)
-  if (!ITEM_ID_PATTERN.test(parsed.data)) fail('衣橱条目 id 不合法');
+  if (!ITEM_ID_PATTERN.test(parsed.data)) fail('条目 id 不合法');
   return parsed.data;
 }
 
@@ -213,7 +219,9 @@ export function validateUpdateInput(raw: unknown): UpdateItemInput {
 
   const { name, attributes } = parsed.data;
   if (name === undefined && attributes === undefined) {
-    fail('至少要给出 name 或 attributes 之一');
+    // ★ 原句是「至少要给出 name 或 attributes 之一」——把 JSON 字段名念给用户听,
+    //   和「衣橱」「用户 id」是同一类毛病。改成人话;这条消息不带 code,前端照原样展示。
+    fail('至少要修改名称或特性之一');
   }
 
   return {
