@@ -405,6 +405,24 @@ function textOfField(field) {
 }
 
 /**
+ * 后端 `WeatherView` → `brief.weather` 的那四格。
+ *
+ * ★ **必须逐格挑,不能原样塞**:服务端 `startSessionSchema` 里的 `weatherShape` 是 `.strict()`,
+ *   多带 `source` / `place` 任何一个键,打回的是**整份 brief**(422),不是那一格。
+ * ★ `source === 'mock'`(服务端标的「离线示意」)整块返回 `null`。★ **判据只此一处**:
+ *   `/form` 拿同一个函数决定**摆不摆**——不标来源就没法把一份编出来的天气诚实摆成实况。
+ */
+export function briefWeatherOf(view) {
+  if (!view || view.source === 'mock') return null
+  const w = {}
+  // ★ 用 `!== undefined` 判,别用真值:0℃ 与紫外线 0 都是合法值,真值判会把它们判没。
+  for (const key of ['condition', 'temperatureC', 'humidityPct', 'uvIndex']) {
+    if (view[key] !== undefined) w[key] = view[key]
+  }
+  return Object.keys(w).length ? w : null
+}
+
+/**
  * `/form` 收上来的东西 → 后端那份 `brief`(平铺在 `POST /agent/sessions` 的请求体上)。
  *
  * 三条刻意的取舍:
@@ -426,12 +444,16 @@ function textOfField(field) {
  *
  * ④ ✏️ `occasion` 与 `styleText` 各自有专格了(见 `OCCASION_FIELD` / `STYLE_FIELD`),
  *    不再由场景卡代填、也不再从自由文字里推。
+ *
+ * ⑤ ★ **天气只送实况**(`briefWeatherOf`):没拉、拉不到、或服务端标了离线示意,整块不出现——
+ *    与 ①「不填就不给」同一条,宁可没有,也不塞一份对不上城市的。
  */
 export function toBrief({
   sceneId = 'party',
   persona = null,
   fields = [],
   canSendRefImages = false,
+  weather = null,
 } = {}) {
   // ★ 用表单自己的 sceneId(它已经做过未知场景的回落),别直接把 query 里的字符串送出去。
   const form = getSceneForm({ sceneId })
@@ -450,6 +472,10 @@ export function toBrief({
 
   const tone = SKIN_TONE_TO_BACKEND[persona?.skinTone || '']
   if (tone) brief.skinTone = tone
+
+  // ★ 天气是用户在 `/form` 上**点出来的**(见 `FormView`),不是必填:拿不到就整块不出现。
+  const live = briefWeatherOf(weather)
+  if (live) brief.weather = live
 
   // ★ 特征分两路:目录里的进 `features`(后端 `face-catalog` 有目录,`propose_look` 据此挑策略);
   //   用户自己加的那几条(`<分组 id>/<原话>`)并进下面那段话 ——

@@ -26,6 +26,30 @@
       <RouterLink class="persona-bar__switch" :to="{ path: '/personas', query: personaQuery }">换一份</RouterLink>
     </div>
 
+    <!--
+      今日天气:可选,不拉也能提交。
+      ★ 拉不到 / 服务端标了「离线示意」时**整块不出现**——不标来源就不摆一份编出来的天气。
+    -->
+    <div class="weather-bar">
+      <div class="weather-bar__row">
+        <input
+          v-model="city"
+          class="weather-bar__input"
+          type="text"
+          :maxlength="MAX_CITY"
+          placeholder="城市（例如：上海），回车即可查"
+          @keyup.enter="lookupByCity"
+        />
+        <button class="btn btn--soft" type="button" :disabled="weatherLoading" @click="lookupByCity">
+          查天气
+        </button>
+        <button class="btn btn--soft" type="button" :disabled="weatherLoading" @click="useMyLocation">
+          用当前位置
+        </button>
+      </div>
+      <p v-if="weatherLine || weatherNote" class="weather-bar__state">{{ weatherLine || weatherNote }}</p>
+    </div>
+
     <!-- 字段依场景而定:旅行只有两个,面试有四个 -->
     <div class="form-fields">
       <section v-for="f in form?.fields || []" :key="f.key" class="info-field" :data-key="f.key">
@@ -93,6 +117,8 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { briefWeatherOf } from '@/api/design'
+import { MAX_CITY, fetchWeather } from '@/api/weather'
 import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
@@ -121,6 +147,10 @@ import { useDesignStore } from '@/stores/design'
  *   多出来的不静默丢,`toBrief` 会在 `sceneText` 里照实写。
  *   ⚠️ **只有 `canAnalyzeFace` 为真时才送**(那两条路由缺省不注册,传了就是 404);
  *   而送上去 ≠ 读了:读图会花钱,要用户在 `/result` 上点(见 `ResultView`)。
+ *
+ * ✏️ 2026-09-30:本页可以拉当日天气(手填城市 / 用当前位置,后端 `GET /weather`),随 `brief` 交给 agent。
+ *   它是**可选**的:拉不到照样提交,失败只落在天气那一块,**不写 `design.error`**。
+ *   ★ 服务端标 `source:'mock'` 的那份「离线示意」**既不摆也不进 brief**(判据见 `api/design.js` 的 `briefWeatherOf`)。
  *
  * ★ 图片预览走 `URL.createObjectURL`,用完**必须 revoke**——否则每选一张图就漏一份内存,
  *   而且 blob URL 会把文件一直钉在内存里直到刷新。这条生命周期收在 `useObjectUrls` 里,
@@ -189,6 +219,82 @@ onMounted(async () => {
   // 输入态由上面那个 `watch(form, …)` 补,这里只管换/定表单定义
   design.loadForm(sceneId.value)
 })
+
+/* --------------------------- 今日天气 --------------------------- */
+
+/**
+ * 四个 ref 只这一屏用得到(§3 第 3 条),提交时随 `design.submit` 送给 `toBrief`。
+ * ★ **不放进 `onMounted`**:那时没有城市可查,而进页面就弹定位权限框是在替用户做决定。
+ */
+const city = ref('')
+/** 这次拉回来的那份 `WeatherView`(形状见 `server/.../weather-view.ts`)。 */
+const weather = ref(null)
+/** 有请求在飞。两个按钮都拿它禁用。 */
+const weatherLoading = ref(false)
+/** 输入框下面那一句:正在查 / 后端给的人话 / 本地提示。**不是** `design.error`。 */
+const weatherNote = ref('')
+
+/** 那一行天气。★ 空串 = **整行不出现**(没拉 / 拉不到 / 服务端标了「离线示意」)。 */
+const weatherLine = computed(() => {
+  const w = briefWeatherOf(weather.value)
+  if (!w) return ''
+  return [
+    w.condition,
+    w.temperatureC !== undefined ? `${w.temperatureC}℃` : '',
+    w.humidityPct !== undefined ? `湿度 ${w.humidityPct}%` : '',
+    w.uvIndex !== undefined ? `紫外线 ${w.uvIndex}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+})
+
+/**
+ * 拉一次。★ 失败**不写 `design.error`**:天气是可选的,拉不到照样能提交。
+ * ★ 拉之前**先清掉上一份**——留着它就是一份对不上新城市的旧值。
+ */
+async function lookup(params, note) {
+  if (weatherLoading.value) return
+  weatherLoading.value = true
+  weather.value = null
+  weatherNote.value = note
+  try {
+    weather.value = await fetchWeather(params)
+    // mock 那份由 `briefWeatherOf` 挡住(既不上屏也不进 brief),这里只补一句人话。
+    weatherNote.value = briefWeatherOf(weather.value)
+      ? ''
+      : '这次没取到实时天气，可以在描述里自己写一句'
+  } catch (e) {
+    weatherNote.value = e?.message || '这次没能取到天气，稍后再试也可以'
+  } finally {
+    weatherLoading.value = false
+  }
+}
+
+/** 手填城市那条路。★ 空城市就地拦下、不发请求(后端那句 `LOCATION_REQUIRED` 是给排查的人看的)。 */
+function lookupByCity() {
+  const value = city.value.trim()
+  if (!value) {
+    weatherNote.value = '先填一个城市，或者点右边「用当前位置」'
+    return
+  }
+  lookup({ city: value }, '正在查天气…')
+}
+
+/** 定位那条路。★ 不支持 / 拒绝 / 超时**都不算失败**:另一条路还在,只留一句提示。 */
+function useMyLocation() {
+  if (!navigator?.geolocation) {
+    weatherNote.value = '这个浏览器不支持定位，填一个城市也一样'
+    return
+  }
+  weatherNote.value = '正在取定位…'
+  navigator.geolocation.getCurrentPosition(
+    (pos) => lookup({ lat: pos.coords.latitude, lon: pos.coords.longitude }, '正在查天气…'),
+    () => {
+      weatherNote.value = '没拿到定位，填一个城市也一样'
+    },
+    { timeout: 10000, maximumAge: 600000 }
+  )
+}
 
 /* --------------------------- 图片预览 --------------------------- */
 
@@ -275,6 +381,9 @@ async function onSubmit() {
     //   (`VISION_ANALYZER=off` 时为假 ⇒ 送参考图那两条路由根本没注册)。
     //   为假时**一张都不传**,否则 404 会把整次提交打掉。
     canSendRefImages: personas.canAnalyzeFace,
+    // ★ 天气是**可选**的:没拉、拉不到、或服务端标了「离线示意」时传 null,
+    //   `toBrief` 那边就整块不给 `weather` —— 前端没有"手填天气"的兜底。
+    weather: weather.value,
   })
   // 失败时不跳转:错误就打在按钮旁边(design.error),地址栏不动
   if (!sessionId) return

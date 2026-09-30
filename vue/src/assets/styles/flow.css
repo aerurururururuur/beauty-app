@@ -2246,6 +2246,57 @@
   text-decoration: underline;
 }
 
+/* ================================================================== *
+ * 信息收集页 · 今日天气（可选，不拉也能提交）
+ * ================================================================== */
+
+.weather-bar {
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+
+.weather-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 高度与右边的 `.btn`（40px）对齐，否则一行里三个东西高矮不齐 */
+.weather-bar__input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.weather-bar__input:focus {
+  outline: none;
+  border-color: var(--color-peach);
+  background: var(--color-white);
+}
+
+/* 两个按钮不许被输入框挤扁 */
+.weather-bar__row .btn {
+  flex: none;
+}
+
+/* 查到的那一行 / 正在查 / 拉不到的理由，都落在这里 */
+.weather-bar__state {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
 /* 人设详情：左栏正脸照 */
 .detail-photo {
   width: 100%;

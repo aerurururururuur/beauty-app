@@ -48,6 +48,9 @@
 - `WEATHER_PROVIDER=live`（缺省，实拉）| `mock`（离线示意，演示断网前切）。
   ★ `source` 字段报的是**上游名**（实拉时为 `open-meteo`），不是开关取值 —— **UI 要据此标注**，
   `mock` 时标「离线示意」，别当实况展示。
+  ✏️ 2026-09-30：桃妆（`vue/`）**不标来源**，于是换了一条等价的路 —— `source: 'mock'` 那一份
+  **既不摆也不送**（`vue/src/api/design.js` 的 `briefWeatherOf` 整块返回 `null`）。⇒ 上面那条
+  「据此标注」在桃妆**不适用**，但它背后的东西（别把示意当实况）原样成立，只是由"标注"改成"不用"。
 - `web shell` 在 `src/app.ts` 挂 `/api/weather`；`brief.weather` 由**前端**调本端点后填进
   `POST /agent/sessions` 的 `brief`（会话建立时随 brief 一起进会话）——
   ✏️ 2026-09-29:此前这里写的是 `POST /api/jobs` 的 `meta`，那个模块连同它的表单流水线一起删了。
@@ -56,7 +59,7 @@
 ## 依赖 / 被依赖
 
 - 依赖：`shared`（`WeatherInfo` / `AppError` / `ErrorCode`）、zod、`node: 全局 fetch`。不依赖其它业务模块。
-- 被依赖：`src/index.ts`（组装）、前端上传页（已接）。
+- 被依赖：`src/index.ts`（组装）、桃妆的 `/form`（✏️ 2026-09-30 起；此前那个前端的上传页已随它一起删了）。
 
 ## 待办
 
@@ -65,5 +68,8 @@
       ★ **前端没有「手动预设」可回落**——预设 chips 已按本模块第 2 条的同一口径删掉（roadmap §8）：
       既然不编造天气冒充实时，就不该再让人手挑一个假天气混进 `brief`。断网时 `brief` 里没有天气，
       那是诚实的空，不是缺件；要让演示看到天气就走 `WEATHER_PROVIDER=mock`（UI 会标「离线示意」）。
+- [x] **桃妆接入**（2026-09-30）：`/form` 上「查天气」（手填城市）与「用当前位置」（`lat/lon`），
+      取四格填 `brief.weather`；拉不到、或 `source:'mock'` 时**整块不带 `weather` 提交**（见上文那条 ✏️）。
+      调用点只有 `vue/src/api/weather.js` 与 `vue/src/pages/FormView.vue`，**前端没有 mock 分支**。
 - [ ] 按日期取非当日天气（`WeatherQuery.date` 已预留，当前只取当日实况）。
 - [ ] 上游异常可观测性（目前只进 502 的 `details.reason`，无指标；竞赛规模够用）。

@@ -100,6 +100,9 @@ export const useDesignStore = defineStore('design', () => {
    * ⚠️ 三步之间**没有事务**:第一步成功了、第二步失败,服务端会留下一个空会话。
    *   那是可以接受的(会话有 TTL,到点自己删);**不可接受的是把失败藏起来**——
    *   那会让用户带着一个空会话进结果页,而结果页上是空的方案。
+   *
+   * ★ `weather` 是页面在 `/form` 上拉回来的那份(可以是 `null`:没拉/拉不到/服务端标了离线示意)。
+   *   挑哪几格、以及哪些不收,是 `api/design.js` 的 `briefWeatherOf` 决定的,这里不重判。
    */
   async function submit({
     userId,
@@ -108,13 +111,14 @@ export const useDesignStore = defineStore('design', () => {
     fields = [],
     faceFile = null,
     canSendRefImages = false,
+    weather = null,
   }) {
     if (generating.value) return ''
     generating.value = true
     error.value = ''
     try {
       const agent = await agentApi()
-      const brief = api.toBrief({ sceneId, persona, fields, canSendRefImages })
+      const brief = api.toBrief({ sceneId, persona, fields, canSendRefImages, weather })
       const created = adopt(await agent.startAgentSession({ userId, brief }))
       if (faceFile) {
         adopt(await agent.uploadAgentPhoto({ sessionId: created.sessionId, userId, file: faceFile }))
