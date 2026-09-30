@@ -2095,6 +2095,32 @@
   color: var(--color-rose);
 }
 
+/* 自建特征那一条同理。★ 别复用 `.skin-chip*` 的名字:那几个是 78px 高的瓦片尺寸。 */
+.feat-chip-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* 药丸比肤色瓦片矮得多,角上那颗 × 跟着小一号。 */
+.feat-chip__del {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-text-sub);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.feat-chip__del:hover {
+  border-color: var(--color-rose);
+  color: var(--color-rose);
+}
+
 /* 三个「+ 加一个」的入口长一个样:虚线框、透明底。 */
 .skin-chip--add,
 .rel-chip--add,

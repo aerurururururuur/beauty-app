@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getFeatureTags, getSkinTones } from '@/api/design'
+import { featureIdOf } from '@/api/kb/features'
 
 /**
  * 人设库(形象库)store。★ 数据在服务端(2026-09-30 起,此前是 localStorage)。
@@ -57,6 +58,8 @@ export const usePersonasStore = defineStore('personas', () => {
 
   /** 本账号自建的那几档肤色(服务端 `GET /personas.skinTones`)。★ 预置那 8 档**不在这里**。 */
   const customTones = ref([])
+  /** 本账号自建的那几条特征(服务端 `GET /personas.customFeatures`)。★ kb 里那 31 条**不在这里**。 */
+  const customFeatures = ref([])
 
   const personas = computed(() => list.value)
   /** 选择器要摆的**全部**档位:预置 8 档 + 自建。★ 页面一律用这个,别直接用 `skinTones`。 */
@@ -78,13 +81,14 @@ export const usePersonasStore = defineStore('personas', () => {
   }
 
   /**
-   * 把列表与自建档一起收下来。**四处写路径共用** —— 只更 `list` 会把自建档落下,
+   * 把列表与两类自建档一起收下来。**四处写路径共用** —— 只更 `list` 会把自建档落下,
    * 于是删掉一档之后它还留在选择器里(点下去 422,而界面看不出为什么)。
    */
   async function pull(api, id) {
     const res = await api.getPersonas({ userId: id })
     list.value = res.personas
     customTones.value = res.skinTones || []
+    customFeatures.value = res.customFeatures || []
     canAnalyzeFace.value = res.canAnalyzeFace
     return res
   }
@@ -114,6 +118,7 @@ export const usePersonasStore = defineStore('personas', () => {
     userId.value = ''
     list.value = []
     customTones.value = []
+    customFeatures.value = []
     canAnalyzeFace.value = false
     analyzing.value = false
     error.value = ''
@@ -240,6 +245,40 @@ export const usePersonasStore = defineStore('personas', () => {
     })
   }
 
+  /* ----------------------------- 自建特征 ----------------------------- */
+
+  /**
+   * 加一条自己的特征(分组 + 原话)。**整账号共用一份小库**。
+   * ★★ **回的是写进人设的那一串 `分组/原话`,不是库行** —— 页面拿到什么就往 `features` 里 push 什么,
+   *   拼接只在 `kb/features.js` 的 `featureIdOf` 一处,页面不许自己拼。
+   * ★ **先在本账号库里找同一条**:找到就直接返回那一串、**不发请求** —— 用户要的是"用上它",
+   *   不是"库里多一行"。服务端那边不查重(同自建肤色档那条决定)。
+   * ★ 名字太长 / 已满 ⇒ 服务端 409 或 422,`error` 里那句中文原样上屏;失败回 `null`。
+   */
+  async function addFeature(group, text) {
+    const id = featureIdOf(group, text)
+    const known = customFeatures.value.find((f) => f.group === group && f.text === text)
+    if (known) return id
+    return guard(async () => {
+      const api = await personasApi()
+      await api.createCustomFeature({ userId: userId.value, group, text })
+      await pull(api, userId.value)
+      return id
+    })
+  }
+
+  /**
+   * 删一条自建特征。★ 本账号还有任何一份人设存着那一串 ⇒ 服务端 **409**,这里**不先摘掉它**(摘了就是骗人)。
+   */
+  async function removeFeature(id) {
+    return guard(async () => {
+      const api = await personasApi()
+      await api.removeCustomFeature({ userId: userId.value, id })
+      await pull(api, userId.value)
+      return true
+    })
+  }
+
   return {
     userId,
     busy,
@@ -250,6 +289,7 @@ export const usePersonasStore = defineStore('personas', () => {
     analyzing,
     skinTones,
     allSkinTones,
+    customFeatures,
     featureGroups,
     featureList,
     load,
@@ -264,5 +304,7 @@ export const usePersonasStore = defineStore('personas', () => {
     remove,
     addTone,
     removeTone,
+    addFeature,
+    removeFeature,
   }
 })

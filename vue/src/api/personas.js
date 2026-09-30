@@ -104,9 +104,9 @@ function loadImage(src) {
 /* --------------------------- 读 --------------------------- */
 
 /**
- * 某个账号的全部人设(已补展示字段)+ 它自建的那几档肤色。
+ * 某个账号的全部人设(已补展示字段)+ 它自建的那两类小库(肤色档 / 特征)。
  * `canAnalyzeFace` = **这个部署有没有读脸能力**,由服务端在列表里一起给。★ 别在前端再推一遍。
- * ★ `skinTones` **只有自建档**,预置那 8 档在前端 kb 里 —— 合起来看 `stores/personas.js` 的 `allSkinTones`。
+ * ★ `skinTones` / `customFeatures` 都**只有自建的**:预置那 8 档与 31 条特征在前端 kb 里。
  */
 export async function getPersonas({ userId } = {}) {
   const res = await api.get('/personas', { params: { userId } })
@@ -114,6 +114,7 @@ export async function getPersonas({ userId } = {}) {
   return {
     personas: (res.personas || []).map((p) => decoratePersona(p, userId, skinTones)),
     skinTones,
+    customFeatures: res.customFeatures || [],
     canAnalyzeFace: Boolean(res.canAnalyzeFace),
   }
 }
@@ -134,6 +135,26 @@ export async function createSkinTone({ userId, name, hex } = {}) {
  */
 export async function removeSkinTone({ userId, id = '' } = {}) {
   await api.delete(`/personas/tones/${encodeURIComponent(id)}`, { params: { userId } })
+  return { removed: true }
+}
+
+/* --------------------------- 自建特征 --------------------------- */
+
+/**
+ * 建一条自己的面部特征(分组 + 原话)。**整账号共用一份小库**,不跨账号。
+ * ★ `text` 是**纯原话,不带分组前缀** —— 前缀只在写进人设那一刻才拼(`kb/features.js` 的 `featureIdOf`)。
+ * ★ 上限由服务端把关(超了 409),这里不预判。
+ */
+export async function createCustomFeature({ userId, group, text } = {}) {
+  return api.post('/personas/features', { userId, group, text })
+}
+
+/**
+ * 删一条自建特征。
+ * ★ 本账号还有任何一份人设存着 `分组/原话` 那一串 ⇒ 服务端 **409**,那句中文原样上屏 —— 别在这里先删了再报错。
+ */
+export async function removeCustomFeature({ userId, id = '' } = {}) {
+  await api.delete(`/personas/features/${encodeURIComponent(id)}`, { params: { userId } })
   return { removed: true }
 }
 

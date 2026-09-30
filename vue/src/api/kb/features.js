@@ -167,10 +167,18 @@ export function featureById(id) {
 }
 
 /**
- * 用户自己加的那一条在 `features` 里存成 `<分组 id>/<他写的原话>`。
- * ★ 分组必须编进值里:这一格在服务端只是一个 `string[]`(只判形状),不编进去,
- *   刷新之后就无从知道那句话属于哪一组,只能全挤到最后。
- * ★ **拼**那个前缀的是 `components/FeaturePicker.vue`(它不 import 本文件,见 §3 第 4 条)。
+ * 拼出用户自己加的那一条在 `features` 里存的样子:`<分组 id>/<他写的原话>`。
+ * ★ 拼法只在这一处 + `components/FeaturePicker.vue`(它不 import `api/`,见 §3 第 4 条)——
+ *   **别在页面里再拼一次**:分隔符一改,已有的值全部读不出来,而那一格只是 `string[]`,不报错。
+ * ★ 服务端那侧也有一份(删库时要按同一串判"还有没有人在用"),见 `user/domain/entities/custom-feature.ts`。
+ */
+export function featureIdOf(groupId, text) {
+  return `${groupId}/${text}`;
+}
+
+/**
+ * 反过来:把一个特征 id 翻成给人看的名字。
+ * ★ 认得出的走目录;认不出的(用户自己写的那条)显示**原话**,去掉分组前缀 —— 不许静默丢掉。
  */
 export function featureLabel(id) {
   const known = featureById(id);

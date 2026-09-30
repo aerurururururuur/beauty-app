@@ -73,7 +73,14 @@
           @add-tone="onAddTone"
           @remove-tone="onRemoveTone"
         />
-        <FeaturePicker v-model="features" :groups="personas.featureGroups" :features="personas.featureList" />
+        <FeaturePicker
+          v-model="features"
+          :groups="personas.featureGroups"
+          :features="personas.featureList"
+          :library="personas.customFeatures"
+          @add-feature="onAddFeature"
+          @remove-feature="onRemoveFeature"
+        />
 
         <section class="quiz-block">
           <h2 class="quiz-block__title">补充说明<span class="quiz-block__opt">选填</span></h2>
@@ -170,8 +177,27 @@ function onAddTone({ name: toneName, hex }) {
   return personas.addTone(toneName, hex)
 }
 
-function onRemoveTone(id) {
-  return personas.removeTone(id)
+/** ★ 删成功且**删的就是当前选中的那一档**时把选择一起清掉:留着它就是一个指向已删档的悬空 id。 */
+async function onRemoveTone(id) {
+  const ok = await personas.removeTone(id)
+  if (ok && skin.value === id) skin.value = ''
+  return ok
+}
+
+/**
+ * 自建特征同理:整账号一份小库,建完 store 会把列表重取回来。
+ * ★ store 回的是**写进人设的那一串**(不是库行),拿到就 push —— 拼接在 store 一处,这里不自己拼。
+ */
+async function onAddFeature({ group, text }) {
+  const id = await personas.addFeature(group, text)
+  if (id && !features.value.includes(id)) features.value = [...features.value, id]
+  return id
+}
+
+async function onRemoveFeature(id) {
+  const ok = await personas.removeFeature(id)
+  if (ok) features.value = features.value.filter((x) => x !== id)
+  return ok
 }
 /** 有照片 **且** 这个部署有读脸能力,才摆那个按钮。 */
 const canReadFace = computed(() => personas.canAnalyzeFace && Boolean(photo.value))
