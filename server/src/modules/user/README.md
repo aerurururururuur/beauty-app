@@ -11,6 +11,7 @@
 2. **人设库**（`/personas` 那一族，✏️ 2026-09-30 落地）。一份人设 = 挂在账号下的一张脸：
    名字 / 关系 / 肤色档 / 面部特征 / **照片**。它在这里而不是单开一个模块，
    理由见下「关键决策」第 1 条。
+   另有两个**账号共用的小库**（自建肤色档 / 自建特征），见下「两个自建小库」那一节。
 
 **本轮不做**：登录态（不签发 token、不建会话）——登录通过只表示「这组账号密码成立」，前端拿 `id` 自己存；
 也不做多机同步 / 找回密码 / 改密 / 注销。
@@ -49,7 +50,21 @@
 | `application/usecases/analyze-persona-face.ts` | 调端口、原样转手。**不落库、不翻译成前端档** |
 | `infrastructure/json/persona-repository.ts` | `dataDir/personas/personas.json` + `seeded.json`，平坦表、读出口过解析器、tmp + rename |
 | `infrastructure/file-system/persona-photo-store.ts` | 字节落 `dataDir/personas/photos/<id>.<ext>`。**换照片/删照片时旧字节一起删** |
-| `presentation/personas.controller.ts` + `presentation/routes/personas.route.ts` | 6 条；★ `analyze` 那条**由 deps 是否存在决定注册** |
+| `presentation/personas.controller.ts` + `presentation/routes/personas.route.ts` | 10 条；★ `analyze` 那条**由 deps 是否存在决定注册** |
+
+### 两个自建小库（✏️ 2026-09-30 新增）
+
+自建肤色档与自建特征，**都是整账号共用一份**（不是每份人设各存一份）：
+
+| 路径 | 内容 |
+| --- | --- |
+| `domain/entities/{skin-tone,custom-feature}.ts` | 两库的实体（`Object.assign` 收行）+ 归属守卫（不属于 ⇒ 各自的 `*_NOT_FOUND`） |
+| `domain/schemas/entities/{skin-tone,custom-feature}.ts` | 行形状；★ `group`（特征那库）**只查形状不查成员**，理由同 `skinTone`/`features` |
+| `domain/validators/{skin-tone,custom-feature}.validator.ts` | 规则与中文文案：名字/原话长度、颜色格式、两个上限、`parse*Table(raw, file)` 的键/id 一致性检查 |
+| `domain/ports/{skin-tone,custom-feature}-repository.ts` | `listByUser` / `findById` / `save` / `remove`（幂等） |
+| `infrastructure/json/{skin-tone,custom-feature}-repository.ts` | 落 `dataDir/personas/tones.json` / `features.json`，读出口过解析器 |
+| `application/{skin-tone,custom-feature}-view.ts` | 行 → 视图（丢 `userId` / `createdAt`） |
+| `application/usecases/{create,list,remove}-{skin-tone,custom-feature}.ts` | 六个用例；★ 两个 `remove` 借 `PersonaRepository.listByUser` 问「还有谁在用」 |
 
 ## 依赖 / 被依赖
 
@@ -82,6 +97,17 @@
 - **播种记在 `personas/seeded.json`（`{ [userId]: 版本号 }`）**：没有这张表，
   用户把 5 份种子全删光后，`personas.json` 和一个从没播种过的新账号长得一模一样，
   于是「删掉的种子下次列表自己回来」。升版本只补缺失的种子 id。
+
+两个自建小库那半边（✏️ 2026-09-30）：
+
+- ★ **存的是「整账号共用一份」的库，不是每份人设自己那一格**：用户在「妈妈」身上写的那条，
+  「闺蜜」上也挑得到。代价：删一条要先问「还有谁在用」，命中就 409（同 `SKIN_TONE_IN_USE`）。
+- ★ **人设行里存的仍是前端那串原话**：自定义特征写的是 `<分组 id>/<原话>`，**不是库行的 id**。
+  改成引用 ⇒ `decoratePersona` / `toBrief` / `featureLabel` 三个纯函数都得跟着拿服务端的库表，不值。
+  代价：「还有人用」这一查是**字符串相等**；`group` 16 + `text` 40 = 57 < `MAX_FEATURE_ID`(64)，
+  所以库里建得成的，写进人设不会被 422。
+- **建库不查重名**（同 `Personas` 那边不拦同名的既有决定）：用户要的是「用上它」，不是「库里多一行」；
+  前端自己先在本账号库里找同一条，找到就直接选中、不发请求。
 
 ## 接缝（将来）
 

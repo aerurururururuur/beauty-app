@@ -8,6 +8,7 @@
  * 由**前端** `decoratePersona` 算,因为要的 `hex` / 中文档名只在前端 kb 里,后端那份是另一套词、另一组色值。
  */
 import { z } from 'zod';
+import { customFeatureViewSchema } from './custom-feature-view.js';
 import { skinToneViewSchema } from './skin-tone-view.js';
 
 /** 照片的来源。★ 前端据此决定要不要把 `photoUrl` 补成绝对地址(见 DTO 里那一格)。 */
@@ -51,6 +52,13 @@ export const personaListViewSchema = z
      * ★ 搭列表一起回,不另开 `GET /personas/tones`:那一屏同时要这两样。
      */
     skinTones: z.array(skinToneViewSchema),
+    /**
+     * 本账号**自建**的特征(前端 kb 里那 31 条目录**不在这份里**)。
+     * ★ 同上,搭列表一起回,不另开 `GET /personas/features`。
+     * ⚠️ 这一格叫 `customFeatures` 而上一格叫 `skinTones`,是**刻意不对称**的:
+     *   `features` 一个词在本仓已经被"人设自己那一格"占了,重名会读错。
+     */
+    customFeatures: z.array(customFeatureViewSchema),
     canAnalyzeFace: z.boolean(),
   })
   .strict();

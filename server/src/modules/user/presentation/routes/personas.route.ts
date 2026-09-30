@@ -20,7 +20,7 @@ const BODY_LIMIT = MAX_PHOTO_DATAURL * 2;
 export function registerPersonasRoutes(app: FastifyInstance, deps: PersonasDeps): void {
   const controller = makePersonasController(deps);
 
-  // ⚠️ `/personas/analyze` 与 `/personas/tones` 都是静态段、`/personas/:id` 是参数段,
+  // ⚠️ `/personas/analyze`、`/personas/tones`、`/personas/features` 都是静态段、`/personas/:id` 是参数段,
   //    方法也不同,不存在谁遮住谁。
   app.post('/personas', { bodyLimit: BODY_LIMIT }, controller.add);
   app.get('/personas', controller.list);
@@ -31,6 +31,10 @@ export function registerPersonasRoutes(app: FastifyInstance, deps: PersonasDeps)
   // 自建肤色档。★ 没有 `GET /personas/tones` —— 那一列搭 `GET /personas` 一起回(见控制器)。
   app.post('/personas/tones', controller.addTone);
   app.delete('/personas/tones/:id', controller.removeTone);
+
+  // 自建特征。★ 同上没有 `GET`;`DELETE` 这条是三段,与两段的 `/personas/:id` 不冲突。
+  app.post('/personas/features', controller.addFeature);
+  app.delete('/personas/features/:id', controller.removeFeature);
 
   // ★ `controller.analyze` 既能收窄类型,也保证"能力在 ⇒ 路由在"是同一步(同 `agent.route.ts`)。
   const { analyze } = controller;

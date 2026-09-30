@@ -123,12 +123,16 @@ src/
 | `POST /api/users` | JSON `{ nickname, password }` → **201** `UserView{ id, nickname, createdAt }`(昵称唯一；密码只存 scrypt 凭据) |
 | `POST /api/users/login` | JSON `{ nickname, password }` → **200** `UserView`；不符 → 401 `INVALID_CREDENTIALS`。**只核对，不签发 token**（登录态未做） |
 | `GET /api/users/:id` | 账号档案 `UserView`(响应**永不含密码/凭据**) |
-| `GET /api/personas?userId=` | → **200** `{ personas: PersonaView[], canAnalyzeFace: boolean }`。**人设库落在 `user` 模块**(一份人设是挂在账号下的一张脸)。`canAnalyzeFace` = 这个部署有没有读脸能力，判据只有一处(组合根接没接读脸端口)。★ 首次列表补齐 5 份种子，删掉的不再回来 |
+| `GET /api/personas?userId=` | → **200** `{ personas: PersonaView[], skinTones: SkinToneView[], customFeatures: CustomFeatureView[], canAnalyzeFace: boolean }`。**人设库落在 `user` 模块**(一份人设是挂在账号下的一张脸)。`canAnalyzeFace` = 这个部署有没有读脸能力，判据只有一处(组合根接没接读脸端口)。★ 首次列表补齐 5 份种子，删掉的不再回来。★ 两个**账号共用的自建小库**(肤色档 / 特征)**搭它一起回，各自都没有单独的 `GET`** |
 | `POST /api/personas` | JSON `{ userId, name, relation, skinTone, features?, photo? }` → **201** `PersonaView`。`photo` 是 **dataURL**(不是 multipart)，字节落 `<DATA_DIR>/personas/photos/` |
 | `PATCH /api/personas/:id` | JSON `{ userId, ...同上可选 }` → **200** `PersonaView`。★ `photo` **三态**：不给 = 不动 / `''` = **删掉照片** / dataURL = 换一张 |
 | `DELETE /api/personas/:id?userId=` | → **204** 无响应体。**连照片字节一起删** |
 | `GET /api/personas/:id/photo?userId=` | → **200** 图片字节(`content-type` 随行里的 mime)。本模块**唯一走 `<img>` 而不是 axios** 的一条(同 `…/renders/:seq`，靠 `?userId=` 判归属) |
 | `POST /api/personas/analyze` | JSON `{ userId, photo }`(dataURL) → **200** `{ skinTone }`(★ **后端**档 id)。★ **会花钱的入口之一**：用户点了才发。★ **不落任何库**——落档由用户确认后的 `POST /api/personas` 完成。`VISION_ANALYZER=off` 时**不注册**(404) |
+| `POST /api/personas/tones` | JSON `{ userId, name, hex }` → **201** `SkinToneView{ id, name, hex }`。**自建肤色档**：整账号共用一份小库(不是挂在某一份人设下所以任何一张脸都挑得到)，单账号上限 20 档，超了 → 409 |
+| `DELETE /api/personas/tones/:id?userId=` | → **204** 无响应体。★ **本账号还有任何一份人设在用它 ⇒ 409** `SKIN_TONE_IN_USE`(message 带份数)——静默删会让那几份的 `skinTone` 变成悬空 id、界面显示「未定档」**且不报错**。归属不符 → 404 |
+| `POST /api/personas/features` | JSON `{ userId, group, text }` → **201** `CustomFeatureView{ id, group, text }`。**自建特征**：同样整账号共用，上限 50 条。★ `text` 是**不含分组前缀的原话**(前缀只在写进人设那一刻拼) |
+| `DELETE /api/personas/features/:id?userId=` | → **204** 无响应体。★ **还有任何一份人设的 `features` 里存着 `group/text` 那一串 ⇒ 409**。★ 判据是**字符串相等**，不是按库行 id 查：写进人设的是 `<分组 id>/<原话>`、**不是库行的 id**——这也意味着改库行的 `text` 会让存量人设变孤儿，所以**只做建 / 列 / 删，不做改**。归属不符 → 404 |
 | `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /api/agent/sessions` 的 `weather`（`place`/`source` 是回显元信息，**不进 weather**——weather schema 是 `.strict()`）；失败就不填 |
 | `POST /api/cabinet/items` | JSON `{ userId, name, attributes? }` → **201** `CosmeticItemView`。`attributes` 是 `{label,value}[]` 的**自定义**键值（≤12 条，标签去重），名称 ≤40 字 |
 | `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
@@ -171,6 +175,12 @@ src/
 | `PERSONA_NOT_FOUND` | 404 | 人设不存在**或不属于你**（两者共用，不泄露存在性） |
 | `PERSONA_PHOTO_NOT_FOUND` | 404 | 人设**在**，但它没有存在服务端的照片（还是静态种子图，或者压根没传）。与上一条**分开**：那时回「没有这份人设」是与事实相反的一句话，而这句 message 前端原样上屏 |
 | `PERSONA_FULL` | 409 | 单用户人设超过 100 份（整表读改写，不设上限会越写越慢） |
+| `SKIN_TONE_NOT_FOUND` | 404 | 自建肤色档不存在**或不属于你**（两者共用，不泄露存在性） |
+| `SKIN_TONE_FULL` | 409 | 单账号自建肤色档超过 20 档 |
+| `SKIN_TONE_IN_USE` | 409 | 本账号还有**已保存的**人设在用它，不许删（`details.count` 是份数；静默删会让那几份的 `skinTone` 变成悬空 id） |
+| `CUSTOM_FEATURE_NOT_FOUND` | 404 | 自建特征不存在**或不属于你**（同上，共用 404） |
+| `CUSTOM_FEATURE_FULL` | 409 | 单账号自建特征超过 50 条 |
+| `CUSTOM_FEATURE_IN_USE` | 409 | 本账号还有**已保存的**人设存着 `分组/原话` 那一串，不许删（判据是字符串相等，不是按库行 id 查） |
 | `SESSION_NOT_FOUND` | 404 | 会话不存在**或不属于你**（两者共用，不泄露存在性） |
 | `RENDER_NOT_FOUND` | 404 | 成品图号不存在**或不属于该会话**。与上一条**分开**：归属已先查过，这里是真的没有那张图 |
 | `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
@@ -241,7 +251,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | --- | --- | --- |
 | `HOST` / `PORT` | `127.0.0.1` / `3000` | 监听地址 |
 | `LOG_LEVEL` | `info` | 日志级别 |
-| `DATA_DIR` | `./data` | 任务记录、输入/产物文件、账号表（`users/users.json`）与衣橱表（`cabinet/items.json`）的根目录 |
+| `DATA_DIR` | `./data` | 会话的输入/产物文件（**会话本身在内存**）、账号表（`users/users.json`）、衣橱表（`cabinet/items.json`）与人设那一族（`personas/personas.json` + `seeded.json` + `tones.json` + `features.json` + `photos/`）的根目录 |
 | `MAKEUP_ENGINE` | `mock` | `mock`（离线骨架）/ `image`（真实出图，**按次计费**）。**已接通**（`makeup/compose.ts` 按 kind 分发，2026-09-16）。★ 刻意**没有** `off`——没有引擎就出不了成品，给个 `off` 只会得到又一个假开关。⚠️ `image` 只在**对话 agent** 那条路上可用：真实引擎需要妆面单（`LookSpec`）。✏️ 2026-09-17：`image` 原名 `qwen`（**旧值不再兼容**）。✏️ 2026-09-29：删掉 `replay` 取值与整套 `MAKEUP_FIXTURES_DIR` 夹具链——那份夹具一份都没录过，「引擎离线可验」这条验收从未兑现，留着读起来却像"已经通了"。★ 2026-09-18：开关的取值一律**写错即启动失败**（报错列出合法取值），不再静默回落、也不再"喊一声继续跑" |
 | `QWEN_IMAGE_MODEL` | `qwen-image-edit-plus` | 仅 `MAKEUP_ENGINE=image` 用（这是个**模型名**，与那个开关值不是一回事）。`qwen-image-edit`（无后缀）不认 `size`/`prompt_extend`，代码按模型能力归一化 |
 | `VISION_ANALYZER` | `off` | 读图分析（face→肤色 / scene→场合 / style→妆面读数）：`off`（那两条入口**根本不注册**）/ `real`（**按 token 计费**）。产物**只补空**——用户填过的不覆盖，也不为此花钱。★ 刻意**没有** `mock`（见 `.env.example`）。⚠️ `real` 的请求形状与模型名都没实测过，先跑 `npm run probe:vision` |
@@ -355,6 +365,9 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   归属（越权一律 404，不是 403）；照片落盘与 `content-type`、`photo: ''` 删旧字节、非法 mime/超长 422；
   种子（首次 5 份、**删掉的不回来**、升版本只补缺失的）；读脸（端口缺席 ⇒ 路由 404 且 `canAnalyzeFace: false`，
   端口在场 ⇒ 回后端档 id 且**没写进任何行**）。
+  两个账号共用的自建小库（肤色档 / 特征）：往返时人设行里仍是 `<分组>/<原话>`、
+  在用的删不掉（**409**）、跨账号 **404**（不是 403）、超上限 409、以及
+  「16 字分组 + 40 字原话拼出来仍能通过 `POST /personas`」那条**两个上限互相咬合**的哨兵。
 - `persona-vocabulary.test.ts` — ★ 同日新增，人设库的**跨端对表**：种子的 `skinTone` ⊆ 前端 kb 8 档、
   `features` ⊆ 前端 `FEATURE_LIBRARY`、两份静态照片在 `vue/public/` 下真存在、
   `design.js` 那两张肤色映射是**互逆双射**。★ 方向同样是**用户数据说了算**（人设行存的是前端档 id）。

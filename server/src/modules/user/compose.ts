@@ -1,6 +1,7 @@
 /**
  * modules/user/compose.ts —— 组合根:把持久化与用例装起来,由 src/index.ts 注入 web shell。
- * ✏️ 2026-09-30:人设库落地到本模块,于是多了人设仓库 + 照片字节库 + 六个用例 + 一个**可缺省**的读脸端口。
+ * ✏️ 2026-09-30:人设库落地到本模块,于是多了人设仓库 + 照片字节库 + 六个用例 + 一个**可缺省**的读脸端口;
+ * 同日稍后加了**两张账号共用的小库**(自建肤色档 / 自建特征),各一套仓库 + 三个用例。
  */
 import path from 'node:path';
 import { RegisterUser } from './application/usecases/register-user.js';
@@ -15,9 +16,13 @@ import { AnalyzePersonaFace } from './application/usecases/analyze-persona-face.
 import { ListSkinTones } from './application/usecases/list-skin-tones.js';
 import { CreateSkinTone } from './application/usecases/create-skin-tone.js';
 import { RemoveSkinTone } from './application/usecases/remove-skin-tone.js';
+import { ListCustomFeatures } from './application/usecases/list-custom-features.js';
+import { CreateCustomFeature } from './application/usecases/create-custom-feature.js';
+import { RemoveCustomFeature } from './application/usecases/remove-custom-feature.js';
 import { JsonUserRepository } from './infrastructure/json/user-repository.js';
 import { JsonPersonaRepository } from './infrastructure/json/persona-repository.js';
 import { JsonSkinToneRepository } from './infrastructure/json/skin-tone-repository.js';
+import { JsonCustomFeatureRepository } from './infrastructure/json/custom-feature-repository.js';
 import { FilePersonaPhotoStore } from './infrastructure/file-system/persona-photo-store.js';
 import { ScryptPasswordHasher } from './infrastructure/crypto/scrypt-password-hasher.js';
 import type { PasswordHasher } from './domain/ports/password-hasher.js';
@@ -25,6 +30,7 @@ import type { UserRepository } from './domain/ports/user-repository.js';
 import type { PersonaRepository } from './domain/ports/persona-repository.js';
 import type { PersonaPhotoStore } from './domain/ports/persona-photo-store.js';
 import type { SkinToneRepository } from './domain/ports/skin-tone-repository.js';
+import type { CustomFeatureRepository } from './domain/ports/custom-feature-repository.js';
 import type { FaceReader } from './domain/ports/face-reader.js';
 
 export interface UserModuleOptions {
@@ -45,11 +51,13 @@ export interface UserModuleServices {
   authenticateUser: AuthenticateUser;
   getUser: GetUser;
 
-  // ---- 人设库(落 `dataDir/personas/`:personas.json + seeded.json + tones.json + photos/)----
+  // ---- 人设库(落 `dataDir/personas/`:personas.json + seeded.json + tones.json + features.json + photos/)----
   personas: PersonaRepository;
   personaPhotos: PersonaPhotoStore;
   /** ★ 自建肤色档(2026-09-30):**按账号**共用一份小库,人设行按 id 引用其中一档。 */
   skinTones: SkinToneRepository;
+  /** ★ 自建特征(2026-09-30):同样是账号共用一份小库,但人设行存的是 `分组/原话`,不引用 id。 */
+  customFeatures: CustomFeatureRepository;
   listPersonas: ListPersonas;
   createPersona: CreatePersona;
   updatePersona: UpdatePersona;
@@ -58,6 +66,9 @@ export interface UserModuleServices {
   listSkinTones: ListSkinTones;
   createSkinTone: CreateSkinTone;
   removeSkinTone: RemoveSkinTone;
+  listCustomFeatures: ListCustomFeatures;
+  createCustomFeature: CreateCustomFeature;
+  removeCustomFeature: RemoveCustomFeature;
   /** ★ 没有读脸端口时**这个键不存在**(不是给一个 `undefined`)。 */
   analyzePersonaFace?: AnalyzePersonaFace;
 }
@@ -90,6 +101,12 @@ export function createUserModule(options: UserModuleOptions): UserModuleServices
   // ★ 删除要问人设仓库"还有谁在用" —— 这也是这一档住在 user 模块里的一个好处。
   const removeSkinTone = new RemoveSkinTone({ tones: skinTones, personas });
 
+  // ★ 自建特征与自建档**同目录不同文件**(features.json),理由同上。
+  const customFeatures: CustomFeatureRepository = new JsonCustomFeatureRepository(personaDir);
+  const listCustomFeatures = new ListCustomFeatures({ customFeatures });
+  const createCustomFeature = new CreateCustomFeature({ customFeatures, users });
+  const removeCustomFeature = new RemoveCustomFeature({ customFeatures, personas });
+
   // ★ 读脸用例**只有拿到端口才构造**。`faceReader` 缺省 ⇒ 下面那一格不出现 ⇒
   //   `app.ts` 那个"配了才传"的写法收不到东西 ⇒ 路由不注册。一条链,不是一个开关。
   const faceReader = options.faceReader;
@@ -104,6 +121,7 @@ export function createUserModule(options: UserModuleOptions): UserModuleServices
     personas,
     personaPhotos,
     skinTones,
+    customFeatures,
     listPersonas,
     createPersona,
     updatePersona,
@@ -112,6 +130,9 @@ export function createUserModule(options: UserModuleOptions): UserModuleServices
     listSkinTones,
     createSkinTone,
     removeSkinTone,
+    listCustomFeatures,
+    createCustomFeature,
+    removeCustomFeature,
     ...(analyzePersonaFace ? { analyzePersonaFace } : {}),
   };
 }

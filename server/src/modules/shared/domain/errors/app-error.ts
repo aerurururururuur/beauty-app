@@ -38,6 +38,16 @@ export const ErrorCode = {
    *   前端渲染成「未定档」+ 无色块,而且 200、日志干净(本仓头号 bug 类型)。
    */
   SKIN_TONE_IN_USE: 'SKIN_TONE_IN_USE',
+  /** 自建特征不存在(**或不属于该用户**——两者共用,不外泄存在性)。 */
+  CUSTOM_FEATURE_NOT_FOUND: 'CUSTOM_FEATURE_NOT_FOUND',
+  /** 单账号自建特征上限:同 `PERSONA_FULL`,JSON 单表整表读改写。 */
+  CUSTOM_FEATURE_FULL: 'CUSTOM_FEATURE_FULL',
+  /**
+   * 还有人在用这一条特征,不给删。
+   * ★ 判据是**字符串相等**(人设行里存的是 `分组/原话`,不是这一行的 id),但坏法同 `SKIN_TONE_IN_USE`:
+   *   静默删掉之后用户写在脸上那句话会消失,而且 200、日志干净(本仓头号 bug 类型)。
+   */
+  CUSTOM_FEATURE_IN_USE: 'CUSTOM_FEATURE_IN_USE',
   /** 对话会话不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */
   SESSION_NOT_FOUND: 'SESSION_NOT_FOUND',
   /**

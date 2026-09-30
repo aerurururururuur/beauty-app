@@ -22,7 +22,13 @@ import type { FaceReader } from '../src/modules/user/index.js';
 // ★ 深路径:组装层的配置不进 `shared` 的 barrel(同 `test/analysis.test.ts`)。
 import { loadConfig } from '../src/modules/shared/infrastructure/config.js';
 import { AppError, ErrorCode } from '../src/modules/shared/index.js';
-import { MAX_NOTES, MAX_TONES_PER_USER, PERSONA_SEED_VERSION } from '../src/modules/user/index.js';
+import {
+  MAX_CUSTOM_FEATURES_PER_USER,
+  MAX_FEATURE_TEXT,
+  MAX_NOTES,
+  MAX_TONES_PER_USER,
+  PERSONA_SEED_VERSION,
+} from '../src/modules/user/index.js';
 import { FakeFaceReader } from './helpers/fakes.js';
 
 const dirs: string[] = [];
@@ -128,6 +134,8 @@ interface ListBody {
   }[];
   /** 自建肤色档。★ 预置那 8 档**不在这里**(它们是前端 kb,不占服务端一张表)。 */
   skinTones: { id: string; name: string; hex: string }[];
+  /** 自建特征。★ 前端 kb 里那 31 条目录**不在这里**;`text` 不含分组前缀。 */
+  customFeatures: { id: string; group: string; text: string }[];
   canAnalyzeFace: boolean;
 }
 
@@ -924,5 +932,156 @@ describe('自建肤色档:整账号共用一份小库', () => {
     const over = await addTone(app, userId, '多出来的', '#8d5a3b');
     expect(over.statusCode).toBe(409);
     expect((over.json() as { error: { code: string } }).error.code).toBe('SKIN_TONE_FULL');
+  });
+});
+
+/* ======================= ⑨ 自建特征(账号共用一份) ======================= */
+
+/** 建一条自建特征,返回响应(断言留给用例各写各的)。 */
+function addFeature(app: FastifyInstance, userId: string, group: string, text: string) {
+  return app.inject({ method: 'POST', url: '/api/personas/features', payload: { userId, group, text } });
+}
+
+describe('自建特征:整账号共用一份小库', () => {
+  it('★ 建一条 ⇒ 搭 GET /personas 一起回来,而且人设真的能用它', async () => {
+    const { app, register } = await makeFixture();
+    const userId = await register('阿桃');
+
+    const res = await addFeature(app, userId, 'eye', '眼尾有点垂');
+    expect(res.statusCode).toBe(201);
+    const item = res.json() as ListBody['customFeatures'][number];
+    expect(item.group).toBe('eye');
+    expect(item.text).toBe('眼尾有点垂');
+
+    // ★ 这张表里**只有自建的**:predefined 那 31 条是前端 kb,混进来前端会摆出两份同名的 chip。
+    expect((await listPersonas(app, userId)).customFeatures.map((f) => f.id)).toEqual([item.id]);
+
+    // ★★ 人设行里存的是 `分组/原话` 那串,**不是**库行的 id —— 这就是 F1 的现场。
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/personas',
+      payload: { userId, ...BODY, features: ['eye/眼尾有点垂'] },
+    });
+    expect(created.statusCode).toBe(201);
+    expect((created.json() as ListBody['personas'][number]).features).toEqual(['eye/眼尾有点垂']);
+    // 再读一遍列表:那一串原样带着(不是靠前端现拼)。
+    expect((await listPersonas(app, userId)).personas.find((p) => p.id === (created.json() as { id: string }).id)?.features).toEqual(['eye/眼尾有点垂']);
+  });
+
+  it('分组 / 原话不合法 ⇒ 422', async () => {
+    const { app, register } = await makeFixture();
+    const userId = await register('阿桃');
+    const bad = [
+      { group: 'eye', text: '   ' },
+      { group: 'eye', text: '字'.repeat(MAX_FEATURE_TEXT + 1) },
+      { group: 'eye', text: '两\n行' },
+      { group: '   ', text: '眼尾有点垂' },
+      { group: 'g'.repeat(17), text: '眼尾有点垂' },
+    ];
+    for (const payload of bad) {
+      const res = await addFeature(app, userId, payload.group, payload.text);
+      expect(res.statusCode, JSON.stringify(payload)).toBe(422);
+    }
+
+    // ★ 多给一个键也是 422(`.strict()`):漏登一个键就是"看着收下了,其实丢了"。
+    const extra = await app.inject({
+      method: 'POST',
+      url: '/api/personas/features',
+      payload: { userId, group: 'eye', text: '眼尾有点垂', note: '多余的' },
+    });
+    expect(extra.statusCode).toBe(422);
+
+    // ★ 原话**要 trim**:存进去的不许带首尾空格(否则和前端拼出来的那串对不上,在用判定就永远不中)。
+    const trimmed = await addFeature(app, userId, ' eye ', '  眼尾有点垂  ');
+    expect(trimmed.statusCode).toBe(201);
+    expect((trimmed.json() as ListBody['customFeatures'][number]).text).toBe('眼尾有点垂');
+  });
+
+  it('★ 还有人在用就不给删(409);那几份人设去掉它之后删得掉(204)', async () => {
+    const { app, register } = await makeFixture();
+    const userId = await register('阿桃');
+
+    const item = (
+      await addFeature(app, userId, 'eye', '眼尾有点垂')
+    ).json() as ListBody['customFeatures'][number];
+    const persona = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/personas',
+        payload: { userId, ...BODY, features: ['eye/眼尾有点垂'] },
+      })
+    ).json() as ListBody['personas'][number];
+
+    // ★ 静默删会让用户写在脸上那句话消失,200、日志干净、只有结果是错的。
+    const blocked = await app.inject({
+      method: 'DELETE',
+      url: `/api/personas/features/${item.id}?userId=${userId}`,
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect((blocked.json() as { error: { code: string } }).error.code).toBe('CUSTOM_FEATURE_IN_USE');
+    expect((await listPersonas(app, userId)).customFeatures.map((f) => f.id)).toEqual([item.id]);
+
+    // ★ **同组不同原话不算在用**:判据是那一整串,不是分组。
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/personas/${persona.id}`,
+      payload: { userId, features: ['eye/眼头偏圆'] },
+    });
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/personas/features/${item.id}?userId=${userId}`,
+    });
+    expect(removed.statusCode).toBe(204);
+    expect((await listPersonas(app, userId)).customFeatures).toHaveLength(0);
+  });
+
+  it('★ 跨账号删别人的条目 ⇒ 404(不是 403,不外泄存在性)', async () => {
+    const { app, register } = await makeFixture();
+    const owner = await register('阿桃');
+    const stranger = await register('路人');
+
+    const item = (
+      await addFeature(app, owner, 'eye', '眼尾有点垂')
+    ).json() as ListBody['customFeatures'][number];
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/personas/features/${item.id}?userId=${stranger}`,
+    });
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('CUSTOM_FEATURE_NOT_FOUND');
+    expect((await listPersonas(app, owner)).customFeatures.map((f) => f.id)).toEqual([item.id]);
+  });
+
+  it(`第 ${MAX_CUSTOM_FEATURES_PER_USER + 1} 条 ⇒ 409(上限是明说的规则,不是静默丢弃)`, async () => {
+    const { app, register } = await makeFixture();
+    const userId = await register('阿桃');
+
+    for (let i = 0; i < MAX_CUSTOM_FEATURES_PER_USER; i += 1) {
+      const res = await addFeature(app, userId, 'eye', `第${i}条`);
+      expect(res.statusCode, `第 ${i + 1} 条`).toBe(201);
+    }
+
+    const over = await addFeature(app, userId, 'eye', '多出来的');
+    expect(over.statusCode).toBe(409);
+    expect((over.json() as { error: { code: string } }).error.code).toBe('CUSTOM_FEATURE_FULL');
+  });
+
+  it('★ 两个上限必须对得上:库里建得成的那条,写进人设也一定收得下', async () => {
+    const { app, register } = await makeFixture();
+    const userId = await register('阿桃');
+
+    // 最长的一串:16 字分组 + `/` + 40 字原话。
+    const group = 'g'.repeat(16);
+    const text = '字'.repeat(MAX_FEATURE_TEXT);
+    const item = (await addFeature(app, userId, group, text)).json() as ListBody['customFeatures'][number];
+
+    // ★ 对不上的坏法很隐蔽:库里**建得成**,422 却发生在**另一个动作**(建档)上。
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/personas',
+      payload: { userId, ...BODY, features: [`${group}/${item.text}`] },
+    });
+    expect(created.statusCode).toBe(201);
   });
 });

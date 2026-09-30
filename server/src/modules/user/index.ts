@@ -18,6 +18,14 @@ export {
   skinToneInUse,
   skinToneNotFound,
 } from './domain/entities/skin-tone.js';
+export type { CustomFeature } from './domain/entities/custom-feature.js';
+export {
+  MAX_CUSTOM_FEATURES_PER_USER,
+  createCustomFeature,
+  customFeatureIdOf,
+  customFeatureInUse,
+  customFeatureNotFound,
+} from './domain/entities/custom-feature.js';
 
 // ---- schemas(形状/契约,无行为)----
 export { credentialsSchema, userIdSchema } from './domain/schemas/index.js';
@@ -69,6 +77,10 @@ export type {
   PersonaUpdateRaw,
 } from './domain/schemas/index.js';
 export {
+  customFeatureRowSchema,
+  customFeatureSchema,
+  customFeatureTableSchema,
+  customFeatureViewSchema,
   personaFaceSuggestionSchema,
   personaListViewSchema,
   personaPhotoSourceSchema,
@@ -79,6 +91,9 @@ export {
   skinToneViewSchema,
 } from './domain/schemas/index.js';
 export type {
+  CustomFeatureRow,
+  CustomFeatureShape,
+  CustomFeatureView,
   PersonaFaceSuggestion,
   PersonaListView,
   PersonaView,
@@ -131,23 +146,38 @@ export {
 } from './domain/validators/skin-tone.validator.js';
 export type { CreateSkinToneInput } from './domain/validators/skin-tone.validator.js';
 
+// ★ 自建特征的三个常量与解析器:理由同上。
+export {
+  MAX_FEATURE_GROUP,
+  MAX_FEATURE_TEXT,
+  MAX_FEATURE_TEXT_RAW,
+  parseCustomFeatureTable,
+  validateCreateCustomFeatureInput,
+} from './domain/validators/custom-feature.validator.js';
+export type { CreateCustomFeatureInput } from './domain/validators/custom-feature.validator.js';
+
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { FaceReader, FaceReadOutcome } from './domain/ports/face-reader.js';
 export type { PersonaPhotoStore } from './domain/ports/persona-photo-store.js';
 export type { PersonaRepository } from './domain/ports/persona-repository.js';
+export type { CustomFeatureRepository } from './domain/ports/custom-feature-repository.js';
 export type { SkinToneRepository } from './domain/ports/skin-tone-repository.js';
 // 默认实现的导出只为组合根与测试(同 `JsonUserRepository`);业务代码请依赖上面的端口类型。
+export { JsonCustomFeatureRepository } from './infrastructure/json/custom-feature-repository.js';
 export { JsonPersonaRepository } from './infrastructure/json/persona-repository.js';
 export { JsonSkinToneRepository } from './infrastructure/json/skin-tone-repository.js';
 export { FilePersonaPhotoStore } from './infrastructure/file-system/persona-photo-store.js';
 
 // ---- 用例 ----
 export { AnalyzePersonaFace } from './application/usecases/analyze-persona-face.js';
+export { CreateCustomFeature } from './application/usecases/create-custom-feature.js';
 export { CreatePersona } from './application/usecases/create-persona.js';
 export { CreateSkinTone } from './application/usecases/create-skin-tone.js';
+export { ListCustomFeatures } from './application/usecases/list-custom-features.js';
 export { ListPersonas } from './application/usecases/list-personas.js';
 export { ListSkinTones } from './application/usecases/list-skin-tones.js';
 export { ReadPersonaPhoto } from './application/usecases/read-persona-photo.js';
+export { RemoveCustomFeature } from './application/usecases/remove-custom-feature.js';
 export { RemovePersona } from './application/usecases/remove-persona.js';
 export { RemoveSkinTone } from './application/usecases/remove-skin-tone.js';
 export { UpdatePersona } from './application/usecases/update-persona.js';

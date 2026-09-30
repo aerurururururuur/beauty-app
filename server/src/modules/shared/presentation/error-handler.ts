@@ -35,6 +35,12 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   SKIN_TONE_FULL: 409,
   // 还有人在用这一档:这不是请求格式问题,是**当前状态不允许**(同 CABINET_FULL 那条语义)。
   SKIN_TONE_IN_USE: 409,
+  // 自建特征的「不存在」与「不是你的」共用 404,同 SKIN_TONE_NOT_FOUND 的理由。
+  CUSTOM_FEATURE_NOT_FOUND: 404,
+  // 单账号自建特征条数上限,同 PERSONA_FULL。
+  CUSTOM_FEATURE_FULL: 409,
+  // 还有人在用这一条特征,同上一条 SKIN_TONE_IN_USE 的语义。
+  CUSTOM_FEATURE_IN_USE: 409,
   // 会话的「不存在」与「不是你的」共用 404,同 CABINET_ITEM_NOT_FOUND 的理由。
   SESSION_NOT_FOUND: 404,
   // 会话是我的、但这个序号的图不在:同样是"取的东西不存在"。

@@ -63,3 +63,20 @@ export type {
 
 export { skinToneViewSchema } from './api/skin-tone-view.js';
 export type { SkinToneView } from './api/skin-tone-view.js';
+
+// ---- 自建特征(2026-09-30:用户自己写的特征也能整账号共用一份小库)----
+// ★ `group` 与 `text` 都只查形状:六个分组词表住在前端 kb,服务端不抄第二份(同 `features` 那条理由)。
+export {
+  customFeatureCreateSchema,
+  customFeatureRowSchema,
+  customFeatureSchema,
+  customFeatureTableSchema,
+} from './entities/custom-feature.js';
+export type {
+  CustomFeatureCreateRaw,
+  CustomFeatureRow,
+  CustomFeatureShape,
+} from './entities/custom-feature.js';
+
+export { customFeatureViewSchema } from './api/custom-feature-view.js';
+export type { CustomFeatureView } from './api/custom-feature-view.js';

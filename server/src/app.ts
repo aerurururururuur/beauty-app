@@ -97,6 +97,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         listSkinTones: deps.user.listSkinTones,
         createSkinTone: deps.user.createSkinTone,
         removeSkinTone: deps.user.removeSkinTone,
+        // ★ 自建特征那三条同理,同样不看开关。
+        listCustomFeatures: deps.user.listCustomFeatures,
+        createCustomFeature: deps.user.createCustomFeature,
+        removeCustomFeature: deps.user.removeCustomFeature,
         // ★ 读脸那条:判"有没有读脸能力"只有一处(`user/compose.ts` 收没收 `faceReader`),这里不判。
         //   ⚠️ **漏了这一行就是本仓头号 bug**:配了 `VISION_ANALYZER=real`、日志照打,而路由根本没注册。
         ...(deps.user.analyzePersonaFace ? { analyzePersonaFace: deps.user.analyzePersonaFace } : {}),
