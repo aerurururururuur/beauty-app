@@ -123,6 +123,12 @@ src/
 | `POST /api/users` | JSON `{ nickname, password }` → **201** `UserView{ id, nickname, createdAt }`(昵称唯一；密码只存 scrypt 凭据) |
 | `POST /api/users/login` | JSON `{ nickname, password }` → **200** `UserView`；不符 → 401 `INVALID_CREDENTIALS`。**只核对，不签发 token**（登录态未做） |
 | `GET /api/users/:id` | 账号档案 `UserView`(响应**永不含密码/凭据**) |
+| `GET /api/personas?userId=` | → **200** `{ personas: PersonaView[], canAnalyzeFace: boolean }`。**人设库落在 `user` 模块**(一份人设是挂在账号下的一张脸)。`canAnalyzeFace` = 这个部署有没有读脸能力，判据只有一处(组合根接没接读脸端口)。★ 首次列表补齐 5 份种子，删掉的不再回来 |
+| `POST /api/personas` | JSON `{ userId, name, relation, skinTone, features?, photo? }` → **201** `PersonaView`。`photo` 是 **dataURL**(不是 multipart)，字节落 `<DATA_DIR>/personas/photos/` |
+| `PATCH /api/personas/:id` | JSON `{ userId, ...同上可选 }` → **200** `PersonaView`。★ `photo` **三态**：不给 = 不动 / `''` = **删掉照片** / dataURL = 换一张 |
+| `DELETE /api/personas/:id?userId=` | → **204** 无响应体。**连照片字节一起删** |
+| `GET /api/personas/:id/photo?userId=` | → **200** 图片字节(`content-type` 随行里的 mime)。本模块**唯一走 `<img>` 而不是 axios** 的一条(同 `…/renders/:seq`，靠 `?userId=` 判归属) |
+| `POST /api/personas/analyze` | JSON `{ userId, photo }`(dataURL) → **200** `{ skinTone }`(★ **后端**档 id)。★ **会花钱的入口之一**：用户点了才发。★ **不落任何库**——落档由用户确认后的 `POST /api/personas` 完成。`VISION_ANALYZER=off` 时**不注册**(404) |
 | `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /api/agent/sessions` 的 `weather`（`place`/`source` 是回显元信息，**不进 weather**——weather schema 是 `.strict()`）；失败就不填 |
 | `POST /api/cabinet/items` | JSON `{ userId, name, attributes? }` → **201** `CosmeticItemView`。`attributes` 是 `{label,value}[]` 的**自定义**键值（≤12 条，标签去重），名称 ≤40 字 |
 | `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
@@ -162,6 +168,9 @@ src/
 | `USER_NOT_FOUND` | 404 | 账号 id 不存在（含衣橱归属、以及 `POST /api/agent/sessions` 指向不存在的用户） |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 衣橱条目不存在**或不属于你**（两者共用，不泄露存在性） |
 | `CABINET_FULL` | 409 | 单用户衣橱超过 100 件 |
+| `PERSONA_NOT_FOUND` | 404 | 人设不存在**或不属于你**（两者共用，不泄露存在性） |
+| `PERSONA_PHOTO_NOT_FOUND` | 404 | 人设**在**，但它没有存在服务端的照片（还是静态种子图，或者压根没传）。与上一条**分开**：那时回「没有这份人设」是与事实相反的一句话，而这句 message 前端原样上屏 |
+| `PERSONA_FULL` | 409 | 单用户人设超过 100 份（整表读改写，不设上限会越写越慢） |
 | `SESSION_NOT_FOUND` | 404 | 会话不存在**或不属于你**（两者共用，不泄露存在性） |
 | `RENDER_NOT_FOUND` | 404 | 成品图号不存在**或不属于该会话**。与上一条**分开**：归属已先查过，这里是真的没有那张图 |
 | `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
@@ -326,7 +335,8 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 - `face-catalog.test.ts` — 8 档肤色 → 色号词表（含随包那份真词表的加载与体检）。
   ★ 另有一组**与前端 `kb/features.js` 的对表**：31 条特征 id、6 个分组的 id 与 `name`、
   以及分组 `hint` ↔ 后端 `strategy`，判据是**用户数据那边说了算**——前端那套 id
-  已经落在用户 `localStorage` 的人设里，后端的 id 当时零消费者，所以**改后端对齐前端**。
+  是用户人设里存的那些（2026-09-30 起存在服务端，此前在本机 `localStorage`），
+  后端的 id 当时零消费者，所以**改后端对齐前端**。
 - `styling-plan.test.ts` — ★ 2026-09-30 新增。跨端对表 + `derivePlan` 的行为契约：
   ① 后端那份配方（21 套 `STYLE_LIBRARY` + 5 个共有场合的 `SCENE_STYLES` 池）
   与**前端的 `kb/styles.js` 逐字段相同**；② 配方里每一对非空的 `(pid, code)` 都能在前端
@@ -341,6 +351,13 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 - `weather.test.ts` — WMO 码映射、查询校验、用例错误翻译；open-meteo 适配器打桩 fetch，单测不联网。
 - `cabinet.test.ts` — 衣橱边界：空名、超长、特性重名、控制字符、空更新。用例层验 `USER_NOT_FOUND`
   与 `CABINET_FULL`，越权改删报 404 且原数据一个字没动，真实 JSON 仓库用 `mkdtemp` 验「重启后还在」。
+- `personas.test.ts` — ★ 2026-09-30 新增。人设库：建档→列表可见、`PATCH` 不丢字段、删后再取 404；
+  归属（越权一律 404，不是 403）；照片落盘与 `content-type`、`photo: ''` 删旧字节、非法 mime/超长 422；
+  种子（首次 5 份、**删掉的不回来**、升版本只补缺失的）；读脸（端口缺席 ⇒ 路由 404 且 `canAnalyzeFace: false`，
+  端口在场 ⇒ 回后端档 id 且**没写进任何行**）。
+- `persona-vocabulary.test.ts` — ★ 同日新增，人设库的**跨端对表**：种子的 `skinTone` ⊆ 前端 kb 8 档、
+  `features` ⊆ 前端 `FEATURE_LIBRARY`、两份静态照片在 `vue/public/` 下真存在、
+  `design.js` 那两张肤色映射是**互逆双射**。★ 方向同样是**用户数据说了算**（人设行存的是前端档 id）。
 - `config.test.ts` — 各开关的取值解析：合法值通过，**不认识的取值抛错**，报错里必须出现
   环境变量名、收到的原值、全部合法取值与 `.env.example`。另钉住「留空/全空白 = 没给 = 走缺省，
   不抛错」这条边界。★ 2026-09-18 之前钉的是"回落 `mock` 并打一声 `warn`"。

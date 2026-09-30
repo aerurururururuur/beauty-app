@@ -430,21 +430,13 @@ export const STYLE_LIBRARY = [
 ];
 
 /**
- * 场景 → 候选风格（顺序即推荐优先级）
- * 「换一版」在这个候选池里轮换，因此步骤数量与顺序会真的变化。
+ * ✏️ **2026-09-30:候选池（`SCENE_STYLES` / `stylesForScene`）删了。**
+ * 风格与场合如今是**两张各自独立的预设表，自由组合** —— 没有任何「这个场合只能配那几条」
+ * 的依赖。配方本身也没有场合概念：每条自带 `family`（7 类），后端「换一版」的候选
+ * 就是同 `family` 的兄弟（见 `server/src/modules/styling/`）。
+ * 那两个导出的最后一个消费者是 `test/helpers/frontend-kb.ts` 的对表函数，
+ * 在同一天一起退休；留在这里只会变成没人读、也没人能对着比的两份死数据。
  */
-export const SCENE_STYLES = {
-  party: ['banquet', 'princess', 'festival', 'wolf'],
-  date: ['rich', 'pure', 'bunny', 'rococo'],
-  interview: ['commute', 'early8', 'coolclean', 'natural'],
-  travel: ['natural', 'oilcontrol', 'vital', 'newchinese'],
-  fantasy: ['festival', 'butterfly', 'flowers', 'mature'],
-};
-
 export function styleById(id) {
   return STYLE_LIBRARY.find((s) => s.id === id) || STYLE_LIBRARY[0];
-}
-
-export function stylesForScene(sceneId) {
-  return (SCENE_STYLES[sceneId] || SCENE_STYLES.party).map(styleById);
 }

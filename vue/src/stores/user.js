@@ -100,10 +100,13 @@ export const useUserStore = defineStore('user', () => {
    *     会先渲染上一个人的方案,再被那次 404 顶掉。
    *   这三条不能靠「记得手动清」。
    *
-   * ★ 这三个 store 能被**静态引**:它们引的 `api/vanity`、`api/personas`、
-   *   `api/design` 顶层只吃 `kb/` 纯数据、不碰 axios(vanity 里那条 `./cabinet`
-   *   与 design 里那条 `@/api/agent` 都是惰性的)。所以这里静态 import 不会破坏
-   *   「首屏包里没有 axios」这条。改那三个文件时先确认这一点。
+   * ★ 这三个 store 能被**静态引**,但它们的 api 模块必须仍然守住「首屏包里没有 axios」:
+   *   · `api/vanity` / `api/design` 顶层只吃 `kb/` 纯数据(vanity 里那条 `./cabinet`
+   *     与 design 里那条 `@/api/agent` 都是惰性的);
+   *   · ★★ **`api/personas` 从 2026-09-30 起不再属于这一类**——人设搬到服务端之后
+   *     它顶层就是 axios,所以 `stores/personas.js` 里那条改成了
+   *     `import('@/api/personas')` **惰性**引入。改这三个 store 里任何一条 import 之前,
+   *     先把这条判据重看一遍(判别法在 §6.3 的那条 grep)。
    */
   function logout() {
     id.value = ''

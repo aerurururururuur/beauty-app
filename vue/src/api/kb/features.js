@@ -165,3 +165,16 @@ export function featuresByGroup(groupId) {
 export function featureById(id) {
   return FEATURE_LIBRARY.find((f) => f.id === id) || null;
 }
+
+/**
+ * 用户自己加的那一条在 `features` 里存成 `<分组 id>/<他写的原话>`。
+ * ★ 分组必须编进值里:这一格在服务端只是一个 `string[]`(只判形状),不编进去,
+ *   刷新之后就无从知道那句话属于哪一组,只能全挤到最后。
+ * ★ **拼**那个前缀的是 `components/FeaturePicker.vue`(它不 import 本文件,见 §3 第 4 条)。
+ */
+export function featureLabel(id) {
+  const known = featureById(id);
+  if (known) return known.name;
+  const cut = String(id).indexOf('/');
+  return (cut === -1 ? '' : String(id).slice(cut + 1).trim()) || String(id);
+}

@@ -64,6 +64,42 @@
       </div>
     </section>
 
+    <!-- 换风格 / 换一版 / 出图 / 读图失败时后端给的那句人话，原样展示（§7.3） -->
+    <ErrorNote :text="design.error" />
+
+    <!--
+      ★ 只摆**真有图可读**的那几格（给缺图那格一个点下去必失败的按钮 = 摆了三个坏两个）；
+      `wouldOverwrite` 的那一格照摆但**置灰并写出理由**。
+      ⚠️ 点了才真读（一次读图调用，会花钱）；`VISION_ANALYZER=off` 时 `analysisOffer`
+      根本不存在，这一块连壳都没有。
+    -->
+    <section v-if="analysisCases.length" class="analysis">
+      <div class="analysis__head">
+        <span class="analysis__title">让 agent 读一下你传的图</span>
+        <span class="analysis__note">点一下才会读；一次读图调用会花钱</span>
+      </div>
+      <div class="analysis__list">
+        <div v-for="c in analysisCases" :key="c.kind" class="analysis-card">
+          <div class="analysis-card__body">
+            <span class="analysis-card__name">{{ ANALYSIS_LABELS[c.kind] || c.kind }}</span>
+            <!-- ★ 置灰的理由就是后端那句话，原样展示，前端不按 code 分支 -->
+            <span v-if="c.notice" class="analysis-card__reason">{{ c.notice }}</span>
+          </div>
+          <!-- ★ 文案写死「读一下」，不做"正在读…"那套：`generating` 是全局的，
+               换风格 / 出图时也是真，谎报成"正在读"就不对了 -->
+          <button
+            class="btn btn--soft"
+            :disabled="c.wouldOverwrite || design.generating"
+            @click="onAnalyze(c.kind)"
+          >
+            读一下
+          </button>
+        </div>
+      </div>
+      <!-- 「用户填的优先」那一次：没读也没花钱，后端给的解释原样展示 -->
+      <p v-if="design.analysisNotice" class="analysis__notice">{{ design.analysisNotice }}</p>
+    </section>
+
     <section class="style-switch">
       <div class="style-switch__head">
         <span class="style-switch__title">换一个妆容风格</span>
@@ -85,8 +121,6 @@
           <span class="style-chip__meta">{{ o.family }} · {{ o.stepCount }} 步</span>
         </button>
       </div>
-      <!-- 换风格 / 换一版 / 出图失败时后端给的那句人话，原样展示（§7.3） -->
-      <ErrorNote :text="design.error" />
     </section>
 
     <nav class="step-rail" aria-label="妆容步骤导航">
@@ -222,6 +256,9 @@ import { useDesignStore } from '@/stores/design'
  *   (界面按状态自己摆的)在服务端就是互斥的,这里也只是**二选一**地读——
  *   两个都读、都摆,就会出现两个按钮,而点两下是真的要花两次钱。
  *
+ * ★ 读图那一块(2026-09-30):只摆**真有图可读**的那几格,点了才真读(会花钱,
+ *   见 `stores/design.js` 的 `analyze`);置灰的理由是后端给的 `notice`,**原样展示**。
+ *
  * ★ 「保存妆容」= 导出这一版的 JSON 快照,**没有落到任何服务端**
  *   (`api/design.js` 的 snapshotDesign 说明了为什么)。按钮文案因此是
  *   「已记下这一版」,不是「已保存到我的作品」——后者会让人以为换台机器还能看到。
@@ -234,6 +271,9 @@ const user = useUserStore()
 const design = useDesignStore()
 
 const sessionId = useQueryParam('session')
+
+/** 读图那三格叫什么。★ 后端只给 `kind`，中文名是页面上的词（§7.3）。 */
+const ANALYSIS_LABELS = { face: '本人照片', scene: '场景图', style: '风格参考图' }
 
 const plan = computed(() => design.plan)
 const lookDescription = computed(() => design.lookDescription || plan.value?.summary || '')
@@ -285,6 +325,17 @@ const renderButtonText = computed(() =>
 
 function stepNo(index) {
   return String(index + 1).padStart(2, '0')
+}
+
+/* ------------------------------ 读图 ------------------------------ */
+
+/** ★ 只留**真有图可读**的那几格：缺图那格点下去必然 422。 */
+const analysisCases = computed(() =>
+  (design.analysisOffer?.cases || []).filter((c) => c.hasImage)
+)
+
+function onAnalyze(kind) {
+  design.analyze({ userId: user.id, kind })
 }
 
 onMounted(async () => {
@@ -353,6 +404,70 @@ function onSave() {
 
 .flow-tip {
   font-size: 14px;
+  color: var(--color-text-sub);
+}
+
+/* 读图那一块：一格一行，按钮在右 */
+.analysis {
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+}
+
+.analysis__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.analysis__title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.analysis__note {
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+.analysis__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.analysis-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+}
+
+.analysis-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.analysis-card__name {
+  font-size: 14px;
+}
+
+.analysis-card__reason {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.analysis__notice {
+  margin-top: var(--space-3);
+  font-size: 13px;
   color: var(--color-text-sub);
 }
 </style>

@@ -514,31 +514,16 @@
   color: var(--color-text-disabled);
 }
 
-.info-field__switch {
-  display: flex;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--color-card);
+/* 文字 / 图片两块同时摆着（不互斥），各带一个小标题 */
+.info-field__pane + .info-field__pane {
+  margin-top: 14px;
 }
 
-.switch-tab {
-  height: 28px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-sub);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.switch-tab--active {
-  background: var(--color-white);
-  color: var(--color-text);
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(36, 31, 32, 0.08);
+.info-field__pane-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--color-text-disabled);
 }
 
 .info-field__hint {
@@ -1951,6 +1936,14 @@
   color: var(--color-rose);
 }
 
+/* 「选填」用灰的与「必填」那颗红的区分开,别让人以为不填就走不下去 */
+.quiz-block__opt {
+  margin-left: var(--space-2);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-disabled);
+}
+
 .quiz-name-input {
   width: 100%;
   padding: var(--space-3) var(--space-4);
@@ -2067,6 +2060,116 @@
 .skin-chip__desc {
   font-size: 11px;
   color: var(--color-text-disabled);
+}
+
+/* ---------- 「自己写」的那两种:自建肤色档 / 自定义关系 ---------- */
+
+/* 包一层是为了给 × 定位。★ 必须是 flex 且让 chip 撑满:否则同一行里各档高度不齐
+   (原来是 button 当网格项,默认拉伸)。 */
+.skin-chip-wrap {
+  position: relative;
+  display: flex;
+}
+
+.skin-chip-wrap .skin-chip {
+  flex: 1;
+}
+
+/* 自建档角上那颗 ×。★ 只有 `manageable` 的页面才摆得出它(组件里管)。 */
+.skin-chip__del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-text-sub);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.skin-chip__del:hover {
+  border-color: var(--color-rose);
+  color: var(--color-rose);
+}
+
+/* 三个「+ 加一个」的入口长一个样:虚线框、透明底。 */
+.skin-chip--add,
+.rel-chip--add,
+.feat-chip--add {
+  border: 1px dashed var(--color-peach);
+  background: transparent;
+  color: var(--color-rose);
+}
+
+.skin-chip--add {
+  justify-content: center;
+  min-height: 78px;
+  font-size: 13px;
+}
+
+.skin-add,
+.feat-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.skin-add__preview {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+}
+
+.skin-add__name,
+.feat-add__input,
+.rel-input {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.skin-add__color {
+  width: 42px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+}
+
+/* 那一句「别往白了调」占一整行,免得挤在按钮旁边 */
+.skin-add__tip {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--color-text-disabled);
+}
+
+.rel-input {
+  margin-top: var(--space-2);
+}
+
+.notes-input {
+  display: block;
+  margin-top: var(--space-3);
+}
+
+.notes-count {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-disabled);
+  text-align: right;
 }
 
 /* ================================================================== *

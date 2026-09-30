@@ -36,7 +36,7 @@
     <section class="primary-cta">
       <div class="primary-cta__texts">
         <h2 class="primary-cta__title">开始设计</h2>
-        <p class="primary-cta__desc">上传一张照片 → AI 分析面部特征与肤色 → 生成专属妆容方案</p>
+        <p class="primary-cta__desc">选一个场景 → 挑一张脸（可上传照片）→ AI 生成专属妆容方案</p>
         <RouterLink class="primary-cta__btn" to="/create">立即开始</RouterLink>
       </div>
       <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -163,7 +163,7 @@ import { getBanners, getRecommend, getTips, getTopics } from '@/api/home'
  *   (`api/home.js` 的文件头说清了:没有别人的作品、没有真实点赞)。
  *   别照着这里的数字去写任何真实统计。
  *
- * ★ 人设库模块是**真数据**:读 `stores/personas`(本机浏览器,按账号分开)。
+ * ★ 人设库模块是**真数据**:读 `stores/personas`(服务端,按账号分开;照片也在服务端)。
  *   它和人设库页读的是同一份,所以那边增删之后这里跟着变。
  */
 const user = useUserStore()
@@ -175,7 +175,8 @@ const recommend = getRecommend()
 const tips = getTips()
 const topics = getTopics()
 
-onMounted(() => {
-  personas.load(user.id)
+onMounted(async () => {
+  // ★ 人设列表从服务端来(2026-09-30 起),不等它回来这一排就是空的。
+  await personas.load(user.id)
 })
 </script>

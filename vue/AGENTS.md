@@ -54,7 +54,7 @@
 | --- | --- |
 | 改设计链（场景 / 表单 / 方案 / 风格） | `vue/src/api/design.js`、`vue/src/api/kb/styles.js`、对应页面、`vue/src/stores/design.js` |
 | 改色号 / 产品目录 | `vue/src/api/kb/shades.js`、`vue/src/api/kb/catalog.js`、`vue/src/api/kb/products.js`、`vue/src/api/vanity.js` |
-| 改人设库（脸模） | `vue/src/api/personas.js`、`vue/src/stores/personas.js`、`vue/src/pages/Persona*.vue` |
+| 改人设库（脸模） | `vue/src/api/personas.js`、`vue/src/stores/personas.js`、`vue/src/pages/Persona*.vue`、**后端那一族**：`server/src/modules/user/{domain,application,presentation}/**persona*`（数据与种子都在那边，见 §7.1） |
 | 加接口 | `vue/src/api/index.js`、`vue/src/api/<域>.js`、`vue/src/api/use-mock.js`、`vue/src/api/mock.js`、对应 store、后端那个 `domain/api/*.ts` |
 | 加 / 改共享组件 | `vue/src/components/<X>.vue` + 调用它的页面 + `vue/src/assets/styles/tokens.css`（+ 对应页面的 css） |
 | 改样式 | `vue/src/assets/styles/{tokens,base,pages,flow}.css`，以及目标页面（页内 `scoped`） |
@@ -120,6 +120,10 @@
                                                               /vanity 数字美妆台 ◄────┘ 「去美妆台看产品」
 ```
 
+★ **人设库那一屏的数据在服务端**（2026-09-30 落地到 `server` 的 `user` 模块，§7.1）：
+一张脸（连照片）挂在账号下，**换台机器/换个浏览器登录同一个账号还在**——这就是那次改动的全部目的。
+`/personas` 的增删改查 / 换照片 / 问卷建档**都走 HTTP**了，`localStorage` 那份已作废并由前端自行删除。
+
 ★ **`/form` 提交那一刻，「填的东西」真的交给后端 agent 了**（2026-09-30 接上的）：三次握手是
 「建会话（带 `brief`）→ 传人设照片 → 发那句开场白」，之后方案与成片都由那次会话产出。
 动线与端点见 §7.1。
@@ -131,13 +135,19 @@
 
 | 档 | 谁 | `VITE_USE_MOCK=false` 会变吗 | 数据在哪 |
 | --- | --- | --- | --- |
-| **A. 真后端** | 账号（登录/注册）、**我的化妆包**、**开始设计那条链的会话**（方案 / 出图 / 换风格） | 会（账号与化妆包）／**与它无关**（agent 那条，见下） | `POST /users` · `POST /users/login` · `/cabinet/items` ×3 · `api/agent.js` 那 6 条 |
-| **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义）、人设库、美妆台的**产品目录**那一半、方案里的**色值回填** | ❌ **不会** | `api/design.js` · `api/personas.js` · `api/vanity.js` 上半 · `api/kb/*` |
+| **A. 真后端** | 账号（登录/注册）、**我的化妆包**、**人设库**、**开始设计那条链的会话**（方案 / 出图 / 换风格） | 会（账号与化妆包）／**与它无关**（agent 与人设库，见下） | `POST /users` · `POST /users/login` · `/cabinet/items` ×3 · `api/personas.js` 那 6 条 · `api/agent.js` 那 6 条 |
+| **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义）、美妆台的**产品目录**那一半、方案里的**色值回填** | ❌ **不会** | `api/design.js` · `api/vanity.js` 上半 · `api/kb/*` |
 | **C. 策展演示内容** | 首页轮播/推荐/贴士/热点、灵感广场、`/mine` 的统计数字 | ❌ **不会** | `api/home.js` |
 
-- **B 档不是 mock 分支。** 后端**根本没有** `/design/*` 或 `/personas/*` 这些路由
-  （见 §7.1）。所以拨 `VITE_USE_MOCK` 对它**逐字无效**。人设库落在本机 `localStorage`，
-  场景卡与表单定义是前端的两张常量表——这几样**本来就不该有服务端**。
+- **B 档不是 mock 分支。** 后端**根本没有** `/design/*` 这些路由（见 §7.1）。
+  所以拨 `VITE_USE_MOCK` 对它**逐字无效**。场景卡与表单定义是前端的两张常量表，
+  产品目录与色值回填也只有前端有——这几样**本来就不该有服务端**。
+  ✏️ **2026-09-30：人设库从 B 档搬到了 A 档**（此前这里写着「`/personas/*` 后端根本没有
+  ——本来就不该有服务端」）。它的数据现在真的在服务端、跨机器可见，
+  **照片也一起**（见 §8-3 的重写）。所以那一屏的文案可以、也必须说「存在你的桃妆账号里」。
+  ⚠️ 与 agent 那条同理：`api/personas.js` **刻意不给 mock 分支**（§8-7），
+  **后端不起就没得看**——`VITE_USE_MOCK` 对它同样逐字无效，但结论从"本地没事"变成了
+  "这条链现在也要后端"。
 - **C 档也不是 mock 分支**，是**写好的一批演示内容**：没有别人的作品、没有真实的点赞数。
   唯一一处**真数据**是 `/mine` 的昵称，它来自 A 档登录返回的那个 `nickname`。
 - ★★ **设计链不再走本地推导（2026-09-30 改的，与本节此前写法相反）。**
@@ -283,15 +293,17 @@ vue/src/
 │   ├── vanity.js              # B+A 混合：目录那半是本地 kb，化妆包那半走 cabinet.js（惰性）
 │   ├── design.js              # B 档：**输入侧**的表单定义 + 色值回填（hexOf）+ brief 拼装。★ 全本地
 │   ├── agent.js               # A 档：设计链那条会话链的 6 条（§7.1）。★ 全仓唯一不给 mock 分支的 api 模块
-│   ├── personas.js            # B 档：人设库，落在本机 localStorage，按 userId 隔离。★ 全本地
+│   ├── personas.js            # A 档：人设库 6 条（§7.1）。★ 与 agent.js 一样**刻意不给 mock 分支**
+│   │                          #   照片走 dataURL（不是 multipart）；`shrinkPhoto` 留着，理由已换成 JSON 体积
 │   ├── home.js                # C 档：首页 / 灵感 / 我的 的策展内容。★ 全本地
 │   └── kb/                    # B 档的数据：catalog / features / products / shades / skintones
-│                              #   ⚠️ styles.js 在前端**已零消费者**（配方搬去后端 `styling`，§1）——
+│                              #   ⚠️ styles.js 的配方搬去了后端 `styling`（§1），现在只剩**配方名**
+│                              #      被 `/form` 的「你想要的风格」chips 消费（`api/design.js` 的 `STYLE_FIELD`）——
 │                              #      但**别删**：`server/test/styling-plan.test.ts` 拿它当"搬运前的原件"对表
 ├── stores/
 │   ├── user.js                # 「这次用的是哪个账号」。★ 在首屏链上（见 §6.3）
 │   ├── design.js              # 设计链的**会话缓存**（brief / plan / 出图 / generating）。★ 方案由服务端给
-│   ├── personas.js            # 人设库：草稿、缩图、增删改查
+│   ├── personas.js            # 人设库：草稿、缩图、增删改查。★ 引 `@/api/personas` **必须惰性**（§6.3）
 │   └── vanity.js              # 美妆台：分类树、目录、我的化妆包、当前选中的产品与色号
 ├── composables/               # 页面级复用逻辑（5 个，见 §3 第 7 条）。★ 可引 store/api；components 不许引它
 │   ├── useQueryParam.js       # 读路由上的字符串参数（+ useRouteParam）
@@ -395,9 +407,14 @@ props:  persona: Object(必填)   size: Number = 72
 ```
 props:  tones: Array = []       来自 kb/skintones.js
         modelValue: String = '' v-model，选中档 id；空 = 未选
+        hint: String = ''       提示语。★ **由调用方给**，空串 = 用一句**不提 AI 的中性提示**
 ```
-★ 提示语「照片难免有色差，AI 给的是建议档」是**产品要求**：这里的值永远由**用户确认**，
-不能把 `personas.analyze()` 的返回值当判定结果直接存（红线 §8-1）。
+★ 这里的值永远由**用户确认**，不能把 `personas.analyze()` 的返回值当判定结果直接存（红线 §8-1）。
+✏️ **2026-09-30：提示语从组件内写死改成了调用方传入。** 理由不是"灵活"，是**不说假话**：
+本组件在两处被渲染——问卷建档页（那里可能真跑过读脸）与**详情改档页（根本没有分析这回事）**。
+写死在组件里，详情页就会跟着宣称「AI 给的是建议档」——那句话在那一屏是**假的**，
+而这个组件看不出区别。所以只有**真跑过读脸**的调用方（`PersonaQuizView` 读到 `readState === 'done'`）
+才配传含「AI」的那一版；缺省那句只讲照片色差、请按真实情况选。
 
 #### `FeaturePicker.vue` —— 面部特征多选（按分组铺）
 
@@ -461,6 +478,10 @@ tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）�
 `api/agent.js` 就是这一条的现场——它**刻意不给 mock 分支**：这条链会花钱、
 要服务端真实状态，浏览器里复刻不出来。给它编一份假方案，就等于把「真的接上了」和
 「看起来接上了」变得一模一样，而那正是本仓的头号 bug 类型。
+✏️ **2026-09-30：`api/personas.js` 是第二条现场**（它从 B 档搬到 A 档的同一天）。
+人设库的语义就是「存下来下次还能用」——**造一份本地的假**，正好把
+「真的存到账号里了」和「看起来存下来了」变成一模一样。同理，读脸那条路
+（`analyzePersonaFace`）**不许回落本地哈希兜底**：服务端没给建议就说"没读出来"（§8-1、§8-4）。
 
 ### 6.2 `api/vanity.js` 是全仓最容易读错的一个文件
 
@@ -497,12 +518,19 @@ tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）�
 > ★ **同一根绳子的另一头**：`api/vanity.js` 里那条 `function cabinet() { return import('./cabinet') }`
 > 也**不许**写成文件顶部的静态 import —— `stores/vanity.js` 在首屏链上静态引 `api/vanity`，
 > 静态引 `./cabinet` 就等于把 axios 拽进首屏包（它只在「我的化妆包」那一屏才用得上）。
-> ★★ **2026-09-30 又加了一处，两处都别改回去**：
+> ★★ **2026-09-30 又加了两处，四处都别改回去**：
 > ① `stores/design.js` 引 `@/api/agent` **必须惰性**（它在原来的文件里就是 `import('@/api/agent')`）——
 >    理由与 `stores/user.js` 引 `@/api/users` 一模一样，见那个 store 的文件头；
 > ② `api/design.js` 的 `toBrief` / `decoratePlan` 是**纯函数**，别顺手在里面引 `api/agent`。
 >    `ResultView.vue`（懒加载路由）里那一条 `import { renderImageHref } from '@/api/agent'`
 >    **是静态的、也是对的**——那一屏本来就是懒加载的，axios 落在它自己的分块里。
+> ③ ★ **`stores/personas.js` 引 `@/api/personas` 必须惰性**（写成 `import('@/api/personas')`，
+>    见那个 store 里的 `personasApi()`）。理由绕了一圈，但**每一环都是硬的**：
+>    `stores/user.js` 为了 `logout()` 里的 `reset()` **静态引**了 `stores/personas.js`
+>    ⇒ 它就在首屏链上 ⇒ 而 `api/personas.js` 自 2026-09-30 起**是一个 axios 模块**（它以前
+>    是纯本地的，静态引进来也没事）⇒ 静态引 = axios 进首屏包。
+> ④ `stores/user.js` 里那句「`api/personas` 不碰 axios」的注释**已经改掉了**——
+>    别再照着旧注释把它改回静态 import。
 
 ⚠️ **这条没有任何工具能查出来**（本目录零 lint、零测试）。判别方法——`npm run build` 之后：
 
@@ -511,9 +539,10 @@ cd vue && npm run build
 grep -l AxiosError dist/assets/*.js    # ★ 期望结果里**没有** index-*.js
 ```
 （`grep -c` 在 0 命中时**退出码是 1**，所以列文件名比数个数好用——数个数那条看起来像报错，其实是你要的结果。）
-axios 应该待在**另一个分块**里。2026-09-30（接上 agent 之后）那次构建的实测结果：
-`index-TkAttIb6.js` 118.57 kB（axios 命中 **0** 次）、`api-BphkFwOS.js` 50.35 kB（axios 在里面）、
-`mock-*.js` 单独的假后端分块。
+axios 应该待在**另一个分块**里。2026-09-30（人设库接上后端之后）那次构建的实测结果：
+`index-CsKrq8px.js` 142.81 kB（axios 命中 **0** 次）、`api-BphkFwOS.js` 50.35 kB（axios 在里面）、
+`mock-B_f9ayll.js` 单独的假后端分块。
+（`index` 从 118.57 涨到 142.81 kB 里，有一部分不是本轮：同日另一条线把 agent 会话链接进了 `/form → /result`。）
 ★ **分块名会变**（同一份代码今天叫 `use-mock-*`、明天可能叫 `api-*`，那是 rollup 给这个动态组
 挑的名字，不是谁起的名）——**别按名字找，按「axios 在不在 `index-*` 里」判断**。
 哪天它出现在 `index-*` 里了，就是有人写成了静态 `import`。
@@ -533,34 +562,53 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > **类型唯一真源在 `server/src/modules/*/domain/schemas/api/*.ts`。**
 > 本节是给前端看的转述；两边对不上时，**以后端那个 `.ts` 为准**，并回来改这一节。
 
-### 7.1 端点总表 —— 后端有 16 条，桃妆用 11 条
+### 7.1 端点总表 —— 后端有 23 条，桃妆用 17 条
 
 > ★★ **先看这张对照表再动手。** 「后端有这个端点」不等于「前端在用它」：
 >
 > | 模块 | 路由数 | 桃妆用了几条 |
 > | --- | --- | --- |
-> | `user` | 3 | **2**（`POST /users` · `POST /users/login`）——`GET /users/:id` 无人调用 |
+> | `user` | 9 | **8** —— 账号 2 条（`POST /users` · `POST /users/login`）+ **人设库 6 条**；`GET /users/:id` 无人调用 |
 > | `cabinet` | 4 | **3**（`POST` · `GET` · `DELETE`）——`PATCH /cabinet/items/:id` 无人调用 |
-> | `agent` | 8 | **6** —— 设计链那条会话（§1）；`/images` 与 `/analyses` 没调（见下） |
+> | `agent` | 8 | **8** —— 设计链那条会话（§1）+ `/images`（提交时传参考图）+ `/analyses`（`/result` 的读图按钮，会花钱） |
 > | `weather` | 1 | **0** —— 桃妆没有天气那一栏 |
 > | `GET /health` | 1 | 0（部署探活用） |
+>
+> ★ 这 23 条里有 **3 条要 `VISION_ANALYZER=real` 才注册**（agent 的 `/images` `/analyses`
+> 与 `POST /personas/analyze`）。**缺省配置下它们根本不是 404 的"空接口"，是路由不存在**——
+> 别拿"调一下试试"来判断这个部署有没有读图能力，判据是 `GET /personas` 回的那个
+> `canAnalyzeFace`（§8-1）。
 >
 > ✏️ 2026-09-30（一）：此前这里写的是「cabinet 4 条 / 桃妆用 4 条」「桃妆只用 6 条」，
 > **两处都不对**——`PATCH` 那条前端一个调用点都没有（见 §11-16）。
 > ✏️ 2026-09-30（二）：agent 从 **0 条变 6 条**，总数从 5 条变 **11 条**——
 > 设计链接上后端会话之后（§1），那 8 条里的 6 条真的有人调了。
+> ✏️ 2026-09-30（三）：**人设库落地到服务端**（12 条 → **23 条**、11 条 → **17 条**）。
+> 它做在 `user` 模块里（一份人设是挂在账号下的一张脸，归属校验直接问本模块的账号仓库），
+> 所以 `user` 那个模块的行从 3 条变成 9 条。**这一改动的现场见 §1 与 §8-3。**
+> ✏️ 2026-09-30（四）：**参考图接线**（17 条 → **19 条**）——`/images` 与 `/analyses`
+> 各有人调了（`stores/design.js` 的 `submit` 与 `analyze`）。⚠️ 那两条要
+> `VISION_ANALYZER=real` 才存在，缺省下 `analysisOffer` 整个键不出现、`/result` 上
+> 那块连壳都没有。**这一改动的现场见 §8-3。**
 >
-> 其余 5 条没被调用的路由**不是给人的菜单**：它们大多属于被替换掉的那个前端，
+> 其余 4 条没被调用的路由**不是给人的菜单**：它们大多属于被替换掉的那个前端，
 > 或者属于还没接上的能力。**别为了让某屏"看起来更真"随手接一条上去。**
 > ⚠️ 两条例外，都是**属于桃妆真在用的模块、只是还没有界面**：
-> `PATCH /cabinet/items/:id`（将来做「改名」时才有人调）与
-> `POST /agent/sessions/:id/images`（`/form` 收的信息图，见下）。
+> `PATCH /cabinet/items/:id`（将来做「改名」时才有人调）、
+> `GET /users/:id`（账号档案，桃妆的登录态只存 `{ id, nickname }`，没人再查一次）。
 
 | 方法 & 路径 | 请求 | 成功响应 | 桃妆 |
 | --- | --- | --- | --- |
 | `POST /users` | `{ nickname, password }` | **201** `UserView` | ✅ 注册 |
 | `POST /users/login` | `{ nickname, password }` | **200** `UserView`；不符 **401** | ✅ 登录 |
 | `GET /users/:id` | — | **200** `UserView` | — |
+| `GET /personas?userId=` | — | **200** `{ personas: PersonaView[], canAnalyzeFace: boolean }` | ✅ 人设库列表 |
+| `POST /personas` | `{ userId, name, relation, skinTone, features?, photo? }`（`photo` 是 dataURL，可省） | **201** `PersonaView` | ✅ 建档 |
+| `PATCH /personas/:id` | `{ userId, name?, relation?, skinTone?, features?, photo? }`（★ `photo: ''` = **删掉照片**；不给这一格 = 不动） | **200** `PersonaView` | ✅ 改名 / 换照片 / 移除照片 |
+| `DELETE /personas/:id?userId=` | — | **204** 无响应体 | ✅ 删除（服务端那份照片一起删） |
+| `GET /personas/:id/photo?userId=` | — | 图片字节（`content-type` 随行里的 mime） | ✅ `<img>` 的 src |
+| `POST /personas/analyze` | `{ userId, photo }`（dataURL） | **200** `{ skinTone }`（★ **后端**档 id） ★ **会花钱** | ✅ 读脸 —— **用户点了才发**（§8-1） |
+| ⚠️ 上一条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404** | | — |
 | `POST /cabinet/items` | `{ userId, name, attributes? }` | **201** `CosmeticItemView` | ✅ |
 | `GET /cabinet/items?userId=` | — | **200** `{ items: [...] }` | ✅ |
 | `PATCH /cabinet/items/:id` | `{ userId, name?, attributes? }`（二者至少给一个） | **200** `CosmeticItemView` | — 后端有，桃妆没调（见 §11-16） |
@@ -571,17 +619,26 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | `POST /agent/sessions/:id/photo` | multipart：`face` + `userId` | **200** `AgentSessionView` | ✅ `/form` 提交第二步（**只这一次，见 §8-3**） |
 | `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView` ★ **会花钱** | ✅ 「确认生成」 |
 | `GET /agent/sessions/:id/renders/:seq?userId=` | — | 图片字节流 | ✅ `<img>` 的 src（`renderImageHref`） |
-| `POST /agent/sessions/:id/images` | multipart：`file` + `kind` + `userId` | **200** `AgentSessionView` | — `/form` 的信息图这一期不传（见下） |
-| `POST /agent/sessions/:id/analyses` | `{ userId, kind }` | **200** `{ session, kind, status }` ★ **会花钱** | — |
+| `POST /agent/sessions/:id/images` | multipart：`file` + `kind` + `userId` | **200** `AgentSessionView` | ✅ `/form` 提交时逐 `kind` 传一张参考图（**免费**，见 §8-3） |
+| `POST /agent/sessions/:id/analyses` | `{ userId, kind }` | **200** `{ session, kind, status, notice? }` ★ **会花钱** | ✅ `/result` 的读图按钮 —— **用户点了才发**，`notice` 原样展示 |
 | ⚠️ 上面两条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404** | | — |
 | `GET /weather` | `?city=` 或 `?lat=&lon=` | **200** `WeatherView` | — |
 
-★ **`/images` 为什么没接**：它收的是「场景信息图」，而前端 `/form` 现在就**只传脸**。
-两者的判别标准是后端给的那个 `kind`（`face` / `scene`），不是"顺手多传一张"——
-⚠️ `VISION_ANALYZER=off`（缺省）时这条路由**根本不注册**，调它得到的是 404，
-而不是"传上去了但没用"（这一栏将来要接的时候先看这条）。
-★ **`GET …/renders/:seq` 是唯一走 `<img>` 而不是 axios 的一条**：它带的是 `?userId=`
-而**没有任何 token**（后端不签发凭据，§8-2）。所以它在本节里长得不像别的那些。
+★ **`/images` 与 `/analyses` 是一对**（2026-09-30 接线，见 §8-3）：前者把 `/form` 收的
+场景图 / 风格图送进会话（**免费**，每个 `kind` 只留一张 ⇒ 挑哪张由 `api/design.js` 的
+`refImagesOf` 一处决定）；后者才是读它们，**会花钱**，所以**只有用户点那一下才发**。
+★ 两者的判别标准是后端给的那个 `kind`（`face` / `scene` / `style`），不是"顺手多传一张"——
+⚠️ `VISION_ANALYZER=off`（缺省）时这两条路由**根本不注册**，调它得到的是 404，
+而不是"传上去了但没用"。
+★ **`GET …/renders/:seq` 与 `GET /personas/:id/photo` 是仅有的两条走 `<img>` 而不是 axios 的**：
+它们带的是 `?userId=` 而**没有任何 token**（后端不签发凭据，§8-2）。所以它们在
+本节里长得不像别的那些。
+⚠️ **也因此这两条 URL 必须先补 `API_BASE` 再进 `<img :src>`**：dev 下 Vite 会把
+`/personas/<id>/photo` 当成**前端路由** `/personas/:id` 处理，回的是 SPA 的 index.html
+⇒ 破图/空白，**而且不报错**。拼这一步在 `api/personas.js` 的 `decoratePersona` 里
+（同 `api/agent.js` 的 `renderImageHref`），页面拿到的是**能直接塞 `<img :src>` 的成品字符串**。
+★ **`POST /personas/analyze` 的响应不落任何库**——它是一次「建议」，
+落档由用户确认后的 `POST /personas` 完成（§8-1）。
 
 ### 7.2 DTO 形状（JS 视角）
 
@@ -604,9 +661,27 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 // AgentTurnView = AgentSessionView + { events, stopReason }（一轮的返回值）
 //   ★ 这三个「发一句话 / 出图」的端点回的是它，而前端**一格都没读**那多出来的两格
 //     （`design.js` 的 `adopt()` 把它们一起缓存着，没有害处，但别以为有人在用）。
+
+// PersonaView —— 一份人设（`api/personas.js` 的 `decoratePersona` 收的就是它）
+{
+  id, userId, name,
+  relation,        // 'self' / 'family' / 'friend'（白名单后端有，前端只渲染）
+  skinTone,        // ★ **前端展示档 id**（`yellow-2` / `cool-fair` …），不是后端那套
+  features,        // 面部特征 id 数组（白名单在 face-catalog）
+  createdAt, updatedAt?,
+  photoUrl,        // 空串 = 没有照片；否则**已经能直接塞 `<img :src>`**（见 §7.1 那条 ⚠️）
+  photoSource,     // 'stored'（用户传的，走 `/personas/<id>/photo`）| 'static'（种子那张 SVG）
+}
+// ★ **派生展示字段后端不下发，由前端 `decoratePersona` 现算**：relationName / skinToneName /
+//   skinToneHex / featureNames。理由是它们要的 `hex`/`desc`/中文名**只有前端 kb 有**——
+//   后端自己也有一份肤色档（`SKIN_TONES` + skin-tones.json），但那是**另一套 id、另一套色值**。
+//   后端下发它那份 ⇒ 用户在前端色点里挑的档和头像方块会是**两个颜色**，同屏可见的不一致。
+//   跨端一致性由 `server/test/persona-vocabulary.test.ts` 对表钉住，不靠"两边各写一份"。
+// ★ `canAnalyzeFace` 只在**列表**的响应里（`GET /personas`），POST/PATCH 回的单条没有那一格。
+//   它是「这个部署能不能读脸」的**唯一**前端判据（§8-1）——别自己拿配置去推。
 ```
 
-**桃妆碰的是上面这三个形状。** `WeatherView` 仍然零调用。
+**桃妆碰的是上面这四个形状。** `WeatherView` 仍然零调用。
 ★ **`plan` 里没有 `hex`**：后端给的色号是 `pid + code`，色值由前端 `decoratePlan` 回填（§1）。
 ★ **`pendingRender` 与 `renderOffer` 是二选一的两个字段**（`renderOffer` 只有在
 「妆面单在 + 照片在 + 没有欠着的提议」时才出现，见 `server/.../session.ts` 的 `renderReadiness`）——
@@ -630,6 +705,7 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | --- | --- | --- |
 | `USER_NOT_FOUND` | 404 | 账号没了（**这台浏览器存着的登录在服务端查无此人**） |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 「不存在」与「不属于你」**共用**，别去区分 |
+| `PERSONA_NOT_FOUND` | 404 | 同上，人设那一族：「这份人设不存在」与「这份人设不是你的」**共用同一个码**（不外泄存在性） |
 | `CABINET_FULL` | 409 | 化妆包满了（§6.2 那个 100 行的代价） |
 | `NICKNAME_TAKEN` | 409 | 昵称占用 |
 | `INVALID_CREDENTIALS` | 401 | ID 或密码错，**不泄露账号是否存在** |
@@ -666,8 +742,12 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 以前它只覆盖 A 档的账号与化妆包，现在**连设计链那条会话链也一起覆盖**——
 后端缺省 `AGENT_LLM=mock`，回的是 `DemoLlm` 那段离线演示脚本，`/form → /result` 整条走得通
 （方案、确认框、出图都有，只是**成片不是真渲染**，见 `server/README.md`）。
-★ 仍然不走网络的是 B、C 两档里那些"本来就不该有服务端"的东西：人设库、首页内容、
+★ 仍然不走网络的是 B、C 两档里那些"本来就不该有服务端"的东西：首页内容、
 以及场景卡与表单定义这两张常量表。
+✏️ **2026-09-30：人设库不再属于这一列。** 它整族都走 HTTP 了（12 条 → 23 条那张表，
+见 §7.1），**后端不起就看不到脸**——与设计链那条一样，`VITE_USE_MOCK` 对它也逐字无效
+（因为它压根没有 mock 分支）。缺省配置下它照样能用：人设库那 6 条**与 `VISION_ANALYZER`
+无关**，开不开读脸都在；只有 `POST /personas/analyze` 那一条跟着那个开关走。
 
 ---
 
@@ -683,6 +763,19 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
    色卡 `SKIN_TONES[].hex` 是真实肤底色，**不许调成「更白更好看」**。
    文案里**不出现「显白」**（⚠️ 今天有两处存量违反，见 §11-4，别照抄那两处的语气写新文案）。
    ★ **照片分析只给「建议档」，最终档位由用户确认**——`personas.analyze()` 的结果不能直接落档。
+   ✏️ **2026-09-30：读脸真的接上了，所以这一条从"原则"变成了"要维护的实现"。** 四条：
+   ① **判据只有一个**：`GET /personas` 回的 `canAnalyzeFace`（= 服务端注入了没有读脸端口）。
+      它是 `false` 时，问卷页**一个「AI」字都不出现**、也没有那个按钮；`VITE_USE_MOCK` / 前端
+      任何本地判断都**不许**掺进来（这条读脸是服务端能力，前端推不出来）。
+   ② **按需跑**：这是一次**会花钱**的多模态调用，**绝不放在 `onMounted` 里**，用户点了才发。
+      期间要有**真的**等待态（`.analyze-state--busy` 那条脉冲以前零消费者，现在有了）。
+   ③ **翻不出来就置空**：服务端回的是**后端**档 id（`warm_beige`），前端用
+      `SKIN_TONE_FROM_BACKEND`（`api/design.js`）翻成展示档；**查不到时必须当成"没读出来"**，
+      留空等用户自己选——**绝不兜一个默认档**，那正是本条要防的事。
+      ★ 也别让它落到本地哈希兜底上：旧版那个 `analyzePortrait()` 已经删了（§11-16），
+      **不许为了"离线也能演示"把它加回来**（§8-4）。
+   ④ **只读得出肤色**：没有面部特征、也没有置信度（服务端那格契约只有 `skinTone`）。
+      ⇒ **特征永远由用户自己勾**，文案不许说"AI 建议已预填"（旧版那句是半谎，见 §9）。
 
 2. **密码只在请求体里出现一次。**
    不进 store、不进 `localStorage`、不进日志、不进 URL。
@@ -693,31 +786,48 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 3. ★★ **照片：桃妆的口径与旧版前端**不同**，别照旧文档改。**
    旧前端写的是「本人照片即用即删、一律不落盘」。**人设库那条故意不是这样**——它的功能就是
    「把一张脸存下来反复用」。所以今天的规矩是**分两类**：
-   - **人设库的照片**：以 dataURL 存进 `localStorage`，键 `tz:personas:<userId>`
-     （★ **按账号隔离**：共用电脑上「A 退出、B 登录」之后 B 不该看到 A 的脸）。
-     ✏️ **2026-09-30 松了这一条，只松一处，改之前先读完这三行：**
-     > 人设照片**只在这一个动作里离开浏览器**：`/form` 提交、走 agent 出图动线时，
-     > 作为 multipart 的 `face` 字段发给 `POST /agent/sessions/:id/photo`（§7.1）。
-     > 服务端按 `AGENT_SESSION_TTL_HOURS`（缺省 24h）到期删除——**这就是那条隐私承诺的兑现方式**
-     > （`docs/architecture.md` §6）。松这一条是**用户拍板的**：不出图就没有成片，
-     > 而成片必须拿真脸去渲染。
-     >
-     > **其余任何路径仍然绝不外传**：`/personas` 的增删改查、换照片、问卷建档，
-     > **一行 HTTP 都不许有**——`api/personas.js` 里现在没有、以后也不该有。
-     > ⚠️ 这条最容易被读成「可以随便传照片」。判别法很简单：全仓**只有一个**把照片送出去的
-     > 调用点 —— `api/agent.js` 的 `uploadAgentPhoto`，而它的唯一调用者是
-     > `stores/design.js` 的 `submit()`。在别处看到照片字节被发出去（`FormData`、`fetch`、
-     > 任何 `POST` 带上 `photoUrl`/dataURL），就是破了这条红线。
-     > ⚠️ `FormView.vue` 的 `faceFileOf()` 把 dataURL 转成 `Blob` **不算**——它只是把文件
-     > 交给 `submit()`，**没有自己发请求**。这条界线（转换可以、发送只有一处）就是红线的形状。
+   - **人设库的照片：存在服务端，跟着账号走，长期保留（没有 TTL）。**
+     ✏️ **2026-09-30 用户拍板改了这条。** 此前它是本节最硬的一条：`/personas` 的增删改查、
+     换照片、问卷建档**「一行 HTTP 都不许有」**。改掉它的**理由就是那个功能本身**——
+     存在本机 `localStorage` 的代价是**换台机器/换个浏览器那张脸就没了**
+     （`api/personas.js` 的文件头当年还写着"页面文案不许讲成已同步到你的账号"）。
+     现在：照片以 **dataURL** 走 `POST/PATCH /personas`（**不是 multipart**，理由见 C2），
+     字节落在服务端 `<DATA_DIR>/personas/photos/`，挂在账号下，跨机器可见。
+     三件配套的事，只写在这一处：
+     ① **本机旧数据是删掉重建的，不做迁移**（用户拍板）：`tz:personas:<userId>` 与
+        `tz:personas:seedv:<userId>` 两把键由 `stores/personas.js` 在**服务端列表成功之后**
+        一次性清掉——**拉不到列表就不许动本机数据**。服务端给一份**一模一样的** 5 份种子
+        （逐格见 `server/.../persona-seeds.ts`；§11-14 那条"3 份没有照片"照旧成立）。
+     ② ★ **这条与 agent 那条是两套口径，别混成一句话写给用户。**
+        agent 会话的照片按 `AGENT_SESSION_TTL_HOURS`（缺省 24h）**真删**（`docs/architecture.md` §6）；
+        人设照片**不删**，直到用户自己删掉这份人设——`DELETE /personas/:id` **连字节一起删**
+        （详情页那句确认文案已经如实写了这一点）。
+     ③ **对人说的是「照片与档案都存在你的桃妆账号里」**——这是 §8-4 的反面：以前不许这么说，
+        是因为它**只在**这台浏览器里；现在可以说了，因为它是真的。
+        ⚠️ 但**也不许**说成"已加密 / 只存在本地"之类：服务端就是**明文存着**。
+        这正是这条红线当初的顾虑，用户知情并选择了它——**别再自作主张把它说轻**。
    - **其余任何预览图**（如 `FormView` 的信息图上传）：走 `URL.createObjectURL`，
      **每次都要有对应的 `revokeObjectURL()`**——移除时收一份，`onBeforeUnmount` 收剩下的。
      没接上就是每选一张图漏一份内存，而且 blob URL 会把文件一直钉在内存里。
-   - ★ 存进去之前**必须先缩图**（`shrinkPhoto`，长边 ≤640 / q0.82，典型 40–90 KB）。
-     手机照片转 base64 常有 3–6 MB，而 localStorage 配额通常只有 5 MB——
-     第一张就可能 `QuotaExceededError`，而且它**不抛到界面上**：建档"成功"、刷新后人没了。
-     三道防线一道都不能省：缩图 → `writePersonas()` **不吞异常** → 种子人设的照片走
-     `public/` 下的静态 SVG（不进配额）。
+   - ★✏️ **2026-09-30（用户拍板）：`/form` 收的参考图是第二个外发点。**
+     走 `POST /agent/sessions/:id/images`（multipart 字段 **`file`** + `kind`，**不是**
+     本人照片那条的 `face`），调用点只有 `stores/design.js` 的 `submit`。
+     三条与上面那条不同的地方，只写在这一处：
+     ① **每个 `kind` 只送一张**（后端槽只有一个，同类再传是覆盖）⇒ 挑哪张由
+        `api/design.js` 的 `refImagesOf` **一处**决定，`submit` 与 `toBrief` 必须调同一个；
+        没送上去的那些要在 `sceneText` 里照实说，**不许静默丢**。
+     ② **送上去了 ≠ 读了**：读图走 `/analyses`，**会花钱**，只能由用户在 `/result` 点
+        （`stores/design.js` 的 `analyze` + `ResultView` 那块按钮）。**绝不在提交时顺手读。**
+     ③ **与人设照片是两套隐私口径**——别把「24h 真删」那句承诺挪过来套在参考图上。
+     缺省 `VISION_ANALYZER=off` 时那两条路由不注册，`analysisOffer` 整个键不出现，
+     `/result` 上那块连壳都没有（§7.1）。
+   - ★ 存/传进去之前**必须先缩图**（`shrinkPhoto`，长边 ≤640 / q0.82，典型 40–90 KB）。
+     ⚠️ **这一步留着，但理由换了**：以前是 localStorage 那 5 MB 配额
+     （第一张手机照片就可能 `QuotaExceededError`，而且**不抛到界面上**：建档"成功"、刷新后人没了）；
+     现在是 **JSON 体积 / 服务端那条 1 MiB 的网**（`persona.validator.ts` 的 `MAX_PHOTO_BYTES`）。
+     ⚠️ 缩图**拿不到 canvas 时会原样返回原图**，那种 base64 可能几 MB ⇒ 所以服务端那道 422
+     必须给一句人话（现在已经给了），而不是让用户对着一个失败的红叉猜。
+     两道防线照旧一道都不能省：**缩图** → **超了当场报错**。
 
 4. ★★ **不许把「本地算出来的 / 策展来的」讲成「真的」。**（这是本仓头号 bug 类型：假开关）
    配置错/缺失但照跑、返回 200、日志干净，**只有结果是错的**。桃妆的具体形状：
@@ -727,9 +837,15 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
      ——**两条作废**：方案现在是**后端 agent 算的**，`fields` 也真的经 `toBrief()` 进了 `brief`
      （§1）。所以结果页上**可以**说方案是 AI 按你填的信息定的，
      「生成中…」**也是真的在等**（`generating` 不再是装饰，最长 90 秒）。
-     ⚠️ 但**反过来也有一条红线**：**不许把服务端没做的事说成做了**——
-     比如「已根据你的照片分析了肤色」：肤色档仍然只由用户在人设里确认（§8-1），
-     那条链今天**没有**接（`analyze` 那两条路由没注册，§7.1）。
+     ⚠️ 但**反过来也有一条红线**：**不许把服务端没做的事说成做了**。
+     ✏️ **2026-09-30：这里举的例子换了，因为那个例子不再成立。** 此前写着
+     「比如『已根据你的照片分析了肤色』——那条链今天没有接」。**读脸现在真的接了**
+     （`POST /personas/analyze`，§7.1）：配了 `VISION_ANALYZER=real` 时它是一次真调用、
+     真的会花钱。所以规矩不是"不许提 AI"，而是**精确到那一次调用有没有发生**：
+     - 没配（缺省）⇒ 界面上**一个「AI」字都不出现**，也没有那个按钮（§8-1 ①）；
+     - 配了但用户没点 ⇒ **同样不许说"AI 已分析"**（建议是用户点出来的，不是进页面就有的）；
+     - 点了 ⇒ 可以说"AI 读出的**肤色档**建议已预填"，但**特征不预填**、也必须写清
+       "照片有色差，请按真实情况确认"——**它仍然只是一个建议**（§8-1）。
    - ★ **占位图彻底退出 `/result`。** 那两张标着「占位」的 hero 块**删了**（§1 末）。
      没出图时那一块**什么都不摆**（只显示确认框），出了图就摆**真渲染的那张**。
      **不许**为了让页面"看起来完整"塞一张假图或 `.ph` 进去——那正是本节要防的形状。
@@ -758,7 +874,12 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
    而设计链**从这天起是 A 档**（§1），所以它既不受这个开关管、
    **也不能靠它离线**——`api/agent.js` 没有 mock 分支，**后端不起就没得走**。
    要看离线演示，靠的是**后端那条**开关（`AGENT_LLM=mock` 的 `DemoLlm`），不是前端这条。
-   仍然与两个开关都无关的：人设库、首页内容（B 剩下的一半与 C 档）。
+   ✏️ **同一天稍后：人设库也从"与两个开关都无关"里出去了。** 它现在与设计链同一处境——
+   走真后端、**刻意没有 mock 分支**，所以既不受 `VITE_USE_MOCK` 管，也不能靠它离线。
+   ⚠️ **尤其别往 `api/mock.js` 里补一份假人设库**：那份假数据一定长得和真的一样，
+   而它的坏法是**最贵的一种**——用户在 A 机器上建的脸在 B 机器上不见了，
+   界面、日志、状态码全都是对的（本仓头号 bug 类型，§8-4）。
+   仍然与两个开关都无关的：首页内容（C 档，加上 B 剩下那半张常量表）。
 
 ---
 
@@ -793,14 +914,26 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 1. `/create` → 5 张场景卡；点任一张 → 进人设库且**已经切到挑人模式**（`?scene=&pick=1`）。
 2. 挑一张脸 → `/form`。★ **`?persona=` 缺失或那份人设已删时必须回人设库**，
    不许停在一个没有依据的空壳表单上。
-3. 填信息：每个字段「文字 / 图片」两个页签**二选一显示，但提交时两种都要收**。
+   ⚠️ **这两句话现在是异步的**（2026-09-30 人设改从服务端拉，「已删」要等服务端回答）：
+   `FormView` / `PersonaDetailView` 的 `onMounted` 里那句 `personas.load()` **必须 `await`**。
+   漏了 `await` 的坏法是**静默的**——列表还是空的，于是**每一张脸都会被判成「没有这份人设」**，
+   用户被不声不响地踢回人设库（"点进去又弹回来"）。两处都要试：**一张静态图种子**与
+   **一张自己传的**（后者的 `photoUrl` 是服务端 URL，还要看它有没有漏 `API_BASE`）。
+3. 填信息：每个字段**「文字描述」与「上传图片」两个块同时摆着**（2026-09-30 起不再切页签），
+   想填哪个填哪个、也可以都填；提交时两种都收（`collectFields` 的 `type` → `'both'`）。
    选一张图 → 移除 → **控制台里不应有 blob 泄漏**（这条只能靠肉眼看代码 `revoke` 有没有接上）。
-4. 提交 → **这一次是真的在等**（最长 90 秒）。★ 重点看这三样：
-   - 服务端日志里应当出现**三条**请求：建会话 → 传照片 → 发开场白；
+   ★ 参考图是**第二个外发点**（§8-3）：同一格传两张、以及「风格」与别的格各传一张，
+   提交后看服务端留下了几张——**每个 `kind` 只该有一张**（后端的槽就一个）。
+4. 提交 → **这一次是真的在等**（最长 90 秒）。★ 重点看这四样：
+   - 服务端日志里应当出现请求：建会话 → 传照片 →（**只有 `VISION_ANALYZER=real` 时**）逐 `kind` 传参考图 → 发开场白；
+     ⚠️ 缺省是 `off`，那时那两条路由**根本没注册**（404），所以**一张都不该发**——发了就是把整次提交栽掉；
    - 跳过去之后 URL 是 **`/result?session=<一串 id>`**（不是旧那三个参数）；
    - **后端不起时**：提交后停在本页、给一句人话的错——**不许**默默跳到一个空方案的结果页。
 5. `/result` 上该有：方案（步骤 / 色板 / 个性化卡）+ **一个出图确认框**，
    而且**没有任何标着「占位」的块**（§8-4）。
+   ★ 还要有**读图那一块**（`VISION_ANALYZER=real` 才有，`off` 时连壳都不该有）：
+   只列**真有图**的那几格，缺图那格整行不出现（摆了就是点下去必 422）；
+   点一下**才**真读（会花钱）；「用户自己填过了」那格置灰并写出后端给的理由。
 6. ★ **顶部「换一个妆容风格」点另一个** → 步骤列表整列重建。
    ⚠️ **它现在要等一次 agent 回合**（旧版本是本地毫秒级，见 §1）——
    这**不是** bug，是"方案改由后端产出"的直接代价；期间按钮该是禁用状态
@@ -826,20 +959,42 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 但**没有任何东西证明真模型会照格式回话**——那件事只有 `real` 能回答（`server/README.md`）。
 ⚠️ 走 `image` 那一级之前**先确认自己在不在付费账户上**，并且**别连点两次确认按钮**。
 
-### 人设库（B 档，本机浏览器——文案必须如实说）
+### 人设库（A 档，真后端 + 照片在服务端——★ 这一节 2026-09-30 整体重写过）
+
+> **这一节要两个终端一起开**（`vue` 与 `server`）：`api/personas.js` 没有 mock 分支（§8-7），
+> 后端不起就整屏没数据。⚠️ **它跟 `VISION_ANALYZER` 无关**——那 6 条路由里只有
+> `POST /personas/analyze` 跟着那个开关走，列表/建档/换照片照常。
 
 1. `/personas` → 5 份种子人设；**首次进入就该补齐**（`PERSONA_SEED_VERSION`）。
-2. `/personas/new` → 两个上传入口（拍照 / 相册）驱动同一支隐藏 `input`；
+2. ★★ **换一个浏览器 / 无痕窗口登录同一个账号 ⇒ 人设还在。**
+   这条是这次改动的**全部目的**，也是唯一能证明它真的落地了的验证——
+   它绿了，说明数据确实在服务端而不是"看起来像"。**别的都不算**。
+3. ★ **本机旧数据该被清掉**：登录后在 devtools 里看 `localStorage`，
+   `tz:personas:<userId>` / `tz:personas:seedv:<userId>` 两把键**应当已消失**。
+   ⚠️ 但**拉不到列表时它们必须还在**（清理只发生在列表成功之后）——
+   把后端停掉再进 `/personas`，键不该被删。
+4. `/personas/new` → 两个上传入口（拍照 / 相册）驱动同一支隐藏 `input`；
    ★ **同一个文件连选两次也要能触发**（`useFilePick` 的 `pick()` 点之前清了 `input.value`）。
    `/personas/:id` 的「换一张照片」走同一条路，**两处都要试**。
-3. 建档 → `/personas/quiz`：肤色与特征**预填成建议值**（可以改）；名字空着时「生成」要走不通。
-4. 详情页 → 换照片 → **只缩图、不碰建档草稿**（`shrinkOnly`，别借 `putDraftPhoto` 那条路）。
-5. 删除 → 先弹 `window.confirm`，取消不该删掉。
-6. ★ **查存储按账号隔离**：`localStorage` 里的键是 `tz:personas:<userId>`。
-   换个 ID 登录 → 人设库是**新的一份**，看不到上一个人的脸。
-7. ★ **配额防线**：传一张几 MB 的手机照片 → **不该出现「保存成功、刷新后变回去」**。
-   要么缩图后存下，要么当场给一句人话的错。
-8. 页面/文案**不许说「已同步到你的账号」**（它只在这台浏览器里，见 §8-3）。
+5. 建档 → `/personas/quiz`：**读脸按钮只在 `canAnalyzeFace` 为真时出现**（见第 8 条）；
+   肤色与特征**由用户自己选**；名字或肤色空着时「建好这个人设」要走不通。
+   ★ 建档那一刻照片才上传（`stores/personas.js` 的 `create`）。
+6. 详情页 → 换照片 → **只缩图、不碰建档草稿**（`shrinkOnly`，别借 `putDraftPhoto` 那条路）。
+   ★ **照片这一格有三态**（没动过 / 换了一张 / 要删掉），它们在请求里是三种不同的东西：
+   不传 `photo` / 传新 dataURL / 传**空串**。三态都要走一遍——「没动过」最容易写成
+   "把现有照片再传一次"或者"传空串把照片删了"，而那两件事**都不会报错**。
+7. 删除 → 先弹 `window.confirm`，取消不该删掉；确认后**服务端那份照片也一起删**。
+8. ★ **读脸那一个开关**（要真配置才验得了，缺省那半边是"不许有"）：
+   - **缺省（`VISION_ANALYZER=off`）**：问卷页**没有那个按钮**、左栏文案里**没有「AI」字**、
+     肤色提示语是那句不提 AI 的。★ 这一屏是"假开关"最容易复发的地方，改文案时盯住它。
+   - **配 `VISION_ANALYZER=real` + key 后重启**：按钮出现（**点了会花钱**），
+     点完**只预填肤色**，特征仍然是空的；等待期间按钮禁用且有那句"正在读这张脸…"。
+   - ⚠️ 无论哪种，**肤色档都还是用户最后确认的那个值**（§8-1）——读脸只是把选择框先填上。
+9. ★ **大照片那道网**：传一张几 MB 的手机照片 → 要么缩图后存下，
+   要么当场给一句人话（「照片太大了(最多 1024 KB)…」），**不该出现「保存成功、刷新后变回去」**。
+10. **文案**：现在**可以**说照片与档案存在你的桃妆账号里（§8-3 改了口径）；
+    ⚠️ 但**不许**说成"已加密"、也不许把 agent 那条「24h 真删」的承诺挪过来套在它头上——
+    这两条是两套口径。
 
 ### 数字美妆台（A+B 档，唯一真的走网络的几屏之一）
 
@@ -871,7 +1026,7 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 | 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 axios**（首屏链，§6.3） |
 | 加一个图标 | `Icon.vue` 的 `ICONS`（**`vb` 要抄对**，见 §5.1） |
 | 改色号 / 加产品 | 只改 `kb/shades.js` / `kb/catalog.js` / `kb/products.js`——**任何地方都不许另写一份 hex**（`api/vanity.js` 文件头钉着这条） |
-| 改人设库 | `api/personas.js` 的存储口径（键名前缀、缩图参数、种子版本）**改一样就要想清楚已有数据怎么办** |
+| 改人设库 | 前端在 `api/personas.js`（HTTP + `decoratePersona`）与 `stores/personas.js`；**数据和种子都在后端**（`server/src/modules/user/**`，种子的 `PERSONA_SEED_VERSION` 也在那边）。★ 改 `skinTone` / `features` 的取值口径要**同时**动 `server/test/persona-vocabulary.test.ts` 对的那几张表——那正是它的用处。★ 改照片上限要动 `persona.validator.ts` 的 `MAX_PHOTO_BYTES` **和**路由的 `bodyLimit`（两个都要，见那段注释） |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
 | 改设计链（场景 / 表单 / 方案 / 换风格） | 前端的**输入侧**在 `api/design.js`（`SCENES` / `SCENE_FORMS` / `toBrief` / `decoratePlan`）；**方案本身在后端** `server/src/modules/styling` + `agent` 的 `propose_look`——改配方要动后者，前端改不了（§1） |
 | 动 `agent` 那条链的**出图**部分 | ★ 先读 `server/src/modules/agent/README.md` 的确认回合那一节：**出图只有两个入口，都要用户点头**。前端这边唯一的调用点是 `stores/design.js` 的 `confirmRender()`，而它必须靠 `generating` 禁用按钮（连点 = 连扣费） |
@@ -936,9 +1091,10 @@ npm run typecheck
 7. **`public/demo/` 下的两个 SVG 已无引用**（`demo-photo.svg` / `scenery.svg`），
    它们服务的是被删掉的 `/upload` 那条链。**先别删**——它们是源站素材，
    将来要重建"上传 → 出图"那条链时可能还要用。这是**已知的零消费者文件**，不是漏收拾的。
-   （`public/assets/img/ph-*.svg` **不是**死文件：它们是种子人设的照片，见 `api/personas.js`。）
+   （`public/assets/img/ph-*.svg` **不是**死文件：它们是种子人设的照片——
+   ✏️ 2026-09-30 起指它们的是**后端**的种子表，见 §11-14。）
    ★ 2026-09-30：**"重建上传 → 出图"这件事做完了**，但走的是 `/form` 那条动线，
-   与这两个 SVG 无关——它们**照旧零消费者**，照旧先别删（同一批次里 `kb/styles.js` 也是这个身位）。
+   与这两个 SVG 无关——它们**照旧零消费者**，照旧先别删（`kb/styles.js` 已经不是了，见 §4）。
 8. **`/mine` 的统计与 `aiProfile` 标签是策展值**（C 档），不是真实统计（§8-4）。
 9. ~~**`stores/design.js` 的 `fields` 与 `generating` 今天都没有读者**~~
    ✏️ **2026-09-30 作废，两条现在都有读者了**：`fields` 经 `toBrief()` 进了 `brief`（§8-4），
@@ -962,6 +1118,11 @@ npm run typecheck
 14. **`public/assets/img/` 下只有两张脸**（`ph-colleague.svg` / `ph-sister.svg`）——
     5 份种子人设里另外 3 份的 `photoUrl` 是空串，靠 `PersonaAvatar` 的「首字 + 肤色档底色」合成。
     这是设计如此，不是缺图。
+    ✏️ **2026-09-30 起这两张 SVG 由后端的种子表指着**（`server/src/modules/user/domain/
+    entities/persona-seeds.ts` 里那两个 `/assets/img/ph-*.svg`；路径是**前端 `public/` 下**的，
+    服务端只存字符串、不存文件）。⇒ 改文件名/挪位置要**同时**改种子表，而
+    `server/test/persona-vocabulary.test.ts` 会拿 `existsSync` 当场逮住漏改的那一边。
+    **这 3 份空照片的种子照旧一个都不许补图**——它们走的正是新建人设时的默认态。
 15. ★ **2026-09-30 定了两条新规矩，别再改回去**：
     （a）SFC 块顺序统一成 `<template>` → `<script setup>` → `<style>`。
     改之前**全仓 24 个文件都是 `script` 在前**（包括搬迁前就存在的那 5 个），这是**新规矩**、不是修搬迁的错；
@@ -977,3 +1138,15 @@ npm run typecheck
     ★ 判据与本仓删「没有抛出点的错误码」是同一条（见 `server/.../app-error.ts` 的注释）：
     **一段永远不会执行的形状 = 假开关**。以后新加 `api/*.js` 函数时也照此办理——
     照有 HTTP 路由就镜像一份，等于自己养一批零消费者。
+17. ★ **2026-09-30（三）：人设库落地到服务端时删掉的那一批，别照旧印象加回来**：
+    （a）`api/personas.js` 里整套 localStorage 实现——`SEED_PERSONAS`、`storage`/`memStore`、
+    `readPersonas`/`writePersonas`/`migrateSeeds`、两把键前缀常量、`PERSONA_SEED_VERSION`。
+    （b）`getPersona(userId, id)`——**全仓零调用点**（store 一直用自己的 `getById`）。
+    按同一条判据它不留空壳；后端也**刻意没有** `GET /personas/:id` 单条路由（§7.1 那张表里没有它）。
+    （c）`analyzePortrait()`——那个**本地哈希**版的"读脸"。它给出的"建议"是编出来的，
+    用户点一次拿到的是一档随手算出来的肤色，而界面上和真读脸长得一模一样（§8-4）。
+    现在这条路是 `analyzePersonaFace()`（真调用、会花钱、配了才存在），**不许把它加回来兜底**。
+    （d）`stores/personas.js` 的 `count`——零消费者（同 (b) 的判据）。
+    （e）`humanize()` 里的 `QuotaExceededError` 那一支——不再往 localStorage 写，它是死分支。
+    ⚠️ **`decoratePersona` 留着**（它算的 `skinToneHex`/`featureNames` 只有前端 kb 有，§7.2），
+    **`shrinkPhoto` 也留着**（理由从配额换成了 JSON 体积，§8-3）——这两个别顺手一起删。

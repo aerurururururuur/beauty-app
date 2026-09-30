@@ -15,7 +15,7 @@
       <template v-else>
         <h1 class="flow-head__title">人设库</h1>
         <p class="flow-head__sub">
-          你的每一张脸，都值得一份档案——给自己、家人、朋友各建一份，创作时任选代入
+          你的每一张脸，都值得一份档案——给自己、家人、朋友各建一份，存在你的桃妆账号里，创作时任选代入
         </p>
       </template>
     </div>
@@ -75,7 +75,7 @@
       <RouterLink class="persona-card persona-card--create" :to="createTo">
         <span class="persona-card__plus"><Icon name="plus" :size="22" color="var(--color-rose)" /></span>
         <span class="persona-card__create-name">{{ pick ? '上传新形象，新建一份脸模' : '捏个新人设' }}</span>
-        <span class="persona-card__create-desc">拍一张或传一张照片，AI 先读脸，你再确认</span>
+        <span class="persona-card__create-desc">拍一张或传一张照片，肤色与特征由你确认</span>
       </RouterLink>
     </div>
   </main>
@@ -105,8 +105,9 @@ import { useDesignStore } from '@/stores/design'
  * ★ `?created=<id>` 是建完档回来时带的一次性通知:显示一条提示、给那一张卡加高亮。
  *   它不是数据(刷新后照旧显示,源站也这样),别拿它当状态判断。
  *
- * ★ 删除走 `window.confirm` 二次确认——本机浏览器里没有回收站,删了就没了。
- *   失败时 store 会把浏览器的英文异常转成一句人话(`error`),这里原样显示。
+ * ★ 删除走 `window.confirm` 二次确认——删掉的是**服务端**那一份(连照片字节一起),
+ *   没有回收站,删了就没了。
+ *   失败时 store 会把后端那句人话(`error`)原样显示出来,这里不自己编文案。
  */
 const router = useRouter()
 const user = useUserStore()
@@ -141,7 +142,9 @@ function openCard(id) {
   router.push(cardTo(id))
 }
 
-onMounted(() => {
-  personas.load(user.id)
+onMounted(async () => {
+  // ★ 列表现在从服务端来,不等它回来这一屏就是空的(「捏个新人设」那张卡照旧在,
+  //   所以看起来不像坏了——这正是它容易被漏掉的原因)。
+  await personas.load(user.id)
 })
 </script>

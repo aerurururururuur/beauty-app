@@ -58,6 +58,10 @@ export const useDesignStore = defineStore('design', () => {
   const pendingRender = computed(() => session.value?.pendingRender || null)
   const renderOffer = computed(() => session.value?.renderOffer || null)
   const renders = computed(() => session.value?.renders || [])
+  /** ★ 这个部署的读图入口(`VISION_ANALYZER=real` 才有);**空则无键**,不是空数组。 */
+  const analysisOffer = computed(() => session.value?.analysisOffer || null)
+  /** 上一次读图没读成的理由(后端 `notice` 原文)。★ 不是错误,别塞进 `error`。 */
+  const analysisNotice = ref('')
   const stepCount = computed(() => plan.value?.steps?.length || 0)
   const styleOptions = computed(() => plan.value?.styleOptions || [])
 
@@ -97,16 +101,31 @@ export const useDesignStore = defineStore('design', () => {
    *   那是可以接受的(会话有 TTL,到点自己删);**不可接受的是把失败藏起来**——
    *   那会让用户带着一个空会话进结果页,而结果页上是空的方案。
    */
-  async function submit({ userId, sceneId = 'party', persona = null, fields = [], faceFile = null }) {
+  async function submit({
+    userId,
+    sceneId = 'party',
+    persona = null,
+    fields = [],
+    faceFile = null,
+    canSendRefImages = false,
+  }) {
     if (generating.value) return ''
     generating.value = true
     error.value = ''
     try {
       const agent = await agentApi()
-      const brief = api.toBrief({ sceneId, persona, fields })
+      const brief = api.toBrief({ sceneId, persona, fields, canSendRefImages })
       const created = adopt(await agent.startAgentSession({ userId, brief }))
       if (faceFile) {
         adopt(await agent.uploadAgentPhoto({ sessionId: created.sessionId, userId, file: faceFile }))
+      }
+      // 参考图逐 `kind` 送一张 —— 挑法只此一处(`refImagesOf`),别在这儿再判一遍。
+      // ⚠️ **没有读图能力时一张都别传**:那两条路由根本没注册,传了就是 404,整次提交会栽在这。
+      // ★ 送上去只是"图在那儿了",**读它们要用户点**(会花钱,见 `analyze`)。
+      if (canSendRefImages) {
+        for (const { kind, file } of api.refImagesOf(fields).sent) {
+          adopt(await agent.uploadAgentImage({ sessionId: created.sessionId, userId, file, kind }))
+        }
       }
       adopt(
         await agent.sendAgentMessage({
@@ -198,11 +217,42 @@ export const useDesignStore = defineStore('design', () => {
   }
 
   /**
+   * ★ **读一张图**(`kind` = `face` / `scene` / `style`)—— **会花钱**。
+   *
+   * ⚠️ 只能由用户点那一下触发,调用方**必须**拿 `generating` 禁用按钮。
+   * ⚠️ `would_overwrite`(用户自己填过了)**没读也没花钱**,那句话落进 `analysisNotice`。
+   */
+  async function analyze({ userId, kind }) {
+    if (!sessionId.value || generating.value) return false
+    generating.value = true
+    error.value = ''
+    analysisNotice.value = ''
+    try {
+      const agent = await agentApi()
+      const { session: next, notice } = await agent.analyzeAgentImage({
+        sessionId: sessionId.value,
+        userId,
+        kind,
+      })
+      adopt(next)
+      // 只有"没读成"那一次才带 notice;读成了就是一段新状态,没有话要说。
+      analysisNotice.value = notice || ''
+      return true
+    } catch (e) {
+      error.value = e?.message || '这次没能读这张图，请稍后再试'
+      return false
+    } finally {
+      generating.value = false
+    }
+  }
+
+  /**
    * 换一个妆容风格。★ **代价是它不再免费、也不再是毫秒级**——一次 agent 回合,
    * 最长 90 秒(决策:方案改由 agent 产出)。步骤的数量与顺序会跟着配方变。
    *
-   * 说给 agent 的那句话里**同时带 id 与中文名**:模型看到的风格池本来就是
-   * `id(中文名)` 的形状(见后端 `style-pool-description.ts`),带上 id 它不必猜。
+   * 说给 agent 的那句话里**同时带 id 与中文名**:模型看到的那份清单本来就是
+   * `id(中文名)` 的形状(见后端 `style-options-description.ts`),带上 id 它不必猜。
+   * ★ 换的是**配方**,不是场合 —— 风格与场合是两张各自独立的表,换它不会动 `brief`。
    */
   function setStyle({ userId, styleId = '' }) {
     const option = styleOptions.value.find((o) => o.id === styleId)
@@ -210,7 +260,11 @@ export const useDesignStore = defineStore('design', () => {
     return runTurn(userId, `换成「${option.name}」(${option.id}) 这个风格，重新给我一套。`)
   }
 
-  /** 换一版:切到候选池里的下一个风格(顺序即推荐优先级,由后端给)。 */
+  /**
+   * 换一版:切到这个配方的**同族兄弟**里的下一个。
+   * ★ 候选由后端给(`plan.styleOptions`,同 `family` 的配方,含自身),这里是环状的:
+   *   走到最后一个就绕回第一个。不再有"按场合派池子"那回事。
+   */
   function regenerate({ userId }) {
     const pool = styleOptions.value
     if (!pool.length) return Promise.resolve(false)
@@ -223,11 +277,15 @@ export const useDesignStore = defineStore('design', () => {
    * 「记下这一版」。★ 不调任何接口、不假装落库——返回的就是一份**本地 JSON 快照**
    *   (`api/design.js` 的 snapshotDesign 说明为什么这么设计)。
    *   页面的按钮文案要说「已记下这一版」,不能说「已保存到我的作品」。
+   *
+   * ⚠️ 场景取自**表单定义**,不是 `brief.occasion` —— 后者从 2026-09-30 起可能是
+   *   用户自己的话(「朋友的婚礼」),拿它当场景 id 查出来是空的。
    */
   function snapshot() {
+    const sceneId = form.value?.sceneId || ''
     return api.snapshotDesign({
-      sceneId: session.value?.brief?.occasion || '',
-      sceneName: sceneNameOf(session.value?.brief?.occasion || ''),
+      sceneId,
+      sceneName: sceneNameOf(sceneId),
       plan: plan.value,
     })
   }
@@ -237,6 +295,7 @@ export const useDesignStore = defineStore('design', () => {
     session.value = null
     sessionId.value = ''
     error.value = ''
+    analysisNotice.value = ''
   }
 
   return {
@@ -254,10 +313,13 @@ export const useDesignStore = defineStore('design', () => {
     renders,
     stepCount,
     styleOptions,
+    analysisOffer,
+    analysisNotice,
     sceneNameOf,
     loadForm,
     submit,
     loadSession,
+    analyze,
     confirmRender,
     setStyle,
     regenerate,

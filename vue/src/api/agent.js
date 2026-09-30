@@ -8,12 +8,15 @@ import api, { API_BASE } from './index'
  *   GET  /agent/sessions/:id        200 会话视图(?userId=)
  *   POST /agent/sessions/:id/messages  200 本轮视图(turn view)
  *   POST /agent/sessions/:id/photo     200 会话视图(multipart:face + userId)
- *   POST /agent/sessions/:id/render    ★ 200 本轮视图 —— 全项目唯一会花钱的入口
+ *   POST /agent/sessions/:id/render    ★ 200 本轮视图 —— 会花钱
  *   GET  /agent/sessions/:id/renders/:seq   200 图片字节(?userId=)
+ *   POST /agent/sessions/:id/images    200 会话视图(multipart:file + kind + userId)。免费
+ *   POST /agent/sessions/:id/analyses  ★ 200 { session, kind, status, notice? } —— 会花钱
+ *   ⚠️ 最后两条**只在 `VISION_ANALYZER=real` 时才注册**;`off`(缺省)是 404,不是"永远失败"。
  *
  * 归属靠显式传 userId(后端不签发 token、不建会话),与 cabinet 一致。
  *
- * ★★ **本文件是全项目唯一没有 mock 分支的 api 模块,这是有意的。**
+ * ★★ **本文件刻意不给 mock 分支**(`api/personas.js` 也是)。
  *   其余几个模块都写着 `if (useMock()) return (await import('./mock')).xxx(...)`,
  *   因为它们在浏览器里有一份形状逐字段一致的假后端。这条路**没有**:
  *   它的状态在服务端一个真实的 `messages[]` 上,而**确认出图**是一条真实的、
@@ -92,17 +95,44 @@ export async function sendAgentMessage({ sessionId, userId, text }) {
 /**
  * 上传本人照片(multipart,字段 `face` + `userId`)→ 会话视图。
  *
- * ★ 这是**人设照片唯一一条离开浏览器的路**(vite/AGENTS.md §8-3 那条例外)。
- *   其余任何路径(`/personas` 的增删改查、换照片、问卷建档)一行 HTTP 都没有。
- *
- * ★ 照片**不进对话历史**,只存盘;服务端另往历史里补一句「我传了一张本人的正面照片。」
- *   而那句话**不透出到视图**——所以这一屏**不摆气泡**,它只关心 `hasFace`。
+ * ★ 照片离开浏览器的路只有两条(AGENTS.md §8-3):本人照片走本函数,参考图走下面那个。
+ * ★ 照片**不进对话历史**,只存盘,所以这一屏**不摆气泡**,它只关心 `hasFace`。
  */
 export async function uploadAgentPhoto({ sessionId, userId, file }) {
   const form = new FormData()
   form.append('face', file)
   form.append('userId', userId)
   return api.post(`/agent/sessions/${encodeURIComponent(sessionId)}/photo`, form, longRequest)
+}
+
+/**
+ * 上传一张参考图(场景图 / 风格图)→ 会话视图。**这一步免费**,读图在下一条。
+ *
+ * ⚠️ 文件字段叫 **`file` 不是 `face`**(后端 `IMAGE_UPLOAD_FIELDS`)。
+ * ⚠️ 后端每个 `kind` **只有一个槽**:同类再传就是换掉前一张,挑哪张由调用方定。
+ */
+export async function uploadAgentImage({ sessionId, userId, file, kind }) {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('userId', userId)
+  form.append('kind', kind)
+  return api.post(`/agent/sessions/${encodeURIComponent(sessionId)}/images`, form, longRequest)
+}
+
+/**
+ * ★ **读一张图**(`kind` = `face` / `scene` / `style`)—— **会花钱**。
+ *
+ * ⚠️ 只收 `kind`,不收分析参数:「用户填的优先」是服务端的规则(同 `confirmAgentRender`)。
+ * ⚠️ **必须由用户点那一下触发**,调用方拿 `generating` 禁用按钮——进页面就跑是替用户花钱。
+ * 返回 `{ session, kind, status, notice? }`;`would_overwrite` 时没读也没花钱,
+ * `notice` 要**原样展示**。
+ */
+export async function analyzeAgentImage({ sessionId, userId, kind }) {
+  return api.post(
+    `/agent/sessions/${encodeURIComponent(sessionId)}/analyses`,
+    { userId, kind },
+    longRequest
+  )
 }
 
 /**

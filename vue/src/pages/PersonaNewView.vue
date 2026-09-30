@@ -7,7 +7,7 @@
   <main class="content content--flow">
     <div class="flow-head">
       <h1 class="flow-head__title">先给这个人设一张脸</h1>
-      <p class="flow-head__sub">照片只用于面部分析：AI 会读出建议肤色与面部特征，下一步由你确认</p>
+      <p class="flow-head__sub">照片会在你建档时存进桃妆账号，当这份人设的脸模；只在你要出图时才送去渲染</p>
     </div>
 
     <ErrorNote :text="personas.error" />
@@ -39,8 +39,8 @@
       <img class="photo-stage__img" :src="photo" alt="人设照片预览" />
       <div class="photo-stage__body">
         <div class="photo-stage__title">照片就绪</div>
-        <div class="photo-stage__desc">下一步 AI 会读出建议肤色与面部特征，你确认后就建档</div>
-        <RouterLink class="btn btn--primary" :to="quizTo">下一步：AI 面诊</RouterLink>
+        <div class="photo-stage__desc">下一步填肤色与面部特征：自己选，也可以让 AI 读一次脸给个建议，最终由你确认</div>
+        <RouterLink class="btn btn--primary" :to="quizTo">下一步：填档案</RouterLink>
       </div>
     </div>
   </main>
@@ -59,10 +59,13 @@ import { usePersonasStore } from '@/stores/personas'
 /**
  * 捏个新人设 · 第 1 步:给这个人设一张脸。
  *
- * ★ 照片**只在本机处理**:选完先缩到长边 ≤640 的 JPEG(`putDraftPhoto`),
- *   再存进本次会话的草稿里。**不上传、不进网络**。
+ * ★ 照片在**这一步**只到本机为止:选完先缩到长边 ≤640 的 JPEG(`putDraftPhoto`),
+ *   再存进本次会话的草稿里。**送上去发生在下一步点「建好这个人设」的那一刻**
+ *   (`stores/personas.js` 的 `create`),也就是说用户在确认档案之前随时可以退出去、什么也没留下。
  * ★ 草稿存 sessionStorage,所以刷新这一页照片还在(这就是 `photo` 直接读草稿的原因)。
  *   它会在建档成功或退出登录时被清掉。
+ * ★ 建档之后照片就**存在服务端**了(长期保留、没有 TTL)——页面文案必须如实这么说,
+ *   别写「只在本次会话里」「不上传」(那是 2026-09-30 之前的旧口径,已作废)。
  *
  * ★ 两张来源卡走的是同一个 input,只有 `capture="user"` 一行之差(手机上前置摄像头)。
  *   桌面上这个属性被忽略,所以两卡看起来一样——这是浏览器的行为,不是没生效。

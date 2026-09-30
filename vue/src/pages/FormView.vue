@@ -35,30 +35,15 @@
             <span v-if="f.required" class="info-field__req">必填</span>
             <span v-else class="info-field__opt">选填</span>
           </h3>
-          <div class="info-field__switch" role="tablist">
-            <button
-              class="switch-tab"
-              :class="{ 'switch-tab--active': inputs[f.key]?.mode === 'text' }"
-              role="tab"
-              type="button"
-              @click="inputs[f.key].mode = 'text'"
-            >
-              文字描述
-            </button>
-            <button
-              class="switch-tab"
-              :class="{ 'switch-tab--active': inputs[f.key]?.mode === 'image' }"
-              role="tab"
-              type="button"
-              @click="inputs[f.key].mode = 'image'"
-            >
-              图片上传
-            </button>
-          </div>
         </header>
         <p class="info-field__hint">{{ f.hint || '' }}</p>
 
-        <div v-show="inputs[f.key]?.mode === 'text'" class="info-field__pane info-field__pane--text">
+        <!--
+          ★ 文字与图片**不互斥**:两个块同时摆着,想填哪个填哪个、也可以都填。
+            `collectFields` 照样两种都收,`type` 会记成 'both'。
+        -->
+        <div class="info-field__pane">
+          <span class="info-field__pane-label">文字描述</span>
           <textarea v-model="inputs[f.key].text" class="info-field__input" rows="3" :placeholder="f.placeholder || ''"></textarea>
           <!-- 预设选项是多选快捷输入,与手写的文字一起提交(不是二选一) -->
           <div v-if="(f.options || []).length" class="info-field__opts">
@@ -75,7 +60,8 @@
           </div>
         </div>
 
-        <div v-show="inputs[f.key]?.mode === 'image'" class="info-field__pane info-field__pane--image">
+        <div class="info-field__pane">
+          <span class="info-field__pane-label">上传图片</span>
           <div class="uploader">
             <div class="uploader__slots">
               <div v-for="(img, i) in inputs[f.key].images" :key="img.url" class="uploader__slot">
@@ -105,7 +91,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
@@ -123,18 +109,18 @@ import { useDesignStore } from '@/stores/design'
  * ★ 动线是固定的:场景 → 人设库选一张脸 → 本页。**没有 `?persona=` 就回人设库**,
  *   不允许跳过——肤色与面部特征都从那份档案带出来,跳过了结果页就没有可个性化的依据。
  *
- * ★ 每个字段两种输入方式(文字 / 图片),二选一显示,但**收集时两种都要**
- *   (`collectFields` 里的 `type` 就是给这个用的:'text' / 'image' / 'both')。
+ * ★ 每个字段**文字与图片两个块同时摆着**,想填哪个填哪个、也可以都填——
+ *   不搞切换(`collectFields` 的 `type` 记下实际用了哪种:'text' / 'image' / 'both')。
  *
  * ★★ 这一屏就是「填完交给 agent」那一下。提交时会做三次握手
  *   (建会话 → 传脸 → 开场那句话,见 `stores/design.js` 的 `submit`)。
  *   ⇒ 所以按钮**会有真的等待**(最长 90 秒),文案也照实说「正在配妆…」——
  *     它不再是假等待屏(那条规矩随本地推导一起作废了,见 `vue/AGENTS.md` §8-4)。
  *
- * ★ **只上传这一张脸。** `/form` 收的**信息图这一期不传**——它们对应后端
- *   `/images` 的 `kind: scene`,而 `VISION_ANALYZER=off`(缺省)时那条路由
- *   根本没注册,发过去是 404。`toBrief` 会在 `sceneText` 里补一句「用户上传了
- *   N 张图片(本次未能送达)」,让 agent 知道有这回事、可以开口问——**不能装没看见**。
+ * ✏️ 2026-09-30:参考图会送给 agent —— 每个 `kind` 只送一张(后端槽就一个),
+ *   多出来的不静默丢,`toBrief` 会在 `sceneText` 里照实写。
+ *   ⚠️ **只有 `canAnalyzeFace` 为真时才送**(那两条路由缺省不注册,传了就是 404);
+ *   而送上去 ≠ 读了:读图会花钱,要用户在 `/result` 上点(见 `ResultView`)。
  *
  * ★ 图片预览走 `URL.createObjectURL`,用完**必须 revoke**——否则每选一张图就漏一份内存,
  *   而且 blob URL 会把文件一直钉在内存里直到刷新。这条生命周期收在 `useObjectUrls` 里,
@@ -156,13 +142,43 @@ const personaId = useQueryParam('persona')
 const persona = ref(null)
 const form = computed(() => design.form)
 
-/** 每格字段的输入态:`{ [key]: { mode, text, opts, images } }`。 */
+/** 每格字段的输入态:`{ [key]: { text, opts, images } }`。 */
 const inputs = ref({})
+
+/**
+ * 让每一格字段都**先有**一个输入态——这是渲染的前提,不是收尾工作。
+ *
+ * ★ 为什么必须在这里、而不是 `onMounted`:首屏渲染**早于** `onMounted`,而 `form` 住在
+ *   store 里、跨页面活着,`inputs` 是本页的。第二次进本页(「换一份」/「上一步」回去换张脸、
+ *   或 HMR 重挂)时,首屏就有字段了而 `inputs` 还是空的,模板里的 `inputs[f.key].text`
+ *   会报 `Cannot read properties of undefined`。`immediate` 会在 setup 里同步跑一次,
+ *   早于首次渲染,于是「渲染出来的字段一定有输入态」成了一条结构性保证,不靠时序凑巧。
+ * ★ 已填过的格子**不覆盖**:换场景时同一格重进,用户写下的东西不该被清掉。
+ * ★ `defaultOpts` 是这一格的**预选值**(目前只有「场合」那一格用:场景名,
+ *   见 `api/design.js` 的 `getSceneForm`)。不读它,那一格就是空的 —— 而用户看到的
+ *   会是一个本该填好的空白格,提交上去 `occasion` 就少了一截。
+ */
+watch(
+  form,
+  (next) => {
+    const seeded = {}
+    for (const f of next?.fields || []) {
+      seeded[f.key] =
+        inputs.value[f.key] ||
+        { text: '', opts: [...(f.defaultOpts || [])], images: [] }
+    }
+    inputs.value = seeded
+  },
+  { immediate: true }
+)
 
 const personaQuery = computed(() => ({ scene: sceneId.value, pick: '1' }))
 
-onMounted(() => {
-  personas.load(user.id)
+onMounted(async () => {
+  // ★★ **必须 `await`。** 人设现在从服务端拉(`stores/personas.js` 的 `load` 是异步的),
+  //   不等它回来就读 `getById`,列表还是空的 ⇒ **每一张脸都会被判成「没有这份人设」**,
+  //   于是用户刚挑好的人被静默踢回人设库,而且看不出发生了什么(本仓的头号形状)。
+  await personas.load(user.id)
   const p = personas.getById(personaId.value)
   if (!p) {
     // 没有（或已删掉）那份人设:回人设库重选一份,别在这一屏留一个空壳
@@ -170,10 +186,8 @@ onMounted(() => {
     return
   }
   persona.value = p
+  // 输入态由上面那个 `watch(form, …)` 补,这里只管换/定表单定义
   design.loadForm(sceneId.value)
-  for (const f of form.value.fields) {
-    inputs.value[f.key] = { mode: 'text', text: '', opts: [], images: [] }
-  }
 })
 
 /* --------------------------- 图片预览 --------------------------- */
@@ -188,7 +202,10 @@ function onFiles(key, event) {
   const files = [...(event.target.files || [])]
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
-    inputs.value[key].images.push({ url: createPreviewUrl(file) })
+    // ★ 预览地址给眼睛用,`file` **给上传用** —— 两个都要留住。
+    //   只留 `url` 的话,提交时手上就没有字节了:那个 `blob:` 地址是 fetch 不回来的
+    //   (它只在本文档内解析),而要把字节拿回来,本来就得靠当初这个 `File`。
+    inputs.value[key].images.push({ url: createPreviewUrl(file), file })
   }
   event.target.value = ''
 }
@@ -208,17 +225,25 @@ function dropImage(key, index) {
 
 /* --------------------------- 提交 --------------------------- */
 
-/** 收集:每格都保留文字与图片两种输入,`type` 说明这一格实际用了哪种。 */
+/**
+ * 收集:每格都保留文字与图片两种输入,`type` 说明这一格实际用了哪种。
+ *
+ * ★ **`images` 与 `files` 是两份**:`images` 是预览地址(给人看,`toBrief` 拿它数数),
+ *   `files` 才是要送出去的**字节**(`stores/design.js` 送去 `/agent/sessions/:id/images`)。
+ *   别把两份合成一份 —— 合并之后 `toBrief` 那句「用户上传了 N 张图片」就会开始数错。
+ */
 function collectFields() {
   return (form.value?.fields || []).map((f) => {
     const input = inputs.value[f.key]
     const text = [input.text.trim(), ...input.opts].filter(Boolean).join('；')
     const images = input.images.map((img) => img.url)
+    const files = input.images.map((img) => img.file).filter(Boolean)
     return {
       key: f.key,
       type: text && images.length ? 'both' : images.length ? 'image' : 'text',
       text,
       images,
+      files,
     }
   })
 }
@@ -226,9 +251,11 @@ function collectFields() {
 /**
  * 人设照片 → 要上传的那个文件。
  *
- * ★ 人设照片在本机是**两种**形态:用户自己传的存成 dataURL,种子那几份是
- *   `public/` 下的静态 SVG 路径。两种都能被 `fetch` 读成字节,所以这里不分支
+ * ★ 人设照片现在是**两种**来源(2026-09-30 起都是**服务端给的一个地址**):
+ *   用户自己传的那份走 `/personas/<id>/photo?userId=`,种子那几份是 `public/` 下的静态 SVG。
+ *   两种都能被 `fetch` 读成字节,所以这里不分支
  *   ——分支就会出现「种子人设传不上去」这种只有挑特定脸才会遇到的怪毛病。
+ *   ★ 那个 URL 由 `decoratePersona` 拼好(已带 `API_BASE` 与 `?userId=`),本页不自己拼。
  * ★ 没有照片时返回 null:那就不传,让 agent 去要一张(结果页会显示 `hasFace=false`)。
  */
 async function faceFileOf(p) {
@@ -244,6 +271,10 @@ async function onSubmit() {
     persona: persona.value,
     fields: collectFields(),
     faceFile: await faceFileOf(persona.value),
+    // ★ 判据**只此一处**:服务端在 `GET /personas` 里回的那个 `canAnalyzeFace`
+    //   (`VISION_ANALYZER=off` 时为假 ⇒ 送参考图那两条路由根本没注册)。
+    //   为假时**一张都不传**,否则 404 会把整次提交打掉。
+    canSendRefImages: personas.canAnalyzeFace,
   })
   // 失败时不跳转:错误就打在按钮旁边(design.error),地址栏不动
   if (!sessionId) return
