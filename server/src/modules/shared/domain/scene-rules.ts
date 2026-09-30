@@ -52,7 +52,7 @@ export const SCENE_MATCH_ORDER: readonly Occasion[] = [
   'daily',
 ];
 
-/** 场合语义表(单一源)。`Record<Occasion, …>` 保证漏配一个场合就编译不过。 */
+/** 预设场合的语义表。`Record<Occasion, …>` 保证漏配一个预设就编译不过。 */
 export const SCENE_RULES: Record<Occasion, SceneStyle> = {
   interview: {
     cn: '面试',
@@ -193,22 +193,60 @@ function appendModifiers(base: string, suffixes: string[]): string {
  *   ③前端设计那一轮很可能又要按场合显示中文名/方向(风格参考图那条不走引擎,只做文本化分析)。
  *   真要删,是"alias + fs.allow + `options.js` 的注释 + 那条测试"一起动,**不是删这个文件**。
  *
- * 判定顺序:显式 `occasion` → 自由文字命中关键词 → `daily` 兜底。
+ * 判定顺序见 `sceneRuleFor`(预设命中 → 关键词命中 → `daily` 兜底)。
  * 之后**无论走哪条**都再叠一层修饰词。
  *
  * ★ 这里曾经返回过一个 `confidence: number`(2026-09-10 删)和一个恒定的 `source`。两者都是
  *   按分支硬写的常量、零消费者,拿它们做 UI 等于把常量包装成测量值。要接视觉模型时,
  *   分数才真的含有信息,那时再连同接缝一起加回来。
  */
-export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
-  const text = (brief.sceneText ?? '').toLowerCase();
+/**
+ * 预设场合的中文名;表外的自由文本返回 `undefined`(由调用方决定怎么念)。
+ *
+ * ★ 给的是「查得到就翻译,查不到就别动」,和 `sceneRuleFor` 那种「落到最近一档」
+ *   **不是一回事**:场合现在允许用户说表外的话(如「朋友的婚礼」),把它收进「聚会」
+ *   会让用户的原话到不了出图提示词。
+ *
+ * 用途:渲染「这是哪个场合」。取值可能是预设 id(`interview`),也可能是用户原话
+ * (中文,或干脆是别的说法)—— 前者要翻成中文,后者原样念。
+ */
+export function presetOccasionCn(occasion: string | undefined): string | undefined {
+  const preset = presetOf(occasion);
+  return preset ? SCENE_RULES[preset].cn : undefined;
+}
+
+/**
+ * 是 8 个预设之一就返回它,否则(含 `undefined`)返回 `undefined`。
+ *
+ * ★ 判定用本文件内的 `SCENE_MATCH_ORDER`,**不 import `OCCASIONS`** ——
+ *   本文件禁止运行时 import(前端经 vite alias 直接执行它,见文件头),而 `OCCASIONS`
+ *   是个运行时值。两个集合相等这件事由 `test/scene-rules.test.ts` 钉着。
+ */
+function presetOf(occasion: string | undefined): Occasion | undefined {
+  return SCENE_MATCH_ORDER.find((preset) => preset === occasion);
+}
+
+export function sceneRuleFor(
+  occasion: string | undefined,
+  sceneText?: string,
+): { label: Occasion; style: SceneStyle } {
+  const known = presetOf(occasion);
+  const text = `${occasion ?? ''} ${sceneText ?? ''}`.toLowerCase();
 
   const label: Occasion =
-    brief.occasion ??
+    known ??
     SCENE_MATCH_ORDER.find((o) => SCENE_RULES[o].keywords.some((k) => text.includes(k))) ??
     DEFAULT_OCCASION;
 
-  const style = SCENE_RULES[label];
+  return { label, style: SCENE_RULES[label] };
+}
+
+export function describeScene(brief: MakeupBrief = {}): SceneDescriptor {
+  const text = (brief.sceneText ?? '').toLowerCase();
+
+  // ★ 走 `sceneRuleFor` 而**不是**裸下标 `SCENE_RULES[brief.occasion]`——那个字段是
+  //   自由文本(用户能说「朋友的婚礼」),裸下标会拿到 `undefined` 再炸在 `.tags` 上。
+  const { label, style } = sceneRuleFor(brief.occasion, brief.sceneText);
   const tags = [...style.tags];
   const suffixes: string[] = [];
 

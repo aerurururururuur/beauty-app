@@ -3,7 +3,7 @@
  *
  * ── 为什么规则在这里、不在 schema 里 ─────────────────────────────────────────
  *
- * `domain/schemas/contracts/brief-fields.ts` 只回答「这是什么结构」：五个字段都是
+ * `domain/schemas/contracts/brief-fields.ts` 只回答「这是什么结构」：这几个字段都是
  * 可选字符串。**「哪些取值算合法」「最长多少字」是业务规则，不是结构**——
  * 所以它们在这里，和枚举单源（`domain/entities/brief.ts` 的元组）待在一起。
  *
@@ -22,12 +22,18 @@
  * （§7.3 第 4 条：工具错误不抛穿循环）。规则只有一份，失败怎么呈现由各自决定。
  */
 import type { MakeupBrief } from '../entities/brief.js';
-import { OCCASIONS, SKIN_TONES, SKIN_TYPES } from '../entities/brief.js';
+import { SKIN_TONES, SKIN_TYPES } from '../entities/brief.js';
 
 /** 自由文字（场景文字）上限（字）。 */
 export const MAX_SCENE_TEXT = 2000;
 /** 穿搭一句话描述上限（字）。 */
 export const MAX_DRESS = 80;
+/** 场合一句话上限（字）。用户自己说的场合是自由文本，这里只管长度。 */
+export const MAX_OCCASION = 40;
+/** 「想要的风格」上限（字）。 */
+export const MAX_STYLE_TEXT = 80;
+/** 场景图读数上限（字）。与 `MAX_SCENE_TEXT` 分开：那是用户的原话，这是从图里读出来的。 */
+export const MAX_SCENE_NOTE = 200;
 /**
  * 面部特征最多带几条。
  *
@@ -36,6 +42,12 @@ export const MAX_DRESS = 80;
  *   （`shared` 不能 import 它），未知 id 由消费者剔掉，见 `MakeupBrief.features`。
  */
 export const MAX_FEATURES = 64;
+/**
+ * 「人设补充说明」上限(字)。★ 前端把补充说明 + 认不出的自定义特征拼成**一段话**送过来,
+ *   所以这里量的是那段话的长度。
+ * ⚠️ 与 `persona.validator.ts` 的 `MAX_NOTES`(200)是**两个数,不是笔误** —— 那一格只装补充说明。
+ */
+export const MAX_PERSONA_NOTES = 300;
 
 /**
  * 待检字段。**故意用 `string` 而不是枚举联合**：调用方给的是「刚过形状、还没过规则」
@@ -44,12 +56,15 @@ export const MAX_FEATURES = 64;
  */
 export interface BriefFieldsInput {
   occasion?: string | undefined;
+  styleText?: string | undefined;
   sceneText?: string | undefined;
   skinType?: string | undefined;
   skinTone?: string | undefined;
   dress?: string | undefined;
   /** 元素同样只保证是字符串；是不是**认得出来的**特征 id 不在这里判。 */
   features?: readonly string[] | undefined;
+  /** 「人设补充说明」——自由文本，只判长度。 */
+  personaNotes?: string | undefined;
 }
 
 export type BriefFieldsCheck =
@@ -57,35 +72,45 @@ export type BriefFieldsCheck =
   | { ok: false; message: string };
 
 /**
- * 校验并清洗五个共用字段。
+ * 校验并清洗这几个共用字段。
  *
  * 规则：
- *   - `occasion` / `skinType` / `skinTone` 必须在 `entities/brief.ts` 的元组里；
+ *   - `occasion` / `styleText` 是**自由文本**，只判长度（2026-09-30 松绑：枚举当关卡会
+ *     把用户自己说的场合打成 422，整份 brief 一起丢）；
+ *   - `skinType` / `skinTone` 必须在 `entities/brief.ts` 的元组里；
  *   - `sceneText` / `dress` **按原文长度**判上限（与 schema 时的口径一致：
  *     先量后 trim，不因为补一个尾随空格就放宽），trim 后为空视同**没给**；
  *   - `features` 只查条数上限 + 去重 + 去掉空串，**不查成员**（合法 id 在 `face-catalog`）；
+ *   - `personaNotes` 是**自由文本**，只判长度；
  *   - `weather` **不在这里**——它是表单独有的成员，不属于共用字段。
  */
 export function checkBriefFields(input: BriefFieldsInput): BriefFieldsCheck {
   const problems: string[] = [];
 
-  const occasion = pickEnum('occasion', input.occasion, OCCASIONS, problems);
+  const occasion = checkText('occasion', input.occasion, MAX_OCCASION, problems);
+  const styleText = checkText('styleText', input.styleText, MAX_STYLE_TEXT, problems);
   const skinType = pickEnum('skinType', input.skinType, SKIN_TYPES, problems);
   const skinTone = pickEnum('skinTone', input.skinTone, SKIN_TONES, problems);
   const sceneText = checkText('sceneText', input.sceneText, MAX_SCENE_TEXT, problems);
   const dress = checkText('dress', input.dress, MAX_DRESS, problems);
   const features = checkFeatures(input.features, problems);
+  const personaNotes = checkText('personaNotes', input.personaNotes, MAX_PERSONA_NOTES, problems);
 
   if (problems.length > 0) return { ok: false, message: problems.join(';') };
 
-  // ★ 逐字段显式赋值（§6：穷举字段，不用对象展开）——新增字段时这里编译期就会提醒。
+  // ★ 逐字段显式赋值（§6：穷举字段，不用对象展开）。
+  // ⚠️ **这里漏一行不会有任何提示** —— 字段全是 optional，漏了只是键不进对象：
+  //    200、日志干净，只有模型手里的 brief 少一格。加字段时照着 `test/schemas.test.ts`
+  //    那组「两条路给同一个答案」的探针表补一行。
   const brief: MakeupBrief = {};
   if (occasion) brief.occasion = occasion;
+  if (styleText) brief.styleText = styleText;
   if (skinType) brief.skinType = skinType;
   if (skinTone) brief.skinTone = skinTone;
   if (sceneText) brief.sceneText = sceneText;
   if (dress) brief.dress = dress;
   if (features) brief.features = features;
+  if (personaNotes) brief.personaNotes = personaNotes;
   return { ok: true, brief };
 }
 

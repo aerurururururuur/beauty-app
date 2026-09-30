@@ -244,14 +244,22 @@ export function addAnalysis(session: Session, kind: AnalyzeCase): Session {
  * 它必须在**花钱之前**问。反过来写(先花钱、再看要不要用)的话,用户每点一次
  * 就白花一次钱,而那个结果**一定**会被丢掉——他不会看到任何变化,只会看到账单。
  *
- * `style` 恒为 `false`:它落的是 `styleRead`,一个用户**填不了**的字段
- * (表单里没有那一格)。★ 别为了让三个 case 看起来一致而给它编一个覆盖判断——
- * 那会是一条永远为假的死分支。
+ * ★ **只有 `face` 可能为真。** 判据是「这次分析的落点,用户自己能不能填」:
+ *   - `face` 落 `brief.skinTone` —— 表单里有那一格(§8-1),所以用户填了就**别覆盖**;
+ *   - `scene` 落 `brief.sceneNote`,`style` 落 `session.styleRead` —— 两个都是用户
+ *     **填不了**的字段(表单里没有那一格,`patch_brief` 也写不了),恒为 `false`。
+ *
+ *   ⚠️ **`scene` 曾经判的是 `brief.occasion !== undefined`,那是个死锁**(2026-09-30 修):
+ *   表单**无条件**把卡片场景写进 `occasion`,于是这一支在 `/form` 那条路上恒为真 ⇒
+ *   场景图传上去、点分析、**一次模型都不调**,直接回「你已经填过场合了」。
+ *   界面一切正常,只有结果是错的 —— 本仓头号 bug「假开关」的形状。
+ *   现在 `sceneNote` 与 `occasion` 是两个格子,谁也不盖谁。
+ *
+ * ★ 别为了让三个 case 看起来一致而给 `scene` / `style` 编一个覆盖判断——
+ *   那会是一条永远为假的死分支。
  */
 export function analysisWouldOverwrite(session: Session, kind: AnalyzeCase): boolean {
-  if (kind === 'face') return session.brief.skinTone !== undefined;
-  if (kind === 'scene') return session.brief.occasion !== undefined;
-  return false;
+  return kind === 'face' && session.brief.skinTone !== undefined;
 }
 
 /**

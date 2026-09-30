@@ -80,6 +80,22 @@ function isConnectPhaseError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * ★ `fetch` 失败时 `err.message` 只有 `fetch failed`,真原因在 `err.cause` 里;
+ *   不打出来,下面那条重试日志就只剩「重试了」三个字,排查只能靠猜。
+ * ★ 与 `makeup/infrastructure/connect-retry.ts` 那份**刻意各留一份**(本模块不 import 它的深路径)。
+ */
+function describeError(err: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = err;
+  for (let depth = 0; cur instanceof Error && depth < 5; depth++) {
+    const code = (cur as NodeJS.ErrnoException).code;
+    parts.push(`${cur.message}${code ? ` [${code}]` : ''}`);
+    cur = cur.cause;
+  }
+  return parts.join(' ← ') || String(err);
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 // ── 内部形状 → 线上形状 ─────────────────────────────────────────────────────
@@ -296,14 +312,15 @@ export class DashScopeLlm implements Llm {
         if (err instanceof LlmUnavailableError) throw err;
         if (attempt < attempts && isConnectPhaseError(err)) {
           const wait = 500 * attempt;
-          console.warn(`[agent] LLM 连接阶段错误,${wait}ms 后重试(${attempt}/${attempts - 1})`);
+          // ★ 整条链都要:最外层永远只有 `fetch failed`,code 在 `err.cause` 上。
+          console.warn(
+            `[agent] LLM 连接阶段错误,${wait}ms 后重试(${attempt}/${attempts - 1}):${describeError(err)}`,
+          );
           await sleep(wait);
           continue;
         }
-        throw new LlmUnavailableError(
-          `LLM 请求失败:${err instanceof Error ? err.message : String(err)}`,
-          err,
-        );
+        // ★ 三次都没接上时这一句是用户看到的那句 —— 只说"fetch failed"等于没说。
+        throw new LlmUnavailableError(`LLM 请求失败:${describeError(err)}`, err);
       }
     }
   }

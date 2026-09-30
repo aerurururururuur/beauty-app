@@ -35,7 +35,7 @@
 //   这里**再导出**而不是另写一份——`makeup/index.ts` 的对外契约一个字不变。
 //   ⚠️ `export ... from` 只再导出、**不建立本地绑定**,所以下面还有一条 import
 //   —— 本文件自己要用 `ToneKey`(见 `ZoneSpec`)。
-import type { Occasion, ToneKey } from '../../../shared/index.js';
+import type { ToneKey } from '../../../shared/index.js';
 export { TONE_KEYS } from '../../../shared/index.js';
 export type { ToneKey } from '../../../shared/index.js';
 // ★ 下面这 8 个名字就是「形状的单源」:本文件**一个字段都不声明**,全靠它们。
@@ -153,8 +153,8 @@ export class LookSpec {
   }
 }
 export interface LookSpec extends LookSpecShape {
-  /** 复用 shared 的场合枚举(单一源)。 */
-  readonly occasion: Occasion;
+  /** 场合,**自由文本**——预设表之外也能说(如「朋友的婚礼」)。校验只管长度。 */
+  readonly occasion: string;
   readonly base: LookSpecBase;
   /** 三个区 + 眉。分组用内联形状即可:成员全是名义类型,不必再加一层。 */
   readonly zones: {

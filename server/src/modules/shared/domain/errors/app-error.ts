@@ -18,6 +18,26 @@ export const ErrorCode = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   CABINET_ITEM_NOT_FOUND: 'CABINET_ITEM_NOT_FOUND',
   CABINET_FULL: 'CABINET_FULL',
+  /** 人设不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */
+  PERSONA_NOT_FOUND: 'PERSONA_NOT_FOUND',
+  /** 单用户人设上限:同 `CABINET_FULL`,JSON 单表整表读改写,不设上限会越写越慢。 */
+  PERSONA_FULL: 'PERSONA_FULL',
+  /**
+   * 人设**在**、但它没有存在服务端的照片(还是示例静态图,或者压根没传)。
+   * ★ 与 `PERSONA_NOT_FOUND` 分开:那时候回「没有这份人设」是与事实相反的一句话,
+   *   而这句 message 前端会原样上屏。
+   */
+  PERSONA_PHOTO_NOT_FOUND: 'PERSONA_PHOTO_NOT_FOUND',
+  /** 自建肤色档不存在(**或不属于该用户**——两者共用,不外泄存在性)。 */
+  SKIN_TONE_NOT_FOUND: 'SKIN_TONE_NOT_FOUND',
+  /** 单账号自建档上限:同 `PERSONA_FULL`,JSON 单表整表读改写。 */
+  SKIN_TONE_FULL: 'SKIN_TONE_FULL',
+  /**
+   * 还有人在用这一档,不给删。
+   * ★ 这条**必须**报错、不许静默删:删掉之后那几份人设的 `skinTone` 会变成悬空 id,
+   *   前端渲染成「未定档」+ 无色块,而且 200、日志干净(本仓头号 bug 类型)。
+   */
+  SKIN_TONE_IN_USE: 'SKIN_TONE_IN_USE',
   /** 对话会话不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */
   SESSION_NOT_FOUND: 'SESSION_NOT_FOUND',
   /**

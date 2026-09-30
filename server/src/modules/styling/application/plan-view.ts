@@ -84,6 +84,6 @@ export interface PlanView {
   };
   steps: PlanStep[];
   personalized: PlanPersonalized[];
-  /** 这个场合的**全部**候选风格(顺序即推荐优先级),供前端摆切换条。 */
+  /** 「换一版」的候选:**同 `family` 的兄弟**(含自身),供前端摆切换条。 */
   styleOptions: PlanStyleOption[];
 }

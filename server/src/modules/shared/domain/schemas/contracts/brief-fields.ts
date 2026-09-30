@@ -31,10 +31,18 @@ import { z } from 'zod';
  */
 export const briefFields = {
   occasion: z.string().optional(),
+  /** 用户想要的风格(自由文本,可与 `STYLE_LIBRARY` 无关)。 */
+  styleText: z.string().optional(),
   sceneText: z.string().optional(),
   skinType: z.string().optional(),
   skinTone: z.string().optional(),
   dress: z.string().optional(),
   /** 面部特征 id 列表。★ 成员白名单不在这里(那是 `face-catalog` 的目录),见 validator。 */
   features: z.array(z.string()).optional(),
+  /**
+   * 人设档案里那段「补充说明」+ 用户自己写的特征(前端 `toBrief` 拼成一段话)。
+   * ★ 自由文本,规则只有长度(`MAX_PERSONA_NOTES`)。
+   * ★ 它**不是**给 `patch_brief` 用的槽:模型改不了用户档案里的话(同 `features`)。
+   */
+  personaNotes: z.string().optional(),
 } as const;

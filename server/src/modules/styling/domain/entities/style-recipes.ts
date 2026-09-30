@@ -17,7 +17,6 @@
  *   两边逐字段相等由 `server/test/styling-plan.test.ts` 钉着——改这里的配方
  *   就要同步改那边并让那条测试过，别只改一边。
  */
-import type { Occasion } from '../../../shared/index.js';
 import type { StyleProductRow, StyleRecipeRow, StyleStepRow } from '../schemas/index.js';
 
 // ★ §4.1:这三个都是**只读内容，没有一行行为可挂** ⇒ 直接取 schema 的输出行，
@@ -444,32 +443,15 @@ export const STYLE_LIBRARY: readonly StyleRecipe[] = [
 ];
 
 /**
- * 场合 → 候选风格（顺序即推荐优先级）。
- * 「换一版」在这个候选池里轮换，因此步骤数量与顺序会真的变化。
+ * 按 id 取一条配方。★ **查不到就是 `undefined`**——不回落第一条，那会让错 id 静默出方案。
  *
- * ★ `Record<Occasion, …>`：场合是 8 个（`shared/domain/entities/brief.ts`），
- *   漏配一个就编译不过——这正是这个类型标注的用途。
- *   桃妆前端只用其中 5 个（聚会/约会/面试汇报/旅行/奇想），另 3 个
- *   （`stage` 上台 / `family` 见家长 / `daily` 日常）是**只经对话进来**的场合：
- *   真实模型完全可能把用户那句「下周答辩」判成 `stage`。
+ * ✏️ **2026-09-30：`SCENE_STYLES`（场合 → 4 条候选）和它的 `stylePoolFor` 删了。**
+ *   那张表把风格绑在场合上，而配方本身**没有场合概念**（21 条自带 `family`，
+ *   同一个 family 的兄弟才是彼此相近的那几条）。绑定的代价是：
+ *   ① 用户没法说自己想要什么风格，只能在算法给的 4 条里挑；
+ *   ② 一张 `Record<Occasion, …>` 要在加场合时同步维护，而它没有任何信息来源。
+ *   「换一版」的候选池现在是**同 `family` 的兄弟**，见 `derive-plan.ts`。
  */
-export const SCENE_STYLES: Record<Occasion, readonly string[]> = {
-  party: ['banquet', 'princess', 'festival', 'wolf'],
-  date: ['rich', 'pure', 'bunny', 'rococo'],
-  interview: ['commute', 'early8', 'coolclean', 'natural'],
-  travel: ['natural', 'oilcontrol', 'vital', 'newchinese'],
-  fantasy: ['festival', 'butterfly', 'flowers', 'mature'],
-  stage: ['banquet', 'smokey', 'mixed', 'festival'],
-  family: ['natural', 'pure', 'newchinese', 'mature'],
-  daily: ['commute', 'early8', 'vital', 'bunny'],
-};
-
-/** 按 id 取一条配方。★ **查不到就是 `undefined`**——不回落第一条，那会让错 id 静默出方案。 */
 export function styleById(id: string): StyleRecipe | undefined {
   return STYLE_LIBRARY.find((s) => s.id === id);
-}
-
-/** 某个场合的候选风格 id（顺序即优先级）。调用方拿它校验 `styleId` 的取值。 */
-export function stylePoolFor(occasion: Occasion): readonly string[] {
-  return SCENE_STYLES[occasion];
 }

@@ -1,5 +1,5 @@
 /**
- * application/derive-plan.ts —— 把「场合 + 风格 + 用户特征」展开成一份方案。
+ * application/derive-plan.ts —— 把「风格 + 用户特征」展开成一份方案。
  *
  * ★ **纯函数、无 IO**：配方是静态内容，推导只是查表与拼装。
  *   所以「换风格」在后端这边同样是毫秒级的——⚠️ 但前端点一次要走**一个 agent 回合**
@@ -14,8 +14,7 @@
  *   · `palette` **按 `code` 去重**（不是 `(pid, code)`）、最多 8 条、空项跳过；
  *   · `STEP_LOGIC` **首个命中的正则胜出**，顺序有意义。
  */
-import type { Occasion } from '../../shared/index.js';
-import { SCENE_STYLES, styleById } from '../domain/entities/style-recipes.js';
+import { STYLE_LIBRARY, styleById } from '../domain/entities/style-recipes.js';
 import type { StyleRecipe } from '../domain/entities/style-recipes.js';
 import type {
   PlanPaletteEntry,
@@ -128,28 +127,29 @@ function styleOptionOf(style: StyleRecipe): PlanStyleOption {
 /**
  * 展开一份方案。
  *
- * ★ `styleId` 必须**落在该场合的候选池里**——不在就返回 `undefined`，
- *   由调用方翻成给模型的错误（列出整池，见 `propose_look`）。
- *   刻意**不回落**到池里的第一条：那会让模型给错 id 时静默出一套它没选的妆，
+ * ★ `styleId` 必须是**认得的一条配方**——不认得就返回 `undefined`，
+ *   由调用方翻成给模型的错误（列出全部可选，见 `propose_look`）。
+ *   刻意**不回落**到第一条：那会让模型给错 id 时静默出一套它没选的妆，
  *   而用户是按模型说的那套去确认出图的。
+ *
+ * ✏️ **2026-09-30：入参里原来的 `occasion` 删了。** 它此前只做两件事——查候选池
+ *   成员、取候选池——而候选池已经不按场合分了（见 `style-recipes.ts` 的 `styleById`）。
+ *   留在签名里会变成一个**没人读的参数**，下一个改动的人会以为它在起作用。
  *
  * ★ `personalized` 由调用方**按顺序解析好**再传进来（未知 id 已剔掉）——
  *   本模块不认得 `face-catalog`，那是另一份内容目录的事（§7.1）。
  */
 export function derivePlan(input: {
-  occasion: Occasion;
   styleId: string;
   personalized?: readonly PlanPersonalized[];
 }): PlanView | undefined {
-  if (!SCENE_STYLES[input.occasion].includes(input.styleId)) return undefined;
   const style = styleById(input.styleId);
   if (!style) return undefined;
 
   const steps = buildSteps(style);
-  const styleOptions = SCENE_STYLES[input.occasion]
-    .map((id) => styleById(id))
-    .filter((s): s is StyleRecipe => s !== undefined)
-    .map(styleOptionOf);
+  // ★ 「换一版」的候选池 = **同 `family` 的兄弟**（含自身），顺序即 `STYLE_LIBRARY` 的顺序。
+  //   不再按场合取 4 条：风格与场合是**两张各自独立的预设表**，自由组合。
+  const styleOptions = STYLE_LIBRARY.filter((s) => s.family === style.family).map(styleOptionOf);
 
   return {
     styleId: style.id,

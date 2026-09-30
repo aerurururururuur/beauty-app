@@ -3,14 +3,14 @@
  * 不是业务模块,只做三件事:cors/multipart 等框架插件、挂统一错误处理器、
  * 把各业务模块的 HTTP 路由按前缀 /api 挂上。业务组合在 src/index.ts 完成后再注入。
  */
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import type { ServerConfig } from './modules/shared/infrastructure/config.js';
 import { makeErrorHandler } from './modules/shared/presentation/error-handler.js';
 import type { UserModuleServices } from './modules/user/index.js';
-import { registerUsersRoutes } from './modules/user/index.js';
+import { registerPersonasRoutes, registerUsersRoutes } from './modules/user/index.js';
 import type { WeatherModuleServices } from './modules/weather/index.js';
 import { registerWeatherRoutes } from './modules/weather/index.js';
 import type { CabinetModuleServices } from './modules/cabinet/index.js';
@@ -36,6 +36,19 @@ const API_PREFIX = '/api';
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: deps.config.logLevel },
+    // ★ 自带的那套一个请求两条、字段散在嵌套对象里,本地根本扫不动。关掉,
+    //   由下面那个 onResponse 一行说完。**别把两条都开着**,那就成了双份。
+    //   ⚠️ 用 `logController` 而不是顶层那个 `disableRequestLogging`:后者已废弃。
+    logController: new LogController({ disableRequestLogging: true }),
+  });
+
+  // 一行一条请求:`POST /api/agent/sessions 201 8ms`。4xx 走 warn、5xx 走 error,
+  // 扫一眼就能挑出坏的那些。★ 整行**故意全 ASCII** —— 中文终端按 GBK 解时不会变乱码。
+  app.addHook('onResponse', (request, reply) => {
+    const line = `${request.method} ${request.url} ${reply.statusCode} ${Math.round(reply.elapsedTime)}ms`;
+    if (reply.statusCode >= 500) request.log.error(line);
+    else if (reply.statusCode >= 400) request.log.warn(line);
+    else request.log.info(line);
   });
 
   await app.register(cors, { origin: true });
@@ -70,6 +83,23 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         registerUser: deps.user.registerUser,
         authenticateUser: deps.user.authenticateUser,
         getUser: deps.user.getUser,
+      });
+
+      // 人设库(2026-09-30 落地到 user 模块)。★ 不另开 `AppDeps.persona` 键 ——
+      //   这六个用例本来就住在 `UserModuleServices` 上,模块边界是 user,路由就从 `deps.user` 取。
+      registerPersonasRoutes(scoped, {
+        listPersonas: deps.user.listPersonas,
+        createPersona: deps.user.createPersona,
+        updatePersona: deps.user.updatePersona,
+        removePersona: deps.user.removePersona,
+        readPersonaPhoto: deps.user.readPersonaPhoto,
+        // ★ 自建肤色档这三条**不看任何开关**(它们不花钱、不依赖分析器):接上就有。
+        listSkinTones: deps.user.listSkinTones,
+        createSkinTone: deps.user.createSkinTone,
+        removeSkinTone: deps.user.removeSkinTone,
+        // ★ 读脸那条:判"有没有读脸能力"只有一处(`user/compose.ts` 收没收 `faceReader`),这里不判。
+        //   ⚠️ **漏了这一行就是本仓头号 bug**:配了 `VISION_ANALYZER=real`、日志照打,而路由根本没注册。
+        ...(deps.user.analyzePersonaFace ? { analyzePersonaFace: deps.user.analyzePersonaFace } : {}),
       });
 
       registerWeatherRoutes(scoped, {

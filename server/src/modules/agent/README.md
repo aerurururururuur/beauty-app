@@ -28,13 +28,14 @@
 | `application/render-state-description.ts` | 把"出图走到哪一步了"讲成一行字（照片在不在 / 出过几张 / **此刻有没有确认框在等**）。★ 与视图的 `pendingRender` **同源**（都用 `danglingToolUses`），免得两边一个说有、一个说没有——模型会照提示词行事 |
 | `application/tools/` | 工具的注册表（注册表**同时就是白名单**）。**没配产品库是四个，配了是六个**；`render-look.ts` 另导出 `renderConfirmationSummary`——确认框那句话的**唯一**来源 |
 | `application/look-state-description.ts` | 把"妆面定下来没有"讲成一行字。★ 比"有没有 `lookSpec`"多报一件事：**上一次 `propose_look` 被拒了没有**——`propose-look.ts` 的失败文案只管当轮，模型若用正文把妆面讲完就收尾，下一轮得有人告诉它"那不算数"（见文件头 v11） |
-| `application/usecases/` | `StartSession` / `GetSession` / `SendMessage` / `AttachPhoto` / `ConfirmRender` / `GetRender` / `PurgeExpiredSessions` |
-| `application/agent-view.ts` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在） |
+| `application/analysis-messages.ts` | ★ **读图分析那几句的唯一一张 message mapping**（`原因 × case → 那句话`）。是全函数 `Record`，少一格 / 多一个 case 都编译不过。`would-overwrite` 那句**两个读者**必须逐字同源 |
+| `application/usecases/` | `StartSession` / `GetSession` / `SendMessage` / `AttachPhoto` / `ConfirmRender` / `GetRender` / `PurgeExpiredSessions` / `AttachImage` / `AnalyzeImage` |
+| `application/agent-view.ts` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在；★ `analysisOffer.cases[].notice` = 上面那张表里同一句话**提前**印一遍） |
 | `infrastructure/llm/dashscope-llm.ts` | 阿里云百炼适配器（**实测夹具**为形状依据，不是读文档来的） |
 | `infrastructure/llm/mock-llm.ts` | 脚本化假 LLM：**单测**的驱动源（按脚本顺序回话）——`AGENT_LLM=mock` 现在**不用它**，见下一行 |
 | `infrastructure/llm/demo-llm.ts` | ★ `AGENT_LLM=mock` 实际用的那个：**按请求状态求值的离线演示脚本**（见下） |
 | `infrastructure/memory/session-store.ts` | 内存会话存储（重启即丢，见待办） |
-| `presentation/multipart.ts` | `POST …/photo` 的 multipart 解析（只认 `face` + `userId` 两个字段） |
+| `presentation/multipart.ts` | 两条上传路由共用的 multipart 解析。**差别只在字段名上**：`…/photo` 认 `face` + `userId`，`…/images` 认 `file` + `kind` + `userId`（✏️ 泛化前写死成前者）。⚠️ **文件必须在循环里读干净**——留到循环外再读，**大于 16 KB 的文件会永远挂住**（文件头有实测阈值） |
 | `compose.ts` / `index.ts` | `createAgentModule({…})` / public barrel |
 
 ## 端点
@@ -47,6 +48,14 @@
 | `POST /api/agent/sessions/:id/photo` | multipart，字段 `face`（文件）+ `userId` → **200** 会话视图 |
 | `POST /api/agent/sessions/:id/render` | ★ JSON `{ userId }`，**一个出图参数都不收** → **200** 会话视图 + 本轮 `events`。✏️ **两个入口共用这一条**（批准模型的提议 / 点击界面上那条「确认生成」），判据在用例里，请求体逐字相同 |
 | `GET /api/agent/sessions/:id/renders/:seq?userId=` | → **200** 图片字节（`content-type` 随产物） |
+| `POST /api/agent/sessions/:id/images` | multipart，字段 `file`（文件）+ `kind` + `userId` → **200** 会话视图。★ 文件字段叫 `file`，**不是 `face`**——收的是场景图 / 风格参考图，隐私义务与本人照片不同。**这一步免费**（读图在下一条），而且**每个 `kind` 只有一个槽**（同 kind 再传就是覆盖前一张） |
+| `POST /api/agent/sessions/:id/analyses` | ★ JSON `{ userId, kind }`，**一个分析参数都不收** → **200** `{ session, kind, status, notice? }`。**会花钱** |
+| ⚠️ 上面两条 | **`VISION_ANALYZER=off`（缺省）时这两条路由根本不注册 → 404**。"关掉"要说的是"这条口不在"，不是"在、但永远失败"（同 `PRODUCTS_DIR` 指空就不注册产品工具那条先例） |
+
+**读图那两条为什么没有工具的闸门。** 它**不是工具，模型碰不到**（`definitions.ts` 里没有分析工具），
+所以不需要 `render_look` 那套待确认三态——**用户那次 HTTP 点击本身就是 §7.4 要的那次人工动作**。
+顺序钉死：归属 → **「用户填的优先」（花钱之前判）** → 图在不在 → 解析路径 → **记账** → 花钱。
+`kind` 是闭集（`ANALYZE_CASES`），越界直接抛错，**不"就近映射"到某一档**。
 
 响应里的 `lookDescription` 是 `describeLook` 的渲染结果。**前端必须原样展示它**，
 不要自己再拼一遍——两处拼就会有两套说法，而用户是拿这段文字决定要不要花钱出图的。
@@ -242,8 +251,10 @@
 系统却在他决定之后才说自己没准备好。
 
 ★★ **2026-09-30：`propose_look` 多了一个必填入参 `styleId`，并且一次产出两样。**
-`styleId` 必须落在**该场合的候选池**里（`styling` 的 `stylePoolFor(occasion)`）——
-不在里面就整条打回，失败消息**列出整池**（同「错误消息即 prompt」那条既有做法）。
+`styleId` 必须是 `styling` 的 `styleById()` **查得到**的一条配方 id——查不到就整条打回，
+失败消息**列全 21 条**（同「错误消息即 prompt」那条既有做法）。
+⚠️ **不再是「该场合的候选池」**：那层池子（`stylePoolFor` / `SCENE_STYLES`）在同一天
+删掉了——风格与场合是两张各自独立的预设表，自由组合，谁也不限制谁。
 它**不属于 `LookSpec`**（那份妆面 schema 是 `.strict()`，多一格整个被打回），
 所以进工具前先摘出去、单独校验。
 
@@ -264,7 +275,7 @@
 
 - 依赖：`shared`（`MakeupBrief` / `AppError` / `ErrorCode` / `ImageRef` / ★ `briefFields`）、
   `makeup`（`LookSpec` 契约 + `validateLookSpec` + `describeLook` + **`Engine` 端口**）、
-  ★ `styling`（`derivePlan` / `styleById` / `stylePoolFor`——方案的展开与候选池）、zod。
+  ★ `styling`（`derivePlan` / `styleById` / `STYLE_LIBRARY`——方案的展开与配方查找）、zod。
   ✏️ **2026-09-30 加了 `styling` 这一条依赖。** 它是**直接 import、不走端口**的，
   与 `shared` / `makeup` 一样：`styling` 是编译期常量 + 纯函数，**没有可替换的实现**
   ——「没有可替换实现的端口，不该有开关」（`docs/architecture.md` §4 那条判据）。

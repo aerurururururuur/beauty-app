@@ -150,6 +150,10 @@ export { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from './application/system-p
 export { describeBrief } from './application/brief-description.js';
 export { describeRenderState } from './application/render-state-description.js';
 export { describeLookState } from './application/look-state-description.js';
+// ★ `STYLE_OPTIONS_HEAD` 一起转出去:它的三个读者(系统提示那句指令、工具描述、
+//   `demo-llm` 认行的前缀)**都是按名字去找那一行**,而名字本身是自由文本 ——
+//   谁也不能手抄一份,测试也没法指认。见 `style-options-description.ts` 的文件头。
+export { describeStyleOptions, STYLE_OPTIONS_HEAD, styleOptionsHint } from './application/style-options-description.js';
 export { StartSession } from './application/usecases/start-session.js';
 export { GetSession } from './application/usecases/get-session.js';
 export { SendMessage } from './application/usecases/send-message.js';

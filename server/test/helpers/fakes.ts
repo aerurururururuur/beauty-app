@@ -8,7 +8,12 @@
  *   `agent-render.test.ts` / `demo-llm.test.ts` 各自就地定义(它们要记录输入,形状不同)。
  */
 import type {
+  FaceReadOutcome,
+  FaceReader,
   PasswordHasher,
+  Persona,
+  PersonaPhotoStore,
+  PersonaRepository,
   User,
   UserRepository,
 } from '../../src/modules/user/index.js';
@@ -107,6 +112,91 @@ export class FakeUserDirectory implements UserDirectory {
   }
 }
 
+// ── 人设库(✏️ 2026-09-30:人设库落地到 user 模块那一轮)──────────────────────
+
+/**
+ * 人设仓库假实现。**两张表都装**(人设表 + 播种表)——
+ * 端口就是这两件事,拆开的话用例测试就得同时塞两个假对象,而它们永远是成对出现的。
+ */
+export class FakePersonaRepository implements PersonaRepository {
+  private map = new Map<string, Persona>();
+  private seeded = new Map<string, number>();
+
+  async save(persona: Persona): Promise<void> {
+    this.map.set(persona.id, persona);
+  }
+  async findById(id: string): Promise<Persona | null> {
+    return this.map.get(id) ?? null;
+  }
+  async listByUser(userId: string): Promise<Persona[]> {
+    return [...this.map.values()].filter((persona) => persona.userId === userId);
+  }
+  async remove(id: string): Promise<void> {
+    this.map.delete(id);
+  }
+  async seedVersion(userId: string): Promise<number | null> {
+    return this.seeded.get(userId) ?? null;
+  }
+  async markSeeded(userId: string, version: number): Promise<void> {
+    this.seeded.set(userId, version);
+  }
+
+  /** 断言辅助:表里现有人设数(跨全部账号)。 */
+  size(): number {
+    return this.map.size;
+  }
+  /** 断言辅助:直接改某账号的已播种版本,用来测「版本号升了只补缺失的」。 */
+  setSeedVersion(userId: string, version: number): void {
+    this.seeded.set(userId, version);
+  }
+}
+
+/** 人设照片字节的假实现。★ 记 `calls`,用来钉「删/改照片时到底动没动字节」。 */
+export class FakePersonaPhotoStore implements PersonaPhotoStore {
+  private map = new Map<string, { mime: string; bytes: Buffer }>();
+  /** 被调用过的方法名与 id,按顺序。删除路径的顺序断言靠它。 */
+  readonly calls: string[] = [];
+
+  async save(personaId: string, mime: string, bytes: Buffer): Promise<void> {
+    this.calls.push(`save:${personaId}`);
+    this.map.set(personaId, { mime, bytes });
+  }
+  async read(personaId: string, mime: string): Promise<Buffer> {
+    this.calls.push(`read:${personaId}`);
+    const hit = this.map.get(personaId);
+    if (!hit) throw new Error(`人设照片不见了:${personaId}(假实现)`);
+    void mime;
+    return hit.bytes;
+  }
+  async remove(personaId: string): Promise<void> {
+    this.calls.push(`remove:${personaId}`);
+    this.map.delete(personaId);
+  }
+
+  /** 断言辅助:这个 id 名下还有没有字节。 */
+  has(personaId: string): boolean {
+    return this.map.has(personaId);
+  }
+}
+
+/**
+ * 读脸端口假实现。
+ * ★ `outcome` 是 `FaceReadOutcome` 或一个**要抛出去的异常** ——
+ *   后者用来钉那条最要紧的规矩:**除了 `unreadable`,别的异常必须原样往上走**。
+ */
+export class FakeFaceReader implements FaceReader {
+  calls = 0;
+
+  constructor(private readonly outcome: FaceReadOutcome | Error) {}
+
+  async analyzeFace(photo: string): Promise<FaceReadOutcome> {
+    this.calls += 1;
+    void photo;
+    if (this.outcome instanceof Error) throw this.outcome;
+    return this.outcome;
+  }
+}
+
 // ── 读图(✏️ 2026-09-29:用户点触发分析那一轮)────────────────────────────────
 
 /**
@@ -163,7 +253,8 @@ export class FakeAnalyzers implements Analyzers {
   /** 置一个错则三个 `read` 都抛(验"分析失败也照样记账"那一支)。 */
   failWith: Error | undefined;
   skinTone: SkinTone = 'warm_ivory';
-  occasion: Occasion = 'daily';
+  /** 场景图读数:**一句话自由文本**(不是 8 档之一,见 `AnalysisOf.scene`)。 */
+  sceneNote = '办公室冷白光,白天,正式度中等';
   styleRead: StyleRead = SAMPLE_STYLE_READ;
 
   readonly face: ImageAnalyzer<'face'> = {
@@ -172,7 +263,7 @@ export class FakeAnalyzers implements Analyzers {
   };
   readonly scene: ImageAnalyzer<'scene'> = {
     case: 'scene',
-    read: (input) => this.run('scene', input, { occasion: this.occasion }),
+    read: (input) => this.run('scene', input, { sceneNote: this.sceneNote }),
   };
   readonly style: ImageAnalyzer<'style'> = {
     case: 'style',

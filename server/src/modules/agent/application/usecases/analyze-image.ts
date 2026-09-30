@@ -20,7 +20,7 @@
  *   记账(`addAnalysis`)留着——它记的是"这一次真的花了钱",不是"额度用掉一格"。
  *
  * ── 落点 ────────────────────────────────────────────────────────────────────
- * `face` → `brief.skinTone`;`scene` → `brief.occasion`;`style` → `session.styleRead`
+ * `face` → `brief.skinTone`;`scene` → `brief.sceneNote`;`style` → `session.styleRead`
  * **外加一条进 `messages[]` 的说明**。三者都由 `readAndApply` 一处收口,
  * 别在控制器里再摆一遍(落点表见本模块 README)。
  */
@@ -40,6 +40,7 @@ import { textMessage } from '../../domain/entities/message.js';
 import { styleReadNote } from '../../domain/tools/observations.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import type { SessionStore } from '../../domain/ports/session-store.js';
+import { analysisMessage } from '../analysis-messages.js';
 
 /** 一次分析的结局。★ `would_overwrite` **没花一分钱**,这正是它值得单列的理由。 */
 export type AnalyzeStatus = 'analyzed' | 'would_overwrite';
@@ -48,28 +49,14 @@ export interface AnalyzeOutcome {
   session: Session;
   kind: AnalyzeCase;
   status: AnalyzeStatus;
-  /**
-   * 没真读成的话,**为什么**。★ 空则无键(这是"一件事在不在",不是"一个集合的状态")。
-   * 这一支**必须**有话可说:用户点了按钮什么都没变,界面上一片安静,
-   * 读起来就是坏了(与「点了确认却没出图」那条同一条理由)。
-   */
+  /** 没真读成的话,**为什么**。★ 空则无键;这一支必须有话说,静默=看着像坏了。 */
   notice?: string;
 }
 
-/** 缺图时那句话。★ 三种图各有各的拿法,说清楚用户才知道下一步做什么。 */
-function missingImageNotice(kind: AnalyzeCase): string {
-  if (kind === 'face') return '这个会话还没有你的照片。请先上传一张本人正面照。';
-  if (kind === 'style') return '这个会话还没有风格参考图。请先上传一张。';
-  return '这个会话还没有场景图。请先上传一张。';
-}
-
-/** 「用户填的优先」那句话说给谁听:用户点了一次、什么都没变,必须有解释。 */
-function alreadyFilledNotice(kind: AnalyzeCase): string {
-  if (kind === 'face') return '你已经填过肤色了,分析不会覆盖它(这一次没有产生费用)。';
-  if (kind === 'scene') return '你已经填过场合了,分析不会覆盖它(这一次没有产生费用)。';
-  // `analysisWouldOverwrite` 对 style 恒为假,这一支到不了;留着是为了 switch 穷尽。
-  return '这一项不需要从图里读。';
-}
+/*
+ * ★ **本文件里不写任何给用户看的话**——都住在 `../analysis-messages.ts`。
+ *   别在这儿再拼一份(哪怕只是包一层)。
+ */
 
 export class AnalyzeImage {
   constructor(
@@ -89,12 +76,12 @@ export class AnalyzeImage {
 
     // ② ★ 用户填的优先 —— **在花钱之前**判,而且这一支根本不动会话。
     if (analysisWouldOverwrite(session, kind)) {
-      return { session, kind, status: 'would_overwrite', notice: alreadyFilledNotice(kind) };
+      return { session, kind, status: 'would_overwrite', notice: analysisMessage(kind, 'would-overwrite') };
     }
 
     // ③ 图在不在。★ 取图表只此一份(`sourceRefOf`),这里不重写一遍三个 `=== undefined`。
     const ref = sourceRefOf(session, kind);
-    if (!ref) throw new AppError(ErrorCode.VALIDATION_ERROR, missingImageNotice(kind));
+    if (!ref) throw new AppError(ErrorCode.VALIDATION_ERROR, analysisMessage(kind, 'missing-image'));
 
     // ④ 解析路径(本地、免费)→ 记账(钱已经打算花了)→ 花钱。
     const filePath = await this.deps.artifacts.resolveImage(session.id, ref);
@@ -127,8 +114,8 @@ export class AnalyzeImage {
         return patchBrief(session, { skinTone });
       }
       case 'scene': {
-        const { occasion } = await this.deps.analyzers.scene.read({ image });
-        return patchBrief(session, { occasion });
+        const { sceneNote } = await this.deps.analyzers.scene.read({ image });
+        return patchBrief(session, { sceneNote });
       }
       case 'style': {
         const read = await this.deps.analyzers.style.read({ image });

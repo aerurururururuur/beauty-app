@@ -23,6 +23,18 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   CABINET_ITEM_NOT_FOUND: 404,
   // 单用户件数上限:JSON 单表是整表读改写,不设上限会越写越慢。
   CABINET_FULL: 409,
+  // 人设的「不存在」与「不是你的」共用 404,同 CABINET_ITEM_NOT_FOUND 的理由。
+  PERSONA_NOT_FOUND: 404,
+  // 单用户人设上限,同 CABINET_FULL。
+  PERSONA_FULL: 409,
+  // 人设在、照片不在:同样是"取的东西不存在"。
+  PERSONA_PHOTO_NOT_FOUND: 404,
+  // 自建肤色档的「不存在」与「不是你的」共用 404,同 PERSONA_NOT_FOUND 的理由。
+  SKIN_TONE_NOT_FOUND: 404,
+  // 单账号自建档上限,同 PERSONA_FULL。
+  SKIN_TONE_FULL: 409,
+  // 还有人在用这一档:这不是请求格式问题,是**当前状态不允许**(同 CABINET_FULL 那条语义)。
+  SKIN_TONE_IN_USE: 409,
   // 会话的「不存在」与「不是你的」共用 404,同 CABINET_ITEM_NOT_FOUND 的理由。
   SESSION_NOT_FOUND: 404,
   // 会话是我的、但这个序号的图不在:同样是"取的东西不存在"。

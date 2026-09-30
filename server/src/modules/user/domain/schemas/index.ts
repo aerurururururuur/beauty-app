@@ -10,3 +10,56 @@ export type { CredentialsRaw, UserIdScalar, UserRow } from './entities/user.js';
 
 export { userViewSchema } from './api/user-view.js';
 export type { UserView } from './api/user-view.js';
+
+// ---- 人设库(2026-09-30 落地:此前整块住在前端 localStorage 里)----
+// ★ `skinTone` / `features` 在这里**只查形状**,白名单不在这份文件里 —— 理由见
+//   `entities/persona.ts` 的文件头(与前端展示档是两套词,靠测试对表)。
+export {
+  personaAnalyzeSchema,
+  personaCreateSchema,
+  personaIdSchema,
+  personaOwnerQuerySchema,
+  personaPhotoSchema,
+  personaRowSchema,
+  personaSchema,
+  personaSeedTableSchema,
+  personaTableSchema,
+  personaUpdateSchema,
+} from './entities/persona.js';
+export type {
+  PersonaAnalyzeRaw,
+  PersonaCreateRaw,
+  PersonaOwnerQueryRaw,
+  PersonaPhoto,
+  PersonaRow,
+  PersonaShape,
+  PersonaUpdateRaw,
+} from './entities/persona.js';
+
+export {
+  personaFaceSuggestionSchema,
+  personaListViewSchema,
+  personaPhotoSourceSchema,
+  personaViewSchema,
+} from './api/persona-view.js';
+export type {
+  PersonaFaceSuggestion,
+  PersonaListView,
+  PersonaView,
+} from './api/persona-view.js';
+
+// ---- 自建肤色档(2026-09-30:人设的肤色不再只有预置那 8 档)----
+export {
+  skinToneCreateSchema,
+  skinToneRowSchema,
+  skinToneSchema,
+  skinToneTableSchema,
+} from './entities/skin-tone.js';
+export type {
+  SkinToneCreateRaw,
+  SkinToneRow,
+  SkinToneShape,
+} from './entities/skin-tone.js';
+
+export { skinToneViewSchema } from './api/skin-tone-view.js';
+export type { SkinToneView } from './api/skin-tone-view.js';

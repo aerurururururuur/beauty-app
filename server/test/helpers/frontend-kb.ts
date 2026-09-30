@@ -10,8 +10,12 @@
  *
  * ✏️ 2026-09-30:此前这里还有一个 `frontendGetDesignResult()`,比的是前端
  *   `api/design.js` 那套本地推导。阶段 5 把那套推导**删掉**了(方案改由后端产出),
- *   它一起退休 —— **但它读的那两样东西(`STYLE_LIBRARY` / `SCENE_STYLES`)** 还在,
- *   而且从"跑得起来的函数"变成了**搬运前的原件**:后端那份必须与它逐字段相等。
+ *   它一起退休 —— 但它读的 `STYLE_LIBRARY` 还在,而且从"跑得起来的函数"
+ *   变成了**搬运前的原件**:后端那份必须与它逐字段相等。
+ *
+ * ✏️ **同日:`frontendSceneStyles()` 也删了。** 候选池(`SCENE_STYLES` /
+ *   `stylePoolFor`)整个不在了(风格与场合是两张独立的表,自由组合),它读的东西
+ *   在两端同时消失 —— 留着就会变成一条**读不到导出就抛**的死访问器。
  *
  * ⚠️ **只能用动态 `import()` + `new URL()`,不能写静态 import。**
  *   `test/tsconfig.json` 里 `allowJs` 是关的,静态 import 一个 `.js` 会当场变成
@@ -106,7 +110,51 @@ export async function frontendStyles(): Promise<FrontendStyle[]> {
   return (await exportOf('../../../vue/src/api/kb/styles.js', 'STYLE_LIBRARY')) as FrontendStyle[];
 }
 
-/** 场景 → 候选风格 id。★ 前端只有 5 个场景,后端那 8 个场合里另 3 个只经对话进来。 */
-export async function frontendSceneStyles(): Promise<Record<string, string[]>> {
-  return (await exportOf('../../../vue/src/api/kb/styles.js', 'SCENE_STYLES')) as Record<string, string[]>;
+// ── 人设库(✏️ 2026-09-30)────────────────────────────────────────────────────
+//
+// ★ 人设行里存的 `skinTone` **就是**下面这些前端 id,而它们是**用户数据** ——
+//   后端那套 `SKIN_TONES` 长得像、色值逐条不同,拿它校验就是静默 422 掉每一份合法人设。
+//   两套词必须能摆在一起对一遍照,这里就是那个地方。
+
+/** 肤色档(`kb/skintones.js` 的 `SKIN_TONES`)。★ 只有前端有 `tone` / `desc` / `hex`。 */
+export interface FrontendSkinTone {
+  id: string;
+  name: string;
+  tone: string;
+  desc: string;
+  hex: string;
+}
+
+export async function frontendSkinTones(): Promise<FrontendSkinTone[]> {
+  return (await exportOf('../../../vue/src/api/kb/skintones.js', 'SKIN_TONES')) as FrontendSkinTone[];
+}
+
+/** 关系档(`api/personas.js` 的 `RELATIONS`)。★ 后端 `PERSONA_RELATIONS` 对的就是它。 */
+export interface FrontendRelation {
+  id: string;
+  label: string;
+}
+
+export async function frontendRelations(): Promise<FrontendRelation[]> {
+  return (await exportOf('../../../vue/src/api/personas.js', 'RELATIONS')) as FrontendRelation[];
+}
+
+/**
+ * 肤色档的两张映射表(`api/design.js`)。
+ * ★ 读的是**运行时导出**:`SKIN_TONE_FROM_BACKEND` 是 `Object.fromEntries(…)` 现拼的,
+ *   `design.js` 里根本没有那 8 行 —— 照源文件 grep 那 8 个键的会以为它不存在。
+ */
+export interface FrontendSkinToneMaps {
+  /** 前端展示档 id → 后端档 id(`SKIN_TONE_TO_BACKEND`)。 */
+  toBackend: Record<string, string>;
+  /** 后端档 id → 前端展示档 id(`SKIN_TONE_FROM_BACKEND`)。★ 读脸预填那一条路用的就是它。 */
+  fromBackend: Record<string, string>;
+}
+
+export async function frontendSkinToneMaps(): Promise<FrontendSkinToneMaps> {
+  const rel = '../../../vue/src/api/design.js';
+  return {
+    toBackend: (await exportOf(rel, 'SKIN_TONE_TO_BACKEND')) as Record<string, string>,
+    fromBackend: (await exportOf(rel, 'SKIN_TONE_FROM_BACKEND')) as Record<string, string>,
+  };
 }

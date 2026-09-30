@@ -150,7 +150,7 @@ export class DashScopeVision implements VisionClient {
           const wait = 1000 * 2 ** (attempt - 1);
           console.warn(
             `[makeup] 读图连接阶段错误,${wait}ms 后重试(${attempt}/${ATTEMPTS - 1}):` +
-              describeError(err).split(' ← ')[0],
+              describeError(err),
           );
           await sleep(wait);
           continue;

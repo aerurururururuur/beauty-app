@@ -31,6 +31,7 @@ import { danglingToolUses } from '../domain/entities/message.js';
 import { ANALYZE_CASES } from '../domain/schemas/index.js';
 import { TOOL_NAMES } from '../domain/tools/definitions.js';
 import type { AgentEvent, AgentStopReason } from './agent-loop.js';
+import { analysisMessage } from './analysis-messages.js';
 import type { AnalyzeOutcome, AnalyzeStatus } from './usecases/analyze-image.js';
 import { renderConfirmationSummary } from './tools/render-look.js';
 
@@ -99,6 +100,12 @@ export interface AnalysisOfferView {
     hasImage: boolean;
     /** 用户自己填过了 ⇒ 点了也**不会覆盖**、而且**不花钱**。 */
     wouldOverwrite: boolean;
+    /**
+     * `wouldOverwrite` 为真时给置灰按钮一个理由(✏️ 2026-09-30 加)。
+     * ★ 与 `AnalyzeOutcome.notice` **是同一句话**,只是提前印;唯一来源是
+     *   `analysis-messages.ts`,别在这儿写第二份文案。
+     */
+    notice?: string;
   }[];
 }
 
@@ -235,11 +242,16 @@ export function toSessionView(
     ? {
         // 三种都给:前端要摆哪几个入口由它定(本轮不做前端设计),这里只报事实。
         // ⚠️ 判据一律走实体那两个具名守卫,不在这里重写一遍(§8)。
-        cases: ANALYZE_CASES.map((kind) => ({
-          kind,
-          hasImage: hasSourceImage(session, kind),
-          wouldOverwrite: analysisWouldOverwrite(session, kind),
-        })),
+        cases: ANALYZE_CASES.map((kind) => {
+          const wouldOverwrite = analysisWouldOverwrite(session, kind);
+          return {
+            kind,
+            hasImage: hasSourceImage(session, kind),
+            wouldOverwrite,
+            // 置灰的理由随行给出(见 `notice`),不给前端留第二份文案。
+            ...(wouldOverwrite ? { notice: analysisMessage(kind, 'would-overwrite') } : {}),
+          };
+        }),
       }
     : undefined;
 

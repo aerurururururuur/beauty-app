@@ -27,7 +27,13 @@ import {
 } from '../src/modules/makeup/index.js';
 import type { SkinTonePalette } from '../src/modules/makeup/index.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
-import { MAX_SCENE_TEXT, OCCASIONS } from '../src/modules/shared/index.js';
+import {
+  MAX_OCCASION,
+  MAX_SCENE_TEXT,
+  MAX_STYLE_TEXT,
+  SKIN_TONES,
+  SKIN_TYPES,
+} from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
   ListCabinetTool,
@@ -40,6 +46,7 @@ import {
   ReadProductTool,
   RenderRecord,
   Session,
+  STYLE_OPTIONS_HEAD,
   TOOL_DEFINITIONS,
   TOOL_NAMES,
   TextBlock,
@@ -51,6 +58,7 @@ import {
   describeBrief,
   describeLookState,
   describeRenderState,
+  describeStyleOptions,
 } from '../src/modules/agent/index.js';
 import type {
   CabinetItemSnapshot,
@@ -255,7 +263,6 @@ describe('工具契约', () => {
     const props = propose.inputSchema as JsonSchema;
     const zones = props.properties?.zones?.properties ?? {};
 
-    expect((props.properties?.occasion as JsonSchema).enum).toEqual([...OCCASIONS]);
     expect(zones.lip?.properties?.tone?.enum).toEqual([...TONE_KEYS]);
     expect(zones.lip?.properties?.finish?.enum).toEqual([...FINISHES]);
     expect(zones.lip?.properties?.intensity).toMatchObject({
@@ -265,8 +272,25 @@ describe('工具契约', () => {
 
     const brief = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.patchBrief)!;
     const briefProps = brief.inputSchema as JsonSchema;
+    expect((briefProps.properties?.skinTone as JsonSchema).enum).toEqual([...SKIN_TONES]);
+    expect((briefProps.properties?.skinType as JsonSchema).enum).toEqual([...SKIN_TYPES]);
     // patch_brief 的面里**没有 weather**(§7.2:天气不是问出来的)。
     expect(Object.keys(briefProps.properties ?? {})).not.toContain('weather');
+  });
+
+  it('★★ 两个 `occasion` 都不再是枚举 —— 这条钉的是"没人把它改回去"', () => {
+    // ★ 2026-09-30 翻向:这一格此前**正是** `toEqual([...OCCASIONS])`(见补丁说明)。
+    //   留在 schema 里的 `enum` 不只是多余的 —— 它**会**让模型把用户说的
+    //   「朋友的婚礼」收敛回 8 档之一,而用户要的恰恰是原话一路走到底。
+    const defOf = (name: string) => TOOL_DEFINITIONS.find((d) => d.name === name)!;
+    const propOf = (name: string, key: string) =>
+      (defOf(name).inputSchema as JsonSchema).properties?.[key] as JsonSchema;
+
+    expect(propOf(TOOL_NAMES.proposeLook, 'occasion').enum).toBeUndefined();
+    expect(propOf(TOOL_NAMES.patchBrief, 'occasion').enum).toBeUndefined();
+    // ⚠️ `styleId` 不写 `enum` 是**另一条**理由(取值要带中文名,`enum` 只能列裸值,
+    //   见 `definitions.ts` 那一格)—— 但同样是宽 string,一并钉住。
+    expect(propOf(TOOL_NAMES.proposeLook, 'styleId').enum).toBeUndefined();
   });
 
   it('手写的 JSON Schema 结构与 zod 的 LookSpec 对得上(样例双向校验)', () => {
@@ -327,9 +351,12 @@ describe('patch_brief', () => {
     //   一路带到最后出图那一步才在**别的地方**炸掉。
     //   那正是 spec §14-08「某个校验规则只在一个入口生效」那一格。
     //   (`skinTone: 'very_deep'` 上面那条碰巧覆盖到了肤色,occasion 与长度没有。)
+    // ✏️ 2026-09-30:这里原本还有一条 `{ occasion: 'snow' }`(表外的场合被拒)。
+    //   场合松绑后它**整个反过来**了 —— 现在是超长才该被打回,见下一条。
     const cases: Array<[unknown, string]> = [
       // 报错就是 prompt:模型得知道"能填什么 / 上限是多少",否则只能换个词再猜一轮。
-      [{ occasion: 'snow' }, '可用:'],
+      [{ occasion: 'a'.repeat(MAX_OCCASION + 1) }, `最多 ${MAX_OCCASION} 字`],
+      [{ styleText: 'a'.repeat(MAX_STYLE_TEXT + 1) }, `最多 ${MAX_STYLE_TEXT} 字`],
       [{ sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1) }, `最多 ${MAX_SCENE_TEXT} 字`],
     ];
     for (const [bad, fragment] of cases) {
@@ -339,6 +366,18 @@ describe('patch_brief', () => {
       //   而真正的损害是"报了错却又写进去了"。
       expect(out.session).toBeUndefined();
       expect(out.content).toContain(fragment);
+    }
+  });
+
+  it('★★ 表外的场合**收下**(原话进会话,不收进最近的一档)', async () => {
+    // 用户否掉的正是"把它收进 8 桶之一"这个做法:一收,用户的原话就到不了出图提示词。
+    // ⚠️ 这条与上面那条是**一对**:那边测"超长要拦",这边测"合长度但表外要放行"——
+    //   只留一边的话,松绑成"什么都不拦"或"照旧收窄"都能骗过测试。
+    for (const occasion of ['朋友的婚礼', '毕业典礼', 'snow']) {
+      const out = await run(tool, { occasion }, session());
+      expect(out.isError, `「${occasion}」被打了回`).toBeUndefined();
+      expect(out.session?.brief.occasion).toBe(occasion);
+      expect(out.content).toContain(occasion);
     }
   });
 
@@ -371,18 +410,32 @@ describe('propose_look', () => {
     expect(out.content).toContain('rose');
   });
 
-  it('★ `styleId` 不在这个场合的候选池里 → 打回,并把**整池**列给它', async () => {
-    // `banquet` 在 `party` 的池子里,不在 `interview` 的 —— 而 `SAMPLE_LOOK` 的场合是 interview。
-    // ★ 这一格是「模型挑了一个别的场合的配方」的现场:配方本身是好的,只是**这套妆配不上这个场合**。
-    const out = await run(tool, { ...LOOK_INPUT, styleId: 'banquet' }, session());
+  it('★ `styleId` 不在表里 → 打回,并把**整份清单**列给它', async () => {
+    // ✏️ 2026-09-30:此前这里是「挑了一个**别的场合**的池子里的配方」(`banquet` 对 `interview`)。
+    //   池子删了,现在唯一的失败原因就是"这个 id 根本查不到"。
+    const out = await run(tool, { ...LOOK_INPUT, styleId: 'no-such-style' }, session());
 
     expect(out.isError).toBe(true);
     // 与形状错误同一条规矩(见下一条):开头就得说清"这次什么都没记下"。
     expect(out.content).toMatch(/^★ 这次\*\*没有记下任何妆面/);
-    // ★ 候选池是**唯一**能让它改对的东西 —— 少了它,模型只能换一个猜。
-    expect(out.content).toContain('候选风格');
+    // ★ 清单是**唯一**能让它改对的东西 —— 少了它,模型只能换一个猜。
+    expect(out.content).toContain('可选风格');
     expect(out.content).toContain('commute');
     expect(out.session).toBeUndefined(); // 失败就是不写会话
+  });
+
+  it('★★ 任何场合下都能用任何一条配方 —— 场合与风格是两张**各自独立**的表', async () => {
+    // ★ 这条钉的是「不再按场合派池子」。`banquet`(晚宴/派对)此前只活在 `party` 的池子里,
+    //   配在 `interview` 的妆面单上会被打回。现在它就该原样通过。
+    // ⚠️ 第三个取值是**表外的场合** —— 它得同时满足两件事:自己不被拦,
+    //   而且**不改变**配方清单(列表页那句"风格不随场合变"在下游的真实版本)。
+    for (const occasion of ['interview', 'party', '朋友的婚礼']) {
+      const out = await run(tool, { ...LOOK_INPUT, occasion, styleId: 'banquet' }, session());
+
+      expect(out.isError, `场合「${occasion}」下 banquet 被拒了`).toBeUndefined();
+      expect(out.session?.plan?.styleId).toBe('banquet');
+      expect(out.session?.lookSpec?.occasion).toBe(occasion);
+    }
   });
 
   it('★★ 失败时必须**开头就说"没有记下任何妆面"** —— 否则模型会在正文里把一套妆面讲成已定', async () => {
@@ -588,6 +641,15 @@ describe('系统提示', () => {
 
     expect(prompt).toContain(describeBrief(s.brief));
     expect(prompt).toContain(describeLook(SAMPLE_LOOK));
+  });
+
+  /**
+   * ★★ 钉「静默丢弃点」2:`FIELD_LABELS` 没登记就不渲染 —— 模型从头到尾不知道用户写过补充说明,
+   * 而 200、日志干净。`features` 之外的线索(人设档案那段话)只有这一条路进得了系统提示。
+   */
+  it('★ 补充说明会被渲染进系统提示(漏登记就永远读不到)', () => {
+    const prompt = buildSystemPrompt(session({ brief: { personaNotes: '左脸有一道疤,想要更冷调' } }));
+    expect(prompt).toContain('人设补充说明=左脸有一道疤,想要更冷调');
   });
 
   it('还没提出妆面时要有明确说法,不留空', () => {
@@ -891,6 +953,28 @@ describe('系统提示', () => {
 
       expect(buildSystemPrompt(s)).toContain(describeLookState(s));
       expect(buildSystemPrompt(s)).toContain('正文里把妆面讲成已经定下来的不算数');
+    });
+  });
+
+  describe('风格清单(v15)', () => {
+    it('★★ 那两句指令指的名字,就是**真印出来的那一行**的名字', () => {
+      // 2026-09-30:这一行从「风格池」(随场合变)改成了「可选风格」(全表 21 条)。
+      // ⚠️ 系统提示那句指令、`propose_look` 的工具描述、渲染器抬头是**三份字符串**,
+      //   前两份是**按名字去找那一行**的。名字对不上,模型就会去找一个**不存在的段落**,
+      //   然后凭记忆编一个 id —— 那是本仓头号 bug「假开关」的形状:
+      //   界面正常、日志干净、校验也过了(不存在的 id 只有到 `propose_look` 才被打回)。
+      const prompt = buildSystemPrompt(session());
+      expect(prompt).toContain(describeStyleOptions());
+
+      const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
+      for (const [where, text] of [
+        ['系统提示', prompt],
+        ['工具描述', propose.description ?? ''],
+      ] as const) {
+        expect(text, `${where}里没指向那一行的名字`).toContain(STYLE_OPTIONS_HEAD);
+      }
+      // ✏️ 旧名字一个字都不能留:留着就是一句**指向空处**的指令。
+      expect(prompt).not.toContain('风格池');
     });
   });
 

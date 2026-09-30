@@ -5,7 +5,7 @@
  *   - **schema 只答「这是什么结构」**:类型对不对、`.strict()`、`weather` 的数值区间。
  *   - **枚举白名单 / 长度上限 / trim 是业务规则**,在 validator 里
  *     (`shared/domain/validators/brief-fields.validator.ts`,两条路共用那一份)。
- *   所以「`occasion: 'snow'` 要被拒」这类断言**从 `safeParse` 挪到了 validator**
+ *   所以「`skinTone: 'fair'` 要被拒」这类断言**从 `safeParse` 挪到了 validator**
  *   ——它们原来测的是 schema,现在测的是规则。见下面第二个 describe。
  *
  * ✏️ 2026-09-29:表单那条路(`POST /api/jobs` 的 `metaRaw`)随 `jobs` 模块删除,
@@ -14,10 +14,19 @@
  *
  * ✏️ 2026-09-29(§4.2 扫完其余模块):同样那件事在 `user` / `cabinet` / `weather` /
  *   `agent-http` 上也做了一遍,分工由**最后一组** describe 统一钉着。
+ *
+ * ✏️ 2026-09-30:**`occasion` 不再是枚举了**(`brief.occasion` 与 `LookSpec.occasion` 都是
+ *   自由文本,见 `brief.ts` 的 `OCCASIONS` 头注)。所以本文件里凡是拿它当"非法取值样本"
+ *   的地方都翻了向:那些值现在**应当通过**。留在这一格当样本的改成了 `skinTone`。
  */
 import { describe, expect, it } from 'vitest';
-import { AppError, MAX_DRESS, MAX_SCENE_TEXT } from '../src/modules/shared/index.js';
-import type { Occasion } from '../src/modules/shared/index.js';
+import {
+  AppError,
+  MAX_DRESS,
+  MAX_OCCASION,
+  MAX_PERSONA_NOTES,
+  MAX_SCENE_TEXT,
+} from '../src/modules/shared/index.js';
 // ★ makeup 那六个类:收窄与品牌的钉子(见文件末那一组)。类型与值分开 import,同下面几处的写法。
 import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../src/modules/makeup/index.js';
 import type { BrowShape, Finish, Intensity, ToneKey } from '../src/modules/makeup/index.js';
@@ -113,8 +122,10 @@ describe('★ 两条入口共用同一份简报规则(开会话 ↔ 对话)', ()
 
   const cases: Array<[string, unknown]> = [
     ['空补丁', {}],
-    ['合法场合', { occasion: 'date' }],
-    ['不存在的场合', { occasion: 'snow' }],
+    ['预设场合', { occasion: 'date' }],
+    ['场景表外的场合', { occasion: '朋友的婚礼' }],
+    ['场合到上限', { occasion: 'a'.repeat(MAX_OCCASION) }],
+    ['场合超一个字', { occasion: 'a'.repeat(MAX_OCCASION + 1) }],
     ['合法肤质 + 肤色', { skinType: 'oily', skinTone: 'warm_tan' }],
     ['不存在的肤色', { skinTone: 'fair' }],
     ['不存在的肤质', { skinType: 'mixed' }],
@@ -123,6 +134,8 @@ describe('★ 两条入口共用同一份简报规则(开会话 ↔ 对话)', ()
     ['穿搭到上限', { dress: 'a'.repeat(MAX_DRESS) }],
     ['穿搭超一个字', { dress: 'a'.repeat(MAX_DRESS + 1) }],
     ['只要空白(trim 后视同没给)', { sceneText: '   ' }],
+    ['补充说明到上限', { personaNotes: 'a'.repeat(MAX_PERSONA_NOTES) }],
+    ['补充说明超一个字', { personaNotes: 'a'.repeat(MAX_PERSONA_NOTES + 1) }],
   ];
 
   for (const [label, probe] of cases) {
@@ -140,11 +153,43 @@ describe('★ 两条入口共用同一份简报规则(开会话 ↔ 对话)', ()
 
   it('★ 非法取值两条路都真被拒(不是"碰巧都 false"的反面:这里要是 true)', () => {
     // 上一条只比「两边答案相同」,相同也可能是**一起放过**。这条把方向钉死。
-    expect(viaChat({ ...BASELINE, occasion: 'snow' })).toBe(false);
     expect(viaChat({ ...BASELINE, skinTone: 'fair' })).toBe(false);
     expect(viaChat({ ...BASELINE, sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1) })).toBe(false);
-    expect(viaStart({ ...BASELINE, occasion: 'snow' })).toBe(false);
     expect(viaStart({ ...BASELINE, sceneText: 'a'.repeat(MAX_SCENE_TEXT + 1) })).toBe(false);
+  });
+
+  /**
+   * ★★ 这一次松绑的**核心断言**。
+   *
+   * 此前 `occasion` 是 8 档枚举、拿 `pickEnum` 卡入参,所以「朋友的婚礼」会被 **422 打回整份
+   * brief** —— 用户填了半天、别的几格全对,就因为这一个字打回,而界面上只看到一句
+   * "取值不合法"。这张表的用途是**给前端摆预设 chip**,不是判用户的话对不对。
+   *
+   * ⚠️ 这条**必须两条路都断**:`checkBriefFields` 就是它们共用的那一份(见上一组的用意),
+   *   但"共用"是结构事实,不是能靠注释维持的约定 —— 只断一条路,另一条哪天分家不会红。
+   */
+  it('★ 预设表外的场合两条路都收(自由文本,只判长度)', () => {
+    for (const occasion of ['朋友的婚礼', '毕业典礼', '第一次见客户', 'snow']) {
+      expect(viaChat({ ...BASELINE, occasion }), `对话路拒了「${occasion}」`).toBe(true);
+      expect(viaStart({ ...BASELINE, occasion }), `开会话路拒了「${occasion}」`).toBe(true);
+    }
+    // 上限仍然管着:松绑的是"取值",不是"长度"。
+    const tooLong = 'a'.repeat(MAX_OCCASION + 1);
+    expect(viaChat({ ...BASELINE, occasion: tooLong })).toBe(false);
+    expect(viaStart({ ...BASELINE, occasion: tooLong })).toBe(false);
+  });
+
+  /**
+   * ★★ 钉「静默丢弃点」:`checkBriefFields` 末尾那块逐字段赋值漏一行**不会有任何提示** ——
+   * 字段全是 optional,两条路会**一起**丢掉它,而上面那张对表照不见(它只比"两边答案一样")。
+   * 所以这里直接看 brief 里到底有没有那个键。
+   */
+  it('★ 补充说明真的落进 brief(不是两条路一起把它丢了)', () => {
+    expect(validateStartSession({ userId: 'u1', personaNotes: '左脸有疤' }).brief.personaNotes).toBe('左脸有疤');
+    const viaTool = checkBriefPatch({ personaNotes: '左脸有疤' });
+    expect(viaTool.ok && viaTool.brief.personaNotes).toBe('左脸有疤');
+    // 上限管着(300;人设档案那一格是 200 —— 它还要装自定义特征)。
+    expect(viaStart({ personaNotes: 'a'.repeat(MAX_PERSONA_NOTES + 1) })).toBe(false);
   });
 
   it('★ 唯一的刻意分歧:开会话收 weather,对话不收', () => {
@@ -363,22 +408,30 @@ describe('★ schema 推导出来的实体(2):收窄与品牌是真的(makeup)',
    *   上面那个 describe 的注释说得对:运行时**永远过**,所以要钉就得在编译期钉。
    *   `StyleRead` / `MakeupZone` 走的是同一段代码(同一个机制、同一处 schema 文件),不重复钉。
    */
-  it('★ 每一格都是枚举类型,不是宽 string / number', () => {
+  it('★ 除 `occasion` 外每一格都是枚举类型,不是宽 string / number', () => {
+    // ⚠️ `occasion` **刻意不在这一组里**(2026-09-30):它是自由文本,不是枚举 ——
+    //   把它写成 `const occasion: Occasion = spec.occasion` 会当场编译不过,
+    //   而那正是这次松绑要的效果(用户能说「朋友的婚礼」)。
     const spec = sampleLook();
-    const occasion: Occasion = spec.occasion;
     const coverage: Intensity = spec.base.coverage;
     const finish: Finish = spec.zones.lip.finish;
     const tone: ToneKey = spec.zones.lip.tone;
     const browShape: BrowShape = spec.zones.brow.shape;
     const browIntensity: Intensity = spec.zones.brow.intensity;
-    expect([occasion, coverage, finish, tone, browShape, browIntensity]).toEqual([
-      'interview',
+    expect([coverage, finish, tone, browShape, browIntensity]).toEqual([
       3,
       'matte',
       'rose',
       'natural',
       2,
     ]);
+  });
+
+  it('★ `occasion` 是宽 string(收窄是**故意**不要的,见 `readOccasion`)', () => {
+    const spec = sampleLook();
+    // 表外的场合装得进去 —— 装不进去就说明有人把枚举加回来了。
+    const out: LookSpec = new LookSpec({ ...spec, occasion: '朋友的婚礼' });
+    expect(out.occasion).toBe('朋友的婚礼');
   });
 
   it('★ 品牌不是装饰:形状全对的字面量在编译期当不了 ZoneSpec', () => {

@@ -41,7 +41,7 @@
  * ★ **纯函数,无 IO、无随机、无时间。** 同输入必同输出:夹具才可复现,
  *   `TEMPLATE_VERSION` 才有意义(§5.2)。
  */
-import { SCENE_RULES } from '../../../shared/index.js';
+import { presetOccasionCn } from '../../../shared/index.js';
 import type { SkinTone } from '../../../shared/index.js';
 import type { Finish, Intensity, LookSpec, ToneKey } from '../../domain/entities/look-spec.js';
 
@@ -205,7 +205,9 @@ export function buildPrompt(spec: LookSpec, opts: PromptOptions = {}): {
   }
 
   // 场合只作为一句话的语境,不带 direction / tags(见 renderLookClauses 注释)。
-  lines.push(`妆容方向:${SCENE_RULES[spec.occasion].cn}场合。`);
+  // ★ 场合是**自由文本**:预设 id 翻成中文名,用户自己的说法(如「朋友的婚礼」)原样念。
+  //   裸下标 `SCENE_RULES[spec.occasion]` 在自定义场合上会拿到 `undefined` 再炸在 `.cn` 上。
+  lines.push(`妆容方向:${presetOccasionCn(spec.occasion) ?? spec.occasion}场合。`);
   lines.push(...renderLookClauses(spec));
   lines.push(QUALITY_TAIL);
 

@@ -16,8 +16,7 @@
  * ★ 它只讲「**这套是什么**」(妆面本身),因为只吃 `LookSpec`;
  * 「**为什么**是这套」(场合/肤质/肤色/天气的推理)是另一件事,由模型在对话里讲。
  */
-import type { Occasion } from '../../shared/index.js';
-import { SCENE_RULES } from '../../shared/index.js';
+import { presetOccasionCn } from '../../shared/index.js';
 import type { BrowShape, Finish, Intensity, LookSpec, ToneKey, ZoneSpec } from '../domain/entities/look-spec.js';
 import type { StyleRead } from '../domain/entities/style-read.js';
 
@@ -55,10 +54,6 @@ const INTENSITY_CN: Record<Intensity, string> = {
   4: '明显',
   5: '浓',
 };
-
-function occasionCn(occasion: Occasion): string {
-  return SCENE_RULES[occasion].cn;
-}
 
 /** 冷暖偏移 → 人话(0 是中性,所以两头分别是"偏暖/偏冷一点")。 */
 function warmthCn(warmth: number): string {
@@ -107,5 +102,7 @@ export function describeLook(spec: LookSpec): string {
     zoneCn('眼影', spec.zones.eyeshadow),
     `眉是${BROW_CN[spec.zones.brow.shape]}、${INTENSITY_CN[spec.zones.brow.intensity]}浓度`,
   ];
-  return `按「${occasionCn(spec.occasion)}」场合配的这套:${base};${parts.join(';')}。`;
+  // ★ 场合是**自由文本**:预设 id(`interview`)翻成中文名,用户自己的说法
+  //   (如「朋友的婚礼」)原样念 —— 不要用 `sceneRuleFor` 的 `label`,那会把原话收进一档。
+  return `按「${presetOccasionCn(spec.occasion) ?? spec.occasion}」场合配的这套:${base};${parts.join(';')}。`;
 }

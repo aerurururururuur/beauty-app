@@ -21,13 +21,18 @@ export type { ImageRef, ResolvedImage } from './domain/entities/image.js';
 export { GEOMETRY_SLOTS, TONE_KEYS } from './domain/entities/look-vocabulary.js';
 export type { FeatureRoute, GeometrySlot, ToneKey } from './domain/entities/look-vocabulary.js';
 
-// 场合语义单一源(中文名/方向/标签/关键词 + 纯函数 describeScene)。
+// 预设场合的语义单一源(中文名/方向/标签/关键词 + 纯函数 sceneRuleFor / describeScene)。
 // ★ 本文件同时被前端经 vite alias `@scene-rules` 直接执行,规矩见其文件头。
+// ★ 自由文本的场合要用那张表时**走 `sceneRuleFor`**(裸下标会在自定义场合上炸)。
+//   ⚠️ 要**显示**场合(不是判定)时走 `presetOccasionCn`:预设 id 翻成中文名,
+//   用户自己的说法原样返回 —— 别用 `sceneRuleFor` 的 `label`,那会把原话收成一档。
 export {
   DEFAULT_OCCASION,
   SCENE_MATCH_ORDER,
   SCENE_RULES,
   describeScene,
+  presetOccasionCn,
+  sceneRuleFor,
 } from './domain/scene-rules.js';
 export type { SceneDescriptor, SceneStyle } from './domain/scene-rules.js';
 
@@ -52,7 +57,15 @@ export { imageRefSchema } from './domain/schemas/index.js';
 export {
   checkBriefFields,
   MAX_DRESS,
+  // ★ 2026-09-30 补进 barrel:`user` 的人设库要拿它给 `features` 条数封顶
+  //   (人设的 `features` 与 `brief.features` 是**同一个词**,不该有第二个上限)。
+  MAX_FEATURES,
+  MAX_OCCASION,
+  // ★ 「补充说明」那段话的上限。⚠️ 与 `user` 的 `MAX_NOTES`(200)是两个数:这一格还要装自定义特征。
+  MAX_PERSONA_NOTES,
+  MAX_SCENE_NOTE,
   MAX_SCENE_TEXT,
+  MAX_STYLE_TEXT,
 } from './domain/validators/brief-fields.validator.js';
 export type {
   BriefFieldsCheck,

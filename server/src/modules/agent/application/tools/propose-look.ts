@@ -23,14 +23,13 @@
  *   它正是为这条判了 CSS 预览的死刑)。**一次调用、一个决定、两样产出**,
  *   一致性由结构保证,不需要提示词去嘱咐。
  */
-import { AppError, ErrorCode, OCCASIONS, SCENE_RULES } from '../../../shared/index.js';
-import type { Occasion } from '../../../shared/index.js';
+import { AppError } from '../../../shared/index.js';
 import { LookSpec as LookSpecEntity, describeLook, validateLookSpec } from '../../../makeup/index.js';
 import type { LookSpec, SkinTonePalette } from '../../../makeup/index.js';
 import { derivePlan } from '../../../styling/index.js';
 import type { PlanPersonalized, PlanView } from '../../../styling/index.js';
 import { PROPOSE_LOOK } from '../../domain/tools/definitions.js';
-import { stylePoolHint } from '../style-pool-description.js';
+import { styleOptionsHint } from '../style-options-description.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
 import { setLookSpec } from '../../domain/entities/session.js';
@@ -54,18 +53,6 @@ function splitInput(input: unknown): { styleId: string | undefined; look: unknow
   };
 }
 
-/**
- * `spec.occasion` 的类型是宽泛的 `string` —— `LookSpec` 的形状层只声明"这是字符串",
- * 白名单在 `validateLookSpec` 里查(§4.2 的分工)。走到这里它**已经**在 `OCCASIONS` 里,
- * 但类型上还得收一次。**这个守卫就是那次收窄**,不写 `as Occasion` 直接断言。
- */
-function asOccasion(value: string): Occasion {
-  const hit = OCCASIONS.find((candidate) => candidate === value);
-  // 到不了:`validateLookSpec` 刚用同一份元组查过(那段失败会走上面那条 return)。
-  if (!hit) throw new AppError(ErrorCode.VALIDATION_ERROR, `场合「${value}」不合法`);
-  return hit;
-}
-
 export class ProposeLookTool implements Tool {
   readonly definition = PROPOSE_LOOK;
 
@@ -85,14 +72,6 @@ export class ProposeLookTool implements Tool {
 
   async run(input: unknown, context: ToolContext): Promise<ToolOutcome> {
     const brief = context.session.brief;
-    /**
-     * ★ **这个场合说了算的，是用户填的那个**（表单那条路一次填完，用户按的就是它），
-     *   模型自己的 `occasion` 只是它推出来的。两者不一致时以 `brief` 为准，
-     *   并把妆面单上的 `occasion` **改过来**——否则会出现"方案按聚会配、妆面说日常"
-     *   这种两份都对不上的状态，而 `lookDescription` 是照妆面单渲染的、给用户看。
-     *
-     * 用户没填过时（纯对话那条路）才轮到模型的判断。
-     */
     const { styleId, look } = splitInput(input);
 
     let spec: LookSpec;
@@ -107,7 +86,18 @@ export class ProposeLookTool implements Tool {
       return { content: noLookNotice(messageOf(err)), isError: true };
     }
 
-    const occasion: Occasion = brief.occasion ?? asOccasion(spec.occasion);
+    /**
+     * ★ **这个场合说了算的,是用户填的那个**(表单那条路一次填完,用户按的就是它),
+     *   模型自己的 `occasion` 只是它推出来的。两者不一致时以 `brief` 为准,
+     *   并把妆面单上的 `occasion` **改过来**——否则会出现"用户说的是朋友的婚礼、
+     *   妆面单说聚会"这种两份都对不上的状态,而 `lookDescription` 是照妆面单渲染的、
+     *   给用户看的那一份。
+     *
+     * ★ 两边都是**自由文本**(2026-09-30):用户能说预设表外的场合,所以这里只比字符串,
+     *   **不做任何"收进最近的一档"**——那正是本仓头号 bug 的形状。
+     * 用户没填过时(纯对话那条路)才轮到模型的判断。
+     */
+    const occasion: string = brief.occasion ?? spec.occasion;
 
     /**
      * 特征 id → 策略卡。**未知 id 直接剔掉**(同前端 `featureById` 返回 `null` 的行为):
@@ -118,25 +108,25 @@ export class ProposeLookTool implements Tool {
       .map((id) => this.features.byId(id))
       .filter((card): card is PlanPersonalized => card !== undefined);
 
+    // ⚠️ **不再传 `occasion`**:候选风格已与场合无关(见 `derive-plan.ts` 的注释)。
     const plan: PlanView | undefined = styleId
-      ? derivePlan({ occasion, styleId, personalized })
+      ? derivePlan({ styleId, personalized })
       : undefined;
 
     if (!plan) {
-      // ★ 两条失败(`styleId` 没给 / 给了个不在池里的)合成一条消息:**候选池是唯一
+      // ★ 两条失败(`styleId` 没给 / 给了个不认得的)合成一条消息:**那份清单是唯一
       //   能让他改对的东西**,分两句说反而让它先回一句"我漏了参数"再走一轮。
       const chosen = styleId ? `styleId「${styleId}」不在` : '缺少 styleId,或它不在';
       return {
         content: noLookNotice(
-          `${chosen}场合「${SCENE_RULES[occasion].cn}」(${occasion})的候选风格里。` +
-            `该场合可用:${stylePoolHint(occasion)}。` +
+          `${chosen}可选风格里。可选:${styleOptionsHint()}。` +
             '请从这些里选一个**与你要提的这套妆相配**的,再调用一次本工具。',
         ),
         isError: true,
       };
     }
 
-    // 妆面单上的场合要跟方案一致(理由见上面 `occasion` 那一段)。
+    // 妆面单上的场合要跟用户说的那个一致(理由见上面 `occasion` 那一段)。
     const consistent =
       spec.occasion === occasion ? spec : new LookSpecEntity({ ...spec, occasion });
 

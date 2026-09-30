@@ -52,6 +52,7 @@ import {
   validateAnalysisKind,
   validateImageKindField,
   createAgentModule,
+  toSessionView,
 } from '../src/modules/agent/index.js';
 import type { PhotoUpload, SessionArtifacts } from '../src/modules/agent/index.js';
 import { ErrorCode, OCCASIONS, SKIN_TONES } from '../src/modules/shared/index.js';
@@ -137,14 +138,29 @@ describe('三个适配器 —— 越界当场抛错,绝不"就近映射"', () =>
     await expect(face.read({ image: IMG })).rejects.toThrow(/不是合法 JSON/);
   });
 
-  it('★ scene:回一个不在 8 档里的词 ⇒ 抛错', async () => {
-    const scene = new SceneAnalyzer(new FakeVisionClient('{"occasion":"birthday"}'));
+  it('scene:一句话原样交回(**不做归类**)', async () => {
+    const scene = new SceneAnalyzer(
+      new FakeVisionClient('{"scene":"办公室冷白光,白天,正式度中等"}'),
+    );
+    expect(await scene.read({ image: IMG })).toEqual({
+      sceneNote: '办公室冷白光,白天,正式度中等',
+    });
+  });
+
+  it('★ scene:模型回旧版字段名(`occasion`)⇒ 抛错,不许当"没读到"放过', async () => {
+    // 形状是 `.strict()` 的,而字段名就是那次改动的**全部区别** —— 放过去的话,
+    // 这条读数会静默变成空,而界面上只看到"分析成功、什么都没变"(假开关)。
+    const scene = new SceneAnalyzer(new FakeVisionClient('{"occasion":"stage"}'));
     await expect(scene.read({ image: IMG })).rejects.toThrow(/场合/);
   });
 
-  it('scene:合法场合原样交回', async () => {
-    const scene = new SceneAnalyzer(new FakeVisionClient('{"occasion":"stage"}'));
-    expect(await scene.read({ image: IMG })).toEqual({ occasion: 'stage' });
+  it('★ scene:失败通道与空串都拦在这里', async () => {
+    const unknown = new SceneAnalyzer(new FakeVisionClient('{"scene":"unknown"}'));
+    await expect(unknown.read({ image: IMG })).rejects.toThrow(/场合/);
+
+    // 空串:形状层是宽 string,拦它的是 validator(同"取值规则不在 schema 里"的分工)。
+    const blank = new SceneAnalyzer(new FakeVisionClient('{"scene":"   "}'));
+    await expect(blank.read({ image: IMG })).rejects.toThrow(/场合/);
   });
 
   it('★ style:色号不在闭集里 ⇒ 抛错', async () => {
@@ -212,8 +228,23 @@ describe('提示词漂移 —— 枚举 token 与元组逐项一致', () => {
     expect(listedAfter(FACE_PROMPT, '不要改):')).toEqual([...SKIN_TONES]);
   });
 
-  it(`scene 列全那 ${OCCASIONS.length} 档`, () => {
-    expect(listedAfter(SCENE_PROMPT, '不要改):')).toEqual([...OCCASIONS]);
+  /**
+   * ★★ **scene 是唯一一个"不列取值"的提示词**,这是刻意离开上面那条纪律的
+   *   (2026-09-30,理由见 `validateSceneReading` 的文件头)。
+   *
+   *   此前它列全 8 档、模型只能从中挑一个 —— 那是**归类**,而想归类就得把用户
+   *   表外的说法硬塞进最近的一格。现在读的是图上真有的东西(灯光 / 正式程度 / 氛围),
+   *   没有清单可列,所以这条断言反过来:**列了才算漂**。
+   */
+  it('★ scene 提示词**不再**列出 8 档场合(读图是"读出",不是"归类")', () => {
+    for (const occasion of OCCASIONS) {
+      expect(SCENE_PROMPT, `提示词里又出现了场合枚举「${occasion}」`).not.toContain(
+        ` ${occasion} /`,
+      );
+    }
+    // 换成一句话的要求,失败通道也换了字段名。
+    expect(SCENE_PROMPT).toContain('"scene"');
+    expect(SCENE_PROMPT).not.toContain('"occasion"');
   });
 
   it('style 列全色号与质地', () => {
@@ -224,7 +255,7 @@ describe('提示词漂移 —— 枚举 token 与元组逐项一致', () => {
 
   it('★ 三个提示词都给了显式的失败通道(`unknown`)', () => {
     expect(FACE_PROMPT).toContain('"skinTone":"unknown"');
-    expect(SCENE_PROMPT).toContain('"occasion":"unknown"');
+    expect(SCENE_PROMPT).toContain('"scene":"unknown"');
     expect(STYLE_PROMPT).toContain('{"unknown": true}');
   });
 
@@ -269,6 +300,76 @@ describe('AnalyzeImage —— 花钱之前先把不该花的挡住', () => {
     expect(fx.analyzers.calls).toEqual([]);
     // 会话也一个字节没动:没记账(那次点击不算数)。
     expect((await fx.sessions.find('s1'))?.analyses).toHaveLength(0);
+  });
+
+  /**
+   * ★★ **同一句话,两个读者(2026-09-30)。** 事后(`AnalyzeOutcome.notice`)与提前
+   * (`cases[].notice`,结果页那颗置灰按钮上的说明)必须**逐字**同句。
+   * ⚠️ 钉的不是"两处都有话说"(抄成两份也过),是**说的是同一句**。
+   */
+  it('★★ 置灰按钮上那句说明 = 点下去之后那句 notice(逐字,不是"意思差不多")', async () => {
+    const fx = usecaseFixture();
+    const session = createSession('s1', 'u1', { skinTone: 'olive' });
+    await fx.sessions.create(setFaceRef(session, FACE_REF));
+
+    const out = await fx.analyze.execute('s1', 'u1', 'face');
+    const view = toSessionView(out.session, { hasAnalysis: true });
+    const face = view.analysisOffer?.cases.find((c) => c.kind === 'face');
+
+    expect(face?.wouldOverwrite).toBe(true);
+    expect(face?.notice).toBe(out.notice);
+    // 空串也能"逐字相等",所以还得说一句它真有内容。
+    expect(face?.notice).toContain('不会覆盖');
+  });
+
+  /**
+   * 反过来的一半:`wouldOverwrite` 为假时**不许**带 `notice`。
+   * ★ 否则能点的按钮上挂着一句"你已经填过了"——那句话从别的状态漏过来的,界面上看不出。
+   */
+  it('不需要覆盖的 case 不带 notice(别把上一状态那句话漏给能点的按钮)', () => {
+    const session = createSession('s1', 'u1', { skinTone: 'olive' });
+    const view = toSessionView(setFaceRef(session, FACE_REF), { hasAnalysis: true });
+    const scene = view.analysisOffer?.cases.find((c) => c.kind === 'scene');
+
+    expect(scene?.wouldOverwrite).toBe(false);
+    expect(scene && 'notice' in scene).toBe(false);
+  });
+
+  /**
+   * ★★ **死锁的回归钉子(2026-09-30)。**
+   *
+   * `analysisWouldOverwrite` 曾对 `scene` 判 `brief.occasion !== undefined`,而表单
+   * **无条件**写那一格 ⇒ 从 `/form` 来的会话恒为真:图传上去、点分析、一次模型都不调,
+   * 直接回「你已经填过场合了」。界面上一切正常,只有结果是错的(「假开关」)。
+   *
+   * ⚠️ **必须**带"用户已经填了场合"这个前提跑:不带就和上面那条「没有那张图」没区别,
+   *   而那正是当初漏掉这个 bug 的原因。
+   */
+  it('★★ 已填场合 + 有场景图 ⇒ 照常 analyzed(不再是"你已经填过场合了")', async () => {
+    const fx = usecaseFixture();
+    fx.analyzers.sceneNote = '办公室冷白光,白天,正式度中等';
+    const session = createSession('s1', 'u1', { occasion: 'interview' });
+    await fx.sessions.create(setImageRef(session, 'scene', FACE_REF));
+
+    const out = await fx.analyze.execute('s1', 'u1', 'scene');
+
+    expect(out.status).toBe('analyzed');
+    expect(fx.analyzers.calls).toEqual(['scene']);
+    // ★ 两个格子**各归各**:读数进 `sceneNote`,用户填的场合一个字节不动。
+    expect(out.session.brief.sceneNote).toBe('办公室冷白光,白天,正式度中等');
+    expect(out.session.brief.occasion).toBe('interview');
+  });
+
+  it('场景图**不会**盖掉用户填的场合(反过来也不成立:那是两个格子)', async () => {
+    const fx = usecaseFixture();
+    fx.analyzers.sceneNote = '暗场生日会,暖黄灯光';
+    await fx.sessions.create(setImageRef(createSession('s1', 'u1', { occasion: '朋友的婚礼' }), 'scene', FACE_REF));
+
+    const out = await fx.analyze.execute('s1', 'u1', 'scene');
+
+    // 表外的场合原样留着 —— 读图**不归类**,所以它不可能把「朋友的婚礼」换成别的词。
+    expect(out.session.brief.occasion).toBe('朋友的婚礼');
+    expect(out.session.brief.sceneNote).toBe('暗场生日会,暖黄灯光');
   });
 
   it('归属不符 / 不存在 ⇒ 同一个 SESSION_NOT_FOUND(不外泄存在性)', async () => {
@@ -348,12 +449,14 @@ describe('AnalyzeImage —— 花钱之前先把不该花的挡住', () => {
     expect(JSON.stringify(note?.content)).toContain('底妆');
   });
 
-  it('scene 成功 ⇒ 落进 brief.occasion', async () => {
+  it('scene 成功 ⇒ 落进 brief.sceneNote', async () => {
     const fx = usecaseFixture();
-    fx.analyzers.occasion = 'stage';
+    fx.analyzers.sceneNote = '暗场生日会,暖黄灯光,气氛热闹';
     await fx.sessions.create(setImageRef(createSession('s1', 'u1', {}), 'scene', FACE_REF));
 
-    expect((await fx.analyze.execute('s1', 'u1', 'scene')).session.brief.occasion).toBe('stage');
+    expect((await fx.analyze.execute('s1', 'u1', 'scene')).session.brief.sceneNote).toBe(
+      '暗场生日会,暖黄灯光,气氛热闹',
+    );
   });
 });
 

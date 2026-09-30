@@ -24,7 +24,7 @@ import type { Session } from '../domain/entities/session.js';
 import { describeBrief } from './brief-description.js';
 import { describeLookState } from './look-state-description.js';
 import { describeRenderState } from './render-state-description.js';
-import { describeStylePool } from './style-pool-description.js';
+import { describeStyleOptions } from './style-options-description.js';
 
 /**
  * 提示版本号。★ 随每次 LLM 调用记进夹具(同 §5.2 对 `prompt-builder` 模板版本号的要求):
@@ -357,11 +357,25 @@ import { describeStylePool } from './style-pool-description.js';
  *   ⚠️ **场合还不知道时列全部八档**:纯对话那条路场合是模型自己判的,
  *   它判完场合紧接着就要挑 `styleId`,中间没有第二次读提示词的机会。
  *
- *   ⚠️ **本版尚未经过真实调用** ⇒ 按本仓口径记成 `[未验证]`。最小验证:
- *   一句「下周有个聚会,帮我定一套」,看 `propose_look` 的入参里 `styleId` 在不在
- *   `party` 那一行(`banquet` / `princess` / `festival` / `wolf`)。
+ *   ⚠️ **本版尚未经过真实调用** ⇒ 按本仓口径记成 `[未验证]`。
+ *   ✏️ **次日就被 `v15` 取代**:下面那条"按 `party` 那一行核对"的最小验证**已经做不了**
+ *   (那一行没有了,清单改成与场合无关的全表)。留着这段是**历史**,别再照它去验 ——
+ *   要验 `v15` 请照 `v15` 那段做。
+ * - `v15` ——(2026-09-30)**候选风格不再随场合变,那一行改成与场合无关的全表清单。**
+ *   起因是「场合」与「风格」的定位被纠正:**两张各自独立的预设表,都允许用户写表外的,
+ *   两者自由组合**——没有"这个场合只能配那几条风格"这回事。于是 `SCENE_STYLES` 那张
+ *   「场合 → 4 条候选」的表删了(它没有任何信息来源,配方本身也没有场合概念),
+ *   `styleId` 的合法集变成**整张配方表的 21 条**。
+ *
+ *   ★ `v14` 那条「JSON Schema 表达不了这层依赖」的理由**本来就不成立**:依赖没了,
+ *   `styleId` 大可以就写成 `enum`。这里仍然印一行,是因为**清单里要带中文名**
+ *   (`banquet(晚宴 / 派对妆)`)——只给 id,模型得自己猜哪个是哪个。那句话同时是
+ *   `propose_look` 失败时的错误文案,两个读者一份说法(见 `style-options-description.ts`)。
+ *
+ *   ⚠️ 本版改动**尚未经过真实调用** ⇒ `[未验证]`。最小验证:随便说一句「定一套妆」,
+ *   看 `propose_look` 的入参 `styleId` 是不是清单里那 21 个之一(不再限 `party` 那一行)。
  */
-export const SYSTEM_PROMPT_VERSION = 'v14';
+export const SYSTEM_PROMPT_VERSION = 'v15';
 
 export interface SystemPromptOptions {
   /**
@@ -464,11 +478,12 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '## 你的工作',
     '把用户模糊的说法,收敛成一份**结构化的妆面**——只用颜色、质地、浓度这三样描述,',
     '用 `propose_look` 工具记下来,然后用文字讲给她听。',
-    // ★ v14:妆面单上还多一格 `styleId`,而**池子随场合变**(见文件头 v14 那段)。
-    //   ⚠️ 这两句里「从下面那一行里挑」指的就是 `## 当前状态` 的「风格池」那行——
-    //   改这一句时别把它指丢了。
-    '★ 这次调用还要带一格 `styleId`:**从「当前状态」里「风格池」那一行列出的候选里挑一个**,',
-    '不要自己编、也不要挑别的场合的。它和这套妆面是**同一件事的两面**——',
+    // ★ v15:妆面单上还多一格 `styleId`(见文件头 v15 那段)。
+    //   ⚠️ 「那一行」指的就是 `## 当前状态` 里 `describeStyleOptions()` 印出来的那一行。
+    //   它的抬头是 `style-options-description.ts` 的 `STYLE_OPTIONS_HEAD`——
+    //   这里写死了「可选风格」四个字,改那边要一起改(`demo-llm.ts` 也是照这个抬头认行的)。
+    '★ 这次调用还要带一格 `styleId`:**从「当前状态」里「可选风格」那一行列出的清单里挑一个**,',
+    '不要自己编。它和这套妆面是**同一件事的两面**——',
     '你提的是一套妆,`styleId` 就是这套妆的配方,两者要是一套,不能各说各的。',
     '',
     '## 硬规则(不是建议)',
@@ -488,10 +503,9 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '',
     '## 当前状态',
     `已知需求:${describeBrief(session.brief)}`,
-    // ★ 存在理由见文件头 v14 那段:候选池随场合变,而 JSON Schema 表达不了那层依赖。
-    //   ⚠️ **场合定了也照印**:用户中途换个场合(「改成见家长」)时,池子要跟着换,
-    //     而那时 `plan` 还是旧的那一份——按 `plan` 有没有来省这一行会正好把它藏掉。
-    describeStylePool(session.brief.occasion),
+    // ★ 存在理由见文件头 v15 那段:这份清单与场合无关,但**每轮都要印**——
+    //   用户中途换风格(或者第一次提 `propose_look`)时,模型手上得有一份能挑的清单。
+    describeStyleOptions(),
     look,
     // ★ 出图那一行的存在理由见文件头 v5 那段:模型过去只能靠猜,而它猜错过一次。
     describeRenderState(session),

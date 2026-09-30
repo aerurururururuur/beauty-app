@@ -17,14 +17,16 @@
  * | case | 读什么 | 产物 | 规则表在哪 |
  * | --- | --- | --- | --- |
  * | `face` | 本人照片 | `skinTone` | `shared/.../brief-fields.validator.ts` |
- * | `scene` | 场景地点图 | `occasion` | 同上 |
+ * | `scene` | 场景地点图 | `sceneNote`(自由文本) | `validators/analysis.validator.ts`(`MAX_SCENE_NOTE`) |
  * | `style` | 风格参考图 | `StyleRead` | `domain/validators/look-spec.validator.ts` |
  *
- * ★ **`face` / `scene` 不新写白名单**,直接调那张全仓唯一的规则表:读图是第三条入口
+ * ★ **`face` 不新写白名单**,直接调那张全仓唯一的规则表:读图是第三条入口
  *   (前两条是开会话与 `patch_brief`),各判一次就有了第二处定义(§5.1)。
- * ★ 产物全是闭集里的值、无自由文本 —— 理由见 `entities/style-read.ts`。
+ *   ⚠️ **`scene` 是例外**(2026-09-30):它读的是图上真有的东西(灯光/正式程度/氛围),
+ *   没有清单可共享 —— 那条规矩针对的是闭集取值。理由写在 `validateSceneReading` 上。
+ * ★ 除 `scene` 外产物都是闭集里的值、无自由文本 —— 理由见 `entities/style-read.ts`。
  */
-import type { Occasion, ResolvedImage, SkinTone } from '../../../shared/index.js';
+import type { ResolvedImage, SkinTone } from '../../../shared/index.js';
 import type { StyleRead } from '../entities/style-read.js';
 
 /**
@@ -43,12 +45,16 @@ export interface AnalyzeInput {
   image: ResolvedImage;
 }
 
-/** 三个 case 各自的产物。★ 每一项都是**闭集里的值**,见文件头。 */
+/** 三个 case 各自的产物。★ 除 `scene` 外每一项都是**闭集里的值**,见文件头。 */
 export interface AnalysisOf {
   /** 肤色 8 档之一(`SKIN_TONES`)。 */
   face: { skinTone: SkinTone };
-  /** 场合 8 档之一(`OCCASIONS`)。 */
-  scene: { occasion: Occasion };
+  /**
+   * 图上读出来的场合描述,**一句话自由文本**(灯光 / 正式程度 / 氛围)。
+   * ⚠️ 它**不是** `OCCASIONS` 之一 —— 读图是「读出」不是「归类」,见 `validateSceneReading`。
+   * 落到 `brief.sceneNote`,与用户自己说的 `brief.occasion` 井水不犯河水。
+   */
+  scene: { sceneNote: string };
   /** 风格图读数(复合值,所以它是个实体类)。 */
   style: StyleRead;
 }

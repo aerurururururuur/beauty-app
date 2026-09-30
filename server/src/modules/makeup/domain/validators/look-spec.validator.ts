@@ -2,7 +2,8 @@
  * makeup/domain/validators/look-spec.validator.ts —— 逐字段的取值规则(§4.2)。
  *
  * 形状在 `schemas/contracts/look-spec.ts`;这里管形状表达不了的三件事:
- *   ① 取值合法(枚举白名单 / 数值区间)—— schema 里一律是宽泛的 `string` / `number`;
+ *   ① 取值合法(枚举白名单 / 数值区间 / 长度)—— schema 里一律是宽泛的 `string` / `number`;
+ *      ⚠️ `occasion` 是**唯一的例外:自由文本,只判长度**(见 `readOccasion`);
  *   ② 形状错误的中文化;
  *   ③ ★ §6 规矩 4:合法取值空间**按 `skinTone` 收窄**。
  *
@@ -18,11 +19,12 @@
  *   清单不借 zod 的 `issue.options` 说(schema 变松后那条路没了),而是在每个 `read*`
  *   调用点上就地给元组:取值检查和它的文案写在同一行,不会一处改了另一处还是旧清单。
  *   元组本身只有一份(在 `entities/look-spec.ts`),这里只消费。
+ *   ⚠️ 唯一的例外是 `occasion`:它**没有清单可给**,因为它不是闭集(见 `readOccasion`)。
  *
  * 失败抛 `AppError(VALIDATION_ERROR)`。**刻意不新增错误码**:这条路径由 agent 循环
  * 消化成 observation,**不会**走到 HTTP,不需要在 `error-handler.ts` 里多一格映射。
  */
-import { OCCASIONS } from '../../../shared/index.js';
+import { MAX_OCCASION } from '../../../shared/index.js';
 import type { SkinTone } from '../../../shared/index.js';
 import {
   BROW_SHAPES,
@@ -83,6 +85,21 @@ function readEnum<T extends string>(
   return undefined;
 }
 
+/**
+ * 场合:**自由文本,只判长度**。
+ *
+ * ★ 它**不是闭集**——预设场合表(`shared` 的 `OCCASIONS`)之外也能说「朋友的婚礼」,
+ *   那正是这次松绑的目的。所以这里**刻意不用 `readEnum`**:把用户的话硬收进最近的
+ *   那一格,正是本仓头号 bug 的形状(结果悄悄是错的,别处一切正常)。
+ */
+function readOccasion(reading: Reading, at: string, value: string): string | undefined {
+  if (value.length > MAX_OCCASION) {
+    reading.problems.push(`${at} 最多 ${MAX_OCCASION} 字(收到 ${value.length} 字)`);
+    return undefined;
+  }
+  return value.trim() || undefined;
+}
+
 function readIntensity(reading: Reading, at: string, value: number): Intensity | undefined {
   if (isIntensity(value)) return value;
   reading.problems.push(`${at} 需为 ${INTENSITY_MIN}..${INTENSITY_MAX} 的整数(收到 ${value})`);
@@ -131,7 +148,7 @@ export function validateLookSpec(
   // ② 取值(§4.2:枚举白名单与数值区间在这里)。**一次说全**,不中途返回——
   //    模型收到一条完整的清单只需重试一次,收到一条改一条会白烧好几轮。
   const reading: Reading = { problems: [] };
-  const occasion = readEnum(reading, 'occasion', shape.occasion, OCCASIONS);
+  const occasion = readOccasion(reading, 'occasion', shape.occasion);
   const baseCoverage = readIntensity(reading, 'base.coverage', shape.base.coverage);
   const baseFinish = readEnum(reading, 'base.finish', shape.base.finish, FINISHES);
   const baseWarmth = readWarmth(reading, 'base.warmth', shape.base.warmth);

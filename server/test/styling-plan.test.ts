@@ -10,9 +10,6 @@
  *
  * ★ 对表的**方向**是"前端说了算":`kb/styles.js` 是**搬运前的原件**,
  *   后端那份是它的搬迁版。所以断言写成"后端应等于前端"。
- *   ⚠️ 前端**只有 5 个场景**,后端有 8 个场合——另 3 个(`stage` / `family` / `daily`)
- *   只经对话进来,没有可比的那一半,本文件不覆盖它们(它们的池子由
- *   `test/scene-rules.test.ts` 与类型系统管)。
  *
  * ✏️ **2026-09-30 换了对手。** 此前这里比的是"后端 `derivePlan` vs 前端的
  *   `getDesignResult()`"。阶段 5 把前端那套本地推导**删掉**了(方案改由后端产出),
@@ -22,21 +19,20 @@
  *        (步骤 id 的拼法、palette 的去重与上限、步骤一笔不多一笔不少)。
  *   ② 不再有"另一端"可对,所以它改成**对配方本身**的断言 —— 这不是把手抄一遍
  *   (`derive-plan.ts` 是唯一一份推导),而是钉住"展开没漏没多"。
+ *
+ * ✏️ **同日再改:按场合分的候选池(`SCENE_STYLES`)删了。** 场合与风格是两张各自
+ *   独立的预设表、自由组合,所以 `derivePlan` 不再收 `occasion`,遍历也从
+ *   "8 个场合 × 各 4 条" 换成"**21 条配方各一次**"——覆盖面反而更大(此前有配方
+ *   `retrosmokey` 一条池子都进不去,遍历池子根本跑不到它)。
+ *   前端 `kb/styles.js` 里那张同名的表随之成了孤儿,所以那条"池子对表"删掉了:
+ *   配方内容本身(含 `family`)已由上面 ① 逐字段钉住,池子是它的派生。
  */
 import { describe, expect, it } from 'vitest';
-import { OCCASIONS } from '../src/modules/shared/index.js';
-import type { Occasion } from '../src/modules/shared/index.js';
-import {
-  SCENE_STYLES,
-  STYLE_LIBRARY,
-  derivePlan,
-  styleById,
-} from '../src/modules/styling/index.js';
-import type { PlanPersonalized } from '../src/modules/styling/index.js';
+import { STYLE_LIBRARY, derivePlan, styleById } from '../src/modules/styling/index.js';
+import type { PlanPersonalized, StyleRecipe } from '../src/modules/styling/index.js';
 import { realFeatures } from './helpers/face-catalog.js';
 import {
   frontendFeatureGroups,
-  frontendSceneStyles,
   frontendShades,
   frontendStyles,
 } from './helpers/frontend-kb.js';
@@ -48,9 +44,6 @@ import type { FrontendShadeEntry } from './helpers/frontend-kb.js';
  * 用户人设存的 id 可能比词表旧,那是正常情况,两端都必须把它剔掉而不是报错。
  */
 const FEATURE_IDS = ['eye-drop', 'face-round', 'lip-thin', 'skin-oily', 'legacy-xxx'] as const;
-
-/** 前端那 5 个场景(后端 8 个场合里可与前端对表的那一半)。 */
-const SHARED_SCENES = ['party', 'date', 'interview', 'travel', 'fantasy'] as const satisfies readonly Occasion[];
 
 /**
  * 照抄前端 `api/design.js` 的 `hexOf` 语义(色值只有前端有,后端只给 `pid + code`)。
@@ -92,11 +85,11 @@ describe('★ 配方内容与 kb/styles.js 逐字段相同', () => {
     expect([...feById.keys()].filter((id) => styleById(id) === undefined)).toEqual([]);
   });
 
-  it('5 个场合的候选池一致(顺序也一致 —— 顺序即推荐优先级,「换一版」按它轮换)', async () => {
-    const fePools = await frontendSceneStyles();
-    for (const scene of SHARED_SCENES) {
-      expect([...SCENE_STYLES[scene]], `场合 ${scene} 的池子`).toEqual(fePools[scene]);
-    }
+  it('★ 每条配方的 family 都非空(「换一版」靠它分组,空了那一组就只有它自己)', () => {
+    // family 是**分组的唯一依据**(`derivePlan` 的 `styleOptions`),而它是自由字符串:
+    // 写错一个字、漏填一次,都不会有别的征兆 —— 界面照常渲染,只是"换一版"里
+    // 只剩当前这一条。所以这里点名钉住,别指望类型。
+    expect(STYLE_LIBRARY.filter((s) => s.family.trim() === '').map((s) => s.id)).toEqual([]);
   });
 });
 
@@ -161,17 +154,13 @@ describe('★ 用户特征 → 策略卡', () => {
     // 传进去 5 条,其中 `legacy-xxx` 查不到 ⇒ 只应留下 4 条。
     // ★ 前端那一半(它自己那份 `featureById` 返回 null 再 filter)已随本地推导删除;
     //   "两边认得同一批 id"由 `test/face-catalog.test.ts` 的对表钉着,这里只管**过滤**。
-    const be = derivePlan({
-      occasion: 'party',
-      styleId: 'banquet',
-      personalized: personalizedOf(FEATURE_IDS),
-    });
+    const be = derivePlan({ styleId: 'banquet', personalized: personalizedOf(FEATURE_IDS) });
     expect(be?.personalized.map((c) => c.id)).toEqual(['eye-drop', 'face-round', 'lip-thin', 'skin-oily']);
   });
 
   it('顺序就是用户勾选的顺序(不是词表里的顺序)', () => {
     const picked = ['skin-oily', 'eye-drop'];
-    const be = derivePlan({ occasion: 'party', styleId: 'banquet', personalized: personalizedOf(picked) });
+    const be = derivePlan({ styleId: 'banquet', personalized: personalizedOf(picked) });
     expect(be?.personalized.map((c) => c.id)).toEqual(picked);
   });
 
@@ -188,20 +177,22 @@ describe('★ 用户特征 → 策略卡', () => {
 // ── ④ `derivePlan` 的行为契约:展开不许漏、不许多、不许改名 ──────────────────
 
 describe('derivePlan 的边界与展开', () => {
-  it('styleId 不在这个场合的池子里 → undefined(不回落池里的第一条)', () => {
-    // `bunny` 在 `date` 的池子里,不在 `party` 的。
-    expect(SCENE_STYLES.date).toContain('bunny');
-    expect(derivePlan({ occasion: 'party', styleId: 'bunny' })).toBeUndefined();
+  it('认不出来的 styleId → undefined(不回落第一条配方)', () => {
+    expect(derivePlan({ styleId: 'no-such-style' })).toBeUndefined();
+    // 空串同理:`splitInput` 会把空白 trim 成 undefined,但真收到空串也不能放过。
+    expect(derivePlan({ styleId: '' })).toBeUndefined();
   });
 
-  it('八字场合全都配着非空、且查得到配方的候选池', () => {
-    // `SCENE_STYLES` 是 `Record<Occasion, …>`(漏配一个编译不过),但**空数组**编译得过。
-    for (const occasion of OCCASIONS) {
-      expect(SCENE_STYLES[occasion].length, `场合 ${occasion} 的池子是空的`).toBeGreaterThan(0);
-      for (const id of SCENE_STYLES[occasion]) {
-        expect(derivePlan({ occasion, styleId: id }), `${occasion} / ${id}`).toBeDefined();
-      }
-    }
+  it('★ 「换一版」的候选 = 同 family 的兄弟(含自身,顺序即 `STYLE_LIBRARY`)', () => {
+    const style = styleById('banquet')!;
+    const plan = derivePlan({ styleId: 'banquet' })!;
+    const want = STYLE_LIBRARY.filter((s) => s.family === style.family).map((s) => s.id);
+
+    expect(plan.styleOptions.map((o) => o.id)).toEqual(want);
+    // 自身在名单里(界面上那一条要能显示"就是它")。
+    expect(want).toContain('banquet');
+    // 别把整张表当成候选 —— 那就成了"换一版"会跳到不相干的路数上。
+    expect(want.length).toBeLessThan(STYLE_LIBRARY.length);
   });
 
   /**
@@ -210,72 +201,71 @@ describe('derivePlan 的边界与展开', () => {
    *   步骤一笔不多、一笔不少、顺序不变、id 拼法固定、`desc` 就是那一步的操作手法。
    *   这几条一起红了才是"搬家搬错了";只对一层(比如只比步骤名)会漏掉 id 那一层,
    *   而**两端的步骤导航按 id 对齐**(`useStepRail` 的锚点是 `step-${id}`)。
+   *
+   * ★ 遍历**全部 21 条配方**,不再按场合的池子走 —— 后者覆盖不到 `retrosmokey`
+   *   (它此前一条池子都进不去),而"没人跑到的那几条"最容易藏错。
    */
-  it('每个场合的每条配方:步骤逐条对得上,id 是 `${style.id}-${两位下标}`', () => {
+  it('每条配方:步骤逐条对得上,id 是 `${style.id}-${两位下标}`', () => {
     let checked = 0;
-    for (const occasion of OCCASIONS) {
-      for (const styleId of SCENE_STYLES[occasion]) {
-        const style = styleById(styleId);
-        expect(style, `${occasion} / ${styleId} 的池子里有一个查不到配方的 id`).toBeDefined();
-        const plan = derivePlan({ occasion, styleId });
-        expect(plan, `${occasion} / ${styleId}`).toBeDefined();
+    for (const style of STYLE_LIBRARY) {
+      const plan = derivePlan({ styleId: style.id });
+      expect(plan, `配方 ${style.id} 展开不出方案`).toBeDefined();
 
-        expect(plan!.steps.length, `${occasion} / ${styleId} 的步骤数对不上`).toBe(style!.steps.length);
-        style!.steps.forEach((step, i) => {
-          const got = plan!.steps[i];
-          expect(got?.id).toBe(`${styleId}-${String(i + 1).padStart(2, '0')}`);
-          expect(got?.name).toBe(step.name);
-          // `desc` 是配方里的操作手法,不是另写的一句。
-          expect(got?.desc).toBe(step.action);
-          // 产品逐条照搬(名称 / 色号 / pid 都不改),**顺序也照搬**。
-          expect(got?.products).toEqual(step.products);
-        });
+      expect(plan!.steps.length, `配方 ${style.id} 的步骤数对不上`).toBe(style.steps.length);
+      style.steps.forEach((step, i) => {
+        const got = plan!.steps[i];
+        expect(got?.id).toBe(`${style.id}-${String(i + 1).padStart(2, '0')}`);
+        expect(got?.name).toBe(step.name);
+        // `desc` 是配方里的操作手法,不是另写的一句。
+        expect(got?.desc).toBe(step.action);
+        // 产品逐条照搬(名称 / 色号 / pid 都不改),**顺序也照搬**。
+        expect(got?.products).toEqual(step.products);
+      });
 
-        // 顶部那几格直接取配方,不是拼出来的。
-        expect(plan!.keywords).toEqual([...style!.keywords]);
-        expect(plan!.summary).toBe(style!.summary);
-        expect(plan!.meta).toEqual({
-          stepCount: style!.steps.length,
-          minutes: style!.minutes,
-          level: style!.level,
-        });
-        checked += 1;
-      }
+      // 顶部那几格直接取配方,不是拼出来的。
+      expect(plan!.keywords).toEqual([...style.keywords]);
+      expect(plan!.summary).toBe(style.summary);
+      expect(plan!.family).toBe(style.family);
+      expect(plan!.meta).toEqual({
+        stepCount: style.steps.length,
+        minutes: style.minutes,
+        level: style.level,
+      });
+      checked += 1;
     }
-    // 池子空掉时上面那两个循环一次都不进,"全过"与"什么都没比"长得一样。
-    expect(checked).toBeGreaterThanOrEqual(OCCASIONS.length);
+    // 表空掉时上面那个循环一次都不进,"全过"与"什么都没比"长得一样。
+    expect(checked).toBe(STYLE_LIBRARY.length);
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('★ 色板只收「步骤里真的用到的色号」:按 code 去重、最多 8 条', () => {
     let sawCapped = false;
-    for (const occasion of OCCASIONS) {
-      for (const styleId of SCENE_STYLES[occasion]) {
-        const plan = derivePlan({ occasion, styleId })!;
-        const used = plan.steps.flatMap((s) => s.products).filter((p) => p.pid !== '' && p.code !== '');
-        const where = `${occasion} / ${styleId}`;
+    for (const style of STYLE_LIBRARY) {
+      const plan = derivePlan({ styleId: style.id })!;
+      const used = plan.steps.flatMap((s) => s.products).filter((p) => p.pid !== '' && p.code !== '');
+      const where = `配方 ${style.id}`;
 
-        expect(plan.palette.length, `${where} 的色板超过 8 条`).toBeLessThanOrEqual(8);
-        // 去重:同一个色号不该出现两次。
-        expect(new Set(plan.palette.map((p) => p.code)).size, `${where} 的色板里有重复色号`).toBe(
-          plan.palette.length,
-        );
-        // 每一条都真有来处 —— 色板里不该出现步骤里没用到的色号。
-        for (const entry of plan.palette) {
-          const hit = used.find((p) => p.code === entry.code);
-          expect(hit, `${where} 的色板里 ${entry.code} 在步骤里没用到`).toBeDefined();
-          // `name` 是"出自哪个产品",取的是第一个带着它的那一支。
-          expect(entry.name).toBe(hit!.name);
-        }
-        // 没到上限时,色板就是"全部用到的色号,按首次出现的顺序"。
-        if (plan.palette.length < 8) {
-          const firstSeen: string[] = [];
-          for (const p of used) if (!firstSeen.includes(p.code)) firstSeen.push(p.code);
-          expect(plan.palette.map((p) => p.code), `${where} 的色板与首次出现的顺序对不上`).toEqual(
-            firstSeen,
-          );
-        }
-        if (plan.palette.length === 8) sawCapped = true;
+      expect(plan.palette.length, `${where} 的色板超过 8 条`).toBeLessThanOrEqual(8);
+      // 去重:同一个色号不该出现两次。
+      expect(new Set(plan.palette.map((p) => p.code)).size, `${where} 的色板里有重复色号`).toBe(
+        plan.palette.length,
+      );
+      // 每一条都真有来处 —— 色板里不该出现步骤里没用到的色号。
+      for (const entry of plan.palette) {
+        const hit = used.find((p) => p.code === entry.code);
+        expect(hit, `${where} 的色板里 ${entry.code} 在步骤里没用到`).toBeDefined();
+        // `name` 是"出自哪个产品",取的是第一个带着它的那一支。
+        expect(entry.name).toBe(hit!.name);
       }
+      // 没到上限时,色板就是"全部用到的色号,按首次出现的顺序"。
+      if (plan.palette.length < 8) {
+        const firstSeen: string[] = [];
+        for (const p of used) if (!firstSeen.includes(p.code)) firstSeen.push(p.code);
+        expect(plan.palette.map((p) => p.code), `${where} 的色板与首次出现的顺序对不上`).toEqual(
+          firstSeen,
+        );
+      }
+      if (plan.palette.length === 8) sawCapped = true;
     }
     // 上限那一条只在"真有一份配方用到 8 个以上色号"时才比得出来。
     expect(sawCapped, '没有任何一份配方的色号超过 8 个 —— 上限那条没被比到').toBe(true);
@@ -289,13 +279,12 @@ describe('derivePlan 的边界与展开', () => {
    *     拿真配方里的步骤名断言是因为那才是它实际会遇到的输入。
    */
   it('「注意事项」按步骤名命中正则表,命中不了的步骤就是空的', () => {
-    // `natural` 在「面试汇报」那一档的池子里,而它的步骤名正好覆盖了这里要试的几种。
-    const occasion: Occasion = 'interview';
+    // `natural` 的步骤名正好覆盖了这里要试的几种。
     const styleId = 'natural';
     const tipsOf = (stepName: string) => {
       const at = styleById(styleId)!.steps.findIndex((s) => s.name === stepName);
       expect(at, `配方 ${styleId} 里没有名为「${stepName}」的步骤`).toBeGreaterThanOrEqual(0);
-      return derivePlan({ occasion, styleId })!.steps[at]?.tips ?? [];
+      return derivePlan({ styleId })!.steps[at]?.tips ?? [];
     };
 
     // 「护肤」不在那张表里 ⇒ 一步不许硬塞。

@@ -18,7 +18,7 @@ import { z } from 'zod';
 export const faceReadingSchema = z.object({ skinTone: z.string() }).strict();
 
 /** `scene` 分析的回复。同名的理由见上。 */
-export const sceneReadingSchema = z.object({ occasion: z.string() }).strict();
+export const sceneReadingSchema = z.object({ scene: z.string() }).strict();
 
 /** 过了形状、**取值一条都没查**的回复。⚠️ 要 `AnalysisOf` 请走 `validators/analysis.validator.ts`。 */
 export type FaceReadingRaw = z.output<typeof faceReadingSchema>;

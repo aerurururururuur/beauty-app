@@ -4,6 +4,10 @@
  * 模块内部的实现选择被组合根隔离;依赖只经各模块 public barrel。
  * 换真实引擎/模型时,在对应模块 compose 里按 config.* 开关分发即可。
  */
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   loadConfig,
   loadDotEnvIfPresent,
@@ -11,7 +15,8 @@ import {
 } from './modules/shared/infrastructure/config.js';
 import { createAssetsModule } from './modules/assets/index.js';
 import { createMakeupModule } from './modules/makeup/index.js';
-import { createUserModule } from './modules/user/index.js';
+import { createUserModule, dataUrlToBytes } from './modules/user/index.js';
+import type { FaceReader } from './modules/user/index.js';
 import { createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
 import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
@@ -120,8 +125,48 @@ async function main(): Promise<void> {
     },
   };
 
+  /**
+   * `Analyzers['face']` → `user` 模块的 `FaceReader`(第三处跨模块粘合)。三件事只在这一层发生:
+   *
+   *   ① **dataURL → 临时文件**:`makeup` 的读图口收 `ResolvedImage`(本地路径 + mime),
+   *      而这边手上只有 dataURL。解码用 `user` 导出的 `dataUrlToBytes`,**不写第二个解码器**。
+   *   ⚠️ 临时文件落 `os.tmpdir()`,**读图前后都不进 dataDir**:读脸是"看一眼",没有落盘的理由。
+   *   ② **失败分类**:"模型说读不出肤色"在 `makeup` 那边是 `VALIDATION_ERROR`,**别的异常一律原样抛出去** ——
+   *      把网断/key 过期说成"读不出来"就是让用户去换一张本来没问题的照片。
+   *      ★ 只有**这一层**同时知道两边的词汇表,所以判据写在这里而不是端口里。
+   *   ③ **清理临时文件**(`finally`)。读失败也要删 —— 那是一张脸。
+   *
+   * ★ `analyzers` 缺省 ⇒ `faceReader` 是 `undefined` ⇒ 没有读脸用例 ⇒ `/personas/analyze` 不注册。
+   */
+  const faceReader: FaceReader | undefined = analyzers
+    ? {
+        analyzeFace: async (photo) => {
+          const { mime, bytes } = dataUrlToBytes(photo);
+          const scratchDir = path.join(tmpdir(), 'olyhks-face');
+          await mkdir(scratchDir, { recursive: true });
+          const filePath = path.join(scratchDir, randomUUID());
+          await writeFile(filePath, bytes);
+          try {
+            const { skinTone } = await analyzers.face.read({ image: { filePath, mimeType: mime } });
+            return { ok: true, skinTone };
+          } catch (err) {
+            if (err instanceof AppError && err.code === ErrorCode.VALIDATION_ERROR) {
+              return { ok: false, reason: 'unreadable' };
+            }
+            throw err;
+          } finally {
+            await rm(filePath, { force: true });
+          }
+        },
+      }
+    : undefined;
+
   // 账号表落 dataDir/users/users.json;密码只存 scrypt 凭据,不存明文。
-  const user = createUserModule({ dataDir: config.dataDir });
+  // ★ 人设库也在这个模块里(落 dataDir/personas/),读脸端口按上面那条链可缺省。
+  const user = createUserModule({
+    dataDir: config.dataDir,
+    ...(faceReader ? { faceReader } : {}),
+  });
 
   // 当日天气:缺省 live 实拉,WEATHER_PROVIDER=mock 切离线示意。
   const weather = createWeatherModule({ kind: config.weatherProvider });
@@ -304,13 +349,13 @@ async function main(): Promise<void> {
    */
   const fakes: string[] = [];
   if (config.agentLlm === 'mock') {
-    fakes.push('对话用脚本化演示(不是模型):按固定脚本演一遍,不联网、不花钱');
+    fakes.push('AGENT_LLM=mock (scripted demo, no model, offline)');
   }
   if (config.makeupEngine === 'mock') {
-    fakes.push('上妆用假引擎:它把输入照片原样返回,不是真的上妆效果');
+    fakes.push('MAKEUP_ENGINE=mock (engine returns the input photo as-is)');
   }
   if (fakes.length > 0) {
-    app.log.info(`[agent] 当前为离线配置 —— ${fakes.join(';')}。详见 server/README.md 与 .env.example`);
+    app.log.info(`[agent] offline config: ${fakes.join('; ')} - see server/README.md`);
   }
 
   /**
@@ -321,10 +366,8 @@ async function main(): Promise<void> {
    */
   app.log.info(
     config.visionAnalyzer === 'real'
-      ? `[analyzer] 读图分析已启用(${config.visionModel}):/agent/sessions/:id/images 收图、/analyses 分析,` +
-          '两条口已注册;次数不设上限。'
-      : '[analyzer] 读图分析未启用(VISION_ANALYZER=off,缺省):收图与分析那两条口没有注册。' +
-          '要开就配 DASHSCOPE_API_KEY 并把 VISION_ANALYZER 设为 real,见 .env.example。',
+      ? `[analyzer] vision ON (${config.visionModel}): /images + /analyses + /personas/analyze registered; every call costs money`
+      : '[analyzer] vision OFF (VISION_ANALYZER=off, default): /images, /analyses and /personas/analyze are NOT registered (404)',
   );
 
   /**
@@ -340,32 +383,32 @@ async function main(): Promise<void> {
    */
   if (!products.loaded) {
     app.log.info(
-      `[products] 没有产品库(${config.productsDir} 不存在或不是目录)——` +
-        'list_products / read_product 不会注册。要接上就配 PRODUCTS_DIR,见 .env.example。',
+      `[products] no catalog (${config.productsDir} missing) - list_products / read_product NOT registered`,
     );
   } else {
     const library = products.loaded.library();
     const health = library.health;
     const debts: string[] = [];
     const mismatched = health.statedVsActual.perCategory.filter((c) => !c.ok).length;
-    if (mismatched > 0) debts.push(`类目款数与资料自称对不上 ${mismatched} 处`);
+    if (mismatched > 0) debts.push(`perCategoryMismatch ${mismatched}`);
     if (health.statedVsActual.statedTotals.length > 1) {
-      debts.push(`资料内总数说法有 ${health.statedVsActual.statedTotals.length} 种`);
+      debts.push(`statedTotals ${health.statedVsActual.statedTotals.length}`);
     }
-    if (health.missingDimensions.length > 0) debts.push(`必填维度缺 ${health.missingDimensions.length} 条`);
-    if (health.suspectedDuplicates.length > 0) debts.push(`疑似重复 ${health.suspectedDuplicates.length} 对`);
-    if (health.shadeLeakage.length > 0) debts.push(`色号泄漏 ${health.shadeLeakage.length} 处`);
-    if (health.missingEnglishName.length > 0) debts.push(`无英文名 ${health.missingEnglishName.length} 条`);
+    if (health.missingDimensions.length > 0) debts.push(`missingDimensions ${health.missingDimensions.length}`);
+    if (health.suspectedDuplicates.length > 0) debts.push(`suspectedDuplicates ${health.suspectedDuplicates.length}`);
+    if (health.shadeLeakage.length > 0) debts.push(`shadeLeakage ${health.shadeLeakage.length}`);
+    if (health.missingEnglishName.length > 0) debts.push(`missingEnglishName ${health.missingEnglishName.length}`);
 
+    // ★ 打 `library.id` 而不是 `library.name`、不带来原始文件名:那些都是中文,
+    //   在 GBK 终端里又会花。这一行只要回答"加载了哪个库、多少条"。
     const head =
-      `[products] 已加载「${library.name}」:${health.statedVsActual.actualTotal} 条 / ` +
-      `${library.categories.length} 类目(源资料:${library.source.file})。`;
+      `[products] loaded ${library.id}: ${health.statedVsActual.actualTotal} items / ` +
+      `${library.categories.length} categories`;
     app.log.info(head);
     if (debts.length > 0) {
       app.log.warn(
-        `[products] 已知数据债:${debts.join(' · ')}。` +
-          '这些都是**源资料自身**的问题,不是解析出错;这类问题原样入库,' +
-          `要修请改源文档后重跑 scripts/import-products.ts。详单见 ${library.id}/library.json 的 health。`,
+        `[products] catalog health: ${debts.join(', ')} - source-doc issues, not parse errors; ` +
+          `see ${library.id}/library.json health`,
       );
     }
   }
@@ -377,10 +420,10 @@ async function main(): Promise<void> {
    *   否则改坏了词表的人只会看到服务照常起来。
    */
   app.log.info(
-    `[face-catalog] 已加载词表 ${faceCatalog.vocabulary.version}:` +
-      `${faceCatalog.vocabulary.tones.length} 档` +
-      `(缺省「${faceCatalog.vocabulary.defaultTier().label}」)` +
-      ` / ${faceCatalog.vocabulary.dimensions.length} 类特征。`,
+    `[face-catalog] lexicon ${faceCatalog.vocabulary.version}: ` +
+      `${faceCatalog.vocabulary.tones.length} tones ` +
+      `(default ${faceCatalog.vocabulary.defaultTier().id}) / ` +
+      `${faceCatalog.vocabulary.dimensions.length} features`,
   );
 
   /**

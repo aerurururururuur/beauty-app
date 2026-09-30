@@ -232,6 +232,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // 属 §10 [I8] 那条"会话 TTL 到期照片与产物被真实删除"的同一笔债)。
     makeupOutDir: path.join(env.DATA_DIR ?? './data', 'engine-out'),
     // 分析缺省 off:今天的真实状态就是"没有这个能力"(与两个 mock 缺省同一条理由)。
+    // ✏️ 2026-09-30:它现在管**两族**入口——agent 的 `/images` `/analyses`,
+    //    加上 user 的 `POST /personas/analyze`(读脸)。两边同一条纪律:
+    //    `off` ⇒ 路由**根本不注册**,且 `canAnalyzeFace: false`。
     visionAnalyzer: asKind('VISION_ANALYZER', env.VISION_ANALYZER, 'off', VISION_ANALYZER_CHOICES),
     // ⚠️ 这个缺省名**没实测过**:别把一次"模型不存在"的失败读成"读图形状不对"。
     //    用之前先 `npm run probe:vision` 确认这个名字在该端点上存在。

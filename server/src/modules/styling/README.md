@@ -11,7 +11,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `domain/schemas/entities/style-recipes.ts` | 配方三个形状（产品 / 步骤 / 配方）的 zod 单源 |
-| `domain/entities/style-recipes.ts` | ★ 21 套配方 + `SCENE_STYLES` 候选池 + `styleById` / `stylePoolFor` |
+| `domain/entities/style-recipes.ts` | ★ 21 套配方（每条自带 `family`） + `styleById` |
 | `application/plan-view.ts` | 一份方案的对外形状（视图，不是实体） |
 | `application/derive-plan.ts` | ★ `derivePlan()`：配方 → 方案。纯函数、无 IO |
 
@@ -30,15 +30,14 @@
 
 ## 与前端那份是同一份内容
 
-`domain/entities/style-recipes.ts` 与 `vue/src/api/kb/styles.js` **逐字段相同**
-（只多了 `stage` / `family` / `daily` 三个后端独有场合的候选池——那三个场合只经对话进来，
-真实模型完全可能把「下周答辩」判成 `stage`）。
-✏️ **2026-09-30：`kb/styles.js` 在前端已经零消费者了，但它是"搬运前的原件"，别删。**
+`domain/entities/style-recipes.ts` 与 `vue/src/api/kb/styles.js` **逐字段相同**。
+✏️ **2026-09-30：这份配方在前端的**两个**消费者都变了 —— `kb/styles.js` 的 21 个名字
+现在被 `/form` 的「想要的风格」chips 直接消费（`api/design.js`），所以"零消费者"那句作废。
+`SCENE_STYLES` / `stylesForScene`（`:436` / `:448`）随之成为孤儿，一并删掉了。**
 
 两边相等由 **`server/test/styling-plan.test.ts`** 钉着，两道：
 
-1. **内容对表** —— 逐条比 `STYLE_LIBRARY`（按 id）与 5 个共有场合的候选池，
-   判据是「后端应等于前端」。
+1. **内容对表** —— 逐条比 `STYLE_LIBRARY`（按 id，判据是「后端应等于前端」）。
    ⚠️ 方向是**前端说了算**：这份配方是 09-30 从 `kb/styles.js` 搬过来的，
    搬家搬错一格**没有任何别的征兆**（方案照算、页面照渲染、日志干净，只有某一格不对），
    所以只能拿原件直接比。
@@ -51,9 +50,12 @@
 （展开是否正确改成**对着配方自己**断言：步骤一笔不多一笔不少、id 拼法固定、
 `desc` 就是那一步的操作手法）。
 
-另 3 个场合（`stage` / `family` / `daily`）前端没有对手，由 `SCENE_STYLES` 那份
-`Record<Occasion, …>` 与「池子非空、池里的 id 都查得到配方」两条兜着。
-★ 本仓已有先例：`test/scene-rules.test.ts` 读 `vue/vite.config.js` 钉一个跨端不变量。
+✏️ **2026-09-30：候选池（`SCENE_STYLES` / `stylePoolFor`）删了，`Record<Occasion, …>`
+那道穷尽检查随之消失。** 配方**本身就没有场合概念**——21 条各自带 `family`（7 类），
+再按场合分一层池子是重复的间接。现在的对应关系是：
+- **「换一版」的候选 = 同 `family` 的兄弟**（`derive-plan.ts`），由
+  `styling-plan.test.ts` 的「family 都非空」那条兜住（空 family 那一组就只剩它自己）；
+- **场合与风格是两张各自独立的预设表，自由组合**——不再有任何"这个场合只能配那几条"的依赖。
 
 **改配方就要同时改两边，并让那条测试过。**
 

@@ -52,9 +52,8 @@ import type {
   SessionArtifacts,
   ToolResultBlock,
 } from '../src/modules/agent/index.js';
-import type { Occasion } from '../src/modules/shared/index.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
-import { SCENE_STYLES, styleById, stylePoolFor } from '../src/modules/styling/index.js';
+import { STYLE_LIBRARY, styleById } from '../src/modules/styling/index.js';
 
 const USER = 'u1';
 /**
@@ -409,6 +408,13 @@ function switchTextOf(styleId: string): string {
   return `换成「${style.name}」(${style.id}) 这个风格，重新给我一套。`;
 }
 
+/**
+ * 用户**没填风格**时脚本会挑的那一条(`demo-llm.ts` 的 `styleFor`:认不出就取全表第一条)。
+ * ★ 写成一个具名常量而不是到处抄字面量:这条规则一改,下面几组测试的**前提**要一起改,
+ *   而抄了五遍的 `'natural'` 改起来一定会漏一处 —— 那一处就是"看起来还绿着的假绿"。
+ */
+const DEFAULT_STYLE_ID = STYLE_LIBRARY[0]?.id ?? '';
+
 /** 从入参里读一格妆面的色。入参是 `unknown`,所以这里逐层窄化。 */
 function toneOfZone(input: Record<string, unknown>, zone: string): unknown {
   const zones = input.zones;
@@ -445,12 +451,25 @@ describe('★ 表单那条路:需求一次填完(demo 脚本照着 brief 演)', 
     const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
 
     const input = proposeInputOf(turn.session);
-    expect(stylePoolFor('travel')).toContain(input.styleId);
-    // ★ 钉到具体那一个:`'vital'` **同时在** `travel` 与 `daily` 两个池子里,
-    //   所以"它不在 daily 的池里"这句话不成立 —— 拿它当判据,
-    //   脚本照旧按 `daily` 演也照样绿。只有钉到池子里的第一条才真的证明 brief 说了算。
-    expect(input.styleId).toBe('natural');
+    // ★ 这一格是**用户的原话**、不是被脚本归的类:表单填什么就说什么。
+    //   ✏️ 此前这条比的是「styleId 落在 travel 那一档的候选池里」——池子删了
+    //   (场合与风格自由组合),这句话不再有判据。换成直接钉 `lookSpec.occasion`:
+    //   它才是"brief 说了算"最直接的那一处,而此前它只能间接着这一条。
     expect(turn.session.lookSpec?.occasion).toBe('travel');
+    expect(input.occasion).toBe('travel');
+    expect(hasToolError(turn.session)).toBe(false);
+  });
+
+  it('★ 预设表外的场合原样带到妆面单上(不收进最近的一档)', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, { occasion: '朋友的婚礼' });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    // ★★ 这条是本次松绑的现场证据:此前这句会被 422 打回,**整份 brief 一起丢**
+    //   (用户别的几格全对也没用),而现在它必须一路走到妆面单上。
+    //   若有人把"归成最近的一档"加回来,这里会变成「聚会」而红。
+    expect(turn.session.lookSpec?.occasion).toBe('朋友的婚礼');
     expect(hasToolError(turn.session)).toBe(false);
   });
 
@@ -514,12 +533,12 @@ describe('★ 表单那条路:需求一次填完(demo 脚本照着 brief 演)', 
 
 /**
  * 表单那条路走到"确认框已经弹出来"。
- * ★ 用**表单**那条路而不是 ① 那组的关键词路:换风格认的是提示词里那行风格池,
- *   而只有场合定下来时那一行才**只列这一档**。纯对话那条路场合没写进 `brief`,
- *   提示词会把八档全列出来,同一个 id 会横跨好几行(如 `natural` 在四档里都有),
- *   读回来的场合就是"最后一行那个"——不是这一组要验的东西。
+ * ★ 用**表单**那条路(而不是 ① 那组的关键词路)是为了让 `brief` 一次填好 ——
+ *   换风格认的是系统提示里那一行**可选风格清单**,而那行与场合无关(2026-09-30 起),
+ *   所以这里用哪条路其实都行;保留表单路是因为它同时覆盖了"表单填的场合"
+ *   与"结果页那条切换条"的衔接。
  */
-async function upToPendingWith(occasion: Occasion) {
+async function upToPendingWith(occasion: string) {
   const h = setup();
   const session = await h.startSession.execute(USER, { occasion });
   const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
@@ -533,8 +552,9 @@ describe('★ 换风格:照用户点的那一个重配一套', () => {
     const h = setup();
     const session = await h.startSession.execute(USER, { occasion: 'party' });
     const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
-    // 前提:脚本缺省挑的是池子里的第一条,而下面点的是池子里的另一条。
-    expect(proposeInputOf(first.session).styleId).toBe(SCENE_STYLES.party[0]);
+    // 前提:脚本缺省挑的和下面点的那一条**不是同一条**(否则"换了"无从谈起)。
+    expect(proposeInputOf(first.session).styleId).toBe(DEFAULT_STYLE_ID);
+    expect(DEFAULT_STYLE_ID).not.toBe('wolf');
 
     await h.attachPhoto.execute(session.id, USER, upload());
     const turn = await h.sendMessage.execute(session.id, USER, switchTextOf('wolf'));
@@ -585,12 +605,39 @@ describe('★ 换风格:照用户点的那一个重配一套', () => {
     await h.sendMessage.execute(session.id, USER, FORM_OPENING);
     await h.attachPhoto.execute(session.id, USER, upload());
 
-    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf('banquet'));
+    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf(DEFAULT_STYLE_ID));
 
     expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(1);
-    expect(proposeInputOf(turn.session).styleId).toBe('banquet');
-    expect(turn.session.plan?.styleId).toBe('banquet');
+    expect(proposeInputOf(turn.session).styleId).toBe(DEFAULT_STYLE_ID);
+    expect(turn.session.plan?.styleId).toBe(DEFAULT_STYLE_ID);
     expect(turn.stopReason).toBe('awaiting_confirmation');
+  });
+
+  /**
+   * ★ **用户在表单里说了要什么风格,脚本就配那一条。**
+   *
+   * `styleText` 这一格是 2026-09-30 新加的(此前风格只能由算法按场合给 4 条),
+   * 而脚本认它的方式与上面那张场合关键词表同一条口径:**名字逐字出现**就用它 ——
+   * 查表,不假装理解语义。
+   *
+   * ⚠️ 下面用的是 `pure`(纯欲妆):它**不在** `DEFAULT_STYLE_ID` 那个 family 里,
+   *   所以这条断言不可能是"碰巧挑对了缺省那条"。
+   */
+  it('★ 表单里写了「想要的风格」→ 脚本按那一条配(不再由算法按场合派)', async () => {
+    const h = setup();
+    const wanted = styleById('pure');
+    expect(wanted, "测试写了一条不存在的配方 id").toBeDefined();
+    expect(wanted!.family).not.toBe(styleById(DEFAULT_STYLE_ID)!.family);
+
+    const session = await h.startSession.execute(USER, {
+      occasion: 'party',
+      styleText: `想要${wanted!.name}`,
+    });
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    expect(proposeInputOf(turn.session).styleId).toBe('pure');
+    expect(turn.session.plan?.styleId).toBe('pure');
+    expect(hasToolError(turn.session)).toBe(false);
   });
 });
 
