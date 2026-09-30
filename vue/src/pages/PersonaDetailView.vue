@@ -64,7 +64,7 @@
             class="rel-input"
             type="text"
             maxlength="12"
-            placeholder="例如：同事 / 继母 / 搭子"
+            placeholder="例如：同事 / 搭子"
           />
         </section>
 

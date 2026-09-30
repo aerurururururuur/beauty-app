@@ -1,0 +1,135 @@
+{
+  "id": "eye-liner",
+  "wording": {
+    "texture": "高度显色、轻松晕染，24 小时不脱妆；哑光 / 缎面哑光 / 镀铬三种妆效",
+    "skinTypes": "所有眼部状况；防水防晕染，适合敏感眼与易流泪的眼部",
+    "occasions": "夏季高温出汗、雨天、游泳等需极致防水的场景",
+    "warnings": "成分温和，含霍霍巴油；含少量着色剂"
+  },
+  "shades": {
+    "label": "敢爱自由眼线笔",
+    "shades": [
+      {
+        "code": "01",
+        "name": "Unbridled Black · 黑色 · 全风格通用",
+        "hex": "#1c1a1c",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "02",
+        "name": "Deconstructed Brown · 棕色 · 自然",
+        "hex": "#6b4a34",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "03",
+        "name": "Liberated Bronze · 古铜色",
+        "hex": "#9c6a3a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "04",
+        "name": "Unrestricted Plum · 梅子色",
+        "hex": "#6e3350",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "05",
+        "name": "Prismatic Black · 珠光黑",
+        "hex": "#2b2b33",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "06",
+        "name": "Legendary Gold · 金色 · 创意",
+        "hex": "#c9a13e",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "07",
+        "name": "Unconditional Marine · 海洋蓝",
+        "hex": "#2f5aa0",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "08",
+        "name": "Provocative Green · 绿色",
+        "hex": "#2f7a4e",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "09",
+        "name": "Unmuted White · 白色 · 提亮",
+        "hex": "#f2f2f2",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "极高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "10",
+        "name": "Clandestine Silver · 银色",
+        "hex": "#c9cdd4",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "11",
+        "name": "Unapologetic Pink · 粉色",
+        "hex": "#f07fb0",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "12",
+        "name": "Obsessive Tangerine · 橘色",
+        "hex": "#f0702a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      }
+    ]
+  },
+  "blurb": "顺滑 · 防水"
+}

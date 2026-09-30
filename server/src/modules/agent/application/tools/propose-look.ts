@@ -14,8 +14,8 @@
  * ── ★★ 2026-09-30:本工具**同时产出一份「方案」** ──────────────────────────────
  *
  * `styleId` 是新增的必填入参,它**不属于 `LookSpec`**(那是一份妆面),
- * 所以摘出来单独校验,再由 `styling` 的 `derivePlan` 展开成
- * 「步骤 / 色板 / 产品 / 个性化调整」,和妆面单**在同一次调用里**写进会话。
+ * 所以摘出来单独校验,再由 `styling` 的 `derivePlan` + `decoratePlan` 展开成
+ * 「步骤 / 色板 / 产品 / 个性化调整」(色值已补齐),和妆面单**在同一次调用里**写进会话。
  *
  * ★ **为什么不新开一个 `propose_plan`**:两次调用就有两个决定,
  *   "讲给用户的那套方案"与"真的要拿去出图的那套妆"可能不是一套——
@@ -26,8 +26,8 @@
 import { AppError } from '../../../shared/index.js';
 import { LookSpec as LookSpecEntity, describeLook, validateLookSpec } from '../../../makeup/index.js';
 import type { LookSpec, SkinTonePalette } from '../../../makeup/index.js';
-import { derivePlan } from '../../../styling/index.js';
-import type { PlanPersonalized, PlanView } from '../../../styling/index.js';
+import { decoratePlan, derivePlan } from '../../../styling/index.js';
+import type { PlanDraft, PlanPersonalized, PlanView, ShadeLookup } from '../../../styling/index.js';
 import { PROPOSE_LOOK } from '../../domain/tools/definitions.js';
 import { styleOptionsHint } from '../style-options-description.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
@@ -64,10 +64,15 @@ export class ProposeLookTool implements Tool {
    * `features` 同一条理由:少传它方案里的「针对本人」那一块**永远为空**,
    * 而界面上没人看得出来(用户会以为"我填的那些特征没什么可调的")。
    * 见 `agent/domain/ports/feature-strategies.ts`。
+   *
+   * `shades` 还是同一条理由:少传它,`decoratePlan` 拿不到色值 ⇒ 方案里**每一块
+   * 色卡都没有颜色**,而步骤与色板的条数一格不少 —— 界面上是一排空白格子,
+   * 没人知道那里本该有颜色。见 `styling/domain/ports/shade-lookup.ts`。
    */
   constructor(
     private readonly palette: SkinTonePalette,
     private readonly features: FeatureStrategies,
+    private readonly shades: ShadeLookup,
   ) {}
 
   async run(input: unknown, context: ToolContext): Promise<ToolOutcome> {
@@ -109,9 +114,12 @@ export class ProposeLookTool implements Tool {
       .filter((card): card is PlanPersonalized => card !== undefined);
 
     // ⚠️ **不再传 `occasion`**:候选风格已与场合无关(见 `derive-plan.ts` 的注释)。
-    const plan: PlanView | undefined = styleId
+    // ★ 两步:先纯推导出一份 `PlanDraft`,再补色值成 `PlanView`。
+    //   **写进会话的是补完色值的那一份** —— 它是唯一会对外的形状(见 `plan-view.ts` 文件头)。
+    const draft: PlanDraft | undefined = styleId
       ? derivePlan({ styleId, personalized })
       : undefined;
+    const plan: PlanView | undefined = draft ? decoratePlan(draft, this.shades) : undefined;
 
     if (!plan) {
       // ★ 两条失败(`styleId` 没给 / 给了个不认得的)合成一条消息:**那份清单是唯一

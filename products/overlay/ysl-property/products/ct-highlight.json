@@ -1,0 +1,46 @@
+{
+  "id": "ct-highlight",
+  "wording": {
+    "texture": "高光粉饼，12 小时持妆；含烟酰胺与透明质酸",
+    "skinTypes": "所有肤质，干皮更友好",
+    "occasions": "需要提亮面部立体感的场合，通勤与晚宴均可",
+    "warnings": "含滑石粉；成分相对安全"
+  },
+  "shades": {
+    "label": "All Hours Hyper Luminize 高光",
+    "shades": [
+      {
+        "code": "01",
+        "name": "香槟金色 · 暖调肤色",
+        "hex": "#e8c98a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "02",
+        "name": "玫瑰金色 · 冷调肤色",
+        "hex": "#e3a98f",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "03",
+        "name": "珍珠白色 · 所有肤色",
+        "hex": "#f4eee6",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "极高明度",
+        "saturation": "低饱和"
+      }
+    ]
+  },
+  "blurb": "细腻爆闪",
+  "category": "contour"
+}

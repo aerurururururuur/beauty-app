@@ -48,6 +48,7 @@ src/
     ├── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
     ├── products/            # 品牌产品库(内容库,给模型读的品类资料):加载 + 校验 + 只读查询
     ├── styling/             # ★ 妆容方案:21 套风格配方 + 展开成步骤/色板/产品/个性化(纯函数,无 IO)
+    │                        #   ✏️ 2026-09-30:色值改由 `domain/ports/shade-lookup.ts` 注入(组合根给闭包),自己仍不碰 IO
     └── agent/               # 对话 agent:工具调用循环 + LookSpec 产出 + 会话 + **出图(人在回路)**
 ```
 
@@ -135,6 +136,8 @@ src/
 | `DELETE /api/personas/features/:id?userId=` | → **204** 无响应体。★ **还有任何一份人设的 `features` 里存着 `group/text` 那一串 ⇒ 409**。★ 判据是**字符串相等**，不是按库行 id 查：写进人设的是 `<分组 id>/<原话>`、**不是库行的 id**——这也意味着改库行的 `text` 会让存量人设变孤儿，所以**只做建 / 列 / 删，不做改**。归属不符 → 404 |
 | `GET /api/weather` | `?city=北京` 或 `?lat=39.9&lon=116.4` → `WeatherView{ source, place, condition, temperatureC, humidityPct, uvIndex }`。前端只取 `condition/temperatureC/humidityPct/uvIndex` 四字段填进 `POST /api/agent/sessions` 的 `weather`（`place`/`source` 是回显元信息，**不进 weather**——weather schema 是 `.strict()`）；失败就不填 |
 | `POST /api/cabinet/items` | JSON `{ userId, name, attributes? }` → **201** `CosmeticItemView`。`attributes` 是 `{label,value}[]` 的**自定义**键值（≤12 条，标签去重），名称 ≤40 字 |
+| `GET /api/products` | → **200** `{ groups, products: Card[], shades: { [id]: { label, shades[] } } }`。**整库一次给**（66 条卡片 + 全部色号，约 60 KB）。★ **不收 `userId`、不校验归属**——品牌内容，形状同 `GET /weather`。`PRODUCTS_DIR` 指空 ⇒ 与下面那条**都不注册**（404） |
+| `GET /api/products/:id` | → **200** 一件的六维原文 + 手写补充 + 色号；未知 id → **404** `PRODUCT_NOT_FOUND`。★ 两条路由的分工由**体积**定：六维原文只在信息面板点开时用得到，不塞进批量那条 |
 | `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
 | `PATCH /api/cabinet/items/:id` | JSON `{ userId, name?, attributes? }` → **200** `CosmeticItemView`。两者**至少给一个**（都不给 = 空操作，直接 422） |
 | `DELETE /api/cabinet/items/:id?userId=` | → **204** 无响应体。归属走**查询串**（DELETE 带 body 会被不少代理丢掉） |
@@ -181,6 +184,7 @@ src/
 | `CUSTOM_FEATURE_NOT_FOUND` | 404 | 自建特征不存在**或不属于你**（同上，共用 404） |
 | `CUSTOM_FEATURE_FULL` | 409 | 单账号自建特征超过 50 条 |
 | `CUSTOM_FEATURE_IN_USE` | 409 | 本账号还有**已保存的**人设存着 `分组/原话` 那一串，不许删（判据是字符串相等，不是按库行 id 查） |
+| `PRODUCT_NOT_FOUND` | 404 | 产品库里的那个 id 不存在（`GET /api/products/:id`）。★ 这是**唯一不涉及归属**的 404——产品库是品牌内容，没有"不属于你"这回事 |
 | `SESSION_NOT_FOUND` | 404 | 会话不存在**或不属于你**（两者共用，不泄露存在性） |
 | `RENDER_NOT_FOUND` | 404 | 成品图号不存在**或不属于该会话**。与上一条**分开**：归属已先查过，这里是真的没有那张图 |
 | `NICKNAME_TAKEN` | 409 | 昵称已被占用（唯一） |
@@ -283,13 +287,30 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 `PRODUCTS_DIR` 指到**具体的库**（缺省那样）或指到**容器**（`../products`）都行；
 容器里**有多个库、或者一个库都没有**，都**启动即失败**——多库时随便挑一个的后果是模型
 只看得见其中一个品牌而它自己不知道；零库则多半是内容没复制全或 `library.json` 被删了。
+
+✏️ **2026-09-30：导入器有了第二个输入端 `products/overlay/<库>/`（手写层），
+而且产品库多了一个消费者——前端的数字美妆台。** 三条：
+
+1. **手写层在库目录的旁边**（`products/overlay/ysl-property/`，**不在** `products/ysl-property/` 里面）：
+   `crosswalk.json` 把 docx 编号绑到 slug，`products/<slug>.json` 是逐条 patch（docx 有的只补文案与色号，
+   补录产品写全）。**生成物照旧一个都不许手改**。切进展示用的 9 类与两套编码的合并都记在那边。
+2. **id 从 `NN-latin` 换成了 slug**（前端的口径），所以化妆包、配方、`kb/` 那三份前端常量**都对得上同一套词**。
+   代价与迁移表见 `products/overlay/ysl-property/README.md`。
+3. ★ **`products/presentation/` 从空变有**：`GET /api/products`（整库目录 + 全部色号，约 60 KB）
+   与 `GET /api/products/:id`（一件的六维原文 + 手写补充 + 色号），**不收 `userId`、不校验归属**
+   ——产品库是品牌内容，形状与 `GET /weather` 同类。**库不存在时这两条根本不注册**（同 `list_products` 那条口径）。
+   ★ **方案里的色值由此改由服务端回填**：此前前端拿 `kb/shades.js` 的 `hexOf(pid, code)` 补，
+   现在是 `styling/application/decorate-plan.ts` 经 `domain/ports/shade-lookup.ts` 从这份库取。
+   **前端不再持有任何色值**（`styling/README.md` 约定 2 已反过来写）。
+   ⚠️ 色号是**按色号名推的近似值**（`hexApprox: true`，YSL 不公布 HEX）——
+   搬进库之后它们和「品牌资料原文」并排躺着，看起来一样权威，展示文案必须继续明说这件事。
 ★ **「没有产品库」只有一个判据：这个路径不存在。** 指一个存在的空目录**不会**关掉功能，
 它会**让你起不来**——把「目录空着」也当成「没配」，就等于让删掉一份 `library.json` 之后
 服务照常启动、模型静默地不再推荐，而**没有一行日志说为什么**。那正是下面「坏数据启动即失败」要防的事。
 
 | 情况 | 处理 | 为什么 |
 | --- | --- | --- |
-| 目录**不存在** | `list_products` / `read_product` **不注册**，打一行 `info` | 「没配产品库」是合法部署形态。⚠️ **不是「注册了但返回空」——那是假开关**：模型会以为自己有个空库，然后对着空库编出像模像样的推荐 |
+| 目录**不存在** | `list_products` / `read_product` 与那两条 `GET /products` 路由**都不注册**，打一行 `info` | 「没配产品库」是合法部署形态。⚠️ **不是「注册了但返回空」——那是假开关**：模型会以为自己有个空库，然后对着空库编出像模像样的推荐；前端则拿到一个 200 的空屏，看起来像"这个品牌没有产品" |
 | 目录在但**内容坏** | **启动即失败** | JSON 语法错 / 字段缺或多 / `category` 与所在目录不符 / 类目登记条数与实际不符 / **取不到库（空目录、`library.json` 被删、内容没复制全）** —— 一律抛错。**静默丢产品 = 模型从残缺库里推荐而没人知道** |
 | 正常 | 打一行 `info`（条数 + 源资料），有已知数据债再打一行 `warn` | 见下 |
 
@@ -349,8 +370,9 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   后端的 id 当时零消费者，所以**改后端对齐前端**。
 - `styling-plan.test.ts` — ★ 2026-09-30 新增。跨端对表 + `derivePlan` 的行为契约：
   ① 后端那份配方（21 套 `STYLE_LIBRARY` + 5 个共有场合的 `SCENE_STYLES` 池）
-  与**前端的 `kb/styles.js` 逐字段相同**；② 配方里每一对非空的 `(pid, code)` 都能在前端
-  `kb/shades.js` 里查到非空 hex（这条一红，色板会少几块而**没人看得出来**）；
+  与**前端的 `kb/styles.js` 逐字段相同**；② 配方里每一对非空的 `(pid, code)` 都能在**产品库**
+  里查到非空 hex（✏️ 2026-09-30 前这条读的是前端 `kb/shades.js`，那份已退役、内容并进了
+  `products/overlay/ysl-property/`。这条一红，色板会少几块而**没人看得出来**）；
   ③ 展开不许漏、不许多：步骤数 / id 拼法 `${style.id}-${两位下标}` / `desc` 就是那一步的
   「操作手法」/ 产品逐条照搬；④ 色板按 `code` 去重、上限 8、只收步骤里真用到的色号；
   ⑤ 未知特征 id **剔掉**、顺序即用户勾选的顺序。

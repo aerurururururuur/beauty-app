@@ -1218,16 +1218,6 @@
   color: var(--color-text-disabled);
 }
 
-.shade-detail--pending {
-  display: block;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--color-card);
-  color: var(--color-text-disabled);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 .prod-info {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
@@ -1279,7 +1269,7 @@
   -webkit-box-orient: vertical;
 }
 
-.product-card__shades--pending {
+.product-card__shades--none {
   color: var(--color-text-disabled);
 }
 
@@ -2659,7 +2649,10 @@
 }
 
 /* 化妆包空态 */
-.bag-empty {
+/* 空态的一块。★ `.vanity-state` 是它的**同一套皮**:目录还没回来 / 没回来过那两态
+   与「化妆包还空着」长得一样,但说的是完全不同的事,所以是两个类名、共用一份样式。 */
+.bag-empty,
+.vanity-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2670,7 +2663,8 @@
   box-shadow: var(--shadow-card);
 }
 
-.bag-empty__art {
+.bag-empty__art,
+.vanity-state__art {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2680,13 +2674,30 @@
   background: var(--color-pink-soft);
 }
 
-.bag-empty__title {
+.bag-empty__title,
+.vanity-state__title {
   font-size: 15px;
   font-weight: 700;
   color: var(--color-text);
 }
 
-.bag-empty__sub {
+.bag-empty__sub,
+.vanity-state__sub {
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--color-text-sub);
+}
+
+/* 只有失败那一态有按钮(「再试一次」) */
+.vanity-state__action {
+  margin-top: var(--space-3);
+}
+
+/* 信息面板的加载态与失败态:同一张卡,分量与正文不同 */
+.prod-info--busy,
+.prod-info--fail {
   font-size: 13px;
   color: var(--color-text-sub);
 }
@@ -2845,7 +2856,7 @@
   color: var(--color-text-sub);
 }
 
-.catalog-card__shades--pending {
+.catalog-card__shades--none {
   color: var(--color-text-disabled);
 }
 

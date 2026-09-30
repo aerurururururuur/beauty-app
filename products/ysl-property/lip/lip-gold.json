@@ -1,0 +1,174 @@
+{
+  "id": "lip-gold",
+  "number": 42,
+  "name": "YSL 小金条口红（细管纯口红 / Rouge Pur Couture The Slim Matte）",
+  "category": "lip",
+  "kind": "product",
+  "dimensions": {
+    "texture": "丝绒柔滑哑光质地，极雾显色，妆效持久，色泽饱和。膏体斜角切割，便于勾勒唇形。唇纹友好。",
+    "ingredients": "67%养护基底，神经酰胺、玫瑰果油、霍霍巴油。含聚二甲基硅氧烷、氢化聚异丁烯、滑石粉等。",
+    "skinTypes": "适合所有唇部状况。深唇纹用户评价正面。干燥唇部需提前做好唇部打底。无薄荷醇/凉感成分，唇炎用户相对友好。",
+    "occasions": "全季节适用。秋冬干燥季节搭配润唇膏使用。",
+    "warnings": "含香精；不含薄荷醇/凉感剂；含滑石粉。",
+    "feedback": "“哑光但不干绷，抿一下反而更贴合，有种越用越像自己唇色的奇妙感。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  },
+  "origin": "docx",
+  "wording": {
+    "texture": "丝绒柔滑哑光，极雾显色，色泽饱和；膏体斜角切割便于勾勒唇形，唇纹友好",
+    "skinTypes": "所有唇部状况，深唇纹用户评价正面；干燥唇需提前打底",
+    "occasions": "全季节；秋冬搭配润唇膏",
+    "warnings": "含香精；不含薄荷醇 / 凉感剂，唇炎用户相对友好；含滑石粉",
+    "feedback": "“哑光但不干绷，越用越像自己唇色”"
+  },
+  "shades": {
+    "label": "小金条 / 细管纯口红",
+    "shades": [
+      {
+        "code": "01",
+        "name": "正红色",
+        "hex": "#c8202e",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "09",
+        "name": "复古砖红 · 偏酒红",
+        "hex": "#a84c3e",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "10",
+        "name": "主推色",
+        "hex": "#c76b62",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "11",
+        "name": "粉橘豆沙 · 温柔",
+        "hex": "#e59a86",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "12",
+        "name": "温柔豆沙红 · 偏橘调",
+        "hex": "#d2826d",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "16",
+        "name": "珊瑚粉色调",
+        "hex": "#f09078",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "18",
+        "name": "浆果姨妈色 · 气场全开",
+        "hex": "#932f4c",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "21",
+        "name": "冷调复古红 · 海报色",
+        "hex": "#c01f36",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "23",
+        "name": "显白西红柿 · 哑光雾面",
+        "hex": "#e04a34",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "1966",
+        "name": "红棕 · 无法复刻的红棕",
+        "hex": "#9e3b32",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "1977",
+        "name": "东方梦 · 限量复刻",
+        "hex": "#c06a4e",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "2024",
+        "name": "狩猎焰 · 焰火橘",
+        "hex": "#ef6a1f",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "314",
+        "name": "冷茶裸 · 清冷高智",
+        "hex": "#c99a86",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "1936",
+        "name": "琥珀调柑茶色",
+        "hex": "#cf8f55",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "丝绒哑光 · 高显色 · 不拔干"
+}

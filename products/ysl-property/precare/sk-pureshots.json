@@ -1,0 +1,35 @@
+{
+  "id": "sk-pureshots",
+  "number": null,
+  "name": "Pure Shots 悦享青春系列",
+  "category": "precare",
+  "kind": "series",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": [],
+    "contains": [
+      "sk-ps-cleanser",
+      "sk-ps-essence",
+      "sk-ps-night-serum",
+      "sk-ps-light-up-serum",
+      "sk-ps-y-shape-serum",
+      "sk-ps-lines-away-serum",
+      "sk-ps-plumper-cream",
+      "sk-ps-hydra-bounce",
+      "sk-ps-water-shield-light",
+      "sk-ps-water-shield-rich",
+      "sk-ps-eye-reboot",
+      "sk-ps-pro-xylane-serum",
+      "sk-ps-brightening-serum"
+    ]
+  },
+  "origin": "overlay",
+  "wording": {
+    "texture": "乳霜转泡沫洁面 → 精华水 → 精华 → 面霜 → 眼霜，主打熬夜后的暗沉、粗糙、干燥",
+    "skinTypes": "年轻及轻熟龄；精华含 3.4% 甘醇酸，敏感肌需建立耐受",
+    "occasions": "全季节；夏季帮助调节水油平衡",
+    "warnings": "夜皇后精华 / 调肤水含酸体系；含香精",
+    "feedback": "“熬夜蜡黄脸救星，去黄提亮、平滑嫩肤”"
+  },
+  "blurb": "夜皇后洁面 / 调肤水 / 精华 / 面霜 / 眼霜"
+}

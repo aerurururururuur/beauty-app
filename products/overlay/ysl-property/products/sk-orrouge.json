@@ -1,0 +1,22 @@
+{
+  "id": "sk-orrouge",
+  "name": "OR Rouge 藏金奢妍系列",
+  "category": "precare",
+  "kind": "series",
+  "wording": {
+    "texture": "藏红花雌蕊提取物 + 10% 玻色因，YSL 最高端抗老线",
+    "skinTypes": "熟龄肌、有抗老 / 提亮 / 弹润需求；油皮建议轻质版或冬季使用",
+    "occasions": "秋冬干燥季节、夜间修护",
+    "warnings": "含变性乙醇；含香精",
+    "feedback": "“从源头上解决抗老问题”"
+  },
+  "contains": [
+    "sk-or-lotion",
+    "sk-or-serum",
+    "sk-or-oil",
+    "sk-or-cream",
+    "sk-or-eye-cream",
+    "sk-or-cleanser"
+  ],
+  "blurb": "藏金洁面 / 柔肤水 / 精华乳 / 精华油 / 面霜 / 眼霜"
+}

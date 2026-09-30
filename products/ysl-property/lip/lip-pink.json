@@ -1,0 +1,106 @@
+{
+  "id": "lip-pink",
+  "number": null,
+  "name": "小粉条",
+  "category": "lip",
+  "kind": "product",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  },
+  "origin": "overlay",
+  "wording": {
+    "texture": "水润透亮，粉调为主",
+    "skinTypes": "所有唇部状况",
+    "occasions": "全季节",
+    "warnings": "含香精"
+  },
+  "shades": {
+    "label": "小粉条",
+    "shades": [
+      {
+        "code": "112",
+        "name": "嫩粉色",
+        "hex": "#f4a8b2",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "207",
+        "name": "玫瑰粉",
+        "hex": "#e0899a",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "209",
+        "name": "珊瑚粉",
+        "hex": "#f2a891",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "211",
+        "name": "豆沙粉",
+        "hex": "#d9a89e",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "213",
+        "name": "蜜桃色",
+        "hex": "#f6a68d",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "214",
+        "name": "粉橘色",
+        "hex": "#f59f7c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "312",
+        "name": "莓果色",
+        "hex": "#cd5f83",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "1966",
+        "name": "红棕色",
+        "hex": "#9e3b32",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "水润透亮"
+}

@@ -1,0 +1,77 @@
+{
+  "id": "ct-bronze",
+  "name": "古铜修容液",
+  "category": "contour",
+  "wording": {
+    "texture": "古铜修容液，六个深度；暖调古铜用于欧美妆、混血妆的骨骼感",
+    "skinTypes": "白皙至深肤色均有对应色号",
+    "occasions": "全季节；与修容饼叠加打造骨骼感",
+    "warnings": "含香精"
+  },
+  "shades": {
+    "label": "古铜修容液",
+    "shades": [
+      {
+        "code": "01",
+        "name": "Light Bronze · 浅古铜",
+        "hex": "#d3a377",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "02",
+        "name": "Medium Bronze · 中古铜",
+        "hex": "#c08a63",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "03",
+        "name": "Deep Bronze · 深古铜",
+        "hex": "#a9724c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "04",
+        "name": "Tan Bronze · 棕古铜",
+        "hex": "#94603f",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "05",
+        "name": "Rich Bronze · 浓郁古铜",
+        "hex": "#7c4a30",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "06",
+        "name": "Intense Bronze · 强烈古铜",
+        "hex": "#6b3c24",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "低明度",
+        "saturation": "高饱和"
+      }
+    ]
+  },
+  "blurb": "液态古铜"
+}

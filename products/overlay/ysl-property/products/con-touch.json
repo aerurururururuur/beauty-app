@@ -1,0 +1,106 @@
+{
+  "id": "con-touch",
+  "wording": {
+    "texture": "笔状遮瑕 / 高光，光反射色素无闪片；瞬间带来透明感与立体感；作结构性遮瑕：画在眼下垂泪沟、鼻翼法令纹的三角形区域；作高光：刷在眼周、鼻翼、嘴角、下巴凹陷处，指腹轻拍晕开",
+    "skinTypes": "所有肌肤；经典版适合平滑肌肤轻度瑕疵，无瑕版适合瑕疵皮；遮瑕要轻薄避免卡纹",
+    "occasions": "全季节，妆前妆后均可使用；暗沉部位局部提亮",
+    "warnings": "成分温和，敏感肌可用；经典版含少量香精",
+    "feedback": "“作遮瑕或高光，妆效都非常自然不突兀”"
+  },
+  "shades": {
+    "label": "明彩笔",
+    "shades": [
+      {
+        "code": "0",
+        "name": "Luminous Milk · 最浅色",
+        "hex": "#fbf3ec",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "极高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "1",
+        "name": "Luminous Radiance · 高光色",
+        "hex": "#f7ece1",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "1.5",
+        "name": "Luminous Silk · 丝缎色",
+        "hex": "#f4e7d9",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "2",
+        "name": "Luminous Ivory · 象牙色",
+        "hex": "#f2e2cc",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "2.5",
+        "name": "Luminous Vanilla · 香草色",
+        "hex": "#eed9bd",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "3",
+        "name": "Luminous Peach · 蜜桃色",
+        "hex": "#e9cbaa",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "3.5",
+        "name": "Luminous Almond · 杏仁色",
+        "hex": "#dfba97",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "4.5",
+        "name": "Luminous Sand · 沙色",
+        "hex": "#d2a680",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "5.5",
+        "name": "Luminous Praline · 果仁色",
+        "hex": "#c08f6b",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "低饱和"
+      }
+    ]
+  },
+  "blurb": "结构性遮瑕 / 提亮"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "ct-powder",
+  "number": null,
+  "name": "恒久完美持久立体修容饼",
+  "category": "contour",
+  "kind": "product",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": []
+  },
+  "origin": "overlay",
+  "wording": {
+    "texture": "立体修容饼，两种色调；深色沿颧骨下方与下颌线打造骨骼感",
+    "skinTypes": "所有肤质；01 适合白皙、02 适合自然肤色",
+    "occasions": "全季节；派对与晚宴需要骨骼感时使用",
+    "warnings": "含香精"
+  },
+  "shades": {
+    "label": "恒久完美持久立体修容饼",
+    "shades": [
+      {
+        "code": "01",
+        "name": "热卖色 · 适合白皙肤色",
+        "hex": "#c08a63",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "02",
+        "name": "稍深色调 · 自然肤色",
+        "hex": "#a9724c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "阴影 · 立体轮廓"
+}

@@ -45,8 +45,12 @@ export const useDesignStore = defineStore('design', () => {
   const generating = ref(false)
   const error = ref('')
 
-  /** 后端的方案 + 本地补上的色值。★ 补色只加 `hex`,不改任何一格内容。 */
-  const plan = computed(() => api.decoratePlan(session.value?.plan))
+  /**
+   * 后端那份方案,原样。★ **前端一个字段都不补**——色值也已经在里面了
+   * (`steps[].products[].hex` / `palette[].hex`,由服务端的 `decoratePlan` 填,
+   * 理由见 `api/design.js` 文件头)。页面拿到什么就画什么。
+   */
+  const plan = computed(() => session.value?.plan || null)
   /** 「这套妆是什么」的唯一说法,由服务端的 `describeLook` 确定性生成,原样展示。 */
   const lookDescription = computed(() => session.value?.lookDescription || '')
   const hasFace = computed(() => Boolean(session.value?.hasFace))

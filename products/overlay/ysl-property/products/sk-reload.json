@@ -1,0 +1,18 @@
+{
+  "id": "sk-reload",
+  "name": "Pure Shots Reload 系列",
+  "category": "precare",
+  "kind": "series",
+  "wording": {
+    "texture": "Luminous 3D Complex，着眼 V 型胶原蛋白，从平滑度 / 立体感 / 透明感打造上妆肌底",
+    "skinTypes": "所有肤质，尤其底妆不服帖、暗沉、毛孔明显的人",
+    "occasions": "全季节；2026 秋季新品，主打「化妆映肌」",
+    "warnings": "化妆水与精华含变性乙醇；含香精"
+  },
+  "contains": [
+    "sk-rl-lotion",
+    "sk-rl-serum",
+    "sk-rl-cream"
+  ],
+  "blurb": "Reload 化妆水 / 精华 / 面霜"
+}

@@ -27,6 +27,7 @@ import {
 } from '../src/modules/makeup/index.js';
 import type { SkinTonePalette } from '../src/modules/makeup/index.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
+import { realHexOf } from './helpers/product-content.js';
 import {
   MAX_OCCASION,
   MAX_SCENE_TEXT,
@@ -244,6 +245,9 @@ describe('工具契约', () => {
       artifacts: {} as never,
       palette,
       features: realFeatures(),
+      // ★ 色值用仓库里那份真产品库(与组装根同一条缝),不是空串替身 ——
+      //   拿空串凑的话,这里测到的是"没色块的方案",而生产跑的不是那个。
+      shades: { hexOf: realHexOf },
     };
     const without = createToolRegistry(base);
     expect([...without.keys()]).toEqual([
@@ -391,7 +395,7 @@ describe('patch_brief', () => {
 // ── propose_look ────────────────────────────────────────────────────────────
 
 describe('propose_look', () => {
-  const tool = new ProposeLookTool(palette, realFeatures());
+  const tool = new ProposeLookTool(palette, realFeatures(), { hexOf: realHexOf });
 
   it('产出记进会话,并把 describeLook 的结果交回去(那段文字就是"预览")', async () => {
     const out = await run(tool, LOOK_INPUT, session());

@@ -1,0 +1,176 @@
+{
+  "id": "bl-couture-blush",
+  "wording": {
+    "texture": "粉状：湿技术灵感腮红，柔雾质地；粉质细密，闪粉颗粒处理得隐形不显毛孔；液态：湿技术灵感腮红，炫耀灿光质地；保湿度极高，能完美融入底妆",
+    "skinTypes": "粉状：油皮与追求柔雾妆效者优先；液态：干皮与追求水光感者优先",
+    "occasions": "粉状：夏季高温潮湿天气；液态：干燥季节",
+    "warnings": "粉状：含滑石粉、含香精；液态：含香精"
+  },
+  "shades": {
+    "label": "恒久完美透肤烟染腮红（粉状 + 液态）",
+    "shades": [
+      {
+        "code": "03",
+        "name": "Mischievous Magenta · 玫红",
+        "hex": "#d9637f",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "06",
+        "name": "Rose Haze · 玫瑰烟霭 · 低饱和杏粉",
+        "hex": "#e3a89c",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "12",
+        "name": "Nocturnal Nude · 粉肤裸夜",
+        "hex": "#dcae9c",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "37",
+        "name": "Peachy Nude · 丝绒蜜桃",
+        "hex": "#f0a48d",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "42",
+        "name": "Babydoll Pink · 洋娃娃粉",
+        "hex": "#f6b3bd",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "44",
+        "name": "Nude Lavalliere · 裸纱瑰粉 · 微醺感",
+        "hex": "#e5b3a4",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "54",
+        "name": "Berry Bang · 浆果色",
+        "hex": "#c15070",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "57",
+        "name": "Peach Coral · 日暮珊瑚",
+        "hex": "#f08e70",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "69",
+        "name": "Lavender Lust · 薰衣草紫",
+        "hex": "#b9a4d6",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "87",
+        "name": "Pink Voltage · 明亮粉",
+        "hex": "#f97fa8",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "93",
+        "name": "Restless Rose · 透光蔷薇",
+        "hex": "#e59a92",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "23",
+        "name": "Hot Mauve · 热情紫红",
+        "hex": "#b4557a",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "83",
+        "name": "Spicy Berry · 辛辣浆果",
+        "hex": "#993f5c",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中低明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "65",
+        "name": "液态 · Strawberry Seduction · 草莓诱惑",
+        "hex": "#f2746f",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "86",
+        "name": "液态 · Raspberry Glaze · 覆盆子釉",
+        "hex": "#c9425f",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "90",
+        "name": "液态 · Toffee Temptation · 太妃糖诱惑",
+        "hex": "#c08a5e",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "柔雾晕染 / 透肤水光",
+  "category": "blush"
+}

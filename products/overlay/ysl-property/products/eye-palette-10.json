@@ -1,0 +1,27 @@
+{
+  "id": "eye-palette-10",
+  "name": "高定十色眼影盘",
+  "category": "eye",
+  "wording": {
+    "texture": "十色盘，裸色系为主，专业级配色空间",
+    "skinTypes": "所有肤质",
+    "occasions": "全季节，适合需要多色渐层的妆容",
+    "warnings": "含滑石粉；含香精"
+  },
+  "shades": {
+    "label": "高定十色眼影盘",
+    "shades": [
+      {
+        "code": "N°1",
+        "name": "裸装 · 裸色系",
+        "hex": "#c9a184",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      }
+    ]
+  },
+  "blurb": "N°1 裸装"
+}

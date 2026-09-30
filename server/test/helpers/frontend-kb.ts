@@ -1,12 +1,20 @@
 /**
  * test/helpers/frontend-kb.ts —— 读**前端那几份知识库**(`vue/src/api/kb/*.js`)。
  *
- * ★ 只为一件事存在:**跨端对表**。色卡 / 特征策略 / 风格配方这三份内容,
- *   2026-09-30 起在后端各有一份(见 `styling` 与 `face-catalog`),
+ * ★ 只为一件事存在:**跨端对表**。特征策略 / 风格配方 / 肤色档 / 人设关系这几份内容,
+ *   2026-09-30 起在后端各有一份(见 `styling` / `face-catalog` / `user`),
  *   而前端那一份**仍然是 `/vanity` 等页面在用的那一份**。
- *   两边漂开的坏法是"用户勾了 A、方案里印出 B"或者"色块少了一块",
+ *   两边漂开的坏法是"用户勾了 A、方案里印出 B",
  *   **界面上看不出来** —— 只有拿两边的源文件对一遍照得见。
  *   (同 `test/scene-rules.test.ts` 读 `vue/vite.config.js` 钉 alias 那条先例。)
+ *
+ * ✏️ **同日:`frontendShades()` 删了。** 色号(那 174 行 hex)是这次唯一**换了东家**
+ *   的一份前端内容 —— 前端三份 kb 里的这一份整个并进了 `products/`,
+ *   所以它读的 `kb/shades.js` 不再有对手可比,取数改走
+ *   `test/helpers/product-content.ts` 的 `realHexOf()`(读发出去的那份内容本身)。
+ *
+ * ⚠️ 反过来,**下面这些前端文件在 C3(产品目录切后端)之后仍然都在**,对应关系也还成立:
+ *   `kb/features.js` / `kb/styles.js` / `kb/skintones.js` / `api/personas.js`。
  *
  * ✏️ 2026-09-30:此前这里还有一个 `frontendGetDesignResult()`,比的是前端
  *   `api/design.js` 那套本地推导。阶段 5 把那套推导**删掉**了(方案改由后端产出),
@@ -67,16 +75,6 @@ export interface FrontendStyle {
   steps: FrontendStep[];
 }
 
-/** 色号库里的一支色号。这份表**只有前端有** —— 后端不存 hex(硬约定 2)。 */
-export interface FrontendShade {
-  code: string;
-  hex: string;
-}
-export interface FrontendShadeEntry {
-  label: string;
-  shades: FrontendShade[];
-}
-
 /**
  * 取一个前端模块的具名导出。
  * `rel` 相对本文件(`vue/src/api/kb/features.js` 这样写)。
@@ -96,14 +94,6 @@ export async function frontendFeatureGroups(): Promise<FrontendFeatureGroup[]> {
 
 export async function frontendFeatures(): Promise<FrontendFeature[]> {
   return (await exportOf('../../../vue/src/api/kb/features.js', 'FEATURE_LIBRARY')) as FrontendFeature[];
-}
-
-/** 色号库。★ 回填 hex 用的就是它 —— 后端给的方案里没有色值。 */
-export async function frontendShades(): Promise<Record<string, FrontendShadeEntry>> {
-  return (await exportOf('../../../vue/src/api/kb/shades.js', 'SHADE_LIBRARY')) as Record<
-    string,
-    FrontendShadeEntry
-  >;
 }
 
 export async function frontendStyles(): Promise<FrontendStyle[]> {

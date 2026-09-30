@@ -6,8 +6,8 @@
  *   （最长 90 秒），因为换风格要经 `propose_look` 重新定妆面单。这是有意的：
  *   方案与妆面单必须是**同一个决定**（见 `agent/domain/tools/definitions.ts` 的 `PROPOSE_LOOK`）。
  *
- * ★ **它产不出 hex**：配方里只有 `pid + code`，色值归前端 `kb/shades.js`。
- *   见 `domain/entities/style-recipes.ts` 的硬约定 2。
+ * ★ **它产不出 hex**：配方里只有 `pid + code`，色值要查产品库——而本函数是**纯的**。
+ *   所以它的产出是 `PlanDraft`，补上色值那一步是 `decoratePlan`（见 `plan-view.ts` 的文件头）。
  *
  * ★ 行为契约（搬自前端 `vue/src/api/design.js`，**别"顺手优化"**）：
  *   · 步骤 id 是 `${style.id}-${两位下标}`；
@@ -17,11 +17,11 @@
 import { STYLE_LIBRARY, styleById } from '../domain/entities/style-recipes.js';
 import type { StyleRecipe } from '../domain/entities/style-recipes.js';
 import type {
-  PlanPaletteEntry,
+  PlanDraft,
+  PlanPaletteEntryDraft,
   PlanPersonalized,
-  PlanStep,
+  PlanStepDraft,
   PlanStyleOption,
-  PlanView,
 } from './plan-view.js';
 
 /**
@@ -81,7 +81,7 @@ function logicFor(name: string): string[] {
 }
 
 /** 把配方展开成步骤。**顺序即配方的顺序，一步都不许在推导里补。** */
-function buildSteps(style: StyleRecipe): PlanStep[] {
+function buildSteps(style: StyleRecipe): PlanStepDraft[] {
   return style.steps.map((t, i) => ({
     id: `${style.id}-${String(i + 1).padStart(2, '0')}`,
     name: t.name,
@@ -94,14 +94,15 @@ function buildSteps(style: StyleRecipe): PlanStep[] {
 /**
  * 顶部色板由「本方案真的用到的色号」推导，保证色板与步骤永远一致（**不由配方手写**）。
  *
- * ⚠️ 跳过的是 `!pid || !code`；前端跳的是 `!hex || !code`。两者等价**当且仅当**
- *   配方里每一对非空的 `(pid, code)` 都能在 `shades.js` 里查到色值——
- *   `test/styling-plan.test.ts` 把这条当断言钉着。它一红就说明后端会多推一块
- *   **没有颜色的**色卡，而界面上没人看得出来（假开关）。
+ * ⚠️ 跳过的是 `!pid || !code`；而 `decoratePlan` 那一步还会把**查不到色值**的那几条
+ *   丢掉。两者合起来等价于"色板里每一条都有颜色"**当且仅当**
+ *   配方里每一对非空的 `(pid, code)` 都能在产品库里查到色值——
+ *   `test/styling-plan.test.ts` 把这条当断言钉着。它一红就说明色板上会少一块，
+ *   而界面上没人看得出来（假开关）。
  */
-function buildPalette(steps: readonly PlanStep[]): PlanPaletteEntry[] {
+function buildPalette(steps: readonly PlanStepDraft[]): PlanPaletteEntryDraft[] {
   const seen = new Set<string>();
-  const out: PlanPaletteEntry[] = [];
+  const out: PlanPaletteEntryDraft[] = [];
   for (const step of steps) {
     for (const p of step.products) {
       if (!p.pid || !p.code) continue;
@@ -142,7 +143,7 @@ function styleOptionOf(style: StyleRecipe): PlanStyleOption {
 export function derivePlan(input: {
   styleId: string;
   personalized?: readonly PlanPersonalized[];
-}): PlanView | undefined {
+}): PlanDraft | undefined {
   const style = styleById(input.styleId);
   if (!style) return undefined;
 

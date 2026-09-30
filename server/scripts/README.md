@@ -136,31 +136,52 @@ npm run qwen:makeup -- --image ./me.jpg --ref ./look.png --n 3 --seed 42 --size 
 
 ---
 
-## `import-products.ts` —— 从源 docx 生成产品库内容 ★**产物进 git**
+## `import-products.ts` —— 从**两份输入**生成产品库内容 ★**产物进 git**
 
-把 `products/<库>/source/` 下的那份 Word 资料,解析成 `products/<库>/` 那份内容目录:
+把 `products/<库>/source/` 下的那份 Word 资料 **加上** `products/overlay/<库>/` 那份**手写层**,
+编译成 `products/<库>/` 那份内容目录:
 `library.json`(库元信息 + 匹配速查表 + 体检报告)+ 每个类目一个子目录 + 每条产品一个 JSON。
 
 ```bash
 npm run import-products -- --dry-run        # 只解析、只打印,一个文件都不写。第一次跑先跑这个
 npm run import-products                     # 真写(会**整体重生成**,不追加、不合并)
-npm run import-products -- --docx <路径> --out <目录>
+npm run import-products -- --check          # ★ 幂等检查:与磁盘逐字节比,有漂移就非零退出
+npm run import-products -- --docx <路径> --out <目录> --overlay <目录>
 ```
 
+| 输入 | 出什么 | 在哪儿 |
+| --- | --- | --- |
+| 源 docx | 产品名 / 编号 / 六个维度 / 章节结构 / 速查表 | `<out>/source/*.docx` |
+| 手写层 | **id 与分类的绑定**、补充文案、色号、补录条目 | `products/overlay/<库>/` |
+
+- ★ **手写层不是"可选补充",它是 id 的唯一来源。** docx 里只有 `1..57` 的编号,
+  而库里的 id 必须是 slug(配方、化妆包、URL 都指着 slug)。缺了它脚本**直接停下**,
+  不会退回去编一套 `NN-latin` —— 那正是这次合并要消灭的第二套词汇。
+  规矩写在 `products/overlay/<库>/README.md`。
 - **零新依赖**:docx 本质是 zip,脚本里手写了一段最小 ZIP 读取器(找 EOCD → 遍历中央目录 →
   按**本地文件头**重算数据起点 → `zlib.inflateRawSync` 解 raw deflate),只认 `word/document.xml`。
   为这一个用途引一个 zip 包不划算。
-- **可重复执行**:每次整体重生成,不追加、不合并。所以**改内容的唯一正道是改源文档再重跑**——
-  **别手改生成物**,那会在下次重导时全丢,而且没人记得改过什么。
+- **可重复执行**:每次整体重生成,不追加、不合并;库根下**除 `source/` 外每个目录整个删掉重建**
+  (改名留下的旧类目目录不删的话,加载器下一次启动就会炸)。所以**改生成物的唯一正道是
+  改两个输入再重跑** —— **别手改 `products/<库>/` 里任何一个文件**,那会在下次重导时全丢,
+  而且没人记得改过什么。要手写的内容去 `products/overlay/<库>/`。
+- **`--check` 就是"重导不会吃掉手写内容"的证明**:手写层没变时重跑两次,产物应当**一个字节都不差**
+  (只有 `importedAt` 会变,它是唯一被忽略的一格)。
 - **脏数据原样入库。** 源资料自身的问题(款数三种说法、空占位条目、疑似重复、
   「色号全部剥离」其实没剥干净)**不改写、不跳过**,而是由脚本**算出来**记进 `library.json`
   的 `health` 字段。体检报告是生成的、不是人工标注的,所以「修好源文档 → 重导」会自然清零。
   服务启动时会以 `warn` 打一行摘要(见 `src/index.ts`),详单在 `library.json` 里。
-- **产物形状**由 `src/modules/products/domain/schemas/entities/content.ts` 的 zod 管。改了这里的输出、
-  没跟着改那边的 schema → **服务启动即失败**(`.strict()` 会抓到)。这是故意的。
+  ★ `health` **分两半**:`docxSections` 是**拿 docx 审 docx**(键是源文档自己的章节名,
+  与我们怎么分类、手写层补了什么无关),`merge` 是两份输入并起来之后的样子。
+- **产物形状**由 `src/modules/products/domain/schemas/entities/content.ts` 的 zod 管,
+  而且脚本**在写盘前拿同一份 schema 验一遍自己的输出**。改了这里的输出、
+  没跟着改那边的 schema → **脚本自己当场报错**,不会写出一个加载器读不进的库。这是故意的。
 
-**2026-09-16 首跑结果**:57 条 / 9 类目;体检报告报出 4 类已知问题 + 2 类附带发现
-(见 `products/ysl-property/library.json` 的 `health`,以及 `src/modules/products/README.md`)。
+**2026-09-16 首跑**:57 条 / 9 类目;体检报告报出 4 类已知问题 + 2 类附带发现。
+**2026-09-30 并入手写层**:66 条(57 条来自 docx + 6 条补录 + 3 张系列卡)/ 9 类目 / 163 行色号。
+id 同时从 `31-all-hours-foundation` 那套换成了 slug(`base-fd-new`)。
+两次数落都在 `products/ysl-property/library.json` 的 `health` 里,
+那套规矩在 `src/modules/products/README.md`。
 
 ---
 

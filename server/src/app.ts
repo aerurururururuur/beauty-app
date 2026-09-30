@@ -15,6 +15,8 @@ import type { WeatherModuleServices } from './modules/weather/index.js';
 import { registerWeatherRoutes } from './modules/weather/index.js';
 import type { CabinetModuleServices } from './modules/cabinet/index.js';
 import { registerCabinetRoutes } from './modules/cabinet/index.js';
+import type { ProductsModuleServices } from './modules/products/index.js';
+import { registerProductsRoutes } from './modules/products/index.js';
 import type { AgentModuleServices } from './modules/agent/index.js';
 import { registerAgentRoutes } from './modules/agent/index.js';
 
@@ -23,6 +25,12 @@ export interface AppDeps {
   user: UserModuleServices;
   weather: WeatherModuleServices;
   cabinet: CabinetModuleServices;
+  /**
+   * 产品库。★ **必填**(不是 `products?`)—— 这一格表达的是"装配时有没有把模块接上",
+   * 而"这个部署有没有产品库"是**它内部** `queries` 空不空的事(见下面那段注册)。
+   * 做成可选就等于多开一个"忘了传就静默少两条路由"的口子,那正是本仓要防的。
+   */
+  products: ProductsModuleServices;
   agent: AgentModuleServices;
 }
 
@@ -116,6 +124,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         updateCosmetic: deps.cabinet.updateCosmetic,
         removeCosmetic: deps.cabinet.removeCosmetic,
       });
+
+      // 产品库(数字美妆台读它)。★ **整段跟着 `queries` 走**:`PRODUCTS_DIR` 指了不存在的
+      //   路径时它是 `undefined` ⇒ 这两条路由**在 Fastify 上根本不存在** ⇒ 前端拿 404 去给一句人话。
+      //   ⚠️ **改成"注册着但回空目录"就是本仓头号 bug**:界面会拿到一个 200 的空屏,
+      //   看起来像"这个品牌没有产品"。判据只有一处(`products/compose.ts` 里 `queries` 空不空),
+      //   这里一次都不重算。同一形状的先例见下面 agent 的 `analysis` 与上面 `analyzePersonaFace`。
+      if (deps.products.queries) {
+        registerProductsRoutes(scoped, {
+          listCatalog: deps.products.queries.listCatalog,
+          getProduct: deps.products.queries.getProduct,
+        });
+      }
 
       // 对话 agent(普通 JSON;SSE 推流还没做,见控制器文件头)。
       registerAgentRoutes(scoped, {

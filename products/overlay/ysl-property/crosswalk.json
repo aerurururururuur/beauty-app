@@ -1,0 +1,168 @@
+{
+  "library": "ysl-property",
+  "groups": [
+    {
+      "id": "skincare",
+      "label": "护肤",
+      "order": 1
+    },
+    {
+      "id": "makeup",
+      "label": "彩妆",
+      "order": 2
+    }
+  ],
+  "categories": [
+    {
+      "id": "precare",
+      "label": "提前护理",
+      "group": "skincare",
+      "order": 1
+    },
+    {
+      "id": "primer",
+      "label": "妆前",
+      "group": "skincare",
+      "order": 2
+    },
+    {
+      "id": "base",
+      "label": "底妆",
+      "group": "makeup",
+      "order": 1
+    },
+    {
+      "id": "concealer",
+      "label": "遮瑕",
+      "group": "makeup",
+      "order": 2
+    },
+    {
+      "id": "setting",
+      "label": "定妆",
+      "group": "makeup",
+      "order": 3
+    },
+    {
+      "id": "blush",
+      "label": "腮红",
+      "group": "makeup",
+      "order": 4
+    },
+    {
+      "id": "eye",
+      "label": "眼妆",
+      "group": "makeup",
+      "order": 5
+    },
+    {
+      "id": "lip",
+      "label": "口红",
+      "group": "makeup",
+      "order": 6
+    },
+    {
+      "id": "contour",
+      "label": "提亮 / 修容",
+      "group": "makeup",
+      "order": 7
+    }
+  ],
+  "docxSections": [
+    {
+      "label": "护肤类",
+      "category": "precare"
+    },
+    {
+      "label": "防晒类",
+      "category": "primer"
+    },
+    {
+      "label": "妆前类",
+      "category": "primer"
+    },
+    {
+      "label": "底妆类",
+      "category": "base"
+    },
+    {
+      "label": "遮瑕类",
+      "category": "concealer"
+    },
+    {
+      "label": "定妆类",
+      "category": "setting"
+    },
+    {
+      "label": "唇部彩妆",
+      "category": "lip"
+    },
+    {
+      "label": "眼部彩妆",
+      "category": "eye"
+    },
+    {
+      "label": "腮红与高光修容",
+      "category": null
+    }
+  ],
+  "entries": {
+    "1": "sk-ps-cleanser",
+    "2": "sk-ps-essence",
+    "3": "sk-ps-night-serum",
+    "4": "sk-ps-light-up-serum",
+    "5": "sk-ps-y-shape-serum",
+    "6": "sk-ps-lines-away-serum",
+    "7": "sk-ps-plumper-cream",
+    "8": "sk-ps-hydra-bounce",
+    "9": "sk-ps-water-shield-light",
+    "10": "sk-ps-water-shield-rich",
+    "11": "sk-ps-eye-reboot",
+    "12": "sk-ps-pro-xylane-serum",
+    "13": "sk-ps-brightening-serum",
+    "14": "sk-or-lotion",
+    "15": "sk-or-serum",
+    "16": "sk-or-oil",
+    "17": "sk-or-cream",
+    "18": "sk-or-eye-cream",
+    "19": "sk-or-cleanser",
+    "20": "sk-rl-lotion",
+    "21": "sk-rl-serum",
+    "22": "sk-rl-cream",
+    "23": "pr-sun1",
+    "24": "pr-sun2",
+    "25": "pr-base",
+    "26": "pr-satin",
+    "27": "pr-gold",
+    "28": "pr-uv",
+    "29": "base-cushion-pink",
+    "30": "base-cushion-black",
+    "31": "base-fd-new",
+    "32": "base-fd-glow",
+    "33": "base-fd-youth",
+    "34": "base-fd-supermodel",
+    "35": "base-fd-feather",
+    "36": "base-cream-or",
+    "37": "con-hydra",
+    "38": "con-touch",
+    "39": "st-powder",
+    "40": "st-pancake",
+    "41": "st-mist",
+    "42": "lip-gold",
+    "43": "lip-velvet",
+    "44": "lip-candy",
+    "45": "lip-plump",
+    "46": "lip-water",
+    "47": "lip-lock-matte",
+    "48": "lip-lock-shine",
+    "49": "lip-liner",
+    "50": "eye-palette-4",
+    "51": "eye-lash-clash-wp",
+    "52": "eye-lash-clash",
+    "53": "eye-lash-volume",
+    "54": "eye-brow",
+    "55": "eye-liner",
+    "56": "bl-couture-blush",
+    "57": "ct-highlight"
+  }
+}

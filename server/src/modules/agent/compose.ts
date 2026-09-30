@@ -7,6 +7,7 @@
  * 免得业务模块反向依赖组装层的配置类型;两处要一起改)。
  */
 import type { Analyzers, Engine, SkinTonePalette } from '../makeup/index.js';
+import type { ShadeLookup } from '../styling/index.js';
 import type { CosmeticReader } from './domain/ports/cosmetic-reader.js';
 import type { FeatureStrategies } from './domain/ports/feature-strategies.js';
 import type { ProductLibrary } from './domain/ports/product-library.js';
@@ -93,6 +94,15 @@ export interface AgentModuleOptions {
    */
   features: FeatureStrategies;
   /**
+   * 色号 → 色值。★ 由组装根把 `products` 模块包一层传进来(§7.1)。
+   * **必填**:缺了它方案里每一块色卡都没有颜色,而条数一格不少,理由同 `features`。
+   *
+   * ⚠️ **它与 `products` 不是一回事,别把它折进那个可选键里**:
+   *   `products` 空 = 这个部署没有产品库(那时 `hexOf` 一律回空串,是本键的**合法值**);
+   *   而本键空 = 接线漏了。前者是部署形态,后者是 bug——合成一格就分不出来了。
+   */
+  shades: ShadeLookup;
+  /**
    * 读品牌产品库。★ 由组装根把 `products` 模块的 `ProductCatalog` 包一层传进来(§7.1)。
    *
    * ★ **可选,而且这是本模块唯一一个可选依赖。** 不传 = 这个部署没有内容目录 →
@@ -153,6 +163,7 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
     artifacts: options.artifacts,
     palette: options.palette,
     features: options.features,
+    shades: options.shades,
     // 只在真有时才传:`exactOptionalPropertyTypes` 下不能塞一个 `undefined` 进去,
     // 而且"没有产品库"与"产品库是 undefined"在这里本来就是同一件事。
     ...(options.products ? { products: options.products } : {}),

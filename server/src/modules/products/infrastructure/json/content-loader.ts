@@ -79,6 +79,15 @@ function loadLibrary(rootDir: string): { library: ProductLibrary; products: Prod
             '两处必须一致——目录即索引。',
         );
       }
+      // ★ 文件名也**就是** id(导入器生成时两者同源)。查这一条不是洁癖:
+      //   生成的库被手改过、或者文件被改过名而没人重导时,`find(id)` 照样取得到东西,
+      //   于是**没有别的征兆** —— 只有 `ls` 出来的那一列名字与产品对不上。
+      if (path.basename(file, '.json') !== product.id) {
+        throw new Error(
+          `产品 ${rel} 的 id 是「${product.id}」,与文件名对不上。` +
+            '内容由 scripts/import-products.ts 生成,文件名即 id;手改过的话请重导。',
+        );
+      }
       if (seenIds.has(product.id)) throw new Error(`产品 id 重复:${product.id}`);
       seenIds.add(product.id);
       products.push(product);

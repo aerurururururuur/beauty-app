@@ -1,4 +1,3 @@
-import { SHADE_LIBRARY } from './kb/shades'
 import { FEATURE_GROUPS, FEATURE_LIBRARY, featureById, featureLabel } from './kb/features'
 import { SKIN_TONES } from './kb/skintones'
 import { STYLE_LIBRARY } from './kb/styles'
@@ -10,11 +9,16 @@ import { STYLE_LIBRARY } from './kb/styles'
  *    (`POST /agent/sessions` 带一份 `brief`,`propose_look` 的时候一并写进会话,
  *    见 `server/src/modules/styling/`)。
  *
- *    所以本模块现在的职责只剩三件,都是**输入侧**的:
+ *    所以本模块现在的职责**全在输入侧**,三件:
  *      ① 场景清单与各场景的表单定义(用户要填哪些格);② 从知识库读展示用的调色板
  *        (`getFeatureTags` / `getSkinTones`,人设问卷与详情页要用);
  *      ③ `toBrief()` —— 把页面收上来的东西翻译成后端那份 `brief`。
- *    外加一件**输出侧的补丁** `decoratePlan()`:后端给的方案里没有色值,由这里回填。
+ *
+ *    ✏️ **2026-09-30:色值也不再由本模块回填。** 此前这里有一个 `decoratePlan()`,
+ *       拿本地 `kb/shades.js` 给后端方案的 `pid + code` 补 `hex`;色号库并进 `products/`
+ *       之后,补色值这一步跟着上了服务端(`styling/application/decorate-plan.ts`),
+ *       **方案里本来就带着 hex**(`stores/design.js` 的 `plan` 直接就是 `session.plan`)。
+ *       前端从此只渲染颜色——**别再在这里补一次**,两份实现迟早会漂。
  *
  *    ✏️ **2026-09-30:`kb/styles.js` 不再是"零消费者"** —— 那 21 套配方名现在喂给
  *       `/form` 的「你想要的风格」chips(见 `STYLE_FIELD`),手写那份仍是后端
@@ -540,52 +544,6 @@ export function toBrief({
   if (lines.length) brief.sceneText = clamp(lines.join('\n'), MAX_SCENE_TEXT)
 
   return brief
-}
-
-/* --------------------------- 补色值 --------------------------- */
-
-/**
- * 回查色值:色值的**唯一**来源是色号库,后端那份方案里只带 `pid + code`,不带 hex。
- *
- * ★ 这条规矩是 `kb/styles.js` 自己立的(硬约定 2),后端照它办——所以色块的颜色
- *   只有前端补得出来。改这里之前先看 `api/vanity.js` 文件头:全仓不许另写一份 hex。
- */
-function hexOf(pid, code) {
-  if (!pid || !code) return ''
-  const entry = SHADE_LIBRARY[pid]
-  if (!entry) return ''
-  const hit = entry.shades.find((x) => x.code === code)
-  return hit ? hit.hex : ''
-}
-
-/**
- * 后端那份方案(`AgentSessionView.plan`)→ 结果页要的形状:把 `hex` 补上。
- *
- * ★ **只补色值,不改任何一格内容。** 步骤数量与顺序、色板块数与顺序、个性化条目,
- *   全部照后端的原样带过去——前端不再有自己的推导,这是「方案由 agent 产出」的全部含义。
- *
- * ★ 色板的色值取自**第一个带着这个色号的步骤产品**(`derivePlan` 是从步骤推导出色板的,
- *   所以每个色号都在步骤里出现过)。查不到色的产品**不进色板**,也不占领那个色号
- *   ——它是「这一支没有色块」,不是「这个色号没有色块」。
- */
-export function decoratePlan(plan) {
-  if (!plan) return null
-  const hexByCode = new Map()
-  for (const step of plan.steps || []) {
-    for (const p of step.products || []) {
-      const hex = hexOf(p.pid, p.code)
-      if (!hex || !p.code || hexByCode.has(p.code)) continue
-      hexByCode.set(p.code, hex)
-    }
-  }
-  return {
-    ...plan,
-    palette: (plan.palette || []).map((p) => ({ ...p, hex: hexByCode.get(p.code) || '' })),
-    steps: (plan.steps || []).map((s) => ({
-      ...s,
-      products: (s.products || []).map((p) => ({ ...p, hex: hexOf(p.pid, p.code) })),
-    })),
-  }
 }
 
 /**

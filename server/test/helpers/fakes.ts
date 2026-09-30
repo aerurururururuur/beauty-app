@@ -37,6 +37,20 @@ import type {
   VisionRequest,
 } from '../../src/modules/makeup/index.js';
 import type { Occasion, ResolvedImage, SkinTone } from '../../src/modules/shared/index.js';
+import type { ShadeLookup } from '../../src/modules/styling/index.js';
+
+/**
+ * 「这个部署没有产品库」的那个 `ShadeLookup`。
+ *
+ * ★ 它与生产里没配 `PRODUCTS_DIR` 时**完全同义** —— 组装根那个闭包那时也一律回空串。
+ *   所以这不是"测试专用的假值",而是一个**合法的部署形态**:用它跑出来的方案
+ *   就是一块色块都没有的方案。
+ *
+ * ⚠️ **断言色值的地方不许用它。** 要问"这个色号到底什么颜色",用
+ *   `product-content.ts` 的 `realHexOf`(读仓库里那份真内容)。拿空串去比,
+ *   比到的只是"空等于空"。
+ */
+export const noShades: ShadeLookup = { hexOf: () => '' };
 
 /** 固定返回值(或固定抛错)的天气源,用来测用例的错误翻译。 */
 export class FakeWeatherProvider implements WeatherProvider {

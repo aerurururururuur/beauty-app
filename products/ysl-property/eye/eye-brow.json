@@ -1,0 +1,82 @@
+{
+  "id": "eye-brow",
+  "number": 54,
+  "name": "YSL 眉笔（Dessin Des Sourcils）",
+  "category": "eye",
+  "kind": "product",
+  "dimensions": {
+    "texture": "双头设计，笔芯+刷头，精准勾勒、塑形和晕染眉毛。质地顺滑。",
+    "ingredients": "微晶蜡、氢化棕榈仁甘油酯、巴西棕榈蜡、氢化棕榈甘油酯。含氧化铁着色剂。",
+    "skinTypes": "眼科医生测试，适合敏感眼和隐形眼镜佩戴者。",
+    "occasions": "全季节，全天候。防水配方适合夏季和运动场景。",
+    "warnings": "成分安全性高，无特殊预警。"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "zones.brow"
+    ]
+  },
+  "origin": "docx",
+  "wording": {
+    "texture": "双头设计（笔芯 + 刷头），精准勾勒塑形与晕染，质地顺滑",
+    "skinTypes": "眼科医生测试，适合敏感眼与隐形眼镜佩戴者",
+    "occasions": "全季节全天候；防水配方适合夏季与运动",
+    "warnings": "成分安全性高，无特殊预警"
+  },
+  "shades": {
+    "label": "眉笔 Dessin Des Sourcils",
+    "shades": [
+      {
+        "code": "01",
+        "name": "浅棕色 · 浅棕 / 金色发色",
+        "hex": "#a07a52",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "02",
+        "name": "深棕色 · 深棕 / 自然黑发",
+        "hex": "#6b4a32",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "03",
+        "name": "灰色 · 灰发 / 冷调发色",
+        "hex": "#7a7570",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "04",
+        "name": "Cendré · 冷灰棕 · 中性 / 冷调发色",
+        "hex": "#6f635c",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "08",
+        "name": "深色 · 黑色发色",
+        "hex": "#3a332f",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "低明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "双头设计"
+}

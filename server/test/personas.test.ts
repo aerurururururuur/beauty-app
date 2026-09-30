@@ -15,6 +15,7 @@ import { createAssetsModule } from '../src/modules/assets/index.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import { createAgentModule } from '../src/modules/agent/index.js';
 import { createCabinetModule } from '../src/modules/cabinet/index.js';
+import { createProductsModule } from '../src/modules/products/index.js';
 import { createUserModule } from '../src/modules/user/index.js';
 import { createWeatherModule } from '../src/modules/weather/index.js';
 import type { Engine } from '../src/modules/makeup/index.js';
@@ -87,6 +88,9 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
     // 这两样只在 propose_look 那一步被读,这一组不碰妆面校验。
     palette: { toneKeysFor: () => undefined, labelOf: () => undefined },
     features: { byId: () => undefined },
+    // 色值也只在 propose_look 那一步被读;上面 `PRODUCTS_DIR` 指了空路径
+    // ⇒ 生产里这里也是一律回空串的那个闭包。
+    shades: { hexOf: () => '' },
   });
 
   const app = await buildApp({
@@ -94,6 +98,8 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
     user,
     weather: createWeatherModule({ kind: config.weatherProvider }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    // 真 compose(与 `src/index.ts` 同一条路)——这条测试验的正是装配层的事。
+    products: createProductsModule({ contentDir: config.productsDir }),
     agent,
   });
 

@@ -1,0 +1,94 @@
+{
+  "id": "base-fd-supermodel",
+  "number": 34,
+  "name": "YSL 超模粉底液（新版明彩精萃水粉霜）",
+  "category": "base",
+  "kind": "product",
+  "dimensions": {
+    "texture": "质地轻薄，延展性不错。柔雾哑光带一点光泽感，上脸自带微微珠光，是“从肌底透出来的柔焦光泽”。",
+    "ingredients": "明彩精萃水感加持。",
+    "skinTypes": "混合皮、干皮。遮瑕力度比逆龄好一些。",
+    "occasions": "全季节适用，尤其适合需要自然光泽感妆效的场景。",
+    "warnings": "含香精。",
+    "feedback": "“上脸那一刻真的有种被打了光的感觉，像是自带柔光滤镜。”"
+  },
+  "derived": {
+    "lookSpecSlots": [
+      "base"
+    ]
+  },
+  "origin": "docx",
+  "wording": {
+    "texture": "质地轻薄，柔雾哑光带一点光泽，上脸自带微微珠光",
+    "skinTypes": "混合皮、干皮；遮瑕力度比逆龄好一些",
+    "occasions": "全季节，尤其需要自然光泽感的场景",
+    "warnings": "含香精",
+    "feedback": "“像是自带柔光滤镜”"
+  },
+  "shades": {
+    "label": "超模粉底液 / 明彩粉底液",
+    "shades": [
+      {
+        "code": "B10",
+        "name": "象牙色",
+        "hex": "#f3ddc4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B20",
+        "name": "米白色",
+        "hex": "#e9cdb0",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B30",
+        "name": "自然色",
+        "hex": "#dcbb98",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR10",
+        "name": "粉白色",
+        "hex": "#f6e2da",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR20",
+        "name": "粉桃色",
+        "hex": "#eed2c8",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BD10",
+        "name": "金色 / 橄榄色 · 略带古铜",
+        "hex": "#e8cba4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "柔光裸感"
+}

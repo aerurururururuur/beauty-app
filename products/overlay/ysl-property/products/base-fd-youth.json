@@ -1,0 +1,55 @@
+{
+  "id": "base-fd-youth",
+  "wording": {
+    "texture": "首款逆龄保养粉底液，100% 取代水分与酒精；奶油肌，滋润度极好",
+    "skinTypes": "混干皮、干皮首选；对毛孔痘印与泛红有较好遮盖",
+    "occasions": "秋冬干燥季节的最佳底妆",
+    "warnings": "不含水分与酒精，是底妆线中对敏感肌较友好的配方之一；含香精"
+  },
+  "shades": {
+    "label": "逆龄粉底液 / 妍活青春",
+    "shades": [
+      {
+        "code": "B10",
+        "name": "象牙白",
+        "hex": "#f4e0cf",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B20",
+        "name": "米白色",
+        "hex": "#ead0b4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B30",
+        "name": "浅自然色",
+        "hex": "#ddbe9c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR20",
+        "name": "粉桃色",
+        "hex": "#efd4cb",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "养肤光泽"
+}

@@ -1,0 +1,136 @@
+{
+  "id": "lip-square",
+  "number": null,
+  "name": "方管口红",
+  "category": "lip",
+  "kind": "product",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  },
+  "origin": "overlay",
+  "wording": {
+    "texture": "经典方管，高显色滋润",
+    "skinTypes": "所有唇部状况",
+    "occasions": "全季节",
+    "warnings": "含香精"
+  },
+  "shades": {
+    "label": "方管口红",
+    "shades": [
+      {
+        "code": "01",
+        "name": "正红色 · 经典必备",
+        "hex": "#c41f30",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "13",
+        "name": "亮橘色",
+        "hex": "#ef5c1e",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "19",
+        "name": "玫紫色 · 秋冬梅子",
+        "hex": "#a83862",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "50",
+        "name": "经典红色调",
+        "hex": "#cc3b3b",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "56",
+        "name": "橘红色调",
+        "hex": "#e85a35",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "72",
+        "name": "玫瑰酒红色",
+        "hex": "#8f3a44",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "114",
+        "name": "珊瑚色调",
+        "hex": "#ef8874",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "201",
+        "name": "朱砂红 · 带橙红调",
+        "hex": "#d8432c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "202",
+        "name": "成熟玫瑰色 · 优雅",
+        "hex": "#b06c74",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "203",
+        "name": "经典红色",
+        "hex": "#c33540",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "204",
+        "name": "经典红色",
+        "hex": "#bf3a44",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "经典方管 · 缎光"
+}

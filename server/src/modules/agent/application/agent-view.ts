@@ -122,9 +122,12 @@ export interface AgentSessionView {
    * 与 `lookSpec` **同生同灭**:两样都是同一次 `propose_look` 的产出
    * (见 `entities/session.ts` 的 `setLookSpec`),所以不会出现"妆面在、方案不在"。
    *
-   * ⚠️ **`products[]` / `palette[]` 里没有 `hex`** —— 色值的唯一来源是前端的
-   *   `kb/shades.js`(`styles.js` 自己立的规矩 2),后端不存第二份。
-   *   要显示色块的前端自己用 `hexOf(pid, code)` 补。
+   * ★ **`products[]` / `palette[]` 里带着 `hex`** —— 色值的唯一来源是产品库的 `shades`,
+   *   由 `decoratePlan` 在生产端就补好了(`styling/application/decorate-plan.ts`)。
+   *   ✏️ 2026-09-30 之前这里写的是"没有 hex、前端自己补":那时色号住在前端 `kb/shades.js`,
+   *   那份已退役并入 `products/`,所以补色值这一步也跟着上了服务端——**前端只渲染**。
+   *   ⚠️ 步骤里某一支的 `hex` 可以是**空串**(= 这一支没有色块),色板里则**不会**
+   *   出现空色值(那种在 `decoratePlan` 就被丢掉了)。
    */
   plan?: PlanView;
   /** `style` 分析的产物(闭集读数)。★ 空则无键——它表达"读出来了没有"。 */

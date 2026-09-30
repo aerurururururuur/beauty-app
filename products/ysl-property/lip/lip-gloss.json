@@ -1,0 +1,176 @@
+{
+  "id": "lip-gloss",
+  "number": null,
+  "name": "黑管唇釉",
+  "category": "lip",
+  "kind": "product",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": [
+      "zones.lip"
+    ]
+  },
+  "origin": "overlay",
+  "wording": {
+    "texture": "高光泽糖果般镜面效果，78% 护肤基底，8 小时保湿",
+    "skinTypes": "适合干燥唇与唇纹较深；油痘肌需注意合成酯类闭口风险",
+    "occasions": "干燥季节、空调房、秋冬",
+    "warnings": "含香精；含合成酯类；不含薄荷醇"
+  },
+  "shades": {
+    "label": "黑管唇釉（水光 / 镜面）",
+    "shades": [
+      {
+        "code": "403",
+        "name": "樱桃草莓 · 明艳",
+        "hex": "#d02b4a",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "416",
+        "name": "烂番茄 · 棕调偏多",
+        "hex": "#c04a2c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "440",
+        "name": "野玫瑰 · 无花果粉红",
+        "hex": "#dd8f8c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "441",
+        "name": "元气橘调",
+        "hex": "#f08a5a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "442",
+        "name": "烈酒浅棕 · 薄涂奶杏",
+        "hex": "#c79a72",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "443",
+        "name": "宿醉香槟",
+        "hex": "#e8a86a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "444",
+        "name": "千金",
+        "hex": "#ee9a86",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "445",
+        "name": "野欲清桃",
+        "hex": "#f4a08f",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "446",
+        "name": "停留 · 通透暖杏",
+        "hex": "#e9b48d",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "610",
+        "name": "冰乌龙 · 奶茶界白月光",
+        "hex": "#cfa289",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "611",
+        "name": "烟粉芋 · 慵懒感",
+        "hex": "#d3a3ad",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "614",
+        "name": "枯叶棕",
+        "hex": "#9c6440",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "620",
+        "name": "失温裸 · 肉桂奶茶",
+        "hex": "#cfa189",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "621",
+        "name": "冻山楂 · 鲜艳黄调红",
+        "hex": "#d13b3a",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "622",
+        "name": "冰川葡 · 红宝石闪",
+        "hex": "#b32d52",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      }
+    ]
+  },
+  "blurb": "镜面水光"
+}

@@ -1,0 +1,66 @@
+{
+  "id": "base-cushion-black",
+  "wording": {
+    "texture": "比粉气垫更轻薄，微米级粉体，轻盈雾光 / 哑光，高贴肤",
+    "skinTypes": "混油皮与油皮评价最高；干皮夏季可用，秋冬单用可能偏干",
+    "occasions": "潮湿炎热天气、长时间户外、梅雨季；16 小时清新妆感",
+    "warnings": "含香精；含异丙基肉豆蔻酸酯，部分油痘肌有致闭口风险",
+    "feedback": "“适合大油皮、瑕疵油皮，又薄又能遮”"
+  },
+  "shades": {
+    "label": "黑气垫",
+    "shades": [
+      {
+        "code": "B10",
+        "name": "偏中性的白调",
+        "hex": "#f5e2d2",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B15",
+        "name": "中性一白",
+        "hex": "#f2ddcb",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B20",
+        "name": "黄二白 · 有提亮效果",
+        "hex": "#e8cdb2",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B25",
+        "name": "自然肤色",
+        "hex": "#dfc0a1",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B30",
+        "name": "健康小麦肤色",
+        "hex": "#cba17c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "哑光雾面持妆"
+}

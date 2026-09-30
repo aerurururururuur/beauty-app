@@ -27,6 +27,8 @@
 import { loadCatalogIfPresent } from './infrastructure/json/content-loader.js';
 import type { JsonProductCatalog } from './infrastructure/json/content-loader.js';
 import type { ProductCatalog } from './domain/ports/product-catalog.js';
+import { GetProduct } from './application/usecases/get-product.js';
+import { ListCatalog } from './application/usecases/list-catalog.js';
 
 export interface ProductsModuleOptions {
   /**
@@ -39,13 +41,29 @@ export interface ProductsModuleOptions {
 
 export interface ProductsModuleServices {
   /**
-   * ★ 可空是**有意的**:空 = 这个部署没有产品库 → 组装根不把 `catalog` 交给 agent
-   *   → agent 不注册产品工具。**不是"注册了但返回空列表"** —— 那是假开关:
-   *   模型会以为自己有个空产品库，然后对着空库编出似是而非的推荐。
+   * ★ 可空是**有意的**:空 = 这个部署没有产品库 →
+   *   ① 组装根不把 `catalog` 交给 agent ⇒ agent 不注册产品工具;
+   *   ② `queries` 一起是空的 ⇒ `GET /api/products` 那两条路由**不注册**。
+   *   **两处都不是"注册了但返回空列表"** —— 那是假开关:模型会以为自己有个空产品库、
+   *   对着空库编出似是而非的推荐;界面会拿到一个 200 的空目录屏,看起来像"这个品牌没有产品"。
    */
   catalog: ProductCatalog | undefined;
   /** 具体实现。**只给组装根打启动日志用**(读 `health`/`source`)，别处拿不到。 */
   loaded: JsonProductCatalog | undefined;
+  /**
+   * ★ **两条 HTTP 路由的用例。空 = 这个部署没有产品库 ⇒ 路由不注册。**
+   *
+   * 与 `catalog` 同生同灭(下面那个 `if` 里一起造),所以不存在"有 catalog 没用例"
+   * 或反过来的中间态 —— **它可空这件事本身就是"路由注册不注册"的判据**,
+   * 不需要调用方再拿 `catalog` 推一次(`app.ts` 那行展开读的就是这里)。
+   */
+  queries: ProductsQueries | undefined;
+}
+
+/** 产品库的两条只读用例(`GET /api/products` / `GET /api/products/:id`)。 */
+export interface ProductsQueries {
+  listCatalog: ListCatalog;
+  getProduct: GetProduct;
 }
 
 export function createProductsModule(options: ProductsModuleOptions): ProductsModuleServices {
@@ -53,6 +71,10 @@ export function createProductsModule(options: ProductsModuleOptions): ProductsMo
   // 目录存在但取不到库 / 内容坏 → `loadCatalogIfPresent` 内部抛错，这里**故意不 try/catch**:
   // 内容坏了就该把启动打断，包一层只会把"配置错了却也能启动"那类问题重新引回来。
   const loaded = loadCatalogIfPresent(options.contentDir);
-  if (!loaded) return { catalog: undefined, loaded: undefined };
-  return { catalog: loaded, loaded };
+  if (!loaded) return { catalog: undefined, loaded: undefined, queries: undefined };
+  return {
+    catalog: loaded,
+    loaded,
+    queries: { listCatalog: new ListCatalog(loaded), getProduct: new GetProduct(loaded) },
+  };
 }

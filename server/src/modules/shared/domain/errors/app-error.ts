@@ -57,6 +57,13 @@ export const ErrorCode = {
    * 合成一个码会让排查的人分不清是越权还是序号写错了。
    */
   RENDER_NOT_FOUND: 'RENDER_NOT_FOUND',
+  /**
+   * 产品库里没有这个 id。
+   * ★ **它与上面那些"属于你吗"的码不是一类**:产品库是品牌内容,不挂在账号下,
+   *   没有归属可校验(见 `products/presentation/routes/products.route.ts` 那段说明)。
+   *   这条只表达"这个 id 在库里查不到"。
+   */
+  PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

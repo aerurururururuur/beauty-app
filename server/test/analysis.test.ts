@@ -59,6 +59,7 @@ import { ErrorCode, OCCASIONS, SKIN_TONES } from '../src/modules/shared/index.js
 // ★ 深路径:组装层的配置不进 `shared` 的 barrel(同 `test/config.test.ts`)。
 import { loadConfig } from '../src/modules/shared/infrastructure/config.js';
 import { createCabinetModule } from '../src/modules/cabinet/index.js';
+import { createProductsModule } from '../src/modules/products/index.js';
 import { createUserModule } from '../src/modules/user/index.js';
 import { createWeatherModule } from '../src/modules/weather/index.js';
 import { FakeAnalyzers, FakeVisionClient } from './helpers/fakes.js';
@@ -553,6 +554,9 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
     palette: { toneKeysFor: () => undefined, labelOf: () => undefined },
     // 同上:特征策略卡也只在 propose_look 那一步被读。
     features: { byId: () => undefined },
+    // 同上:色值也只在 propose_look 那一步被读。下面 `PRODUCTS_DIR` 指的是不存在的目录,
+    // 所以生产里这里拿到的也是一律回空串的那个闭包 —— 这一行与部署形态一致。
+    shades: { hexOf: () => '' },
     ...(analyzers ? { analyzers } : {}),
   });
 
@@ -561,6 +565,9 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
     user: createUserModule({ dataDir: config.dataDir }),
     weather: createWeatherModule({ kind: config.weatherProvider }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    // ★ 走真 compose(与 `src/index.ts` 同一条路),不是塞一个空壳 —— 这条测试
+    //   要验的正是**装配层**的事,拿手搓的替身就把要验的那一层换掉了。
+    products: createProductsModule({ contentDir: config.productsDir }),
     agent,
   });
 }

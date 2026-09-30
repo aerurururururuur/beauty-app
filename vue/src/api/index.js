@@ -19,7 +19,15 @@ api.interceptors.response.use(
     const envelope = data?.error
     const detail =
       (typeof envelope === 'object' ? envelope?.message : envelope) || data?.detail || data?.message
-    const msg = typeof detail === 'string' ? detail : err.message || '请求失败，请稍后再试'
+    // ★ 没有 response = 压根没连上(后端没跑 / 网断了)。axios 自己那句 message 是**英文的**
+    //   "Network Error",而它会一路显示到界面上(「数字美妆台」整屏就靠这一句),所以这一支
+    //   必须自己给一句中文。有 response 的那种才轮到 err.message / 兜底那句。
+    const msg =
+      typeof detail === 'string'
+        ? detail
+        : err.response
+          ? err.message || '请求失败，请稍后再试'
+          : '没能连上服务器，请确认后端在跑。'
     return Promise.reject(new Error(msg))
   }
 )

@@ -1,0 +1,66 @@
+{
+  "id": "base-cushion-pink",
+  "wording": {
+    "texture": "粉霜质地，轻薄水感，上脸呈自然透亮的「水感奶油肌」",
+    "skinTypes": "官方标注所有肤质；中性皮、干皮、混干皮体验最佳",
+    "occasions": "温暖潮湿天气的日常通勤、伪素颜；长时间暴晒时持妆不如恒久",
+    "warnings": "含香精；瑕疵较多时遮盖力有限",
+    "feedback": "“干皮亲妈，但遮瑕力一般”"
+  },
+  "shades": {
+    "label": "粉气垫",
+    "shades": [
+      {
+        "code": "B10",
+        "name": "中性一白 / 黄调一白",
+        "hex": "#f5e3d4",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B20",
+        "name": "带明显黄调",
+        "hex": "#ecd3ba",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B25",
+        "name": "自然妆效",
+        "hex": "#e2c6a8",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR10",
+        "name": "粉调一白",
+        "hex": "#f7e1da",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR20",
+        "name": "粉调偏白",
+        "hex": "#f0d6cc",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "轻透奶油肌"
+}

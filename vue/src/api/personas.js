@@ -25,7 +25,7 @@ const LEGACY_SEED_KEY = 'tz:personas:seedv:'
 
 /**
  * 「关系」的**预置选项**:存英文 id,显示这三个中文词。
- * ★ 2026-09-30 起它**不再是白名单** —— 用户能自己填关系的原话(「同事」「继母」),
+ * ★ 2026-09-30 起它**不再是白名单** —— 用户能自己填关系的原话(「同事」「搭子」),
  *   这里只剩"页面上先摆哪几个 chip"。服务端那三个 id 由 `server/test/persona-vocabulary.test.ts` 对表钉住。
  */
 export const RELATIONS = [

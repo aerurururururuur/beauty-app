@@ -1,0 +1,176 @@
+{
+  "id": "base-fd-new",
+  "wording": {
+    "texture": "轻薄水感乳霜，延展性好，上脸快速成膜；雾面哑光，遮瑕中等偏上；旧版：经典哑光，柔雾妆效",
+    "skinTypes": "官方定位油性及混合性；大油皮与混油皮评价极高；旧版：混合至油性肤质",
+    "occasions": "高温高湿环境的最强底妆；夏日长时间户外、湿热地区全天通勤；旧版：日常通勤、需要雾面持妆的场景",
+    "warnings": "无酒精配方；含香精（新旧版一致）",
+    "feedback": "“油皮粉底液只有两种，一种是 YSL 恒久，另一种是其他”"
+  },
+  "shades": {
+    "label": "恒久粉底液（新版 + 旧版）",
+    "shades": [
+      {
+        "code": "LC1",
+        "name": "粉一白 · 官网最白",
+        "hex": "#f7e6da",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LC2",
+        "name": "粉 1.5 白 · 自然偏粉",
+        "hex": "#f2dfd0",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LC3",
+        "name": "明亮色调 · 可遮红血丝",
+        "hex": "#ecd4be",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LC6",
+        "name": "中性自然肤色",
+        "hex": "#dfbc9f",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN1",
+        "name": "自然黄调 · 柔焦感",
+        "hex": "#f4e1d0",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN4",
+        "name": "中性 · 粉黄之间",
+        "hex": "#e2c6a9",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN8",
+        "name": "中性深色",
+        "hex": "#cfa97f",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LW1",
+        "name": "自然黄调 · 比 LN1 更黄",
+        "hex": "#f2dcbd",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LW4",
+        "name": "黄调二白",
+        "hex": "#dfbc93",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LW7",
+        "name": "黄调三白",
+        "hex": "#c79f74",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "MM1",
+        "name": "偏深偏暗健康肤色",
+        "hex": "#c9a074",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B10",
+        "name": "旧版 · 象牙色 · 黄调一白",
+        "hex": "#f3ddc4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B20",
+        "name": "旧版 · 米白色 · 黄调二白",
+        "hex": "#e9cdb0",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "B30",
+        "name": "旧版 · 自然色 · 黄调三白",
+        "hex": "#dcbb98",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR10",
+        "name": "旧版 · 粉白色 · 粉调一白",
+        "hex": "#f6e2da",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "BR20",
+        "name": "旧版 · 桃粉色 · 粉调次白",
+        "hex": "#eed2c8",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "高遮瑕 · 24H 持妆"
+}

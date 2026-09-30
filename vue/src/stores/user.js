@@ -101,8 +101,9 @@ export const useUserStore = defineStore('user', () => {
    *   这三条不能靠「记得手动清」。
    *
    * ★ 这三个 store 能被**静态引**,但它们的 api 模块必须仍然守住「首屏包里没有 axios」:
-   *   · `api/vanity` / `api/design` 顶层只吃 `kb/` 纯数据(vanity 里那条 `./cabinet`
-   *     与 design 里那条 `@/api/agent` 都是惰性的);
+   *   · `api/vanity` 顶层**一行 import 都没有**(它的两条传输层——`./products` 与 `./cabinet`
+   *     ——都是惰性取的;✏️ 2026-09-30 之前它顶层吃 `kb/` 那三份本地常量,那三份已退役);
+   *     `api/design` 顶层只吃 `kb/` 剩下的纯数据,它那条 `@/api/agent` 是惰性的;
    *   · ★★ **`api/personas` 从 2026-09-30 起不再属于这一类**——人设搬到服务端之后
    *     它顶层就是 axios,所以 `stores/personas.js` 里那条改成了
    *     `import('@/api/personas')` **惰性**引入。改这三个 store 里任何一条 import 之前,

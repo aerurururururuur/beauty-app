@@ -497,7 +497,10 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     //     ⚠️ 那句原文只堵了"后面",而下一轮实测里 id 出现在**前面**(见文件头 v13)。
     //     这一句是**兜底**;那头真正的改动在 `list-products.ts` 的版面上,别只改这里。
     '★ **我在这里跟你说的工具名和 id,是给你调用用的,不要复述给用户看**——',
-    '她不知道 `render_look` 是什么,也不该看见 `31-all-hours-foundation` 这样的串。',
+    // ✏️ 2026-09-30:id 从 `31-all-hours-foundation` 换成了 slug(`sk-ps-cleanser` 这种)。
+    //   ★ 例子**必须跟着真 id 走** —— 它举的是一个具体形状,模型照着那个形状认「什么像 id」。
+    //   举一个库里已经不存在的老形状,它就会漏掉今天真正会出现的那些串。
+    '她不知道 `render_look` 是什么,也不该看见 `sk-ps-cleanser` 这样的串。',
     '要提产品就照品牌的名字说(如「恒久粉底液」);**id 这样的串一个字都不该出现在给用户看的正文里**',
     '——放在前面当标签、缀在后面当注释、塞进括号里,都一样。',
     '',

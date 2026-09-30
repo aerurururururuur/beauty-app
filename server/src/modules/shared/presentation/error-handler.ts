@@ -45,6 +45,9 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   SESSION_NOT_FOUND: 404,
   // 会话是我的、但这个序号的图不在:同样是"取的东西不存在"。
   RENDER_NOT_FOUND: 404,
+  // 产品库里没有这个 id。★ 与上面几条不同:产品库是**品牌内容**、不挂账号,
+  //   所以这个码里没有"还是不是你的"那层意思,就是纯粹查不到。
+  PRODUCT_NOT_FOUND: 404,
   VALIDATION_ERROR: 422,
   INTERNAL_ERROR: 500,
 };

@@ -411,6 +411,8 @@ async function main(): Promise<void> {
     artifacts: fakeArtifacts,
     palette,
     features,
+    // ★ 这个脚本只探**提示词长度**,一次工具都不跑 —— 色值给空串就够。
+    shades: { hexOf: () => '' },
     ...(argv.products ? { products: fakeProducts } : {}),
   });
 

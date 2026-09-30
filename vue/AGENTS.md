@@ -53,13 +53,13 @@
 | 你要做的事 | 让用户粘贴 |
 | --- | --- |
 | 改设计链（场景 / 表单 / 方案 / 风格） | `vue/src/api/design.js`、`vue/src/api/kb/styles.js`、对应页面、`vue/src/stores/design.js` |
-| 改色号 / 产品目录 | `vue/src/api/kb/shades.js`、`vue/src/api/kb/catalog.js`、`vue/src/api/kb/products.js`、`vue/src/api/vanity.js` |
+| 改色号 / 产品目录 | ✏️ 2026-09-30：**内容和数据都在后端**——`products/overlay/<库>/`（手写层）+ `server/src/modules/products/domain/schemas/api/products-view.ts`（契约）；前端只有 `vue/src/api/products.js` 与 `vue/src/api/vanity.js` 两个传输/适配文件 |
 | 改人设库（脸模） | `vue/src/api/personas.js`、`vue/src/stores/personas.js`、`vue/src/pages/Persona*.vue`、**后端那一族**：`server/src/modules/user/{domain,application,presentation}/**persona*`（数据与种子都在那边，见 §7.1） |
 | 加接口 | `vue/src/api/index.js`、`vue/src/api/<域>.js`、`vue/src/api/use-mock.js`、`vue/src/api/mock.js`、对应 store、后端那个 `domain/api/*.ts` |
 | 加 / 改共享组件 | `vue/src/components/<X>.vue` + 调用它的页面 + `vue/src/assets/styles/tokens.css`（+ 对应页面的 css） |
 | 改样式 | `vue/src/assets/styles/{tokens,base,pages,flow}.css`，以及目标页面（页内 `scoped`） |
 | 改动线 / 路由 | `vue/src/router/index.js`、`vue/src/App.vue`、`vue/src/components/AppSidebar.vue`、相关页面 |
-| 核对后端契约 | `server/src/modules/*/presentation/routes/*.route.ts`（**只有 4 个文件**，26 条路由；第 27 条 `GET /health` 在 `app.ts` 里）+ `server/src/modules/*/domain/schemas/api/*.ts` |
+| 核对后端契约 | `server/src/modules/*/presentation/routes/*.route.ts`（**6 个文件**，28 条路由；第 29 条 `GET /health` 在 `app.ts` 里）+ `server/src/modules/*/domain/schemas/api/*.ts` |
 
 > `vue/src/api/kb/styles.js`（450 行）与 `vue/src/assets/styles/flow.css`（2713 行）是大文件，
 > 可以只要**相关段落**，但必须说清是哪一段（「`SCENE_STYLES.party` 那一段」/「`.vanity-view--all` 那一块」），
@@ -135,27 +135,37 @@
 
 | 档 | 谁 | `VITE_USE_MOCK=false` 会变吗 | 数据在哪 |
 | --- | --- | --- | --- |
-| **A. 真后端** | 账号（登录/注册）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图 / 换风格） | 会（账号与化妆包）／**与它无关**（agent 与人设库，见下） | `POST /users` · `POST /users/login` · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 |
-| **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义）、美妆台的**产品目录**那一半、方案里的**色值回填** | ❌ **不会** | `api/design.js` · `api/vanity.js` 上半 · `api/kb/*` |
+| **A. 真后端** | 账号（登录/注册）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图 / 换风格）、`/form` 上的**今日天气**、**产品库**（数字美妆台的目录 / 色号 / 产品性质） | 会（账号与化妆包）／**与它无关**（agent、人设库、天气与产品库，见下） | `POST /users` · `POST /users/login` · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 · `api/weather.js` 那 1 条 · `api/products.js` 那 2 条 |
+| **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义） | ❌ **不会** | `api/design.js` · `api/kb/*` |
 | **C. 策展演示内容** | 首页轮播/推荐/贴士/热点、灵感广场、`/mine` 的统计数字 | ❌ **不会** | `api/home.js` |
 
 - **B 档不是 mock 分支。** 后端**根本没有** `/design/*` 这些路由（见 §7.1）。
-  所以拨 `VITE_USE_MOCK` 对它**逐字无效**。场景卡与表单定义是前端的两张常量表，
-  产品目录与色值回填也只有前端有——这几样**本来就不该有服务端**。
+  所以拨 `VITE_USE_MOCK` 对它**逐字无效**。场景卡与表单定义是前端的两张常量表
+  （`api/design.js` 的 `SCENES` / `SCENE_FORMS`）——它们描述的是"要问用户什么"，
+  **本来就不该有服务端**。
   ✏️ **2026-09-30：人设库从 B 档搬到了 A 档**（此前这里写着「`/personas/*` 后端根本没有
   ——本来就不该有服务端」）。它的数据现在真的在服务端、跨机器可见，
   **照片也一起**（见 §8-3 的重写）。所以那一屏的文案可以、也必须说「存在你的桃妆账号里」。
   ⚠️ 与 agent 那条同理：`api/personas.js` **刻意不给 mock 分支**（§8-7），
   **后端不起就没得看**——`VITE_USE_MOCK` 对它同样逐字无效，但结论从"本地没事"变成了
   "这条链现在也要后端"。
+  ✏️ **同一天稍后：美妆台的「产品目录」那一半也搬到了 A 档**（此前它在这一行里）。
+  它有两半是这个原因：目录那半先前是 `api/kb/{catalog,products,shades}.js` 三份**手写常量**，
+  与后端 `products/` 里的同一批内容各存一份（同一件产品两个 id），2026-09-30 并成了一份，
+  改由 `GET /api/products` 下发（见 §6.2）。**所以 `/vanity` 与 `/vanity/add` 从今天起也要后端**——
+  这是本节新出现的失败模式：**后端不起，这两屏是整屏一句人话的错**，不是一份看起来正常的空目录。
+  ⚠️ 同理，`api/products.js` **刻意不给 mock 分支**（§8-7）。
 - **C 档也不是 mock 分支**，是**写好的一批演示内容**：没有别人的作品、没有真实的点赞数。
   唯一一处**真数据**是 `/mine` 的昵称，它来自 A 档登录返回的那个 `nickname`。
 - ★★ **设计链不再走本地推导（2026-09-30 改的，与本节此前写法相反）。**
   `/form` 把填的东西拼成一份 `brief` 交给后端 agent，**方案（步骤 / 色号 / 产品 / 个性化）
   由 `propose_look` 在服务端展开**（`server/src/modules/styling`）。前端那一套本地展开
-  （`getDesignResult` / `STEP_LOGIC` / `buildSteps` …）连同 `kb/styles.js` 的配方一起**删了**；
-  `kb/shades.js` 留着，因为后端给的方案**只带 `pid + code`、不带色值**，
-  颜色仍由前端的 `hexOf(pid, code)` 回填（这也是"色值只有前端有"那条硬约定的现场）。
+  （`getDesignResult` / `STEP_LOGIC` / `buildSteps` …）连同 `kb/styles.js` 的配方一起**删了**。
+  ✏️ **2026-09-30 稍后：色值也搬走了。** 此前这里写着「`kb/shades.js` 留着，因为后端给的方案
+  只带 `pid + code`、不带色值，颜色仍由前端的 `hexOf(pid, code)` 回填」。现在色号随产品库一起
+  上了服务端（`styling/application/decorate-plan.ts` + `styling/domain/ports/shade-lookup.ts`），
+  **方案的每一步自带 `hex`**（空串 = 没色块），前端只负责渲染，`kb/shades.js` 退役。
+  ⇒ 这意味着**前端不再持有任何色值**：想改某个色号的颜色，改 `products/overlay/<库>/` 里的内容。
   ⇒ 代价是实在的：**「换风格」从毫秒级本地计算变成一次 agent 回合（最长 90 秒，§6.3 的
   `AGENT_TIMEOUT_MS`）**，而「生成」是真的要等。
 - ★ **这条链也不受 `VITE_USE_MOCK` 管**——但原因与 B 档不同：`api/agent.js` 是全仓
@@ -290,16 +300,20 @@ vue/src/
 │   ├── users.js               # A 档：POST /users · POST /users/login（桃妆 ID ↔ 后端 nickname 的映射只在这里）
 │   ├── cabinet.js             # A 档：/cabinet/items 四条。★ 只被 api/vanity.js 惰性引用
 │   ├── mock.js                # A 档的假后端（账号 + 本地化妆包）。只准惰性引入
-│   ├── vanity.js              # B+A 混合：目录那半是本地 kb，化妆包那半走 cabinet.js（惰性）
-│   ├── design.js              # B 档：**输入侧**的表单定义 + 色值回填（hexOf）+ brief 拼装。★ 全本地
+│   ├── vanity.js              # A 档两半：产品目录走 products.js（惰性），化妆包走 cabinet.js（惰性）。★ 顶层零 import
+│   ├── products.js            # A 档：产品库 2 条（§7.1）。★ 只被 api/vanity.js 惰性引用，刻意不给 mock 分支
+│   ├── design.js              # B 档：**输入侧**的表单定义（SCENES / SCENE_FORMS）+ brief 拼装。★ 全本地
 │   ├── agent.js               # A 档：设计链那条会话链的 8 条（§7.1）。★ 全仓唯一不给 mock 分支的 api 模块
 │   ├── personas.js            # A 档：人设库 10 条（§7.1，含两个自建小库）。★ 与 agent.js 一样**刻意不给 mock 分支**
 │   │                          #   照片走 dataURL（不是 multipart）；`shrinkPhoto` 留着，理由已换成 JSON 体积
+│   ├── weather.js             # A 档：`GET /weather` 那 1 条（`/form` 的今日天气）。★ 与 agent.js / personas.js 一样**刻意不给 mock 分支**
 │   ├── home.js                # C 档：首页 / 灵感 / 我的 的策展内容。★ 全本地
-│   └── kb/                    # B 档的数据：catalog / features / products / shades / skintones
+│   └── kb/                    # B 档的数据：features / skintones / styles
 │                              #   ⚠️ styles.js 的配方搬去了后端 `styling`（§1），现在只剩**配方名**
 │                              #      被 `/form` 的「你想要的风格」chips 消费（`api/design.js` 的 `STYLE_FIELD`）——
 │                              #      但**别删**：`server/test/styling-plan.test.ts` 拿它当"搬运前的原件"对表
+│                              #   ✏️ 2026-09-30：catalog / products / shades 三份并进了后端
+│                              #      `products/overlay/ysl-property/`，经 `GET /api/products` 下发（§6.2）
 ├── stores/
 │   ├── user.js                # 「这次用的是哪个账号」。★ 在首屏链上（见 §6.3）
 │   ├── design.js              # 设计链的**会话缓存**（brief / plan / 出图 / generating）。★ 方案由服务端给
@@ -491,15 +505,38 @@ tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）�
 人设库的语义就是「存下来下次还能用」——**造一份本地的假**，正好把
 「真的存到账号里了」和「看起来存下来了」变成一模一样。同理，读脸那条路
 （`analyzePersonaFace`）**不许回落本地哈希兜底**：服务端没给建议就说"没读出来"（§8-1、§8-4）。
+✏️ **2026-09-30 稍后：`api/weather.js` 是第三条现场**（`/form` 的今日天气）。
+⚠️ 它的理由与前两条**不同**：天气不难复刻，是**不能**复刻——编一份天气混进 `brief`，
+模型会照着它挑妆面，而用户看到的是一行像模像样的「晴 24℃」。离线路是**服务端**那条
+`WEATHER_PROVIDER=mock`（它自报 `source`），不是前端补一份。
 
-### 6.2 `api/vanity.js` 是全仓最容易读错的一个文件
+### 6.2 `api/vanity.js` 的两半（★ 2026-09-30 整节重写过）
 
-它**一半接后端、一半本地**，两边必须在脑子里分开：
+**它此前是本仓最容易读错的一个文件**——一半接后端、一半本地，那张表已经整张作废。
+现在两半**都走 HTTP**，分法只剩「是不是账号数据」：
 
-| 部分 | 来源 | 代表函数 |
+| 部分 | 来源 | 是账号数据吗 |
 | --- | --- | --- |
-| 产品目录 / 分类树 / 色号库 / 产品性质 | **本地 `kb/`**（后端没有这些端点） | `fetchVanityTree` `fetchCategoryProducts` `fetchCatalogProducts` `fetchShades` `fetchProductInfo` |
-| 「我拥有什么」（我的化妆包） | **真后端 `/cabinet/items`** | `fetchBag` `addProducts` `addShade` `removeShade` `removeProduct` |
+| 分类树 / 产品卡 / 色号 / 产品性质 | `GET /api/products`（经 `api/products.js`） | 不是（品牌内容，全账号同一份） |
+| 「我拥有什么」（我的化妆包） | `/cabinet/items`（经 `api/cabinet.js`） | 是（按账号） |
+
+✏️ 此前目录那半是 `kb/{catalog,products,shades}.js` 三份**手写常量**，与后端 `products/` 里的
+同一批内容各存一份（同一件产品两套 id）。那三份已退役，内容并进了 `products/overlay/ysl-property/`。
+由此产生的三条硬规矩：
+
+- **全仓不许再另写一份产品数据或色值。** 唯一来源是 `GET /api/products`；改内容改
+  `products/overlay/<库>/`（§0.2）。
+- **目录不再是同步的。** `fetchCatalog()` 要等一个来回，所以 `stores/vanity.js` 第一次有了
+  加载态（`catalogLoading` / `catalogLoaded` / `catalogError`）。**别把加载中渲染成"暂无产品"**
+  ——那就是假开关（§9 美妆台清单）。
+- **详情是预热的，不是每次点开现取**（✏️ 2026-09-30 稍后加）。进「全部产品」后
+  `prefetchCategory` 按顺序把**当前分类**的详情取回（换分类即停），`prefetchDetail`（卡片
+  `@pointerenter`）在鼠标划过时补一件——点下去就是缓存命中，信息面板不再"先塌一下再撑开"。
+  ★ 代价要认：进页后会多几条后台请求（该分类每件约 2–5 KB，顺序发、可中止）；
+  **整库 66 条的详情不许一次推下来**——那正是后端把详情单开一条路由的理由。
+- ★ **`/vanity` 与 `/vanity/add` 从今天起依赖一个配好的后端。** 后端不起（或 `PRODUCTS_DIR`
+  指空使这两条路由**不注册**）⇒ 这两屏是**整屏一句人话的错**，不是空列表。这是今天新出现的
+  失败模式，已写进 §1 与 §9。**不要为了"看着正常"给 `api/products.js` 补 mock 分支**（§8-7）。
 
 **化妆包怎么落到那四条端点上**（改这个文件之前必须读这段）：
 
@@ -530,7 +567,7 @@ tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）�
 > ★★ **2026-09-30 又加了两处，四处都别改回去**：
 > ① `stores/design.js` 引 `@/api/agent` **必须惰性**（它在原来的文件里就是 `import('@/api/agent')`）——
 >    理由与 `stores/user.js` 引 `@/api/users` 一模一样，见那个 store 的文件头；
-> ② `api/design.js` 的 `toBrief` / `decoratePlan` 是**纯函数**，别顺手在里面引 `api/agent`。
+> ② `api/design.js` 的 `toBrief` 是**纯函数**，别顺手在里面引 `api/agent`。
 >    `ResultView.vue`（懒加载路由）里那一条 `import { renderImageHref } from '@/api/agent'`
 >    **是静态的、也是对的**——那一屏本来就是懒加载的，axios 落在它自己的分块里。
 > ③ ★ **`stores/personas.js` 引 `@/api/personas` 必须惰性**（写成 `import('@/api/personas')`，
@@ -540,6 +577,11 @@ tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）�
 >    是纯本地的，静态引进来也没事）⇒ 静态引 = axios 进首屏包。
 > ④ `stores/user.js` 里那句「`api/personas` 不碰 axios」的注释**已经改掉了**——
 >    别再照着旧注释把它改回静态 import。
+> ⑤ ★ **`api/vanity.js` 里 `function productsApi() { return import('./products') }` 与它旁边
+>    那条 `cabinet()` 同理**（2026-09-30 加）。产品库那半以前是 `kb/` 三份纯数据，
+>    顶层静态引它们不碰 axios；现在 `api/products.js` 是 axios 模块，**必须惰性取**。
+>    ⚠️ 同一天 `api/vanity.js` 的`fetchProductInfo` 也从同步变成了 `async`（详情走第二条路由），
+>    所以它的**每个调用方都要处理 loading/失败**（见 §9 美妆台清单）。
 
 ⚠️ **这条没有任何工具能查出来**（本目录零 lint、零测试）。判别方法——`npm run build` 之后：
 
@@ -552,6 +594,9 @@ axios 应该待在**另一个分块**里。2026-09-30（人设库接上后端之
 `index-CsKrq8px.js` 142.81 kB（axios 命中 **0** 次）、`api-BphkFwOS.js` 50.35 kB（axios 在里面）、
 `mock-B_f9ayll.js` 单独的假后端分块。
 （`index` 从 118.57 涨到 142.81 kB 里，有一部分不是本轮：同日另一条线把 agent 会话链接进了 `/form → /result`。）
+✏️ **同一天稍后（产品目录切后端那次）**：`index-Dkcfb1so.js` **108.55 kB**（axios 命中 0 次）、
+`api-GzQ8PHCV.js` 50.41 kB（axios 在里面）。`index` 变小是**预期**的——
+`kb/{catalog,products,shades}.js` 三份手写常量从首屏包里删掉了；产品库自己是一个惰性分块。
 ★ **分块名会变**（同一份代码今天叫 `use-mock-*`、明天可能叫 `api-*`，那是 rollup 给这个动态组
 挑的名字，不是谁起的名）——**别按名字找，按「axios 在不在 `index-*` 里」判断**。
 哪天它出现在 `index-*` 里了，就是有人写成了静态 `import`。
@@ -571,7 +616,7 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > **类型唯一真源在 `server/src/modules/*/domain/schemas/api/*.ts`。**
 > 本节是给前端看的转述；两边对不上时，**以后端那个 `.ts` 为准**，并回来改这一节。
 
-### 7.1 端点总表 —— 后端有 27 条，桃妆用 23 条
+### 7.1 端点总表 —— 后端有 29 条，桃妆用 26 条
 
 > ★★ **先看这张对照表再动手。** 「后端有这个端点」不等于「前端在用它」：
 >
@@ -580,11 +625,13 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > | `user` | 13 | **12** —— 账号 2 条（`POST /users` · `POST /users/login`）+ **人设库 10 条**（含下面那**两个自建小库**各 2 条）；`GET /users/:id` 无人调用 |
 > | `cabinet` | 4 | **3**（`POST` · `GET` · `DELETE`）——`PATCH /cabinet/items/:id` 无人调用 |
 > | `agent` | 8 | **8** —— 设计链那条会话（§1）+ `/images`（提交时传参考图）+ `/analyses`（`/result` 的读图按钮，会花钱） |
-> | `weather` | 1 | **0** —— 桃妆没有天气那一栏 |
+> | `products` | 2 | **2** —— 数字美妆台的目录（`GET /products`）与信息面板（`GET /products/:id`），见 ✏️（七） |
+> | `weather` | 1 | **1** —— `/form` 的今日天气：手填城市（`?city=`）或「用当前位置」（`?lat=&lon=`），见 ✏️（六） |
 > | `GET /health` | 1 | 0（部署探活用） |
 >
-> ★ 这 27 条里有 **3 条要 `VISION_ANALYZER=real` 才注册**（agent 的 `/images` `/analyses`
-> 与 `POST /personas/analyze`）。**缺省配置下它们根本不是 404 的"空接口"，是路由不存在**——
+> ★ 这 29 条里有 **3 条要 `VISION_ANALYZER=real` 才注册**（agent 的 `/images` `/analyses`
+> 与 `POST /personas/analyze`）；另有 **2 条要 `PRODUCTS_DIR` 指到真库才注册**（`products` 那两条）。
+> **缺省配置下它们根本不是 404 的"空接口"，是路由不存在**——
 > 别拿"调一下试试"来判断这个部署有没有读图能力，判据是 `GET /personas` 回的那个
 > `canAnalyzeFace`（§8-1）。
 >
@@ -605,7 +652,21 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > `user` 那行 **13 / 12**。两个小库**都没有单独的 `GET`**（搭 `GET /personas` 一起回，
 > 同 `skinTones` 的理由）；两条 `DELETE` 的「还有人在用」判据见本节表下那条 ★。
 >
-> 其余 4 条没被调用的路由**不是给人的菜单**：它们大多属于被替换掉的那个前端，
+> ✏️ 2026-09-30（六）：**`/form` 接上了天气**（23 条 → **24 条**）——`api/weather.js` 那 1 条，
+> 调用点只有 `FormView` 的「查天气 / 用当前位置」，取四格填 `brief.weather`。
+> ★ 它是**可选**的：拉不到照样提交，失败**不写 `design.error`**。★ 服务端标 `source:'mock'` 的
+> 「离线示意」**既不摆也不进 brief**（判据是 `api/design.js` 的 `briefWeatherOf`）——
+> 那条与 `weather` 模块 README 的「UI 要据此标注」不同，理由写在 §7.2 末。
+>
+> ✏️ 2026-09-30（七）：**产品库经 HTTP 接了出来**（24 条 → **26 条**）——`products` 模块
+> 从**空**变有两条只读口，`api/products.js` 两条都调。**这是「产品数据合一」那件事的下半截**：
+> 前端 `kb/{catalog,products,shades}.js` 三份手写常量退役、内容并进 `products/overlay/ysl-property/`，
+> 所以这一改**同时**让 `/vanity` 从 B 档升到 A 档、也让方案色值搬去服务端（§1 与 §6.2）。
+> ⚠️ 两条都**不收 `userId`、不校验归属**：产品库是品牌内容，形状与 `GET /weather` 同类。
+> ⚠️ **`PRODUCTS_DIR` 指空 ⇒ 这两条根本不注册 ⇒ `/vanity` 两屏整屏报错。**
+>
+> 其余 3 条没被调用的路由（`GET /users/:id` · `PATCH /cabinet/items/:id` · `GET /health`）
+> **不是给人的菜单**：它们大多属于被替换掉的那个前端，
 > 或者属于还没接上的能力。**别为了让某屏"看起来更真"随手接一条上去。**
 > ⚠️ 两条例外，都是**属于桃妆真在用的模块、只是还没有界面**：
 > `PATCH /cabinet/items/:id`（将来做「改名」时才有人调）、
@@ -640,7 +701,10 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | `POST /agent/sessions/:id/images` | multipart：`file` + `kind` + `userId` | **200** `AgentSessionView` | ✅ `/form` 提交时逐 `kind` 传一张参考图（**免费**，见 §8-3） |
 | `POST /agent/sessions/:id/analyses` | `{ userId, kind }` | **200** `{ session, kind, status, notice? }` ★ **会花钱** | ✅ `/result` 的读图按钮 —— **用户点了才发**，`notice` 原样展示 |
 | ⚠️ 上面两条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404** | | — |
-| `GET /weather` | `?city=` 或 `?lat=&lon=` | **200** `WeatherView` | — |
+| `GET /products` | — （★ **不收 `userId`**：品牌内容，不挂账号） | **200** `{ groups, products: Card[], shades: { [id]: { label, shades[] } } }` | ✅ `/vanity` 与 `/vanity/add` 各拉一次（见 ✏️（七）） |
+| `GET /products/:id` | — | **200** 详情（六维原文 + `wording` + 色号）；未知 id → **404** | ✅ 信息面板点开时才取（`stores/vanity.js` 的 `loadDetail`） |
+| ⚠️ 上面两条 | **`PRODUCTS_DIR` 指空（库不存在）时根本不注册 → 404** | | — |
+| `GET /weather` | `?city=` 或 `?lat=&lon=`（★ 二选一，都给是 422） | **200** `WeatherView` | ✅ `/form` 拉一次，取四格进 `brief.weather`（见 ✏️（六）） |
 
 ★ **`/images` 与 `/analyses` 是一对**（2026-09-30 接线，见 §8-3）：前者把 `/form` 收的
 场景图 / 风格图送进会话（**免费**，每个 `kind` 只留一张 ⇒ 挑哪张由 `api/design.js` 的
@@ -715,8 +779,55 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 //   所以只做 建 / 列 / 删，**不做改**（要改就删了重建）。
 ```
 
-**桃妆碰的是上面这六个形状**（那四个 + 两个自建小库）。`WeatherView` 仍然零调用。
-★ **`plan` 里没有 `hex`**：后端给的色号是 `pid + code`，色值由前端 `decoratePlan` 回填（§1）。
+**桃妆碰的是上面这六个形状**（那四个 + 两个自建小库），加上第七个——`WeatherView`：
+
+```js
+// WeatherView（`GET /weather` 的响应，`FormView` 拉一次）
+{ source, place?, condition?, temperatureC?, humidityPct?, uvIndex? }
+// ★ 只有**中间那四格**进 `brief.weather`，而且是**逐格挑**出来的：
+//   服务端 `startSessionSchema` 的 `weatherShape` 是 `.strict()`，多带 `source` / `place`
+//   任何一个键，打回的是**整份 brief**（422），不是那一格。挑选点是 `api/design.js` 的 `briefWeatherOf`。
+// ★ `source === 'mock'` = 服务端那条 `WEATHER_PROVIDER=mock` 的「离线示意」（编出来的值）。
+//   **它既不摆也不进 brief**：`/form` 不标来源（用户定），而不标来源就没法把一份编出来的
+//   天气诚实地摆成实况；摆了却不送，用户又会以为天气送到了。⚠️ `weather/README.md` 那条
+//   「`source` 字段 UI 要据此标注」在桃妆**不适用**，因为桃妆根本不展示那一份。
+```
+
+**产品库那两个形状**（✏️ 2026-09-30 加，`api/products.js` 收的就是它们）：
+
+```js
+// CatalogView（`GET /products`，整库一次给）
+{
+  groups:   [{ id, label, children: [{ id, label }] }],   // 两组九类，树就是它
+  products: [{ id, name, categoryId, categoryLabel, text, shadeCount, hasShades }],
+  shades:   { [产品 id]: { label, shades: [{ code, name, hex, hexApprox, toneKey, tone }] } },
+}
+// ★★ 服务端用什么字段名,前端就照用（`label` / `categoryLabel` / `text`）——
+//   这里**刻意不做 label→name 那类改名**：这次搬家的全部意义就是杀掉重复词汇表,
+//   再架一张翻译表等于把它请回来。页面读的是服务端的名字。
+// ★ `text` 是**卡片上那一行字**：服务端已经在「手写层那句」与「品牌资料首句」之间挑好了。
+//   前端不再自己拼、也不再写 `p.texture || p.desc` 那种兜底。
+// ★ `hasShades === false` ⇒ 界面照它写「无色号」（整件收进化妆包就好）。★ 全库 66 条里有 44 条
+//   是这样（睫毛膏/护肤/防晒/眉笔/眼线…）——**别把它渲染成「色号待补」**，那是替品牌许了个
+//   永远不会兑现的诺。
+// ★ 没有色号的产品**不进 `shades` 字典**；判据一律用卡片上的 `hasShades`,
+//   别在页面里拿 `shades[id]` 在不在来推同一件事（两处判它迟早会漂）。
+// ★ `hex` 是**近似值**（`hexApprox: true`,YSL 不公布 HEX）。展示文案必须继续明说。
+
+// ProductDetailResponse（`GET /products/:id`，信息面板点开时才取）
+{ id, name, categoryId, categoryLabel, number, dimensions[], wording[], shades? }
+// ★ `dimensions`（品牌资料原文）与 `wording`（我们补的）是**两段,别并起来渲染**——
+//   一行是品牌说的、一行是我们说的,并起来就分不清了（§8-5）。今天全库 66 条里：
+//   33 条两段都有、23 条只有原文、10 条只有补充、**0 条两段都没有**。
+// ★ `number` 是 docx 里的编号,补录产品是 `null`——界面不摆这一格。
+```
+
+★ **`plan` 里**每一步带 `hex`（✏️ 2026-09-30 反过来重写过）：后端在展开方案时就用
+`styling/domain/ports/shade-lookup.ts` 把 `pid + code` 解析成色值，前端只渲染。
+**空串 = 没色块**（无编号的产品），不是"待回填"。
+
+★ **顺便：前端从此不再持有任何色值。** 想改某个色号的颜色 ⇒ 改 `products/overlay/<库>/`。
+这条同时废掉了旧版 §1 那条「色值只有前端有」的硬约定——它现在是**反的**。
 ★ **`pendingRender` 与 `renderOffer` 是二选一的两个字段**（`renderOffer` 只有在
 「妆面单在 + 照片在 + 没有欠着的提议」时才出现，见 `server/.../session.ts` 的 `renderReadiness`）——
 页面**只该读一个入口**（`design.js` 里那句 `pendingRender || renderOffer`），
@@ -740,6 +851,7 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | `USER_NOT_FOUND` | 404 | 账号没了（**这台浏览器存着的登录在服务端查无此人**） |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 「不存在」与「不属于你」**共用**，别去区分 |
 | `PERSONA_NOT_FOUND` | 404 | 同上，人设那一族：「这份人设不存在」与「这份人设不是你的」**共用同一个码**（不外泄存在性） |
+| `PRODUCT_NOT_FOUND` | 404 | 产品库里的 id 没了（`GET /products/:id`）。★ 产品库**不校验归属**，所以这是真的"没有这件产品"，不是"不是你的" |
 | `CABINET_FULL` | 409 | 化妆包满了（§6.2 那个 100 行的代价） |
 | `NICKNAME_TAKEN` | 409 | 昵称占用 |
 | `INVALID_CREDENTIALS` | 401 | ID 或密码错，**不泄露账号是否存在** |
@@ -889,9 +1001,17 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
      ⚠️ **这条今天仍然成立**（会话落在服务端 ≠ 这一版方案落进了"我的作品"库）。
 
 5. **商业内容可辨认、不搬运。**
-   产品性质（`kb/products.js` 的 `voice` 字段）**摘自品牌资料，不是我们采集的口碑**——
-   转述时必须说清出处，**不许讲成用户口碑或中立评测**（⚠️ `VanityView.vue:275` 今天的标签
-   就是「用户口碑」，见 §11-4）。**空着也比硬贴强**：`productInfo.voice` 为空时整块不渲染。
+   产品性质**摘自品牌资料，不是我们采集的口碑**——转述时必须说清出处，
+   **不许讲成用户口碑或中立评测**（§11-4）。
+   ✏️ **2026-09-30：这一条的现场换过两次，都记在这。**
+   ① 此前它读 `kb/products.js` 的 `voice` 字段，而 `VanityView.vue` 那一格的标签就写着
+   「用户口碑」（那是条真的红线违反，§11-4 记着）。
+   ② 现在内容并进了后端 `products/`，`voice` 这个字段名退役——它并进了六维里的
+   **`feedback`**（不是新增第七维，见 `server/.../content.ts`）。
+   ③ 界面上，信息面板把两段**分开**渲染：品牌资料原文一格、我们补的一格
+   （`ProductDetailResponse` 的 `dimensions` / `wording`，§7.2）。
+   **哪一段是哪一段,不许并起来**——并了就是又一次把品牌宣称洗成我们的话。
+   ★ **空着也比硬贴强**：那两段都为空的条目**整块不渲染**（今天 66 条里 0 条如此,但形状要留）。
    ★ **只有真收了钱才写「赞助」**——少标一个字只是不够显眼，多标一个字是**虚假披露**。
 
 6. **登录门禁不是安全边界。**
@@ -908,6 +1028,10 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
    而设计链**从这天起是 A 档**（§1），所以它既不受这个开关管、
    **也不能靠它离线**——`api/agent.js` 没有 mock 分支，**后端不起就没得走**。
    要看离线演示，靠的是**后端那条**开关（`AGENT_LLM=mock` 的 `DemoLlm`），不是前端这条。
+   ✏️ **同日稍后：`api/products.js` 是第四块「刻意的空白」**（前两块是 `agent` / `personas`、
+   第三块是 `weather`）。数字美妆台的目录现在是品牌内容、由服务端下发，
+   给它编一份本地目录正好把「真的接上了」和「看起来接上了」变得一模一样——
+   **后端不起 ⇒ `/vanity` 两屏给一句人话的错，这是要的，不许兜底。**
    ✏️ **同一天稍后：人设库也从"与两个开关都无关"里出去了。** 它现在与设计链同一处境——
    走真后端、**刻意没有 mock 分支**，所以既不受 `VITE_USE_MOCK` 管，也不能靠它离线。
    ⚠️ **尤其别往 `api/mock.js` 里补一份假人设库**：那份假数据一定长得和真的一样，
@@ -958,6 +1082,13 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
    选一张图 → 移除 → **控制台里不应有 blob 泄漏**（这条只能靠肉眼看代码 `revoke` 有没有接上）。
    ★ 参考图是**第二个外发点**（§8-3）：同一格传两张、以及「风格」与别的格各传一张，
    提交后看服务端留下了几张——**每个 `kind` 只该有一张**（后端的槽就一个）。
+   ✏️ 2026-09-30 起这一屏还有**今日天气**那一块（✏️（六）），本节唯一要新验的东西就是它：
+   - 不填城市直接点「查天气」→ 只出提示、**不发请求**；填「上海」回车 → 出一行；
+     填一个查不到的地名 → 后端那句人话落在**那一行下面**（不是底部那条 `ErrorNote`），
+     且接着点「生成我的妆容」**照样提交成功**（天气是可选的，失败不许挡提交）；
+   - 「用当前位置」→ 允许则出一行；**拒绝授权**则出「没拿到定位…」，同样不挡提交；
+   - ★ 后端配 `WEATHER_PROVIDER=mock` 重启再查一次 → **那一行不出现**（也不进 `brief`）；
+   - ★ 提交时看请求体：`weather` 是**四格**、**没有 `source` / `place`**（多一个键整份 422）。
 4. 提交 → **这一次是真的在等**（最长 90 秒）。★ 重点看这四样：
    - 服务端日志里应当出现请求：建会话 → 传照片 →（**只有 `VISION_ANALYZER=real` 时**）逐 `kind` 传参考图 → 发开场白；
      ⚠️ 缺省是 `off`，那时那两条路由**根本没注册**（404），所以**一张都不该发**——发了就是把整次提交栽掉；
@@ -1030,16 +1161,38 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
     ⚠️ 但**不许**说成"已加密"、也不许把 agent 那条「24h 真删」的承诺挪过来套在它头上——
     这两条是两套口径。
 
-### 数字美妆台（A+B 档，唯一真的走网络的几屏之一）
+### 数字美妆台（**A 档两半**，✏️ 2026-09-30 从 A+B 升上来）
+
+> ★ **这一节也要两个终端一起开**（与上面人设库同理）：目录现在走 `GET /api/products`，
+> `api/products.js` 没有 mock 分支（§8-7）。**后端不起，这两屏就该整屏报错。**
 
 1. `/vanity` → 「我的化妆包 / 全部产品」两个视图切换。
-2. 全部产品 → 挑一个色号 → 收进化妆包 → **刷新，它还在**（走 `/cabinet/items`）。
-3. ★ **一件产品的第一个色号入库时，「整件」行要一起建出来**（§6.2）；
+2. ★★ **把后端停掉，再进 `/vanity` 与 `/vanity/add`** ——
+   要看到的是**整屏一句人话的错**（「没能连上服务器，请确认后端在跑。」之类）
+   **加上一个「再试一次」**，**不是**空列表、不是「暂无产品」、更不是一直转圈。
+   这是今天新出现的失败模式（§6.2），也是这一轮最容易做错的一处。
+3. ★ **加载态与"暂无"必须分得开**：后端在跑、但慢的时候（devtools 里 throttling），
+   请求没回来之前**不许出现「暂无产品」/「这一类都已经在你的化妆包里了」**——
+   那句是结论，不是占位（§6.2）。`catalogLoading` 那一块就是它的现场。
+4. 全部产品 → 挑一个色号 → 收进化妆包 → **刷新，它还在**（走 `/cabinet/items`）。
+5. ★ **条数对表**：提前护理 25 / 妆前 6 / 底妆 8 / 眼妆 7 / 口红 11 / 提亮修容 3，**全库 66**。
+   不对就是内容层（C1）出了问题，不是前端。
+6. ★ **`hasShades === false` 的那 44 条要显示「无色号」**（`p.shadeCount` 那格读它），
+   **不许出现「色号待补」**——那是替品牌许了个永远不会兑现的诺（§7.2）。
+7. ★ **一件产品的第一个色号入库时，「整件」行要一起建出来**（§6.2）；
    丢掉最后一个色号后，**这件产品仍留在包里**。
-4. ★ 收录一支有 10+ 色号的产品 → 每条特性**都不该超过 40 字符**
+8. ★ 收录一支有 10+ 色号的产品 → 每条特性**都不该超过 40 字符**
    （这是 §6.2 那个 422 陷阱的现场验证）；把包塞到 100 行以上 → 后端回 409，
    **页面要把那句人话原样显示出来**，不是静默失败。
-5. 切到 `VITE_USE_MOCK=false` 再走一遍第 2 步，确认命中真后端。
+9. ★ **信息面板是第二个异步点**（点开产品才取详情）：快速连点几件产品，
+   面板要跟着切；**取不到时给一句人话**，不是空白面板。
+   ★ **面板不该"闪一下"**：进「全部产品」后当前分类的详情已在后台顺序取回
+   （`prefetchCategory`），划过卡片再补一件（`prefetchDetail`）——点开应当是缓存命中、
+   面板**一次渲染**直接换成新内容，不出现「正在取…」那一帧（§6.2）。
+   ★ 两段**分开**渲染：品牌资料原文（`dimensions`）与我们补的（`wording`）——
+   某一条只有一段时，另一段的标题不该空着摆（§8-5）。
+10. ★ **化妆包卡片上的色点要有颜色** —— 这条验的是色号（含 `hex`）有没有随库一起下来。
+11. 切到 `VITE_USE_MOCK=false` 再走一遍第 4 步，确认命中真后端。
 
 ### 第一层与登录（A+C 档）
 
@@ -1056,13 +1209,15 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 | --- | --- |
 | 加一个接口 | `api/<域>.js` 加函数（A 档要写 mock 分支，**惰性 import**）→ `api/mock.js` 补同形状假实现 → store 里包一层 → 页面调用 |
 | ★ 那条链**在浏览器里复刻不了**（要服务端真实状态 / 会花钱） | **不要**给它加 mock 分支，改成页面明确说「不可用」 |
+| ★ 那条链**能复刻但不许复刻**（天气） | 同样**不给 mock 分支**（`api/weather.js`）：一份假天气混进 `brief` 就是「看起来能用」。离线路是**服务端**那条 `WEATHER_PROVIDER=mock`，它自报 `source`（见 §6.1 末） |
+| ★ 那份数据**本来就该在服务端**（产品库） | 同样**不给 mock 分支**（`api/products.js`）：内容已经住在 `products/`，前端再编一份就是把两套词汇表请回来——**这正是这次搬家要杀的东西**。后端不起 ⇒ 界面给一句人话的错（§6.2） |
 | 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由（**静态段排在动态段前**）→ `AppSidebar` 要不要高亮看 `meta.nav` → 需要门禁就别加 `meta.public` |
 | 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 axios**（首屏链，§6.3） |
 | 加一个图标 | `Icon.vue` 的 `ICONS`（**`vb` 要抄对**，见 §5.1） |
-| 改色号 / 加产品 | 只改 `kb/shades.js` / `kb/catalog.js` / `kb/products.js`——**任何地方都不许另写一份 hex**（`api/vanity.js` 文件头钉着这条） |
+| 改色号 / 加产品 / 改产品性质 | **改 `products/overlay/<库>/`**（`products/overlay/ysl-property/`），然后**重跑导入器**——生成物一个都不许手改。**任何地方都不许另写一份 hex**；前端一行产品数据都没有了（§6.2、§7.2） |
 | 改人设库 | 前端在 `api/personas.js`（HTTP + `decoratePersona`）与 `stores/personas.js`；**数据和种子都在后端**（`server/src/modules/user/**`，种子的 `PERSONA_SEED_VERSION` 也在那边）。★ 改 `skinTone` / `features` 的取值口径要**同时**动 `server/test/persona-vocabulary.test.ts` 对的那几张表——那正是它的用处。★ 改照片上限要动 `persona.validator.ts` 的 `MAX_PHOTO_BYTES` **和**路由的 `bodyLimit`（两个都要，见那段注释） |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
-| 改设计链（场景 / 表单 / 方案 / 换风格） | 前端的**输入侧**在 `api/design.js`（`SCENES` / `SCENE_FORMS` / `toBrief` / `decoratePlan`）；**方案本身在后端** `server/src/modules/styling` + `agent` 的 `propose_look`——改配方要动后者，前端改不了（§1） |
+| 改设计链（场景 / 表单 / 方案 / 换风格） | 前端的**输入侧**在 `api/design.js`（`SCENES` / `SCENE_FORMS` / `toBrief`）；**方案本身在后端** `server/src/modules/styling` + `agent` 的 `propose_look`——改配方要动后者，前端改不了（§1）。★ **色值也在那边**：`styling/application/decorate-plan.ts` + `shade-lookup.ts`，数据源是产品库 |
 | 动 `agent` 那条链的**出图**部分 | ★ 先读 `server/src/modules/agent/README.md` 的确认回合那一节：**出图只有两个入口，都要用户点头**。前端这边唯一的调用点是 `stores/design.js` 的 `confirmRender()`，而它必须靠 `generating` 禁用按钮（连点 = 连扣费） |
 | 加组件 | 放 `components/`，props/emit/slot 契约更新进 §5.1；**不 import store / api** |
 | 加一条 composable | 先过 §3 第 7 条的判据（**重复**或**红线集中**，不是「整齐」）；放 `composables/`，一个文件一个导出；**别被 `components/` 引到**——那会毁掉纯展示那条线 |
@@ -1104,10 +1259,14 @@ npm run typecheck
    要改请先拍板：
    - `api/home.js:50` 的贴士标题「**黄皮显白的口红色号**」——§8-1 明令文案里不出现「显白」。
    - `VanityView.vue:275` 的标签「**用户口碑** · …」——那个值摘自品牌资料库
-     （`kb/products.js` 的 `voice`，如「熬夜蜡黄脸救星」），**不是我们采集的口碑**，
-     §8-5 不许讲成用户口碑。建议标签改成「品牌宣称」之类，值本身不用动。
-   - （`kb/shades.js:178` 有一个色号叫「显白西红柿」，那是**品牌商品名**，我倾向不动——
-     改商品名等于篡改产品数据。但这条也该由你定。）
+     （✏️ 2026-09-30 前是 `kb/products.js` 的 `voice`，现在并进了产品库的 `feedback` 维），
+     **不是我们采集的口碑**，§8-5 不许讲成用户口碑。**建议标签改成「品牌宣称」之类，值本身不用动。**
+     ★ 这条**仍然没有拍板**，所以这次搬家**原样保留了那个标签**——改标签是文案决定，不是搬运工的事。
+   - ~~（`kb/shades.js:178` 有一个色号叫「显白西红柿」，那是**品牌商品名**，我倾向不动——
+     改商品名等于篡改产品数据。但这条也该由你定。）~~
+     ✏️ **2026-09-30：那个色号随 `kb/shades.js` 并进了产品库**（`products/overlay/ysl-property/`），
+     **名字原样保留**（同上：改商品名等于篡改产品数据）。想知道它在哪个文件里，
+     grep「显白西红柿」。**这条仍然由你定，搬运工没动它。**
 5. **`FormView` 的步骤条统一成 4 步**。源站的 `form.html` 写的是「1 选场景 / 2 填信息 / 3 生成方案」，
    少一步「选形象」，于是「2」在这一屏指填信息、在上一屏指选形象。这里统一成与
    create / personas / result 一致的 4 步。
@@ -1184,3 +1343,21 @@ npm run typecheck
     （e）`humanize()` 里的 `QuotaExceededError` 那一支——不再往 localStorage 写，它是死分支。
     ⚠️ **`decoratePersona` 留着**（它算的 `skinToneHex`/`featureNames` 只有前端 kb 有，§7.2），
     **`shrinkPhoto` 也留着**（理由从配额换成了 JSON 体积，§8-3）——这两个别顺手一起删。
+18. ★ **2026-09-30（七）：产品数据合一删掉的那一批，别照旧印象加回来**：
+    （a）`vue/src/api/kb/catalog.js`、`kb/products.js`、`kb/shades.js` —— 三份手写常量，
+    内容并进了后端 `products/overlay/ysl-property/`，经 `GET /api/products` 下发（§6.2、§7.1 ✏️（七））。
+    （b）`api/design.js` 的 `hexOf` / `decoratePlan` 与 `import { SHADE_LIBRARY }`；`stores/design.js`
+    的 `plan` 现在直接就是 `session.plan`（色值由服务端回填，§7.2）。
+    （c）`api/vanity.js` 的 `decorateProduct` 与那套本地目录函数
+    （`fetchVanityTree` / `fetchCategoryProducts` / `fetchCatalogProducts` / `fetchShades` /
+    `fetchToneFilters` / `productById`）——并成了一个 `fetchCatalog()`。**`TONE_LABEL` 那张表也退役了**
+    （色调中文名从每个色号自己的 `tone` 格取，`toneFiltersOf`），别加回来。
+    （d）`VanityView.vue` 里 `activeShade.tone === '待补'` 那一块与 `.shade-detail--pending` 那条 CSS——
+    占位色号生成器没了之后它**永远不会命中**（假开关家族）。
+    ★ **留着不动的**：`kb/features.js` / `kb/skintones.js` / `kb/styles.js`（`features` 与 `skintones`
+    仍是 B 档真数据；`styles.js` 被后端测试当"搬运前的原件"对表，§4）。**别顺手一起删。**
+    ⚠️ **两个偏离已批准计划的地方，记在这**（做的时候改了主意，不是漏看）：
+    ① **传输层不改字段名**：服务端的 `label` / `categoryLabel` / `text` 原样透给页面，
+    不做 `label→name` 那类改名——改名表是这次要杀的"第二套词汇"，架一张回来就是自相矛盾；
+    ② **信息面板成了第二个异步点**：详情走 `GET /products/:id`，`stores/vanity.js` 有
+    `detailLoading` / `detailError`，`VanityView` 面板三态渲染。计划里写的是"仍同步"。

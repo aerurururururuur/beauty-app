@@ -1,27 +1,27 @@
-import {
-  CATALOG,
-  CATEGORY_NAME,
-  flatCatalog,
-  productById,
-  vanityTree,
-} from './kb/catalog'
-import { SHADE_LIBRARY, TONE_LABEL, shadesOf } from './kb/shades'
-import { productInfoOf } from './kb/products'
-
 /**
  * api/vanity.js —— 数字美妆台的数据层。
  *
- * ★ 本模块是**一半接后端、一半本地**的,两边必须分清(这是全仓最容易读错的一处):
+ * ★★ 2026-09-30:这个文件**不再是一半后端一半本地**了(那正是它此前最难读的一处,
+ *   旧文件头那张「本地 kb / 真后端」的表已整张作废)。两半现在都走 HTTP,
+ *   分法只剩**是不是账号数据**:
  *
- *   | 部分 | 来源 | 为什么 |
+ *   | 部分 | 来源 | 是账号数据吗 |
  *   | --- | --- | --- |
- *   | 产品目录 / 分类树 / 色号库 / 产品性质 | 本地 `kb/` | **后端没有这些端点** |
- *   | 「我拥有什么」(我的化妆包) | 真后端 `/cabinet/items` | 有端点,且它就是「用户自己的化妆品」 |
+ *   | 分类树 / 产品卡 / 色号 / 产品性质 | `GET /api/products`(见 `api/products.js`) | 不是(品牌内容,全账号同一份) |
+ *   | 「我拥有什么」(我的化妆包) | `/cabinet/items` | 是(按账号) |
  *
- *   上半部分是纯粹的本地数据,**不是 mock 分支**——`VITE_USE_MOCK` 对它无效,
- *   两种模式下行为逐字相同。别以为把开关拨到 `false` 就会去联网取产品目录:
- *   后端的 `products` 模块只给 agent 工具用,一条 HTTP 出口都没有
- *   (见 `server/src/app.ts` 注册的那几条路由)。
+ *   ✏️ 此前目录那半是 `kb/{catalog,shades,products}.js` 三份**手写常量**,与后端 `products/`
+ *   里的同一批内容各存一份(id 一套 slug、一套数字编号)。那三份已退役,内容并进了
+ *   `products/overlay/`,色值也一起上了服务端。后果有两条,改这个文件之前要知道:
+ *   · **全仓不许再另写一份产品数据或色值** —— 唯一来源是 `GET /api/products`;
+ *   · 目录**不再是同步的**(`fetchCatalog()` 要等一个来回),加载态见 `stores/vanity.js`。
+ *
+ * ★ **本模块不给 mock 分支**(同 `agent.js` / `personas.js` / `weather.js`):编一份本地目录,
+ *   正好把"真的接上了"和"看起来接上了"变成一模一样。
+ *
+ * ★ `./products` 与 `./cabinet` 两个传输层都必须**惰性取**,不许写成本文件顶部的静态 import:
+ *   本模块被 `stores/vanity.js` 静态引,而后者被 `stores/user.js` 静态引(在首屏链上),
+ *   静态引任何一个都等于把 axios 拽进首屏包(§6.3 那条 grep 盯的就是它)。
  *
  * ── 化妆包怎么落到 `/cabinet/items`(读这段再改这个文件) ──────────────────
  *
@@ -49,82 +49,72 @@ const ATTR_PRODUCT = '产品'
 const ATTR_SHADE = '色号'
 
 /* ================================================================== *
- * 一、本地部分:产品目录 / 色号 / 性质(后端无端点)
+ * 一、产品目录:真后端 `GET /api/products`(品牌内容,与账号无关)
  * ================================================================== */
 
-/** 分类树(一级 → 二级),productCount 由产品数据实时算。 */
-export function fetchVanityTree() {
-  return vanityTree()
-}
-
-/** 某个二级分类下的产品,已补齐色号数 / 质地 / 是否有色号。 */
-export function fetchCategoryProducts(categoryId) {
-  return (CATALOG[categoryId] || []).map(decorateProduct)
-}
-
-/** 全量产品 − 已拥有。「添新宠」用它,所以同一件不会重复入库。 */
-export function fetchCatalogProducts({ ownedIds = [] } = {}) {
-  const owned = new Set(ownedIds)
-  return flatCatalog()
-    .filter((p) => !owned.has(p.id))
-    .map(decorateProduct)
+/**
+ * 拉整库目录。形状见后端 `catalogViewSchema`,**原样返回,一格不改名**:
+ *
+ *   `{ groups: [{ id, label, children: [{ id, label }] }],
+ *      products: [{ id, name, categoryId, categoryLabel, text, shadeCount, hasShades }],
+ *      shades: { [产品 id]: { label, shades: [...] } } }`
+ *
+ * ★ `text` 是**卡片上那一行字**:服务端已经在"手写层那句"与"品牌资料首句"之间挑好了,
+ *   前端不再自己拼,也不再有 `p.texture || p.desc` 那种兜底。
+ * ★ 没有色号的产品**不进 `shades` 字典**。判据一律用卡片上的 `hasShades`,
+ *   别在页面里拿 `shades[id]` 在不在来推同一件事(两处判它迟早会漂)。
+ */
+export async function fetchCatalog() {
+  const { fetchProductCatalog } = await productsApi()
+  return fetchProductCatalog()
 }
 
 /**
- * 取某产品的色号:优先走色号库,没收录时返回「色号待补」占位块。
- * ★ 色值只来自 `kb/shades.js`,任何地方都不许另写一份 hex。
+ * 一件产品的六维原文 + 手写补充(信息面板点开时才取)。
+ * 返回 `{ id, name, categoryId, categoryLabel, number, dimensions[], wording[], shades? }`。
+ * ★ `dimensions`(品牌资料原文)与 `wording`(我们补的)是**两段**,别并起来渲染——
+ *   一行是品牌说的、一行是我们说的,并起来就分不清了(§8-5)。
  */
-export function fetchShades({ productId = '', productName = '' } = {}) {
-  const { shades } = shadesOf(productId, 6)
-  return { productId, productName, shades }
+export async function fetchProductInfo({ productId = '' } = {}) {
+  if (!productId) return null
+  const { fetchProductDetail } = await productsApi()
+  return fetchProductDetail(productId)
 }
 
-/** 色调筛选器的可选项,依据当前产品实际存在的色调生成(不写死暖/冷/中性三档)。 */
-export function fetchToneFilters({ productId = '' } = {}) {
-  const { shades } = shadesOf(productId, 6)
-  const keys = [...new Set(shades.map((s) => s.toneKey))]
-  return [{ key: 'all', label: '全部', count: shades.length }].concat(
-    keys.map((k) => ({
-      key: k,
-      label: TONE_LABEL[k] || k,
-      count: shades.filter((s) => s.toneKey === k).length,
-    }))
+/** 色号字典里某件产品的全部色号。没收录 → 空数组(**不造占位块**)。 */
+export function shadesOf(shades = {}, productId = '') {
+  return shades[productId]?.shades || []
+}
+
+/**
+ * 色调筛选器的可选项,依据这件产品实际有的色调生成(不写死暖/冷/中性三档)。
+ * ★ 中文名从**色号自己身上**取(每个色号都带着 `tone`),所以不必再维持一张 TONE_LABEL 表
+ *   ——那张表随 `kb/shades.js` 一起退役了,别加回来。
+ */
+export function toneFiltersOf(list = []) {
+  const keys = [...new Set(list.map((s) => s.toneKey))]
+  return [{ key: 'all', label: '全部', count: list.length }].concat(
+    keys.map((k) => {
+      const inKey = list.filter((s) => s.toneKey === k)
+      return { key: k, label: inKey[0]?.tone || k, count: inKey.length }
+    })
   )
 }
 
-/** 产品性质说明(质地 / 适用肤质 / 适用天气 / 成分预警 / 口碑)。 */
-export function fetchProductInfo({ productId = '' } = {}) {
-  return productInfoOf(productId)
+/** id → 产品卡。化妆包那半要按 id 反查名字,不做线性查找。 */
+export function cardsByIdOf(products = []) {
+  const cards = {}
+  for (const p of products) cards[p.id] = p
+  return cards
 }
 
-/** 产品卡上的派生字段:色号数以色号库实际收录为准,质地取自性质库。 */
-function decorateProduct(p) {
-  const lib = SHADE_LIBRARY[p.id]
-  const info = productInfoOf(p.id)
-  return {
-    ...p,
-    shadeCount: lib ? lib.shades.length : p.shadeCount,
-    hasShades: Boolean(lib),
-    texture: info ? info.texture : p.desc,
+/** 分类 id → 分类名(从目录树里查,不另存一张表)。 */
+export function categoryNameOf(groups = [], id = '') {
+  for (const g of groups) {
+    const hit = g.children.find((c) => c.id === id)
+    if (hit) return hit.label
   }
-}
-
-/** 把「我有的色号 code」还原成带名称与色值的完整色号(色值仍只来自色号库)。 */
-function withOwnedShades(p, codes = []) {
-  const base = decorateProduct(p)
-  const all = SHADE_LIBRARY[p.id] ? SHADE_LIBRARY[p.id].shades : []
-  const owned = codes
-    .map((code) => all.find((s) => s.code === code))
-    .filter(Boolean)
-    .map((s) => ({ code: s.code, name: s.name, hex: s.hex }))
-  return {
-    ...base,
-    codes: owned.map((s) => s.code),
-    ownedShades: owned,
-    ownedCount: owned.length,
-    /** 产品有色号但一个都没收 → 卡片上要提示去挑色号 */
-    needsShades: Boolean(base.hasShades) && owned.length === 0,
-  }
+  return ''
 }
 
 /* ================================================================== *
@@ -133,13 +123,16 @@ function withOwnedShades(p, codes = []) {
 
 /**
  * ★ `./cabinet` 必须**惰性取**,不许写成本文件顶部的静态 import。
- *   理由:目录那半(上面一、)是纯 kb 数据,**不需要 axios**,而本模块会被
- *   `stores/vanity.js` 在首屏链上静态引用;静态引 `./cabinet` 就等于把 axios
- *   拽进首屏包(它只在「我的化妆包」那一屏才用得上)。
- *   判别方法:`npm run build` 后 axios 仍应待在独立分块里,与 `index-*.js` 分开。
+ *   理由:本模块会被 `stores/vanity.js` 在首屏链上静态引用;静态引 `./cabinet` 就等于把 axios
+ *   拽进首屏包(它只在「我的化妆包」那一屏才用得上)。判别方法见 `api/products.js` 那一段。
  */
 function cabinet() {
   return import('./cabinet')
+}
+
+/** 目录那半的传输层。惰性理由同上,见文件头最后一段。 */
+function productsApi() {
+  return import('./products')
 }
 
 /** 化妆包的内存形状:`{ [productId]: { itemId, shadeItemIds: {code: itemId}, codes: [code] } }` */
@@ -177,25 +170,29 @@ export async function fetchBag({ userId }) {
   return toBag(await c.listCosmetics({ userId }))
 }
 
-/** 批量收整件进包(「添新宠」)。已存在的自动跳过。 */
-export async function addProducts({ userId, bag, ids = [] }) {
+/**
+ * 批量收整件进包(「添新宠」)。已存在的自动跳过。
+ * ★ 名字取自**已加载的目录**(`cards`)——今天目录在服务端,不可能再按 id 现查一次;
+ *   `cards` 里没有的 id 直接丢(脏数据不该把整次提交栽掉)。
+ */
+export async function addProducts({ userId, bag, ids = [], cards = {} }) {
   const c = await cabinet()
   for (const id of ids) {
     if (bag[id]) continue
-    const p = productById(id)
-    if (!p) continue // 只认真实存在于产品目录里的 id,脏数据直接丢
+    const p = cards[id]
+    if (!p) continue
     await c.addCosmetic({ userId, name: p.name, attributes: attributesFor(id) })
   }
   return fetchBag({ userId })
 }
 
 /** 收进某一个色号:产品若还不在包里,先把「整件」行建出来;色号行去重追加。 */
-export async function addShade({ userId, bag, productId = '', code = '' }) {
-  if (!code || !productById(productId)) return bag
+export async function addShade({ userId, bag, productId = '', code = '', cards = {} }) {
+  const p = cards[productId]
+  if (!code || !p) return bag
   const entry = bag[productId]
   if (entry?.shadeItemIds?.[code]) return bag
   const c = await cabinet()
-  const p = productById(productId)
   if (!entry) await c.addCosmetic({ userId, name: p.name, attributes: attributesFor(productId) })
   await c.addCosmetic({ userId, name: p.name, attributes: attributesFor(productId, code) })
   return fetchBag({ userId })
@@ -223,33 +220,48 @@ export async function removeProduct({ userId, bag, productId = '' }) {
 }
 
 /* ================================================================== *
- * 三、化妆包的展示形状(纯推导,不发请求)
+ * 三、化妆包的展示形状(纯推导,不发请求。目录由调用方传进来)
  * ================================================================== */
 
-/** 我有的产品明细:带 `category` / `categoryName` / `codes` / `ownedShades`。 */
-export function myProducts({ bag = {} } = {}) {
-  return Object.keys(bag)
-    .map((id) => productById(id))
+/** 把「我有的色号 code」还原成带名称与色值的完整色号(色值也只来自服务端那份)。 */
+function withOwnedShades(p, codes = [], all = []) {
+  const owned = codes
+    .map((code) => all.find((s) => s.code === code))
     .filter(Boolean)
-    .map((p) => withOwnedShades(p, bag[p.id]?.codes || []))
+    .map((s) => ({ code: s.code, name: s.name, hex: s.hex }))
+  return {
+    ...p,
+    codes: owned.map((s) => s.code),
+    ownedShades: owned,
+    ownedCount: owned.length,
+    /** 产品有色号但一个都没收 → 卡片上要提示去挑色号 */
+    needsShades: Boolean(p.hasShades) && owned.length === 0,
+  }
+}
+
+/** 我有的产品明细:带 `categoryLabel` / `codes` / `ownedShades` / `ownedCount` / `needsShades`。 */
+export function myProducts({ bag = {}, cards = {}, shades = {} } = {}) {
+  return Object.keys(bag)
+    .map((id) => cards[id])
+    .filter(Boolean)
+    .map((p) => withOwnedShades(p, bag[p.id]?.codes || [], shadesOf(shades, p.id)))
 }
 
 /**
- * 按 YSL 原有目录分组,顺序与产品树一致,只返回真正有存货的分类。
+ * 按分类树分组,顺序与产品树一致,只返回真正有存货的分类。
  * (源站的 getMyBagGroups:分组名与顺序都来自分类树,不写死。)
  */
-export function myBagGroups({ bag = {} } = {}) {
-  const items = myProducts({ bag })
-  const ordered = vanityTree().flatMap((group) =>
-    group.children.map((c) => ({ id: c.id, name: c.name, groupName: group.name }))
+export function myBagGroups({ bag = {}, cards = {}, shades = {}, groups = [] } = {}) {
+  const items = myProducts({ bag, cards, shades })
+  const ordered = groups.flatMap((g) =>
+    g.children.map((c) => ({ id: c.id, label: c.label, groupLabel: g.label }))
   )
   return ordered
     .map((c) => {
-      const inGroup = items.filter((p) => p.category === c.id)
+      const inGroup = items.filter((p) => p.categoryId === c.id)
       return {
-        category: c.id,
-        categoryName: c.name,
-        groupName: c.groupName,
+        categoryName: c.label,
+        groupName: c.groupLabel,
         items: inGroup,
         shadeCount: inGroup.reduce((sum, p) => sum + p.ownedCount, 0),
       }
@@ -260,9 +272,4 @@ export function myBagGroups({ bag = {} } = {}) {
 /** 化妆包里某件产品我有的那几个色号(不是这件产品的全部色号)。 */
 export function ownedShadesOf({ bag = {}, productId = '' } = {}) {
   return bag[productId]?.codes || []
-}
-
-/** 分类 id → 分类名。 */
-export function categoryNameOf(id) {
-  return CATEGORY_NAME[id] || ''
 }

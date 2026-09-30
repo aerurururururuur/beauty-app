@@ -1,0 +1,21 @@
+{
+  "id": "base-cream-or",
+  "number": 36,
+  "name": "YSL 藏金粉霜（OR Rouge 粉底类产品）",
+  "category": "base",
+  "kind": "product",
+  "dimensions": {},
+  "derived": {
+    "lookSpecSlots": []
+  },
+  "origin": "docx",
+  "notes": [
+    "藏金系列作为YSL高端护肤线，已延伸至底妆领域。目前该系列有 OR Rouge UV Protection 防晒隔离乳，以及藏金奢妍臻萃乳霜等护肤产品。关于藏金粉霜的具体产品信息，目前公开渠道详细披露有限，建议通过YSL官方渠道或专柜获取完整产品参数后再补充入库。藏金系列整体定位为熟龄肌、抗老、高保湿，粉霜类产品大概率延续这一路线，适合干性至混合性熟龄肌肤。"
+  ],
+  "wording": {
+    "texture": "藏金系列延伸的高端底妆，定位熟龄肌、抗老、高保湿",
+    "skinTypes": "干性至混合性熟龄肌肤",
+    "occasions": "秋冬干燥季节",
+    "warnings": "公开参数有限，建议以专柜信息为准"
+  }
+}

@@ -53,6 +53,7 @@ import type {
   ToolResultBlock,
 } from '../src/modules/agent/index.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
+import { realHexOf } from './helpers/product-content.js';
 import { STYLE_LIBRARY, styleById } from '../src/modules/styling/index.js';
 
 const USER = 'u1';
@@ -111,7 +112,16 @@ function setup() {
     llm,
     // ★ `palette` 是 `ToolDeps` 的必填项(缺了肤色收窄会**静默失效**)。
     //   这里用与组装根同一份真实词表 —— 拿假档位凑一个,测的就不是生产那条链路了。
-    tools: createToolRegistry({ cosmetics, engine, artifacts, palette: realPalette(), features: realFeatures() }),
+    tools: createToolRegistry({
+      cosmetics,
+      engine,
+      artifacts,
+      palette: realPalette(),
+      features: realFeatures(),
+      // ★ 同组装根那道缝:色值查真产品库。这条链路是"对话 → 方案 → 出图"整条走一遍,
+      //   色块没颜色是它在生产里最可能的坏法,拿空串替身就把它盖掉了。
+      shades: { hexOf: realHexOf },
+    }),
   });
   const renderTool = new RenderLookTool({ engine, artifacts });
 

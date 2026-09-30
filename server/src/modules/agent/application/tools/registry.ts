@@ -14,6 +14,7 @@ import type { CosmeticReader } from '../../domain/ports/cosmetic-reader.js';
 import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
 import type { ProductLibrary } from '../../domain/ports/product-library.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
+import type { ShadeLookup } from '../../../styling/index.js';
 import type { Tool } from '../../domain/tools/tool.js';
 import { indexTools } from '../../domain/tools/tool.js';
 import { ListCabinetTool } from './list-cabinet.js';
@@ -43,6 +44,11 @@ export interface ToolDeps {
    */
   features: FeatureStrategies;
   /**
+   * 色号 → 色值。★ **必填**——缺了它方案里每一块色卡都没有颜色,而条数一格不少
+   * (见 `styling/application/decorate-plan.ts`)。由组装根把产品库包一层喂进来。
+   */
+  shades: ShadeLookup;
+  /**
    * ★ **唯一一个可选依赖。** 读品牌产品库。
    *
    * 缺省 = **这个部署没有产品库** → `list_products` / `read_product` **不注册**。
@@ -65,7 +71,7 @@ export interface ToolDeps {
 export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
   return indexTools([
     new PatchBriefTool(),
-    new ProposeLookTool(deps.palette, deps.features),
+    new ProposeLookTool(deps.palette, deps.features, deps.shades),
     new ListCabinetTool(deps.cosmetics),
     ...(deps.products
       ? [new ListProductsTool(deps.products), new ReadProductTool(deps.products)]

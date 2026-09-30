@@ -13,7 +13,7 @@
  * ⚠️ 与 `test/helpers/fakes.ts` 无关:本模块的假件就是**临时目录里的 JSON**,
  *   比假对象更接近真实(能顺带测到 zod 与文件系统那一层)。
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -31,10 +31,9 @@ import type {
   ProductDetailView,
   LibraryView,
 } from '../src/modules/products/index.js';
+import { REAL_PRODUCTS_DIR } from './helpers/product-content.js';
 
-const REPO_ROOT = path.join(import.meta.dirname, '..', '..');
-/** 仓库里那份真内容。★ 改了它的形状,这个文件会红——那是应该的。 */
-const REAL_CONTENT = path.join(REPO_ROOT, 'products', 'ysl-property');
+const REAL_CONTENT = REAL_PRODUCTS_DIR;
 
 /**
  * 端口只给领域类型,给模型看的样子要先过投影。
@@ -67,8 +66,10 @@ function productFile(over: Partial<Product> = {}): Product {
     number: 1,
     name: '某产品',
     category: 'lip',
+    kind: 'product',
     dimensions: { texture: '哑光。' },
     derived: { lookSpecSlots: ['zones.lip'] },
+    origin: 'docx',
     ...over,
   };
 }
@@ -80,12 +81,13 @@ function libraryFile(over: Record<string, unknown> = {}): Record<string, unknown
     brand: '测试牌',
     source: { file: 'source/x.docx', sha256: 'abc', importedAt: '2026-09-16T00:00:00.000Z', importer: 'test' },
     dimensions: [{ key: 'texture', label: '质地/妆效' }],
+    groups: [{ id: 'makeup', label: '彩妆', order: 1 }],
     categories: [
       {
         id: 'lip',
         label: '唇部彩妆',
+        group: 'makeup',
         order: 1,
-        statedCount: null,
         actualCount: 1,
         lookSpecSlots: ['zones.lip'],
         series: [],
@@ -94,7 +96,14 @@ function libraryFile(over: Record<string, unknown> = {}): Record<string, unknown
     matchingGuide: { columns: ['条件', '首选'], rows: [] },
     notes: [],
     health: {
-      statedVsActual: { perCategory: [], statedTotals: [], actualTotal: 1 },
+      docxSections: { perSection: [], statedTotals: [], parsedTotal: 1 },
+      merge: {
+        docxEntries: 1,
+        mergedEntries: 1,
+        overlayOnly: [],
+        byCategory: [],
+        shades: { products: 0, rows: 0 },
+      },
       missingDimensions: [],
       missingOptionalDimensions: [],
       suspectedDuplicates: [],
@@ -125,6 +134,19 @@ function writeLibrary(
   files: Record<string, Product>,
 ): string {
   return writeLibraryAt(path.join(dir, 'lib'), library, files);
+}
+
+/** `libraryFile()` 里那条 lip 类目的样子(改条数时用),免得每次重抄一整行。 */
+function lipCategory(actualCount: number): Record<string, unknown> {
+  return {
+    id: 'lip',
+    label: '唇部彩妆',
+    group: 'makeup',
+    order: 1,
+    actualCount,
+    lookSpecSlots: [],
+    series: [],
+  };
 }
 
 // ── 该静默的:目录不存在 = 没有产品库 ────────────────────────────────────────
@@ -196,9 +218,61 @@ describe('★ 坏数据一律启动即失败(绝不静默跳过)', () => {
     expectStartupFailure(root, '新维度');
   });
 
+  it('★ `wording`(手写补充)与 `dimensions` 一样是六格 .strict(),多一格同样炸', () => {
+    // ★ 这两格共用 `sixTextSchema`,所以"不新增第七维"这条规矩在这里才真的成立:
+    //   否则手写层可以塞一个后端不认识的键进来,而**没有任何一层会报**。
+    const root = writeLibrary(libraryFile(), {
+      '01-x': productFile({ wording: { 第七维: 'x' } as Product['wording'] }),
+    });
+    expectStartupFailure(root, '第七维');
+  });
+
+  it('★ 色号的 hex 不合形状就炸(前端拿它当 CSS 颜色,错了整块色卡是白的)', () => {
+    const root = writeLibrary(libraryFile(), {
+      '01-x': productFile({
+        shades: {
+          label: '试色',
+          shades: [
+            { code: '01', name: '红', hex: 'red', hexApprox: true, tone: '暖', toneKey: 'warm' },
+          ],
+        },
+      }),
+    });
+    expectStartupFailure(root, 'hex');
+  });
+
+  it('★ 色号少了 `hexApprox: true` 也炸(那是它唯一承认"这是推出来的"的地方)', () => {
+    // `hexApprox` 是 `z.literal(true)`:谁想把推出来的近似值说成实测值,得先来改这一行。
+    const root = writeLibrary(libraryFile(), {
+      '01-x': productFile({
+        shades: {
+          label: '试色',
+          shades: [
+            {
+              code: '01',
+              name: '红',
+              hex: '#aabbcc',
+              hexApprox: false,
+              tone: '暖',
+              toneKey: 'warm',
+            } as unknown as NonNullable<Product['shades']>['shades'][number],
+          ],
+        },
+      }),
+    });
+    expectStartupFailure(root, 'hexApprox');
+  });
+
   it('★ category 与所在目录不符(目录即索引,两处必须一致)', () => {
     const root = writeLibrary(libraryFile(), { '01-x': productFile({ category: 'base' }) });
     expectStartupFailure(root, '目录即索引');
+  });
+
+  it('★ 文件名与 id 不符(生成物被手改过,或改了名没重导)', () => {
+    // 这一条不炸的后果很轻(按 id 查还是查得到),但**完全看不出来**:
+    // 只有 `ls` 出来的那一列名字与产品对不上。导入器生成时两者同源,没有正当理由分叉。
+    const root = writeLibrary(libraryFile(), { '别的名字': productFile() });
+    expectStartupFailure(root, '与文件名对不上');
   });
 
   it('★ library.json 里没登记的目录(绝不静默跳过——那会让产品凭空消失)', () => {
@@ -216,15 +290,19 @@ describe('★ 坏数据一律启动即失败(绝不静默跳过)', () => {
     expectStartupFailure(root, '实际扫到 2 条');
   });
 
-  it('产品 id 重复', () => {
-    const root = writeLibrary(libraryFile({
-      categories: [
-        { id: 'lip', label: '唇部彩妆', order: 1, statedCount: null, actualCount: 2, lookSpecSlots: [], series: [] },
-      ],
-    }), {
+  it('★ 产品 id 重复(跨类目——同名文件放在两个类目目录里)', () => {
+    // ⚠️ 重复的 id 必须**跨目录**造:同一个目录里放两个同 id 的文件,现在会先被
+    //   "文件名 = id"那条挡住(两个文件不能同名),根本走不到 id 去重。
+    //   跨目录则是真实会出的事:导入器给两条产品分配了同一个 slug。
+    const base = { id: 'base', label: '底妆', group: 'makeup', order: 2, actualCount: 1, lookSpecSlots: [], series: [] };
+    const root = writeLibrary(libraryFile({ categories: [lipCategory(1), base] }), {
       '01-x': productFile(),
-      '02-y': productFile(), // 同一个 id
     });
+    mkdirSync(path.join(root, 'base'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'base', '01-x.json'),
+      JSON.stringify(productFile({ category: 'base' })),
+    );
     expectStartupFailure(root, 'id 重复');
   });
 
@@ -347,9 +425,33 @@ describe('★ 仓库里那份真内容(改了它的形状这里会红)', () => {
     expect(overview.categories).toHaveLength(9);
     // 条数写死是**故意的**:这份数字变了,要么是内容真的变了(那就该来改这里),
     // 要么是导入器坏了。两种都该有人看一眼。
-    expect(overview.products).toHaveLength(57);
+    // ✏️ 57 → 66:2026-09-30 把前端那三份 kb 并进来,加了 6 条补录 + 3 张系列卡。
+    expect(overview.products).toHaveLength(66);
     expect(overview.matchingGuide.rows).toHaveLength(13);
     expect(overview.matchingGuide.columns[0]).toBe('天气/场景条件');
+  });
+
+  it('★ 两个分组、九个类目,条数逐个钉住(合并/补录有没有漏,看的就是这张表)', () => {
+    const library = new JsonProductCatalog(REAL_CONTENT).library();
+    expect(library.groups.map((g) => g.id)).toEqual(['skincare', 'makeup']);
+    // ★ 按 **id** 比而不是按顺序:顺序由 `order` 决定、是展示的事,
+    //   而"哪一类有几条"才是内容。两者混在一条断言里,改展示顺序会红得莫名其妙。
+    expect(
+      Object.fromEntries(library.categories.map((c) => [c.id, c.actualCount])),
+    ).toEqual({
+      precare: 25,
+      primer: 6,
+      base: 8,
+      concealer: 2,
+      setting: 3,
+      blush: 1,
+      eye: 7,
+      lip: 11,
+      contour: 3,
+    });
+    // 每个类目都挂在真有一个的分组上(挂空了,界面上那一组就整个不出现)。
+    const groups = new Set(library.groups.map((g) => g.id));
+    expect(library.categories.filter((c) => !groups.has(c.group)).map((c) => c.id)).toEqual([]);
   });
 
   it('每一条都能按 id 取回详情(索引里的 id 与 find 对得上)', () => {
@@ -364,12 +466,143 @@ describe('★ 仓库里那份真内容(改了它的形状这里会红)', () => {
     // 已知有四类问题,体检报告一项都没报出来才说明它坏了。
     const health = new JsonProductCatalog(REAL_CONTENT).library().health;
 
-    expect(health.statedVsActual.statedTotals.length).toBeGreaterThan(1); // 资料内 55/57 两种说法
+    expect(health.docxSections.statedTotals.length).toBeGreaterThan(1); // 资料内 55/57 两种说法
     expect(health.missingDimensions.length).toBeGreaterThan(0); // #36 空占位、#40 缺成分
     expect(health.suspectedDuplicates.length).toBeGreaterThan(0);
     expect(health.shadeLeakage.length).toBeGreaterThan(0);
     expect(health.missingEnglishName.length).toBeGreaterThan(0);
-    // 类别自称与实际对不上(护肤 21 vs 22)。
-    expect(health.statedVsActual.perCategory.some((c) => !c.ok)).toBe(true);
+    // 源文档的章节自称与实际解析对不上(护肤 21 vs 22)。
+    expect(health.docxSections.perSection.some((s) => !s.ok)).toBe(true);
+  });
+});
+
+// ── 真内容的**不变量**:两份输入并起来之后必须成立的那些事 ──────────────────
+//
+// ★ 为什么这些值得单开一组:它们全是"错了也**没有一个地方会报**"的形状。
+//   上面前两组钉的是"加载得起来"与"几类已知问题还在不在";
+//   下面钉的是**加载器看不见的契约** —— 色号是唯一的、系列卡的孩子真的存在、
+//   `number` 只在有编号的条目上出现。这些错了之后,界面照常渲染,
+//   只是某一块**静默地不对**(本仓的头号 bug 类型)。
+
+describe('★ 真内容的不变量(加载器看不见的那几条)', () => {
+  const catalog = new JsonProductCatalog(REAL_CONTENT);
+  const products = catalog.list();
+
+  it('文件名 = id = `category/文件名.json` 的落点(三处同源,靠导入器保证)', () => {
+    for (const c of catalog.library().categories) {
+      // ⚠️ **先去掉 `.json` 再排**,不是排完再去掉:`eye-lash-clash-wp.json` 与
+      //   `eye-lash-clash.json` 在带扩展名时的次序**正好相反**(`-` 0x2D < `.` 0x2E),
+      //   排完再截会让两条都对的列表"对不上"。
+      const names = readdirSync(path.join(REAL_CONTENT, c.id))
+        .filter((f) => f.endsWith('.json'))
+        .map((f) => f.replace(/\.json$/, ''))
+        .sort();
+      const ids = products.filter((p) => p.category === c.id).map((p) => p.id).sort();
+      expect(names, `类目 ${c.id} 的文件名与 id 对不上`).toEqual(ids);
+    }
+  });
+
+  it('★★ 同一件产品里色号 `code` 不重复(按 (产品, 色号) 取色块必须只有一个答案)', () => {
+    // 这是合并那四组时**唯一真正的坑**:`con-touch` 并进来 8 个与 `ct-touch` 同名的色号,
+    // 不去重就会让「这个色号是哪个颜色」没有唯一答案 —— 而两行都长得正常。
+    const dup = products
+      .filter((p) => p.shades)
+      .flatMap((p) => {
+        const codes = p.shades!.shades.map((s) => s.code);
+        const seen = new Set<string>();
+        return codes
+          .filter((code) => (seen.has(code) ? true : (seen.add(code), false)))
+          .map((code) => `${p.id} 里的色号 ${code} 出现了两次`);
+      });
+    expect(dup).toEqual([]);
+  });
+
+  it('★ 每条色号都 id 唯一且带 `hexApprox: true`(推出来的近似值,不许冒充实测)', () => {
+    const bad = products
+      .filter((p) => p.shades)
+      .filter((p) => p.shades!.shades.some((s) => s.hexApprox !== true))
+      .map((p) => p.id);
+    // 形状本身由 schema 钉着(zod 会炸),这条钉的是**内容真的都带了这个字段** ——
+    // 它就是这个库唯一承认"这批色值是按色号名推的"的地方。
+    expect(bad).toEqual([]);
+    const rows = products.reduce((n, p) => n + (p.shades?.shades.length ?? 0), 0);
+    expect(rows).toBe(163);
+  });
+
+  it('★ 系列卡的孩子(`derived.contains`)全都真的在库里', () => {
+    // 悬空的孩子不报错的话,界面上那张系列卡点进去就是一片空白,而"为什么空"没人说。
+    const ids = new Set(products.map((p) => p.id));
+    const dangling = products.flatMap((p) =>
+      (p.derived.contains ?? []).filter((kid) => !ids.has(kid)).map((kid) => `${p.id} → ${kid}`),
+    );
+    expect(dangling).toEqual([]);
+  });
+
+  it('★ `kind` 与 `contains` 互为条件:系列卡必须有孩子,产品必须没有', () => {
+    const series = products.filter((p) => p.kind === 'series');
+    expect(series.length, '一张系列卡都没有 —— `kind` 这一栏是空的').toBeGreaterThan(0);
+    expect(series.filter((p) => (p.derived.contains ?? []).length === 0).map((p) => p.id)).toEqual([]);
+    expect(
+      products.filter((p) => p.kind === 'product' && p.derived.contains !== undefined).map((p) => p.id),
+    ).toEqual([]);
+  });
+
+  it('★ `number` 为空 ⟺ 来自手写层(补录条目没有源资料编号,有编号的一定来自 docx)', () => {
+    // 两者分叉不会报错,只会让详情页的「#null」或者一个假编号出现在界面上。
+    const mismatched = products
+      .filter((p) => (p.number === null) !== (p.origin === 'overlay'))
+      .map((p) => `${p.id}(number=${String(p.number)}, origin=${p.origin})`);
+    expect(mismatched).toEqual([]);
+    // 编号在 docx 那一路里必须唯一 —— 两张补录卡不会撞,但源文档抄两遍会。
+    const numbers = products.filter((p) => p.number !== null).map((p) => p.number!);
+    expect(new Set(numbers).size, '源资料编号有重复').toBe(numbers.length);
+  });
+
+  it('★ `lookSpecSlots` 只出现**妆面真的有的**槽位(多一个就是往模型嘴里塞假的)', () => {
+    // 派生规则在导入器的 `deriveLookSpecSlots` 里。写错一个字符串(如 `zones.checks`)
+    // 不会有任何征兆:槽位只是**永远匹配不上**,推荐时那一笔就静默地少一件产品。
+    const KNOWN = new Set(['base', 'zones.lip', 'zones.cheek', 'zones.eyeshadow', 'zones.brow']);
+    const unknown = products.flatMap((p) =>
+      p.derived.lookSpecSlots.filter((s) => !KNOWN.has(s)).map((s) => `${p.id} → ${s}`),
+    );
+    expect(unknown).toEqual([]);
+    // 反过来也钉一下:真有条目覆盖槽位,别让过滤规则哪天把 `lookSpecSlots` 全清空。
+    expect(products.filter((p) => p.derived.lookSpecSlots.length > 0).length).toBeGreaterThan(0);
+  });
+
+  it('★ 补录/系列卡一律 `dimensions: {}`(它们的内容只有目录卡上那几样)', () => {
+    // 手写层给不出品牌原文。哪天有人给它们编一段"质地/成分"填进去,
+    // 那段话在界面上与品牌资料长得**一模一样** —— 这条挡的就是那件事。
+    const invented = products
+      .filter((p) => p.origin === 'overlay')
+      .filter((p) => Object.values(p.dimensions).some((v) => (v ?? '').trim() !== ''))
+      .map((p) => p.id);
+    expect(invented).toEqual([]);
+  });
+
+  it('★ 四组合并的结果:条数与色号都按合并后的来(被并掉的 slug 不再出现)', () => {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    // 被并掉的 6 个前端 slug 一个都不该在库里 —— 留着就是"同一件产品两个名字"。
+    for (const gone of ['base-fd-old', 'pr-mist', 'bl-powder', 'bl-liquid', 'ct-touch', 'ct-touch-hl']) {
+      expect(byId.has(gone), `${gone} 应该已经被并掉了`).toBe(false);
+    }
+    // 合并后的三条各自带着两边的色号(去重后)。
+    expect(byId.get('base-fd-new')?.shades?.shades.length).toBe(16);
+    expect(byId.get('bl-couture-blush')?.shades?.shades.length).toBe(16);
+    expect(byId.get('con-touch')?.shades?.shades.length).toBe(9);
+    // ★ 被并进来那一路的色号名带上了前缀:不加前缀就是拿旧配方的色号冒充新版的。
+    const base = byId.get('base-fd-new')!.shades!.shades;
+    expect(base.filter((s) => s.name.startsWith('旧版 · ')).length).toBe(5);
+    const blush = byId.get('bl-couture-blush')!.shades!.shades;
+    expect(blush.filter((s) => s.name.startsWith('液态 · ')).length).toBe(3);
+  });
+
+  it('★ 丢掉的两条 `sk-1week` / `sk-3day` 确实不在库里,而三条系列卡在', () => {
+    const ids = new Set(products.map((p) => p.id));
+    expect([...ids].filter((id) => id === 'sk-1week' || id === 'sk-3day')).toEqual([]);
+    // 系列卡留着是**硬要求**:`style-recipes.ts` 的配方直接引 `sk-orrouge`,删了 pid 就悬空。
+    for (const id of ['sk-pureshots', 'sk-orrouge', 'sk-reload']) {
+      expect(ids.has(id), `${id} 不能丢 —— 有配方指着它`).toBe(true);
+    }
   });
 });

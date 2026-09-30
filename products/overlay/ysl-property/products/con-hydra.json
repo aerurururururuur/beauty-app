@@ -1,0 +1,76 @@
+{
+  "id": "con-hydra",
+  "wording": {
+    "texture": "柔滑补水质地，哑致妆效；隐藏瑕疵与细纹、提亮暗沉、遮盖泛红，不卡纹不脱妆",
+    "skinTypes": "官方标注敏感肌同样适用；经皮肤科与眼科医生测试、非致痘性",
+    "occasions": "高温潮湿环境持妆好，夏季户外局部遮瑕",
+    "warnings": "无酒精，敏感肌友好；成分表末尾含极少量香精",
+    "feedback": "“不卡纹不脱妆，和恒久粉底液搭配最佳”"
+  },
+  "shades": {
+    "label": "恒久完美补水遮瑕蜜",
+    "shades": [
+      {
+        "code": "LC1",
+        "name": "带粉色的浅色调 · 提亮眼下面中",
+        "hex": "#f8e7dc",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LC2",
+        "name": "自然偏粉",
+        "hex": "#f1dbcd",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN1",
+        "name": "中性浅色",
+        "hex": "#f2e0cf",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN4",
+        "name": "中性自然色",
+        "hex": "#e5c9ae",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LW1",
+        "name": "暖调浅色",
+        "hex": "#f0dcbe",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LW4",
+        "name": "暖调自然色",
+        "hex": "#dfbd98",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      }
+    ]
+  },
+  "blurb": "水润不卡纹"
+}

@@ -24,6 +24,7 @@ import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { createAgentModule } from './modules/agent/index.js';
 import type { CosmeticReader, FeatureStrategies, ProductLibrary } from './modules/agent/index.js';
 import type { SkinTonePalette } from './modules/makeup/index.js';
+import type { ShadeLookup } from './modules/styling/index.js';
 import { AppError, ErrorCode } from './modules/shared/index.js';
 import { createSessionArtifacts } from './session-artifacts.js';
 import { buildApp } from './app.js';
@@ -216,8 +217,8 @@ async function main(): Promise<void> {
    * ★ **显式挑字段,而不是把 `catalog` 直接塞过去。** 结构上确实能对上(多出来的字段
    *   不影响赋值),但那样**经过这条缝的字段就没人负责了**:products 哪天往索引里
    *   多塞一列,它会**静默地跟着进模型上下文**,而这里本该是决定"哪些字段值得烧 token"
-   *   的唯一地方(所以 `number` / `categoryId` / `statedCount` 都不往下传——
-   *   `statedCount` 尤其不能传:那是源资料自称的款数,而它本来就是错的)。
+   *   的唯一地方(所以 `number` / `categoryId` 都不往下传——编号是给人看的,
+   *   类目名模型已经拿到了,两样都不值得乘 66 条进上下文)。
    */
   const catalog = products.catalog;
   const productLibrary: ProductLibrary | undefined = catalog
@@ -266,6 +267,21 @@ async function main(): Promise<void> {
         },
       }
     : undefined;
+
+  /**
+   * `ProductCatalog` → `styling` 的 `ShadeLookup`(第四处跨模块粘合)。
+   *
+   * ★ **搬过来的就是前端 `api/design.js` 里 `hexOf` 那一句**(色值的唯一来源是产品库),
+   *   搬完之后前端那半删掉 —— 从此全仓只有这一处查色值。
+   *
+   * ★ **没有产品库时照样是这个闭包**,`catalog` 是 `undefined` ⇒ 一律回空串 ⇒
+   *   色板项被丢、步骤里的产品不画色点。**这是一次诚实的降级,不是错误**:
+   *   没配产品库的部署本来就一个色值都没有,编不出来。
+   */
+  const shades: ShadeLookup = {
+    hexOf: (pid, code) =>
+      catalog?.find(pid)?.shades?.shades.find((s) => s.code === code)?.hex ?? '',
+  };
 
   // 对话 agent。「用户上传的信息」喂给它的现在有**四样**:
   //   ① 结构化需求 `brief`——由 `patch_brief` 工具直接写进会话,不经过端口;
@@ -321,6 +337,9 @@ async function main(): Promise<void> {
     // ★ 同一个词表的第二条缝(见上面 `features` 那段):`propose_look` 靠它把
     //   `brief.features` 翻成方案里「针对本人」那几张调整卡。
     features,
+    // ★ 上面那个闭包。**必填**,与 `products` 那个可选键是两回事,理由见
+    //   `agent/compose.ts` 的 `AgentModuleOptions.shades`。
+    shades,
     // ★ 没配产品库时**整个键不出现在 options 里**(不是给一个 `undefined`)——
     //   语义上就是"这个部署没有产品库",agent 那边照此不注册那两个工具。
     ...(productLibrary ? { products: productLibrary } : {}),
@@ -332,7 +351,7 @@ async function main(): Promise<void> {
   });
 
   // —— web shell ——
-  const app = await buildApp({ config, user, weather, cabinet, agent });
+  const app = await buildApp({ config, user, weather, cabinet, products, agent });
 
   /**
    * ★ **启动时把「对面是真的还是假的」打出来。**
@@ -383,16 +402,20 @@ async function main(): Promise<void> {
    */
   if (!products.loaded) {
     app.log.info(
-      `[products] no catalog (${config.productsDir} missing) - list_products / read_product NOT registered`,
+      `[products] no catalog (${config.productsDir} missing) - list_products / read_product ` +
+        `NOT registered; GET /api/products NOT registered; plan swatches will have NO colour`,
     );
   } else {
     const library = products.loaded.library();
     const health = library.health;
     const debts: string[] = [];
-    const mismatched = health.statedVsActual.perCategory.filter((c) => !c.ok).length;
-    if (mismatched > 0) debts.push(`perCategoryMismatch ${mismatched}`);
-    if (health.statedVsActual.statedTotals.length > 1) {
-      debts.push(`statedTotals ${health.statedVsActual.statedTotals.length}`);
+    // ★ 这一行的键是**源文档自己的章节名**(`health.docxSections`),不是我们的展示类目 ——
+    //   两者在重构后不再一一对应(展示的「提前护理」= docx 的「护肤类」+ 手写层的 3 张系列卡),
+    //   按展示类目报就成了一个假的对照表。分家的理由写在 `content.ts` 的 `healthSchema` 上。
+    const mismatched = health.docxSections.perSection.filter((s) => !s.ok).length;
+    if (mismatched > 0) debts.push(`docxSectionMismatch ${mismatched}`);
+    if (health.docxSections.statedTotals.length > 1) {
+      debts.push(`statedTotals ${health.docxSections.statedTotals.length}`);
     }
     if (health.missingDimensions.length > 0) debts.push(`missingDimensions ${health.missingDimensions.length}`);
     if (health.suspectedDuplicates.length > 0) debts.push(`suspectedDuplicates ${health.suspectedDuplicates.length}`);
@@ -401,8 +424,10 @@ async function main(): Promise<void> {
 
     // ★ 打 `library.id` 而不是 `library.name`、不带来原始文件名:那些都是中文,
     //   在 GBK 终端里又会花。这一行只要回答"加载了哪个库、多少条"。
+    //   ★ 条数用 `mergedEntries`(**并完手写层之后**那个数)—— 这才是加载器真的读到的条数;
+    //     `docxEntries` 是"只解源文档"的数,它比库里少,拿它打日志会让人以为少了产品。
     const head =
-      `[products] loaded ${library.id}: ${health.statedVsActual.actualTotal} items / ` +
+      `[products] loaded ${library.id}: ${health.merge.mergedEntries} items / ` +
       `${library.categories.length} categories`;
     app.log.info(head);
     if (debts.length > 0) {

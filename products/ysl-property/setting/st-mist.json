@@ -1,0 +1,26 @@
+{
+  "id": "st-mist",
+  "number": 41,
+  "name": "YSL 名模肌密保湿持妆喷雾（Top Secrets Makeup Setting Spray）",
+  "category": "setting",
+  "kind": "product",
+  "dimensions": {
+    "texture": "超细致喷雾，极细的雾，轻盈不挂水珠，不会破坏眼线和腮红。妆前保湿与妆后定妆双重功能。",
+    "ingredients": "含保湿精华成分。",
+    "skinTypes": "特别适合干肌族群。油皮夏季使用也可，但控油力不如蜜粉。",
+    "occasions": "“画前打底+画后定妆”双喷法。适合干燥季节和空调房。",
+    "warnings": "成分相对温和，含保湿精华。",
+    "feedback": "“喷雾相当细致且保湿力充足，能为妆效带来光泽感，十分适合干肌族群。”"
+  },
+  "derived": {
+    "lookSpecSlots": []
+  },
+  "origin": "docx",
+  "wording": {
+    "texture": "超细致喷雾，极细的雾，轻盈不挂水珠，不破坏眼线与腮红；妆前保湿与妆后定妆双用",
+    "skinTypes": "特别适合干肌；油皮夏季可用但控油不如蜜粉",
+    "occasions": "干燥季节、空调房；「画前打底 + 画后定妆」双喷法",
+    "warnings": "含保湿精华，成分温和"
+  },
+  "blurb": "定妆 · 保湿，妆前打底也可"
+}

@@ -28,15 +28,11 @@
  *   配方内容本身(含 `family`)已由上面 ① 逐字段钉住,池子是它的派生。
  */
 import { describe, expect, it } from 'vitest';
-import { STYLE_LIBRARY, derivePlan, styleById } from '../src/modules/styling/index.js';
-import type { PlanPersonalized, StyleRecipe } from '../src/modules/styling/index.js';
+import { STYLE_LIBRARY, decoratePlan, derivePlan, styleById } from '../src/modules/styling/index.js';
+import type { PlanDraft, PlanPersonalized, StyleRecipe } from '../src/modules/styling/index.js';
 import { realFeatures } from './helpers/face-catalog.js';
-import {
-  frontendFeatureGroups,
-  frontendShades,
-  frontendStyles,
-} from './helpers/frontend-kb.js';
-import type { FrontendShadeEntry } from './helpers/frontend-kb.js';
+import { realCatalog, realHexOf } from './helpers/product-content.js';
+import { frontendFeatureGroups, frontendStyles } from './helpers/frontend-kb.js';
 
 /**
  * 前端那一刻**用户数据里真的会有**的一串特征 id(人设里存的就是这种裸 id):
@@ -44,18 +40,6 @@ import type { FrontendShadeEntry } from './helpers/frontend-kb.js';
  * 用户人设存的 id 可能比词表旧,那是正常情况,两端都必须把它剔掉而不是报错。
  */
 const FEATURE_IDS = ['eye-drop', 'face-round', 'lip-thin', 'skin-oily', 'legacy-xxx'] as const;
-
-/**
- * 照抄前端 `api/design.js` 的 `hexOf` 语义(色值只有前端有,后端只给 `pid + code`)。
- * ★ 抄一份在这里**不是**在复制一份真相:下面那条断言钉的是"配方里每一对非空的
- *   `(pid, code)` 都查得到色值",判据就是这一句 —— 它一旦与前端那边不同,
- *   色板就会与步骤里真的用到的色号对不上,而**界面上看不出来**。
- */
-function hexOf(shades: Record<string, FrontendShadeEntry>, pid: string, code: string): string {
-  if (!pid || !code) return '';
-  const hit = shades[pid]?.shades.find((s) => s.code === code);
-  return hit ? hit.hex : '';
-}
 
 /**
  * 特征 id → 策略卡。★ 照 `propose_look` 那道过滤(未知 id 剔掉,顺序即用户勾选的顺序),
@@ -94,8 +78,15 @@ describe('★ 配方内容与 kb/styles.js 逐字段相同', () => {
 });
 
 // ── ② 色值回填的前提:配方里的 (pid, code) 必须查得到色值 ────────────────────
+//
+// ✏️ **2026-09-30:对手从"前端色号库"换成了"产品库"。**
+//   色号此前只住在前端 `vue/src/api/kb/shades.js`,后端只写 `pid + code`、不写 hex。
+//   那次把前端三份 kb 并进 `products/` 之后,`hexOf(pid, code)` 的取数变成了
+//   组装根从 `ProductCatalog` 里查 —— 也就是下面 `realHexOf` 照抄的那一句。
+//   ⚠️ 这条断言现在盯的**仍然是同一件真事**:配方里每一对非空的 `(pid, code)`
+//   都必须查得到一个非空色值。查不到 ⇒ 色板少一块,而**界面上看不出来**。
 
-describe('★ 配方里的色号在前端色号库里查得到(色板少一块没人看得出来)', () => {
+describe('★ 配方里的色号在产品库里查得到(色板少一块没人看得出来)', () => {
   /**
    * 全部配方里的产品,**逐条配方走一遍**。
    * ★ 走 `STYLE_LIBRARY` 而不是"把 8 个池子铺平":`STYLE_LIBRARY` 里有一套**哪条路都进不去**
@@ -115,19 +106,18 @@ describe('★ 配方里的色号在前端色号库里查得到(色板少一块�
     );
   }
 
-  it('每条非空 code 都配着一个能查到非空 hex 的 pid', async () => {
-    const shades = await frontendShades();
+  it('每条非空 code 都配着一个能查到非空 hex 的 pid', () => {
     const products = allProducts();
     // 21 套配方跑过一遍才算数 —— 池子空掉或者全被 `undefined` 跳过时,这条会红。
     expect(products.length).toBeGreaterThan(100);
 
     const unresolved = products
       .filter((p) => p.code !== '')
-      // ★ 这就是两端过滤条件等价的那个**前提**:后端跳 `!pid || !code`、
-      //   前端跳 `!hex || !code`。`code` 非空时两边之差只剩 pid 与 hex ——
-      //   pid 空而 hex 非空不可能(hexOf 也要求 pid),所以只可能反过来:
-      //   **pid 有、色值查不到** ⇒ 后端会给色板多推一块没有颜色的色卡,而前端不会。
-      .filter((p) => p.pid === '' || hexOf(shades, p.pid, p.code) === '')
+      // ★ 这就是过滤条件两半等价的那个**前提**:`derivePlan` 跳 `!pid || !code`、
+      //   组装根的 `hexOf` 跳 `!hex`。`code` 非空时两者之差只剩 pid 与 hex ——
+      //   pid 空而 hex 非空不可能(`hexOf` 也要求 pid),所以只可能反过来:
+      //   **pid 有、色值查不到** ⇒ 色板会多出一块没有颜色的色卡,而没有任何一层会报。
+      .filter((p) => p.pid === '' || realHexOf(p.pid, p.code) === '')
       .map((p) => `${p.where}(${p.pid} ${p.code})`);
 
     expect(unresolved).toEqual([]);
@@ -136,6 +126,19 @@ describe('★ 配方里的色号在前端色号库里查得到(色板少一块�
   it('★ 没有「有色号但没 pid」的产品(那一种两端会分歧)', async () => {
     const products = allProducts();
     expect(products.filter((p) => p.code !== '' && p.pid === '').map((p) => p.where)).toEqual([]);
+  });
+
+  it('★★ 每一个非空 `pid` 都在产品库里取得到(悬空的 pid 是静默丢掉一整件产品)', () => {
+    // ★ 这是**跨模块**的那条断言,也是这次重构唯一会咬人的地方:
+    //   配方里的 pid 是一批**手写字符串**,而库里的 id 是另一个进程(导入器)生成的。
+    //   两边对不上时,`hexOf` 只是返回空串 —— 那一步的产品**没有色块**,也不报错。
+    //   ⚠️ 真实的撞车:合并那四组「一物多 slug」时,`bl-powder` / `bl-liquid` 两个 slug
+    //   被并进了 `bl-couture-blush`,而配方里**有 21 处**还写着旧名字。
+    //   (已经修好了;这条断言就是当时唯一能照见它的东西。)
+    const dangling = [...new Set(allProducts().map((p) => p.pid).filter((pid) => pid !== ''))]
+      .filter((pid) => realCatalog().find(pid) === undefined)
+      .sort();
+    expect(dangling, '配方里这些 pid 在产品库里没有对应的产品').toEqual([]);
   });
 
   it('★ 「只有 pid、没有 code」是一条**正常**的路,别去"补齐"它', async () => {
@@ -295,5 +298,111 @@ describe('derivePlan 的边界与展开', () => {
     expect(tipsOf('妆前')[0]).toContain('SPF50');
     // 一条步骤最多带一句注意事项。
     expect(tipsOf('眼妆').length).toBeLessThanOrEqual(1);
+  });
+});
+
+// ── ⑤ `decoratePlan`:色值怎么补、补不出来时丢谁留谁 ──────────────────────────
+//
+// ★ **这一段是 2026-09-30 补的,补的正是那次把色值从前端搬过来的动作。**
+//   规则本体从前端 `api/design.js` 的 `decoratePlan` 逐字搬进了
+//   `styling/application/decorate-plan.ts`;前端那半删掉了。
+//   搬错一格不会有任何征兆:方案照出、界面照渲染,只是某个色块颜色不对 ——
+//   所以这里既拿**真产品库**对一遍,也拿**假端口**把丢/留两条边界钉住。
+describe('★ decoratePlan', () => {
+  const shades = { hexOf: realHexOf };
+
+  it('用真产品库补完:每块色板都有颜色,且与"第一个带它的步骤产品"一致', () => {
+    let checked = 0;
+    for (const style of STYLE_LIBRARY) {
+      const draft = derivePlan({ styleId: style.id })!;
+      const plan = decoratePlan(draft, shades);
+      const where = `配方 ${style.id}`;
+
+      // ★ 不变量:**色板里没有空颜色的块**(空的那种在 `decoratePlan` 里就被丢了)。
+      for (const entry of plan.palette) {
+        expect(entry.hex, `${where} 的色板里 ${entry.code} 没有颜色`).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+
+      // 每块色板的色值 = 步骤里**第一个**带着这个 code、且查得到色的那一支。
+      for (const entry of plan.palette) {
+        const hit = plan.steps
+          .flatMap((s) => s.products)
+          .find((p) => p.code === entry.code && p.hex !== '');
+        expect(hit, `${where} 的色板里 ${entry.code} 在步骤里没有带颜色的那一支`).toBeDefined();
+        expect(entry.hex).toBe(hit!.hex);
+      }
+
+      // 步骤里的产品一个不少;有色号的每一支都带上了色值。
+      expect(plan.steps.map((s) => s.products.length)).toEqual(
+        draft.steps.map((s) => s.products.length),
+      );
+      for (const step of plan.steps) {
+        for (const p of step.products) {
+          expect(p.hex).toBe(realHexOf(p.pid, p.code));
+          if (p.pid !== '' && p.code !== '') {
+            expect(p.hex, `${where} 的步骤产品 ${p.pid} ${p.code} 没查到颜色`).not.toBe('');
+          }
+        }
+      }
+      checked++;
+    }
+    expect(checked).toBe(STYLE_LIBRARY.length);
+  });
+
+  it('★ 查不到颜色的产品**不占领那个色号**:后一支还能把它填上', () => {
+    // 第一支产品的色值查不到、第二支查得到,同一个 code —— 色板该拿到第二支的。
+    // (这是"这一支没色块",不是"这个色号没色块"。)
+    //
+    // ⚠️ **这里手拼一份配方,不走 `STYLE_LIBRARY`。** 21 套真配方里**没有**同一个色号
+    //   出现两次的(每支产品的色号都不同),拿真配方跑这条规则根本跑不到 ——
+    //   删掉规则本体它照样绿,那就是一条自我安慰的断言。
+    const draft: PlanDraft = {
+      styleId: 'test',
+      styleName: '测试',
+      family: 'test',
+      summary: '',
+      keywords: [],
+      // 色板只有一条,而它在步骤里对应**两支**产品。
+      palette: [{ code: 'X1', name: '甲' }],
+      meta: { stepCount: 1, minutes: 1, level: 'easy' },
+      steps: [
+        {
+          id: 'test-01',
+          name: '底妆',
+          desc: '',
+          tips: [],
+          products: [
+            { name: '甲', code: 'X1', pid: 'p-first' },
+            { name: '甲(备选)', code: 'X1', pid: 'p-second' },
+          ],
+        },
+      ],
+      personalized: [],
+      styleOptions: [],
+    };
+
+    const plan = decoratePlan(draft, {
+      hexOf: (pid, c) => (pid === 'p-second' && c === 'X1' ? '#123456' : ''),
+    });
+
+    expect(plan.palette).toEqual([{ code: 'X1', name: '甲', hex: '#123456' }]);
+    // 而**第一支**自己仍然没有色块(它是"这一支没颜色",不该被别人的色值顶上)。
+    expect(plan.steps[0]?.products.map((p) => p.hex)).toEqual(['', '#123456']);
+  });
+
+  it('★ 一个色值都查不到时:**色板空、步骤原样留着**(hex 为空串),不报错', () => {
+    const draft = derivePlan({ styleId: 'natural' })!;
+    const plan = decoratePlan(draft, { hexOf: () => '' });
+
+    expect(plan.palette).toEqual([]);
+    // ★ 产品**一支都不许少** —— 色号查不到不等于这件产品没用到。
+    //   把步骤里的产品删掉,用户就看不见自己要用什么了(与色板那一格刻意相反)。
+    expect(plan.steps.map((s) => s.products.map((p) => [p.name, p.code, p.pid]))).toEqual(
+      draft.steps.map((s) => s.products.map((p) => [p.name, p.code, p.pid])),
+    );
+    for (const step of plan.steps) for (const p of step.products) expect(p.hex).toBe('');
+    // 除色值外一个字没动。
+    expect(plan.styleId).toBe(draft.styleId);
+    expect(plan.personalized).toEqual(draft.personalized);
   });
 });

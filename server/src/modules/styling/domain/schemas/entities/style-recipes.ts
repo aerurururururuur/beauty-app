@@ -9,7 +9,8 @@
  * ★ **这里只有形状,没有业务规则**(§4.2)。跨条目的规则留在别处,钉它们的是
  *   `test/styling-plan.test.ts`:
  *   · 每条配方的 `family` 都非空 —— 「换一版」按 `family` 分组,空的那一组就只剩它自己;
- *   · 配方里每一对非空的 `(pid, code)` 都要在前端 `kb/shades.js` 里查得到 hex。
+ *   · 配方里每一对非空的 `(pid, code)` 都要在**产品库**里查得到 hex
+ *     （✏️ 2026-09-30 对手从前端 `kb/shades.js` 换成 `products/ysl-property/`——色号搬了家）。
  *   ✏️ 2026-09-30 删了原先那条「`SCENE_STYLES` 里的每个 id 都得在 `STYLE_LIBRARY` 里
  *   查得到」—— 那张表本身没有了(风格与场合自由组合)。
  */
@@ -21,7 +22,7 @@ export const styleProductSchema = z
     /** 知识库原文写法,不是品牌官方名。直接上界面。 */
     name: z.string().min(1),
     /**
-     * 色号库(`vue/src/api/kb/shades.js`)里的产品 id。
+     * 产品库(`products/ysl-property/`)里的产品 id。
      * ★ **空串是合法的**——配方里有整支产品不带色号的情况(如睫毛膏)。
      */
     pid: z.string(),
