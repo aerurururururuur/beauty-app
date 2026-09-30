@@ -95,14 +95,19 @@
 
     <footer class="form-actions">
       <RouterLink class="btn btn--soft" :to="{ path: '/personas', query: personaQuery }">上一步</RouterLink>
-      <button class="btn btn--primary" @click="onSubmit">生成我的妆容</button>
+      <button class="btn btn--primary" :disabled="design.generating" @click="onSubmit">
+        {{ design.generating ? '正在配妆…' : '生成我的妆容' }}
+      </button>
     </footer>
+    <!-- 后端给的那句人话原样展示,前端不按 code 分支（AGENTS.md §7.3） -->
+    <ErrorNote :text="design.error" />
   </main>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
 import PersonaAvatar from '@/components/PersonaAvatar.vue'
@@ -121,12 +126,17 @@ import { useDesignStore } from '@/stores/design'
  * ★ 每个字段两种输入方式(文字 / 图片),二选一显示,但**收集时两种都要**
  *   (`collectFields` 里的 `type` 就是给这个用的:'text' / 'image' / 'both')。
  *
- * ★★ 填的这些东西**今天不会影响结果**。方案由场景 + 风格 + 人设特征在本地推导,
- *    没有任何后端接收这几十个字(见 `stores/design.js` 的 `fields` 与 `api/design.js`
- *    的文件头)。所以:结果页**不许**声称读了你写的内容,页面也不加"AI 正在理解你的描述"
- *    这类话。等真接上后端,这里收的 `fields` 就是它的入参。
+ * ★★ 这一屏就是「填完交给 agent」那一下。提交时会做三次握手
+ *   (建会话 → 传脸 → 开场那句话,见 `stores/design.js` 的 `submit`)。
+ *   ⇒ 所以按钮**会有真的等待**(最长 90 秒),文案也照实说「正在配妆…」——
+ *     它不再是假等待屏(那条规矩随本地推导一起作废了,见 `vue/AGENTS.md` §8-4)。
  *
- * ★ 图片走 `URL.createObjectURL`,预览用完**必须 revoke**——否则每选一张图就漏一份内存,
+ * ★ **只上传这一张脸。** `/form` 收的**信息图这一期不传**——它们对应后端
+ *   `/images` 的 `kind: scene`,而 `VISION_ANALYZER=off`(缺省)时那条路由
+ *   根本没注册,发过去是 404。`toBrief` 会在 `sceneText` 里补一句「用户上传了
+ *   N 张图片(本次未能送达)」,让 agent 知道有这回事、可以开口问——**不能装没看见**。
+ *
+ * ★ 图片预览走 `URL.createObjectURL`,用完**必须 revoke**——否则每选一张图就漏一份内存,
  *   而且 blob URL 会把文件一直钉在内存里直到刷新。这条生命周期收在 `useObjectUrls` 里,
  *   本页只负责「移除某一张时 release 它」,离开页面那一步由那个 composable 兜底。
  *
@@ -139,7 +149,7 @@ const user = useUserStore()
 const personas = usePersonasStore()
 const design = useDesignStore()
 
-// ★ `scene` 的兜底是 'party'(不是 ''):直接打开 /form 时也得能算出一版方案
+// ★ `scene` 的兜底是 'party'(不是 ''):直接打开 /form 时也得能配出一套
 const sceneId = useQueryParam('scene', 'party')
 const personaId = useQueryParam('persona')
 
@@ -213,12 +223,30 @@ function collectFields() {
   })
 }
 
-function onSubmit() {
-  const { styleId } = design.submit({
+/**
+ * 人设照片 → 要上传的那个文件。
+ *
+ * ★ 人设照片在本机是**两种**形态:用户自己传的存成 dataURL,种子那几份是
+ *   `public/` 下的静态 SVG 路径。两种都能被 `fetch` 读成字节,所以这里不分支
+ *   ——分支就会出现「种子人设传不上去」这种只有挑特定脸才会遇到的怪毛病。
+ * ★ 没有照片时返回 null:那就不传,让 agent 去要一张(结果页会显示 `hasFace=false`)。
+ */
+async function faceFileOf(p) {
+  if (!p?.photoUrl) return null
+  const blob = await (await fetch(p.photoUrl)).blob()
+  return new File([blob], 'face.jpg', { type: blob.type || 'image/jpeg' })
+}
+
+async function onSubmit() {
+  const sessionId = await design.submit({
+    userId: user.id,
     sceneId: sceneId.value,
-    features: persona.value?.features || [],
+    persona: persona.value,
     fields: collectFields(),
+    faceFile: await faceFileOf(persona.value),
   })
-  router.push({ path: '/result', query: { scene: sceneId.value, style: styleId, persona: personaId.value } })
+  // 失败时不跳转:错误就打在按钮旁边(design.error),地址栏不动
+  if (!sessionId) return
+  router.push({ path: '/result', query: { session: sessionId } })
 }
 </script>

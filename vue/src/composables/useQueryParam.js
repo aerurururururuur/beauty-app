@@ -10,8 +10,8 @@ import { useRoute } from 'vue-router'
  *   收在这里。
  *
  * ⚠️ **`fallback` 要按各页的语义给,别图省事统一成 `''`。**
- *    `/form` 与 `/result` 的 `scene` 兜底是 `'party'`(没带场景时也得算出一版方案),
- *    其余各页是 `''`。统一会让那两屏失去兜底——这是抽这个函数最容易踩的坑。
+ *    `/form` 的 `scene` 兜底是 `'party'`(没带场景时也得能配出一套),
+ *    其余各页是 `''`。统一会让那一屏失去兜底——这是抽这个函数最容易踩的坑。
  *
  * 用法: `const sceneId = useQueryParam('scene')` → 一个只读 computed(string)。
  */

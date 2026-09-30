@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useVanityStore } from '@/stores/vanity'
 import { usePersonasStore } from '@/stores/personas'
+import { useDesignStore } from '@/stores/design'
 
 /**
  * user store —— 只回答一个问题:「这次用的是哪个账号(id + 昵称)」。
@@ -10,7 +11,7 @@ import { usePersonasStore } from '@/stores/personas'
  *   所以前端也没有任何「凭证」可存:localStorage 里只有 `{ id, nickname }`
  *   这两个公开字段——**密码绝不落本地、绝不进 store、绝不进日志**。
  *   刷新后靠它恢复「我是谁」,而不是靠它证明「我有权」。
- *   真正的把关在后端(衣橱改/删一律校验归属,不属于你就报 404)。
+ *   真正的把关在后端(化妆包删一律校验归属,不属于你就报 404)。
  */
 const STORAGE_KEY = 'beauty-app.user'
 
@@ -91,15 +92,18 @@ export const useUserStore = defineStore('user', () => {
   /**
    * 退出:清本机身份,不动后端数据(后端本来就没有会话可注销)。
    *
-   * ★ 顺带把另外两个 store 一起 reset——**身份边界就是本机数据的边界**:
+   * ★ 顺带把另外三个 store 一起 reset——**身份边界就是本机数据的边界**:
    *   · 化妆包在内存里挂着上一个账号的东西,不清的话换个人登录会先看到别人的货;
    *   · 人设库里存的是**人脸照片**(键本就按 userId 隔离,但内存里的那一份要收掉),
-   *     它比化妆包更要紧。
-   *   这两条不能靠「记得手动清」。
+   *     它比化妆包更要紧;
+   *   · 设计链那份缓存里挂着上一次的**会话号**——不清的话换个人登录进 `/result`,
+   *     会先渲染上一个人的方案,再被那次 404 顶掉。
+   *   这三条不能靠「记得手动清」。
    *
-   * ★ 这两个 store 能被**静态引**:它们引的 `api/vanity`、`api/personas` 顶层只吃
-   *   `kb/` 纯数据、不碰 axios(vanity 里那条 `./cabinet` 是惰性的)。所以这里
-   *   静态 import 不会破坏「首屏包里没有 axios」这条。改那两个文件时先确认这一点。
+   * ★ 这三个 store 能被**静态引**:它们引的 `api/vanity`、`api/personas`、
+   *   `api/design` 顶层只吃 `kb/` 纯数据、不碰 axios(vanity 里那条 `./cabinet`
+   *   与 design 里那条 `@/api/agent` 都是惰性的)。所以这里静态 import 不会破坏
+   *   「首屏包里没有 axios」这条。改那三个文件时先确认这一点。
    */
   function logout() {
     id.value = ''
@@ -107,6 +111,7 @@ export const useUserStore = defineStore('user', () => {
     error.value = ''
     useVanityStore().reset()
     usePersonasStore().reset()
+    useDesignStore().reset()
     clearStored()
   }
 

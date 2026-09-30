@@ -12,8 +12,8 @@ import { useQueryParam } from './useQueryParam'
  * 集中到这里之后,以后改规则不会再漏掉某一屏。
  *
  * ★ 这里的 `scene` 兜底是 `''`(不是 `'party'`):它服务的是人设库那几屏,
- *   那些屏没带场景时应当**不进**选人模式。`/form`、`/result` 的 `'party'` 兜底是另一回事,
- *   那两屏直接用自己的 `useQueryParam('scene', 'party')`,不走这里。
+ *   那些屏没带场景时应当**不进**选人模式。`/form` 的 `'party'` 兜底是另一回事,
+ *   那一屏直接用自己的 `useQueryParam('scene', 'party')`,不走这里。
  *
  * 用法: `const { sceneId, pick } = useSceneQuery()`
  */

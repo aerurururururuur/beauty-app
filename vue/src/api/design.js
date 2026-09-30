@@ -1,26 +1,26 @@
-import { styleById, stylesForScene, SCENE_STYLES } from './kb/styles'
 import { SHADE_LIBRARY } from './kb/shades'
-import { FEATURE_GROUPS, FEATURE_LIBRARY, featureById } from './kb/features'
+import { FEATURE_GROUPS, FEATURE_LIBRARY } from './kb/features'
 import { SKIN_TONES } from './kb/skintones'
 
 /**
- * api/design.js —— 「开始设计」那条链的数据层:场景 → 信息收集 → 生成方案。
+ * api/design.js —— 「开始设计」那条链的**输入侧**数据层:场景 → 信息收集表单。
  *
- * ★★ 本模块**整个是本地推导,后端没有这些端点**。这不是 mock 分支:
- *    `VITE_USE_MOCK` 对它无效,两种模式下逐字相同。别看见 `getScenes()` 就以为
- *    把开关拨到 false 会去联网——`server/src/app.ts` 里没有 `/design/*` 的任何一条路由。
+ * ★★ **2026-09-30 起,「方案」不再由本模块推导。** 它改由后端 agent 产出
+ *    (`POST /agent/sessions` 带一份 `brief`,`propose_look` 的时候一并写进会话,
+ *    见 `server/src/modules/styling/`)。
  *
- *    方案由 `kb/styles.js` 的 20 套风格配方**当场展开**得到,色值由 `pid + code`
- *    回查 `kb/shades.js`。所以「换一版」「换风格」是纯粹的前端推导,不发请求、
- *    不等待、也不花钱。后续要接真后端时,这里是唯一要改的地方。
+ *    所以本模块现在的职责只剩三件,都是**输入侧**的:
+ *      ① 场景清单与各场景的表单定义(用户要填哪些格);② 从知识库读展示用的调色板
+ *        (`getFeatureTags` / `getSkinTones`,人设问卷与详情页要用);
+ *      ③ `toBrief()` —— 把页面收上来的东西翻译成后端那份 `brief`。
+ *    外加一件**输出侧的补丁** `decoratePlan()`:后端给的方案里没有色值,由这里回填。
  *
- *    ⚠️ 顺带说清一件容易混的事:后端**确实**有一个能真的生成妆容的模块(`agent`),
- *       但它不是这套形状——它按「会话」走(messages / photo / render),
- *       每一次出图都是一条会真花钱的路由,且刻意没有 mock 轨。
- *       桃妆这条 场景→表单→方案 的动线要接上去是**重写动线**,不是替换数据源。
- *       在没做那件事之前,这里的本地推导就是这一屏的真相,不要假装它在联网。
+ *    ⚠️ 因此 `kb/styles.js`(21 套配方 + 候选池)在本前端**已经没有消费者了**——
+ *       它是内容,已经整体搬进后端 `styling/domain/entities/style-recipes.ts`。
+ *       留着它是因为 `server/test/styling-plan.test.ts` 拿它当**搬运前的原件**对表
+ *       (同 `public/demo/` 那两个 SVG 的地位:已知的零消费者,不是漏收拾的)。
  *
- * 步骤的数量 / 名称 / 顺序全部来自所选风格的配方数组,前端不写死任何一步。
+ * 步骤的数量 / 名称 / 顺序全部来自后端那份方案,前端不写死任何一步。
  */
 
 /* ------------------------------ 场景 ------------------------------ */
@@ -46,7 +46,7 @@ export function getScenes() {
 /* --------------------------- 信息收集表单 --------------------------- */
 /**
  * 每个字段都支持两种填写方式:文字描述(`text`)或图片上传(`images`),
- * 提交时**两种都保留**(见 submitDesign 的 payload)。
+ * 提交时**两种都保留**(见 `toBrief`)。
  * 场景不同,字段的集合也不同(旅行只要地点+穿搭,面试要四个)——这是产品要求,不是遗漏。
  */
 const SCENE_FORMS = {
@@ -208,31 +208,108 @@ export function getSkinTones() {
   return SKIN_TONES
 }
 
-/* --------------------------- 生成结果 --------------------------- */
+/* --------------------------- 拼 brief --------------------------- */
 
 /**
- * 通用步骤逻辑 —— 来自《上妆步骤知识库》第十二章「补充说明」。
- * 按步骤名关键词匹配,命中后作为该步的注意事项展示。
- * ★ 顺序有意义:先命中的那条胜出(如「眼线」既匹配眼妆也匹配不到别的,但「唇线」要晚于「唇妆」判定除外)。
+ * 肤色档:前端的 id ↔ 后端的 id。
+ *
+ * ★ 两边是**两套不同的 id**,而且是各自按自己的意思起的:前端这份写的是
+ *   「用户嘴里的话」(`yellow-1` / `yellow-dark`),后端那份(`shared/domain/entities/brief.ts`
+ *   的 `SKIN_TONES`)是**与词表目录对账过的代码**,启动时少一个都起不来。
+ *   映射只写在这一处——换名字改这里,别去改后端的枚举,也别在页面里各拼一次。
+ *
+ * ⚠️ **一行都不能少。** 后端 `checkBriefFields` 是**白名单**校验:
+ *   认不出来的取值不是"忽略",是**整份 brief 被打回 422**。所以下面查不到的档
+ *   宁可**整个不传**(见 `toBrief`),也不能原样送过去——那会让用户填了一屏的信息
+ *   因为一个肤色档全丢掉。
  */
-const STEP_LOGIC = [
-  { re: /遮瑕/, note: '色彩性瑕疵（黑眼圈、泛红）在底妆前遮；结构性瑕疵（泪沟、法令纹）在底妆后遮，两个时机不可颠倒' },
-  { re: /定妆/, note: '蜜粉负责控油定妆，喷雾负责保湿定妆与降低粉感，两者配合效果最好' },
-  { re: /底妆/, note: '少量多次是核心，单侧脸用量不超过黄豆大小，避免成膜层叠加导致斑驳' },
-  { re: /修容/, note: '修容不要超过眼尾，正面看才不会显脏；发际线与下颚线处的修容一定要晕染' },
-  { re: /腮红/, note: '腮红可直接当眼影用，一套颜色做出 monochromatic look' },
-  { re: /眼妆|眼影|睫毛|眉毛|眉眼|眼线|卧蚕/, note: '上完底妆先在眼皮上一层散粉，避免眼皮太黏没晕染开眼影' },
-  { re: /唇妆|唇线|唇/, note: '涂唇膏前先用面纸轻按掉多余护唇膏油脂，否则会影响成膜与持色' },
-  { re: /高光/, note: '微笑，用刷子在颧骨双起部位涂至太阳穴；鼻梁上修饰鼻型，唇弓处轻点放大唇部体积' },
-  { re: /防晒|妆前/, note: '妆前乳若已带 SPF50，可不再单独叠加防晒；否则防晒要在妆前乳之后、底妆之前' },
-]
-
-function logicFor(name) {
-  const hit = STEP_LOGIC.find((l) => l.re.test(name))
-  return hit ? [hit.note] : []
+const SKIN_TONE_TO_BACKEND = {
+  'cool-fair': 'cool_porcelain',
+  'pink-fair': 'pink_porcelain',
+  'yellow-1': 'warm_ivory',
+  'yellow-2': 'warm_beige',
+  olive: 'olive',
+  'yellow-dark': 'warm_tan',
+  wheat: 'wheat',
+  deep: 'deep_brown',
 }
 
-/** 回查色值:色值的**唯一**来源是色号库,配方里只写 pid + code,不许另写一份 hex。 */
+/** 后端 `dress` 的硬上限(字)。与 `shared/.../brief-fields.validator.ts` 的 `MAX_DRESS` 同值。 */
+const MAX_DRESS = 80
+/** 后端 `sceneText` 的硬上限(字)。与 `shared/.../brief-fields.validator.ts` 的 `MAX_SCENE_TEXT` 同值。 */
+const MAX_SCENE_TEXT = 2000
+
+/**
+ * 截断并**留一句话**。
+ *
+ * ★ 静默截断是不行的:模型会以为那就是用户说的全部,而用户以为自己的话送到了。
+ *   所以截断后补一句,让读它的模型知道**还有内容没看到**——它可以据此再问一句。
+ *   (上限本身是后端的硬规则,超了是 422,所以这里必须裁。)
+ */
+function clamp(text, max) {
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}（原文过长，已截断）`
+}
+
+/** 一格里用户写的东西:`text + 勾选的预设项`,与 `FormView.collectFields` 同一口径。 */
+function textOfField(field) {
+  return [String(field?.text || '').trim(), ...(field?.opts || [])].filter(Boolean).join('；')
+}
+
+/**
+ * `/form` 收上来的东西 → 后端那份 `brief`(平铺在 `POST /agent/sessions` 的请求体上)。
+ *
+ * 三条刻意的取舍:
+ *
+ * ① ★ **不填就不给,不倒推。** 人设没定肤色档时 `skinTone` 整个键不出现——
+ *    这不是遗漏,是红线(§8-1:肤色档没有默认值)。塞一个兜底等于替用户认定肤色,
+ *    而肤色会**收窄**妆面的合法色域(`validateLookSpec`),错了整份配色都会偏。
+ *    前端这份档位 id 认不出来时也是同一处理:宁可不传。
+ *
+ * ② **`dress` 与 `sceneText` 都从同一批字段来,但用途不同**:`dress` 是给模型的
+ *    「一句话风格信号」(穿搭主色与材质),`sceneText` 是**用户自己写的那段话**,
+ *    一格不落地拼进去。两者重复一点没关系,少了一格才是真的丢了输入。
+ *
+ * ③ ★ **只上传了图片、没写字的格子会留下一句明说。** 这一期**不传信息图**
+ *    (`VISION_ANALYZER=off` 时后端 `/images` 那条路由根本没注册),如果这里静默跳过,
+ *    页面上明明收下了图、agent 那边却像没发生过——那是本仓最怕的那种「假开关」。
+ *    所以写成一句话交出去,让模型知道「有图,但没送到」,它可以开口问用户。
+ */
+export function toBrief({ sceneId = 'party', persona = null, fields = [] } = {}) {
+  // ★ 用表单自己的 sceneId(它已经做过未知场景的回落),别直接把 query 里的字符串送出去。
+  const brief = { occasion: getSceneForm({ sceneId }).sceneId }
+
+  const tone = SKIN_TONE_TO_BACKEND[persona?.skinTone || '']
+  if (tone) brief.skinTone = tone
+
+  const features = (persona?.features || []).filter(Boolean)
+  if (features.length) brief.features = [...features]
+
+  const dress = textOfField(fields.find((f) => f.key === 'outfit'))
+  if (dress) brief.dress = clamp(dress, MAX_DRESS)
+
+  const lines = fields
+    .map((f) => {
+      const text = textOfField(f)
+      const count = (f.images || []).length
+      if (text) return `${f.label}：${text}`
+      if (count) return `${f.label}：用户上传了 ${count} 张图片（本次未能送达）`
+      return ''
+    })
+    .filter(Boolean)
+  if (lines.length) brief.sceneText = clamp(lines.join('\n'), MAX_SCENE_TEXT)
+
+  return brief
+}
+
+/* --------------------------- 补色值 --------------------------- */
+
+/**
+ * 回查色值:色值的**唯一**来源是色号库,后端那份方案里只带 `pid + code`,不带 hex。
+ *
+ * ★ 这条规矩是 `kb/styles.js` 自己立的(硬约定 2),后端照它办——所以色块的颜色
+ *   只有前端补得出来。改这里之前先看 `api/vanity.js` 文件头:全仓不许另写一份 hex。
+ */
 function hexOf(pid, code) {
   if (!pid || !code) return ''
   const entry = SHADE_LIBRARY[pid]
@@ -241,121 +318,53 @@ function hexOf(pid, code) {
   return hit ? hit.hex : ''
 }
 
-/** 把风格配方展开成结果页的 steps 数组。顺序即配方的顺序,一步都不许在前端补。 */
-function buildSteps(style) {
-  return style.steps.map((t, i) => ({
-    id: `${style.id}-${String(i + 1).padStart(2, '0')}`,
-    name: t.name,
-    desc: t.action,
-    tips: logicFor(t.name),
-    imageUrl: '',
-    products: t.products.map((p) => ({ name: p.name, code: p.code, hex: hexOf(p.pid, p.code) })),
-  }))
-}
-
-/** 顶部色板由「本方案真的用到的色号」推导,保证色板与步骤永远一致(不由配方手写)。 */
-function buildPalette(steps) {
-  const seen = new Set()
-  const out = []
-  steps.forEach((s) =>
-    (s.products || []).forEach((p) => {
-      if (!p.hex || !p.code) return
-      if (seen.has(p.code)) return
-      seen.add(p.code)
-      // code 是色号,name 是出自哪个产品,前端按需要展示其一或两者
-      out.push({ code: p.code, name: p.name, hex: p.hex })
-    })
-  )
-  return out.slice(0, 8)
-}
-
-/** 个性化调整:把选中人设身上的面部特征标签展开成策略卡。 */
-function buildPersonalized(featureIds = []) {
-  const groupName = (gid) => (FEATURE_GROUPS.find((g) => g.id === gid) || {}).name || ''
-  return featureIds
-    .map(featureById)
-    .filter(Boolean)
-    .map((f) => ({
-      id: f.id,
-      group: f.group,
-      groupName: groupName(f.group),
-      name: f.name,
-      desc: f.desc,
-      fix: f.fix,
-      products: f.products,
-    }))
-}
-
 /**
- * 某场景下可切换的妆容风格。步骤数量与顺序本来就不同(6 ~ 11 步),这是要点不是缺陷。
- * 返回 `stepCount` 让切换条上能直接标「N 步」。
+ * 后端那份方案(`AgentSessionView.plan`)→ 结果页要的形状:把 `hex` 补上。
+ *
+ * ★ **只补色值,不改任何一格内容。** 步骤数量与顺序、色板块数与顺序、个性化条目,
+ *   全部照后端的原样带过去——前端不再有自己的推导,这是「方案由 agent 产出」的全部含义。
+ *
+ * ★ 色板的色值取自**第一个带着这个色号的步骤产品**(`derivePlan` 是从步骤推导出色板的,
+ *   所以每个色号都在步骤里出现过)。查不到色的产品**不进色板**,也不占领那个色号
+ *   ——它是「这一支没有色块」,不是「这个色号没有色块」。
  */
-export function getStyleOptions({ sceneId = 'party' } = {}) {
-  return stylesForScene(sceneId).map((s) => ({
-    id: s.id,
-    name: s.name,
-    family: s.family,
-    summary: s.summary,
-    stepCount: s.steps.length,
-  }))
-}
-
-/**
- * 生成方案。`styleId` 空时取该场景候选池的第一套。
- * `features` 是选中人设身上的面部特征 id —— 决定「针对你的面部特征」那一区的内容。
- */
-export function getDesignResult({ sceneId = 'party', styleId = '', features = [] } = {}) {
-  const pool = SCENE_STYLES[sceneId] || SCENE_STYLES.party
-  const style = styleById(styleId || pool[0])
-  const steps = buildSteps(style)
-
+export function decoratePlan(plan) {
+  if (!plan) return null
+  const hexByCode = new Map()
+  for (const step of plan.steps || []) {
+    for (const p of step.products || []) {
+      const hex = hexOf(p.pid, p.code)
+      if (!hex || !p.code || hexByCode.has(p.code)) continue
+      hexByCode.set(p.code, hex)
+    }
+  }
   return {
-    id: `look-${sceneId}-${style.id}`,
-    taskId: `local-${sceneId}-${style.id}`,
-    sceneId,
-    sceneName: sceneNameOf(sceneId) || '通用',
-    styleId: style.id,
-    styleName: style.name,
-    family: style.family,
-    title: style.name,
-    tagline: style.family,
-    summary: style.summary,
-    keywords: style.keywords,
-    palette: buildPalette(steps),
-    meta: { stepCount: steps.length, minutes: style.minutes, level: style.level },
-    steps,
-    personalized: buildPersonalized(features),
-    styleOptions: pool
-      .map(styleById)
-      .map((s) => ({ id: s.id, name: s.name, family: s.family, summary: s.summary, stepCount: s.steps.length })),
+    ...plan,
+    palette: (plan.palette || []).map((p) => ({ ...p, hex: hexByCode.get(p.code) || '' })),
+    steps: (plan.steps || []).map((s) => ({
+      ...s,
+      products: (s.products || []).map((p) => ({ ...p, hex: hexOf(p.pid, p.code) })),
+    })),
   }
 }
 
-/** 「换一版」:切到场景候选池里的下一个风格,步骤数量与顺序随之变化。 */
-export function regenerateDesign({ sceneId = 'party', styleId = '' } = {}) {
-  const pool = SCENE_STYLES[sceneId] || SCENE_STYLES.party
-  const cur = pool.indexOf(styleId)
-  const nextId = pool[(cur + 1) % pool.length] || pool[0]
-  return { styleId: nextId }
-}
-
 /**
- * 「保存妆容」。源站把它当成一条 POST,但后端没有这个端点,这里也**不编一个假的成功**:
- * 返回的就是本地事实——这一版方案已经**导出成一份 JSON 快照**了,没有落到任何服务端。
+ * 「保存妆容」。后端**没有**「我的作品」这个集合,这里也**不编一个假的成功**:
+ * 返回的就是本地事实——这一版方案已经**整理成一份 JSON 快照**了,没有落到任何地方。
  * 页面照这句话展示即可(「已记下这一版」),别说成「已保存到作品」——
  * 那会让人以为下次换台机器还能看到。
  */
-export function snapshotDesign(data) {
+export function snapshotDesign({ sceneId = '', sceneName = '', plan = null } = {}) {
+  if (!plan) return null
   return {
-    id: data.id,
-    sceneId: data.sceneId,
-    sceneName: data.sceneName,
-    styleId: data.styleId,
-    styleName: data.styleName,
-    stepCount: data.meta.stepCount,
-    minutes: data.meta.minutes,
-    level: data.meta.level,
-    palette: data.palette,
-    steps: data.steps.map((s) => ({ name: s.name, products: s.products })),
+    sceneId,
+    sceneName,
+    styleId: plan.styleId,
+    styleName: plan.styleName,
+    stepCount: plan.meta.stepCount,
+    minutes: plan.meta.minutes,
+    level: plan.meta.level,
+    palette: plan.palette,
+    steps: plan.steps.map((s) => ({ name: s.name, products: s.products })),
   }
 }

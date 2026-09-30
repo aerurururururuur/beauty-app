@@ -6,27 +6,40 @@
     :active-step="4"
   />
 
-  <main v-if="result" class="content content--flow">
+  <main v-if="plan" class="content content--flow">
     <section class="result-hero">
-      <div class="result-hero__shots">
-        <!-- 两张都是占位块:本地算得出方案,算不出一张脸(见文件头) -->
-        <div class="shot shot--before ph" style="height: 320px">妆前 · 原图占位</div>
-        <div class="shot shot--after ph" style="height: 320px">妆后 · 效果占位</div>
-        <span class="result-hero__arrow"><Icon name="arrowRight" :size="16" color="var(--color-white)" /></span>
+      <div class="result-hero__shots hero-side">
+        <!--
+          ★ 这一格是**真的成片**,不是占位块。没出图之前这里什么都没有——
+            出图那条自己会占满整列(见 renderNote),不摆假图。
+        -->
+        <img v-if="shotSrc" class="shot" :src="shotSrc" :alt="`「${plan.styleName}」的成片`" />
+        <div v-if="renderNote" class="render-card">
+          <p class="render-card__note">{{ renderNote }}</p>
+          <button
+            v-if="canRender"
+            class="btn btn--primary"
+            :disabled="design.generating"
+            @click="onRender"
+          >
+            {{ design.generating ? '正在出图…' : renderButtonText }}
+          </button>
+        </div>
       </div>
 
       <div class="result-hero__info">
-        <span class="result-hero__scene">{{ result.sceneName }} · {{ result.tagline }}</span>
-        <h1 class="result-hero__title">{{ result.title }}</h1>
-        <p class="result-hero__summary">{{ result.summary }}</p>
+        <span class="result-hero__scene">{{ sceneName }} · {{ plan.family }}</span>
+        <h1 class="result-hero__title">{{ plan.styleName }}</h1>
+        <!-- ★ 这段是「这套妆是什么」的唯一说法（服务端 describeLook 生成），原样展示 -->
+        <p class="result-hero__summary">{{ lookDescription }}</p>
 
         <div class="result-hero__kw">
-          <span v-for="k in result.keywords" :key="k" class="kw-chip">{{ k }}</span>
+          <span v-for="k in plan.keywords" :key="k" class="kw-chip">{{ k }}</span>
         </div>
 
         <div class="result-hero__palette-label">本方案用到的色号</div>
         <div class="result-hero__palette">
-          <span v-for="p in result.palette" :key="p.code" class="palette-chip" :title="p.name || ''">
+          <span v-for="p in plan.palette" :key="p.code" class="palette-chip" :title="p.name || ''">
             <span class="palette-chip__dot" :style="{ background: p.hex }"></span>
             <span class="palette-chip__code">{{ p.code || p.name }}</span>
             <span v-if="p.name" class="palette-chip__from">{{ p.name }}</span>
@@ -34,16 +47,18 @@
         </div>
 
         <div class="result-hero__meta">
-          <span class="meta-cell"><em>{{ result.meta.stepCount }}</em>个步骤</span>
-          <span class="meta-cell"><em>{{ result.meta.minutes }}</em>分钟</span>
-          <span class="meta-cell"><em>{{ result.meta.level }}</em></span>
+          <span class="meta-cell"><em>{{ plan.meta.stepCount }}</em>个步骤</span>
+          <span class="meta-cell"><em>{{ plan.meta.minutes }}</em>分钟</span>
+          <span class="meta-cell"><em>{{ plan.meta.level }}</em></span>
         </div>
 
         <div class="result-hero__actions">
           <button class="btn btn--primary" :disabled="saved" @click="onSave">
             {{ saved ? '已记下这一版' : '保存妆容' }}
           </button>
-          <button class="btn btn--soft" @click="onRegenerate">换一版</button>
+          <button class="btn btn--soft" :disabled="design.generating" @click="onRegenerate">
+            换一版
+          </button>
           <RouterLink class="btn btn--soft" to="/vanity">去美妆台看产品</RouterLink>
         </div>
       </div>
@@ -52,21 +67,26 @@
     <section class="style-switch">
       <div class="style-switch__head">
         <span class="style-switch__title">换一个妆容风格</span>
-        <span class="style-switch__note">不同风格的步骤数量与顺序本来就不同，切一下就能看到变化</span>
+        <span class="style-switch__note">
+          不同风格的步骤数量与顺序本来就不同；换一次要重新让 agent 配一套，它要想几秒
+        </span>
       </div>
       <div class="style-switch__list">
         <button
           v-for="o in design.styleOptions"
           :key="o.id"
           class="style-chip"
-          :class="{ 'style-chip--active': o.id === result.styleId }"
+          :class="{ 'style-chip--active': o.id === plan.styleId }"
           :title="o.summary || ''"
-          @click="o.id !== result.styleId && applyStyle(o.id)"
+          :disabled="design.generating"
+          @click="o.id !== plan.styleId && applyStyle(o.id)"
         >
           <span class="style-chip__name">{{ o.name }}</span>
           <span class="style-chip__meta">{{ o.family }} · {{ o.stepCount }} 步</span>
         </button>
       </div>
+      <!-- 换风格 / 换一版 / 出图失败时后端给的那句人话，原样展示（§7.3） -->
+      <ErrorNote :text="design.error" />
     </section>
 
     <nav class="step-rail" aria-label="妆容步骤导航">
@@ -98,19 +118,10 @@
         class="step-block"
         :data-step="s.id"
       >
-        <div class="step-block__media">
-          <div class="shot ph" style="height: 260px">{{ s.name }} · 效果图占位</div>
-          <span class="step-block__no">{{ stepNo(i) }}</span>
-          <span class="step-block__name-tag">{{ s.name }}</span>
-        </div>
         <div class="step-block__body">
           <header class="step-block__head">
             <span class="step-block__index">STEP {{ stepNo(i) }}</span>
             <h3 class="step-block__title">{{ s.name }}</h3>
-            <span v-if="s.duration" class="step-block__dur">
-              <Icon name="clock" :size="14" color="var(--color-text-disabled)" />
-              <span>{{ s.duration }}</span>
-            </span>
           </header>
           <p class="step-block__desc">{{ s.desc || '' }}</p>
 
@@ -132,7 +143,7 @@
       </section>
     </div>
 
-    <!-- 个性化调整:内容来自选中人设身上的面部特征,没标特征就整块不出现 -->
+    <!-- 个性化调整：条目来自这次 brief 带上来的面部特征，没有特征就整块不出现 -->
     <section v-if="personalized.length" class="personalized">
       <h2 class="personalized__title">针对你的面部特征 · {{ personalized.length }} 条调整</h2>
       <div class="personalized__list">
@@ -156,7 +167,11 @@
     <section class="product-summary">
       <h2 class="product-summary__title">全部用到的产品</h2>
       <ul class="product-summary__list">
-        <li v-for="line in productLines" :key="`${line.no}-${line.item.name}-${line.item.code || ''}`" class="product-line">
+        <li
+          v-for="line in productLines"
+          :key="`${line.no}-${line.item.name}-${line.item.code || ''}`"
+          class="product-line"
+        >
           <span class="product-line__no">{{ stepNo(line.no - 1) }}</span>
           <span class="product-line__step">{{ line.stepName }}</span>
           <span class="product-line__name">{{ line.item.name }}</span>
@@ -166,31 +181,46 @@
       </ul>
     </section>
   </main>
+
+  <!-- 还没读到方案：要么正在读，要么这次会话真的没有方案（后端给的那句人话原样展示） -->
+  <main v-else class="content content--flow">
+    <p v-if="design.generating" class="flow-tip">正在读这次会话…</p>
+    <ErrorNote :text="design.error" />
+    <RouterLink class="btn btn--soft" to="/create">回「开始设计」重走一遍</RouterLink>
+  </main>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
+import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
+import { renderImageHref } from '@/api/agent'
 import { useQueryParam } from '@/composables/useQueryParam'
 import { useStepRail } from '@/composables/useStepRail'
 import { useUserStore } from '@/stores/user'
-import { usePersonasStore } from '@/stores/personas'
 import { useDesignStore } from '@/stores/design'
 
 /**
  * 开始设计 · 第 4 步:生成结果。
  *
- * ★ 步骤的**数量与顺序来自方案数据**(6 ~ 11 步不等,不同风格本来就不同),
- *   页面里不出现任何写死的步骤名或步数。
+ * ★ 这一屏**整屏是后端 agent 那份方案的展示**:步骤 / 色板 / 产品 / 个性化
+ *   全部来自 `session.plan`(由 `propose_look` 那一次调用一并产出),页面里
+ *   不出现任何写死的步骤名或步数,也不再有本地推导。
  *
- * ★ 这一屏**整屏由 URL 重建**:`?scene=&style=&persona=` 三个参数就够了,
- *   刷新后还是这一版。所以切风格不是"改个本地状态",而是重算 + `router.replace` 回写地址栏。
+ * ★ 状态全在地址栏里:`?session=<id>`,刷新后靠 `design.loadSession()` 从服务端
+ *   把同一次会话拉回来(§3 第 6 条)。**不再有 `?scene=&style=&persona=`** ——
+ *   换风格现在是"再让 agent 配一套",不是改本地参数。
  *
- * ★★ 前后两张图是**占位块**(源站也一样,块的文案就写着「占位」)。
- *    本地方案算得出步骤与色号,但**算不出一张脸**——渲染要真后端。
- *    所以这里不摆假图、也不写"正在生成效果图"。
+ * ★★ **这一格是真的成片。** 上一版这里是两个标着「占位」的块,因为那时算得出
+ *   步骤与色号、算不出一张脸。现在出图那条链接回来了(会花钱,见 `api/agent.js`),
+ *   所以:有图就显示真图,没图就**什么都不摆**、只摆那条确认框。
+ *   **不许**再拿一个灰块顶着说它是效果图(§8-4)。
+ *
+ * ★ 出图入口**全屏只有一个**:`pendingRender`(模型提的)与 `renderOffer`
+ *   (界面按状态自己摆的)在服务端就是互斥的,这里也只是**二选一**地读——
+ *   两个都读、都摆,就会出现两个按钮,而点两下是真的要花两次钱。
  *
  * ★ 「保存妆容」= 导出这一版的 JSON 快照,**没有落到任何服务端**
  *   (`api/design.js` 的 snapshotDesign 说明了为什么)。按钮文案因此是
@@ -200,67 +230,89 @@ import { useDesignStore } from '@/stores/design'
  *   路由的 scrollBehavior 对带 hash 的跳转返回 false,就是为了不抢这里的锚点滚动——
  *   改 `useStepRail` 时那条配置要一起看,别只改一边。
  */
-const route = useRoute()
-const router = useRouter()
 const user = useUserStore()
-const personas = usePersonasStore()
 const design = useDesignStore()
 
-// ★ `scene` 的兜底是 'party'(不是 ''):缺了它 /result 也得能算出一版方案
-const sceneId = useQueryParam('scene', 'party')
-const personaId = useQueryParam('persona')
-const styleId = useQueryParam('style')
+const sessionId = useQueryParam('session')
 
-const result = computed(() => design.result)
+const plan = computed(() => design.plan)
+const lookDescription = computed(() => design.lookDescription || plan.value?.summary || '')
+const sceneName = computed(() => design.sceneNameOf(design.session?.brief?.occasion || ''))
 const saved = ref(false)
 
-const steps = computed(() => result.value?.steps || [])
+const steps = computed(() => plan.value?.steps || [])
+const personalized = computed(() => plan.value?.personalized || [])
 
-/** 步骤导航:滚动时反向高亮、点击平滑跳过去(观察器的生命周期见 useStepRail)。 */
-const { activeId: activeStepId, els: stepEls, jumpTo: jumpToStep } = useStepRail(result, steps)
+/** 步骤导航：滚动时反向高亮、点击平滑跳过去（观察器的生命周期见 useStepRail）。 */
+const { activeId: activeStepId, els: stepEls, jumpTo: jumpToStep } = useStepRail(plan, steps)
 
-const personalized = computed(() => result.value?.personalized || [])
-/** 底部产品清单:把每一步用到的产品摊平,并记住它属于第几步。 */
+/** 底部产品清单：把每一步用到的产品摊平，并记住它属于第几步。 */
 const productLines = computed(() =>
-  steps.value.flatMap((s, i) => (s.products || []).map((p) => ({ stepName: s.name, no: i + 1, item: p })))
+  steps.value.flatMap((s, i) =>
+    (s.products || []).map((p) => ({ stepName: s.name, no: i + 1, item: p }))
+  )
+)
+
+/* ------------------------------ 出图 ------------------------------ */
+
+/** 最新那张成片。★ 取"最新"而不是第一张：后面那些是同一套妆的再生成，新的盖住旧的。 */
+const shotSrc = computed(() => {
+  const last = design.renders[design.renders.length - 1]
+  return last ? renderImageHref(last.url, user.id) : ''
+})
+
+const canRender = computed(() => Boolean(design.pendingRender || design.renderOffer))
+
+/**
+ * 出图那一块要说的话。
+ *
+ * ★ 有提议/有那条消息时**逐字用服务端那句话**（`renderConfirmationSummary()`：
+ *   出图要多久、要花什么钱都写在里面）——前端另写一句就成了第二份说法。
+ * ★ 没照片时是另一回事：那不是"要不要出图"，是"出不了"。这一句由前端说，
+ *   因为服务端那时**根本不摆**出图入口（`renderReadiness !== 'ready'`）。
+ */
+const renderNote = computed(() => {
+  const entry = design.pendingRender || design.renderOffer
+  if (entry) return entry.summary
+  if (design.hasFace) return ''
+  return '这次没有带上你的照片，出不了成片。回上一步换一份有照片的人设，再走一遍。'
+})
+
+/** 出完图之后那条消息**不会消失**（妆面与照片都还在），所以按钮要改口，防误连点。 */
+const renderButtonText = computed(() =>
+  design.renderOffer?.alreadyRendered ? '再生成一张' : '确认生成'
 )
 
 function stepNo(index) {
   return String(index + 1).padStart(2, '0')
 }
 
-onMounted(() => {
-  personas.load(user.id)
-  // 特征优先从人设档案取(选人流程带来的);没有 persona 参数时就没有个性化区
-  const persona = personaId.value ? personas.getById(personaId.value) : null
-  design.buildResult({
-    sceneId: sceneId.value,
-    styleId: styleId.value,
-    features: persona?.features || [],
-  })
+onMounted(async () => {
+  await design.loadSession({ sessionId: sessionId.value, userId: user.id })
   activeStepId.value = steps.value[0]?.id || ''
 })
-
-/* --------------------- 滚动高亮 / 锚点跳转 --------------------- */
-
-// 观察器的建立、随换风格重建、以及卸载时 disconnect,全在 useStepRail 里(见那个文件)
 
 /* --------------------------- 三个动作 --------------------------- */
 
 /**
- * 换风格 /「换一版」都走这里:重算方案 → 回写地址栏 → 回顶部。
+ * 换风格：把「换成哪个」说给 agent，由它重新配一套。
  *
- * ★ 这里仍然直接用 `route.query`(而不是 `useQueryParam`):它要的是**把整个 query 摊开保留**,
- *   只覆盖 scene/style/persona 三个,而不是读某一个字符串参数——那是 `useQueryParam` 管的事。
+ * ⚠️ **代价是一次 agent 回合（最长 90 秒）**，不再是毫秒级本地重算——
+ *   这是「方案由后端产出」的直接后果。地址栏不用改：`?session=` 没变，
+ *   变的是那次会话的内容。
  */
-function applyStyle(nextStyleId) {
-  design.setStyle(nextStyleId)
-  router.replace({ query: { ...route.query, scene: sceneId.value, style: design.result.styleId, persona: personaId.value } })
+function applyStyle(styleId) {
+  design.setStyle({ userId: user.id, styleId })
   window.scrollTo({ top: 0, behavior: 'auto' })
 }
 
 function onRegenerate() {
-  applyStyle(design.regenerate()?.styleId || '')
+  design.regenerate({ userId: user.id })
+  window.scrollTo({ top: 0, behavior: 'auto' })
+}
+
+function onRender() {
+  design.confirmRender({ userId: user.id })
 }
 
 function onSave() {
@@ -268,3 +320,39 @@ function onSave() {
   saved.value = true
 }
 </script>
+
+<style scoped>
+/* hero 那一列竖着排：成片在上、出图那条在下 */
+.hero-side {
+  flex-direction: column;
+}
+
+.hero-side .shot {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 没出图时它是这一列里唯一的东西，自己占满整列 */
+.render-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+}
+
+.render-card__note {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-sub);
+}
+
+.flow-tip {
+  font-size: 14px;
+  color: var(--color-text-sub);
+}
+</style>
