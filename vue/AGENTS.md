@@ -1,18 +1,22 @@
 # vue/ 前端协作契约（给 AI 与新接手的人）
 
-> **这份文件是什么**：`vue/` 的**实现契约**——分层怎么切、共享组件怎么用、后端契约长什么样、哪些红线一碰就废。
-> 读完它，你应该能直接改代码而不破坏约束。
+> **这份文件是什么**：`vue/` 的**实现契约**——分层怎么切、共享组件怎么用、**哪些数据是真的、
+> 哪些是本地造的**、后端契约长什么样、哪些红线一碰就废。读完它，你应该能直接改代码而不破坏约束。
 >
 > **和别的文档的关系**（冲突时按此优先级）：
 > `docs/plan/roadmap.md` §13 红线 **>** 本文件 **>** `vue/README.md`（README 讲「怎么跑」，本文件讲「怎么改」）
-> **>** 代码注释（注释解释「为什么这样写」，是很好的补充，但不覆盖上述）。
+> **>** 代码注释。
 >
 > ✏️ **2026-09-29：`docs/plan/*` 已冻结废弃，不要再去那里找权威。** 那些红线**约束本身仍然有效**
-> （§8 就是它们的可执行转述，照 §8 做），但**文档不再维护**——`roadmap.md` 里描述的模块与端点
-> （如 `jobs`）可能已经不存在了。**冲突时以代码 + 本文件为准**；§8 与代码打架了就来问，
-> 别去翻冻结的 plan 找答案。
+> （§8 就是它们的可执行转述，照 §8 做），但**文档不再维护**。**冲突时以代码 + 本文件为准**；
+> §8 与代码打架了就来问，别去翻冻结的 plan 找答案。
 >
-> **适用范围**：`vue/` 下的一切。后端**契约**看 `docs/architecture.md`、后端**怎么跑**看 `server/README.md`；跨端共享资产看 `server/src/modules/shared/domain/scene-rules.ts` 的文件头。
+> ✏️ **2026-09-30：这个前端已被换成「桃妆（TAOZHUAANG）」**，原来的「场合美妆镜」那 6 屏
+> （`/upload` `/result` `/cabinet` `/agent` + 旧 `/` `/login`）连同 `stores/{makeup,agent,cabinet}.js`
+> 一并删除，`src/` 现在是桃妆的家。**这不是一次文件搬迁**——它换掉了整个 IA，也换掉了
+> **全项目唯一一条真的会出图的路径**（见 §1 末）。本文件已按新代码重写。
+>
+> **适用范围**：`vue/` 下的一切。后端**契约**看 `docs/architecture.md`、后端**怎么跑**看 `server/README.md`。
 >
 > **⚠️ 如果你是在聊天窗口里工作、手上只有对话上下文（读不到仓库文件）——先看 §0。**
 
@@ -32,13 +36,14 @@
 
 一次要**一个文件、给全路径、说清楚要它干什么**：
 
-> 我需要 `vue/src/stores/makeup.js` 的**完整**内容，想确认 `brief` computed 里放字段的写法，
-> 好照着加一个 `hairStyle`。麻烦把整个文件粘给我，不要摘要——摘要会漏掉我正需要的那几行。
+> 我需要 `vue/src/api/vanity.js` 的**完整**内容，想确认「我的化妆包」是怎么落到
+> `/cabinet/items` 的那些行上的，好照着加一个「移出整件」。麻烦把整个文件粘给我，
+> 不要摘要——摘要会漏掉我正需要的那几行。
 
 反例（别这样）：
 
 - ❌「把整个仓库发我」——用户发不全，你也会被淹掉。
-- ❌「给我看看 store」——哪个 store？几个文件里的哪一个？
+- ❌「给我看看 store」——哪个 store？四个文件里的哪一个？
 - ❌ **拿到摘要就开始写代码。** 摘要少一个字段，你写出来的就是错的——而且在这种
   **没有测试、没有 TypeScript、没有 lint** 的前端里（§2），**没有任何东西会拦住这个错**，
   它会一路滑到用户手上。
@@ -47,16 +52,17 @@
 
 | 你要做的事 | 让用户粘贴 |
 | --- | --- |
-| 加 / 改 brief 字段 | `vue/src/constants/options.js`、`vue/src/stores/makeup.js`、`vue/src/pages/UploadView.vue`、`vue/src/pages/ResultView.vue`、`server/src/modules/shared/domain/entities/brief.ts` |
-| 加接口 | `vue/src/api/index.js`、`vue/src/api/<域>.js`、`vue/src/api/mock.js`、对应 store、后端那个 `domain/api/*.ts` |
-| 加 / 改共享组件 | `vue/src/components/<X>.vue` + 调用它的页面 + `vue/src/assets/styles/{tokens,main}.css` |
-| 改样式 | `vue/src/assets/styles/tokens.css`、`main.css`，以及目标页面（样式多为页内 `scoped`，见 §5.2） |
-| 改动线 / 路由 | `vue/src/router/index.js`、相关页面、`vue/src/stores/user.js` |
-| 场合判定相关 | `server/src/modules/shared/domain/scene-rules.ts`（**要整份**，它不长，而且一个字都不能漏——见 §6.2） |
-| 核对契约 | `server/src/modules/*/domain/api/*.ts`（结果页与对话页那份是 `agent/application/agent-view.ts` 的 `AgentSessionView`）+ `docs/architecture.md` §5。✏️ 2026-09-29：`jobs/domain/api/job-view.ts` 已随模块删除 |
+| 改设计链（场景 / 表单 / 方案 / 风格） | `vue/src/api/design.js`、`vue/src/api/kb/styles.js`、对应页面、`vue/src/stores/design.js` |
+| 改色号 / 产品目录 | `vue/src/api/kb/shades.js`、`vue/src/api/kb/catalog.js`、`vue/src/api/kb/products.js`、`vue/src/api/vanity.js` |
+| 改人设库（脸模） | `vue/src/api/personas.js`、`vue/src/stores/personas.js`、`vue/src/pages/Persona*.vue` |
+| 加接口 | `vue/src/api/index.js`、`vue/src/api/<域>.js`、`vue/src/api/use-mock.js`、`vue/src/api/mock.js`、对应 store、后端那个 `domain/api/*.ts` |
+| 加 / 改共享组件 | `vue/src/components/<X>.vue` + 调用它的页面 + `vue/src/assets/styles/tokens.css`（+ 对应页面的 css） |
+| 改样式 | `vue/src/assets/styles/{tokens,base,pages,flow}.css`，以及目标页面（页内 `scoped`） |
+| 改动线 / 路由 | `vue/src/router/index.js`、`vue/src/App.vue`、`vue/src/components/AppSidebar.vue`、相关页面 |
+| 核对后端契约 | `server/src/modules/*/presentation/routes/*.route.ts`（**只有 4 个文件**，16 条路由）+ `server/src/modules/*/domain/schemas/api/*.ts` |
 
-> 两个大文件（`AgentView.vue` 718 行、`UploadView.vue` 530 行）可以只要**相关段落**，
-> 但必须说清是哪一段（「从 `<script setup>` 到 `</script>`」/「template 里 `PhotoUploader` 那一段」），
+> `vue/src/api/kb/styles.js`（450 行）与 `vue/src/assets/styles/flow.css`（2713 行）是大文件，
+> 可以只要**相关段落**，但必须说清是哪一段（「`SCENE_STYLES.party` 那一段」/「`.vanity-view--all` 那一块」），
 > 且**收到后先核对它是否完整覆盖了你正要用到的上下文**——不完整就再要一次，别将就。
 
 ### 0.3 粘贴来的东西怎么用
@@ -64,8 +70,8 @@
 - **路径 / 行号对不上是常态。** 用户可能只粘了片段，行号会漂。本文档里的 `file:line` 只用来指路，
   **不要当成「第 138 行一定是那句」去对用户断言**。
 - **代码和这份文档冲突时，以代码为准**——用户手上跑的那个才是真相。并且**在回复里明说这个冲突**：
-  > 你粘的 `stores/makeup.js` 里 `skinTone` 默认是 `light`，但 AGENTS.md §8 红线 1 写的是必须 `olive`。
-  > 是文档旧了，还是这里改坏了？
+  > 你粘的 `kb/skintones.js` 里档位是 `yellow-1` 这种 id，但 AGENTS.md §8 红线 1 举的例子是
+  > 后端的 `olive` / `warm_beige`。是文档旧了，还是这里改坏了？
 
   **别默默按其中一边往下写。** 这类冲突往往正是用户最需要知道的事。
 - **用户说「就按文档来」也不等于文档是对的。** 这份文档**描述现状**，不是需求书。
@@ -79,11 +85,12 @@
 正确做法：把 §9 的清单原样交回给用户，并**逐条说清哪些是你没验的**：
 
 > 改完了，但下面这些我**没有也无法**验证，麻烦你在本地走一遍：
-> 1. `cd vue && npm run dev`，实开一次——`@scene-rules` 这类跨根引用只在 dev 暴露问题（§6.4）；
-> 2. 上传页选「面试」→ 提交 → 结果页轮询到 done；**重点看 `hairStyle` 有没有出现在回显卡片里**；
-> 3. 再设 `VITE_USE_MOCK=false` 连后端走一遍同样的动线。
-> 我改了 `stores/makeup.js`、`UploadView.vue`、`options.js` 三个文件；`ResultView.vue` 的
-> `hasEcho` 我没动——如果回显卡片整块不显示，就是这里。
+> 1. `cd vue && npm run dev`，实开一次；`npm run build` 不等于 dev 过（§6.4）；
+> 2. 走 `/create` → 选场景 → 人设库选一张脸 → 填信息 → `/result`，**重点看换风格时
+>    步骤的数量与顺序有没有跟着变**（那一屏的步数来自数据，不是写死的）；
+> 3. `/vanity` → 收一个色号 → 刷新，看它还在不在（这条走 `/cabinet/items`，mock 模式下是本机假的）。
+> 我改了 `api/vanity.js`、`stores/vanity.js`、`VanityView.vue` 三个文件；
+> `api/cabinet.js` 我没动——如果提交后 404，就是那里。
 
 **说清楚「改了哪几个文件」和「哪一处你没动但可能相关」，比说一句「已完成」有用得多。**
 这个前端没有测试、没有类型检查（§2），用户是唯一的验证环节——
@@ -93,53 +100,61 @@
 
 ## 1. 这个前端在做什么
 
-「场合美妆镜」——上传**本人正面照** + 说清楚**要去什么场合**，AI 配一套得体妆容渲染出来。
-
-一条主链路（4 屏）：
+**桃妆（TAOZHUANG）**——一张脸的妆容设计站。13 屏，两层 IA：
 
 ```
-/login 登录 ──► / 首页 ──► /upload 上传(填需求简报) ──┬──► /result 结果(妆面 → 确认出图 → 前后对比)
-                                                      │
-                                          /cabinet 衣橱(用户自己的化妆品，独立支线)
-                                          /agent   对话定妆(聊着把妆面定下来 → 确认出图)
+/login 登录(唯一不设防的一屏)
+  │
+  ├─ 第一层「浏览」  /            首页      ├─ 第二层「数字美妆台」 /vanity · /vanity/add
+  │                 /inspiration 灵感广场  │  第二层「开始设计」   /create → /form → /result
+  │                 /mine        我的      │  第二层「人设库」     /personas · /personas/new
+  │                                       │                      /personas/quiz · /personas/:id
+侧栏导航(components/AppSidebar.vue),高亮谁由路由的 `meta.nav` 决定(见 §4)
 ```
 
-✏️ **2026-09-29：`/upload` 与 `/agent` 现在是同一条路。** 上传页提交之后做的是
-「开会话(带 brief)→ 传照片 → 发一句话」，也就是从 `/agent` 那条链进去的——`jobs` 那条
-表单流水线已删。**全项目只剩一条出图路径**，而它**没有 mock 轨**：照片与每一句话都真的
-发给后端，最后那一下「确认出图」是**真会花钱的两个动作之一**（另一条是读图分析，见 §6）。两者都**要用户点一次**才发生。
-所以 `VITE_USE_MOCK=true` 下这条链**整个不可用**——上传页提交按钮禁用、结果页如实报错。
-见 §6.3 与 §7.2。
+**这条链今天是这样的**：
 
-`/upload` 收的**需求简报 brief** 是全局最有价值的数据结构——它随开会话请求**平铺**发出去
-（`{ userId, ...brief }`，不是嵌一个 `brief` 键），落到会话的 `brief` 上：
+```
+/create 选场景 ──► /personas 挑一张脸(或 /personas/new 建一张) ──► /form 填信息 ──► /result 方案
+                                                                                      │
+                                                              /vanity 数字美妆台 ◄────┘ 「去美妆台看产品」
+```
 
-| 字段 | 取值 | 说明 |
-| --- | --- | --- |
-| `occasion` | `interview`/`date`/`stage`/`family`/`daily` | 场合，风格主判据 |
-| `sceneText` | ≤2000 字 | 自由文字需求，可**替代** occasion 作风格信号 |
-| `skinType` | `dry`/`oily`/`combination`/`sensitive`/`neutral` | 肤质（持妆策略） |
-| `skinTone` | `cool_porcelain`/`pink_porcelain`/`warm_ivory`/`warm_beige`/`olive`/`warm_tan`/`wheat`/`deep_brown` | 肤色 **8 档**，**缺省 `olive`** |
-| `dress` | ≤80 字 | 穿搭一句话（风格 + 主色） |
-| `weather` | `{condition?, temperatureC?, humidityPct?, uvIndex?}` | **整块可省**，拉不到就不带 |
+### ★★ 数据从哪来：三档，改之前必须分清
 
-**双轨运行**是最容易改坏的地方：
+这是本目录**最容易读错、也最容易写出「假开关」**的地方。桃妆的 13 屏背后是**三种完全不同**的数据源，
+页面文案与注释必须与所在的那一档对得上：
 
-| 模式 | 触发 | 数据来自 |
-| --- | --- | --- |
-| mock（默认） | `VITE_USE_MOCK !== 'false'` | `src/api/mock.js`（浏览器内假后端，不联网）——**只剩账号与衣橱** |
-| 真实 | `VITE_USE_MOCK=false` | Fastify 后端 `server/`，经 Vite 代理 `/api` → `:3000` |
+| 档 | 谁 | `VITE_USE_MOCK=false` 会变吗 | 数据在哪 |
+| --- | --- | --- | --- |
+| **A. 真后端** | 账号（登录/注册）、**我的化妆包** | ✅ 会 | `POST /users` · `POST /users/login` · `/cabinet/items` ×4 |
+| **B. 本地推导** | 开始设计那条链（场景/表单/方案/风格）、人设库、美妆台的**产品目录**那一半 | ❌ **不会** | `api/design.js` · `api/personas.js` · `api/vanity.js` 上半 · `api/kb/*` |
+| **C. 策展演示内容** | 首页轮播/推荐/贴士/热点、灵感广场、`/mine` 的统计数字 | ❌ **不会** | `api/home.js` |
 
-★ **出图那条链是例外：它没有 mock 轨**（`api/agent.js` / `api/makeup.js`），所以 mock 模式下
-**上传页与对话页都用不了**。这不是漏的，理由见 §6.3。
+- **B 档不是 mock 分支。** 后端**根本没有** `/design/*` 或 `/personas/*` 这些路由
+  （见 §7.1 —— 后端全部 16 条路由，一条都不沾这两块）。所以拨 `VITE_USE_MOCK` 对它**逐字无效**。
+  方案是 `kb/styles.js` 的 20 套风格配方**当场展开**的，颜色由 `pid + code` 回查 `kb/shades.js`。
+  这意味着「换一版」「换风格」**没有等待、没有网络、也不花钱**。
+- **C 档也不是 mock 分支**，是**写好的一批演示内容**：没有别人的作品、没有真实的点赞数。
+  唯一一处**真数据**是 `/mine` 的昵称，它来自 A 档登录返回的那个 `nickname`。
+- ★ **桃妆自己的那几条动线一条都不在这套 HTTP 契约上。** 后端确实有一个能真的出图、真的会花钱的
+  `agent` 模块（8 条路由），但它按「会话」走（messages / photo / render），
+  **桃妆这条「场景 → 表单 → 方案」要接上去是重写动线，不是替换数据源。**
+  那件事没做之前，`api/design.js` 的本地推导**就是这一屏的真相**——不要假装它在联网。
 
-**两条轨必须给出同一个判定结果**——这是 `scene-rules` 单一源存在的全部理由，见 §6。
+> ### ⚠️ 搬迁的代价：全项目唯一一条真的出图路径被删掉了
+> 被替换掉的那个前端里，`/upload` → `/agent` 那条链能真的把妆容渲染到本人照片上
+> （`POST /agent/sessions/:id/render`，**会花钱**，且刻意没有 mock 轨）。桃妆没有这条链，
+> 它的「结果页」是**文字方案**：步骤、用到的色号、个性化调整——**没有一张脸**。
+> `/result` 上那两张图是**标着「占位」的块**，不是渲染结果。
+> **想再要真出图，就得把 `agent` 那条链接回来或重走一遍**——这事得用户拍板，别顺手在前端造一张假图。
 
 ---
 
 ## 2. 技术栈与「这里没有什么」
 
-Vue 3.5（Composition API + `<script setup>`）· Vite 8 · vue-router 5 · Pinia 4 · Axios · **无 UI 组件库**（自定义杂志感设计）
+Vue 3.5（Composition API + `<script setup>`）· Vite 8 · vue-router 5 · Pinia 4 · Axios ·
+**无 UI 组件库**（桃妆的视觉全部是手写 CSS）
 
 > ### ⚠️ 这里**没有**的东西（决定了你怎么验证改动）
 > - **没有 TypeScript**——`.js` / `.vue`，类型契约靠注释和这份文档维持。
@@ -148,9 +163,15 @@ Vue 3.5（Composition API + `<script setup>`）· Vite 8 · vue-router 5 · Pini
 > - **没有 CI**。
 >
 > 结论：**改完没有任何自动护栏会拦住你。** 你唯一的验证手段是 §9 的手动清单，
-> 而其中「`npm run dev` 实开一次」是**不可省略**的一步——见 §6 的「构建过 ≠ dev 过」。
+> 而其中「`npm run dev` 实开一次」是**不可省略**的一步——见 §6.4。
 
-别名（`vite.config.js`）：`@` → `src/`；`@scene-rules` → `../server/src/modules/shared/domain/scene-rules.ts`（特殊，见 §6）。
+别名（`vite.config.js`）：`@` → `src/`；`@scene-rules` → `../server/src/modules/shared/domain/scene-rules.ts`。
+
+> ✏️ 2026-09-30：**桃妆也一处都不引 `@scene-rules`。** 它的场景清单（聚会/约会/面试汇报/旅行/奇想）
+> 是**桃妆自己的产品概念**，与后端那份 `SCENE_RULES`（面试/约会/上台/见家长/日常）**不是同一套**，
+> 刻意没有合并——合了会让「奇想」这种没有后端对应的场景挂在一个不存在的判定上。
+> alias 与 `server.fs.allow` **都还留着**，因为 `server/test/scene-rules.test.ts` 读 `vite.config.js`
+> 钉着这两样。**别看到没人引就去删 alias。**
 
 ---
 
@@ -158,37 +179,68 @@ Vue 3.5（Composition API + `<script setup>`）· Vite 8 · vue-router 5 · Pini
 
 ```
 pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
-  │                                       ▲
-  └───────►  components/（纯展示，谁也不碰）┘
+  │                                     ▲
+  ├───────►  composables/  ─────────────┘   （页面级复用逻辑；**可以**碰 store 与 api）
+  │
+  └───────►  components/（纯展示，谁也不碰）
 ```
 
-六条，逐条都有理由：
+`composables/` 与 `pages/` **同层**：它服务的是页面，所以允许引 store 与 api；
+但它**不许**被 `components/` 引——纯展示那条线要一眼可查（见第 4 条）。
+
+七条，逐条都有理由：
 
 1. **只有 `api/` 认识 axios。**
    页面和 store 一律不 `import axios`、不发裸请求。新增端点 = 在 `api/<域>.js` 加一个导出函数。
+   `api/index.js` 是 axios 的唯一住所（实例 + 错误解包 + `API_BASE`）。
 
 2. **`api/` 不吞错、不编数据。**
    错误一律 `reject`。`api/index.js` 的响应拦截器已经把后端的 `{ error: { code, message } }` 解包成
-   `Error.message`，**里面的正文就是给人看的中文**（如「昵称已被占用」），直接展示即可。
-   禁止 `catch` 之后返回一个假对象——那是「编造数据」，见 §8 红线。
+   `Error.message`，**里面的正文就是给人看的中文**，直接展示即可。
+   禁止 `catch` 之后返回一个假对象——那是「编造数据」，见 §8 红线 4。
 
 3. **`stores/` 是跨页面状态的唯一住所。**
-   只有页面内用得到的瞬时 UI 状态（如 `error`、`weatherLoading`、`sceneMsg`）才留在页面的 `ref` 里。
+   只有页面内用得到的瞬时 UI 状态才留在页面的 `ref` 里（如 `FormView` 的 `inputs`、`ResultView` 的
+   `activeStepId`）。四个 store 见 §4。
 
 4. **`components/` 是纯展示组件。**
    props in / emit out / slot 出。**不 import store、不 import api、不发请求**。
-   现有 5 个组件全部遵守，新加组件也照此办理。
+   现有 10 个组件全部遵守（`AppSidebar` 连账号名都是 `nickname` 传进来的），新加组件也照此办理。
 
-5. **mock 分支只出现在 `api/*.js` 里。**
-   页面永远不知道自己在跟谁说话。
+5. **mock 分支只出现在 `api/*.js` 里，且必须 `await import('./mock')` 惰性引入。**
+   页面永远不知道自己在跟谁说话。理由与判别方法见 §6.3。
 
-6. **页面间传业务数据只经 store。**
-   `ResultView` 靠 `store.sessionId` 拿会话 id，而不是 query / params。
-   （例外：URL 语义上确实该有的东西才进 query——目前只有登录后的 `?redirect=`。）
+6. ★ **页面间传业务数据走 `query`，不走 store。**
+   （**这条与旧版前端相反**，别照旧文档改。）理由：桃妆的参数**必须可深链**——
+   `/result?scene=&style=&persona=` 刷新后还得是那一版方案，`/personas/:id`、`/personas/quiz?photo=`
+   同理。只放在 store 里，一刷新就没了，而 store 里那份本来就只是**这次会话的缓存**：
+   `design.buildResult()` 能从 URL 参数把同一个结果算回来。
+   ⚠️ 唯一不在 query 里的是**登录后的 `?redirect=`**——那条是路由守卫留的，语义上属于 URL。
 
-**Pinia 写法**：全部是 setup store（`defineStore('x', () => {...})`）。
-**可写状态直接改**（`store.occasion = 'date'`），只有需要多步逻辑或 async 的才包成 action。
-这是现有约定（见 `pages/UploadView.vue:39`、`stores/makeup.js`），别改成「一切走 action」。
+7. ★ **跨页面重复的逻辑、以及全仓唯一的红线实现点，归 `composables/`。**
+   判据是**「重复」或「红线集中」，不是「整洁」**。这两条之外**一律不抽**——
+   第 4 条那句「别为『整洁』把它们拆出去」说的就是这件事，两条不冲突：
+   页内私有的样式与小组件留在页面里，跨页面重复的逻辑才进 `composables/`。
+
+   现有的 5 条，各自的判据：
+
+   | 文件 | 判据 | 是什么 |
+   | --- | --- | --- |
+   | `useQueryParam.js` | **重复 11 处**（7 个页面） | 读 `?query=` / `:param=` 上的字符串。导出 `useQueryParam(name, fallback)` 与 `useRouteParam(name, fallback)` |
+   | `useSceneQuery.js` | **重复 5 处** | 设计链的 `{ sceneId, pick }`；规则「只有带了场景才进选人模式」原先抄了两份 |
+   | `useFilePick.js` | **重复 + 红线** | 隐藏 file input 的「**先清空、再点**」（`pick({camera})`）；同一文件连选两次也要能触发 `change` |
+   | `useObjectUrls.js` | **红线集中**（只 1 处也抽） | `URL.createObjectURL` 的 create/revoke 生命周期，卸载时自动收尾（§8-3） |
+   | `useStepRail.js` | **自成一体**（约 40 行） | 结果页的步骤滚动高亮 + 锚点跳转，含 IntersectionObserver 的完整生命周期 |
+
+   ★ **`useQueryParam` 的 `fallback` 必须按各页给，别统一**：`/form`、`/result` 的 `scene` 兜底是
+   `'party'`，其余各页是 `''`。统一会让那两屏失去兜底。
+   ★ **读单个字符串参数才用它**：`ResultView` 的 `applyStyle` 要**摊开整个 query** 再覆盖三个键，
+   那种场合直接 `useRoute().query`，别硬套（那个文件里为此两条路并存，注释写了原因）。
+   ⚠️ 抽之前先问「是不是只为整齐」——是就别抽。窄一点比多一层好。
+
+**Pinia 写法**：四个 store 全是 setup store（`defineStore('x', () => {...})`）。
+**可写状态直接改**（`user.error = '请输入桃妆 ID 与密码'`），只有需要多步逻辑或 async 的才包成 action。
+这是现有约定，别改成「一切走 action」。
 
 ---
 
@@ -196,365 +248,319 @@ pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
 
 ```
 vue/src/
-├── main.js                    # createApp + pinia + router + 两份全局 css
-├── App.vue                    # 只有 .app-shell + <router-view> + 页面淡入过渡
-├── router/index.js            # 7 条路由 + 一条 beforeEach 登录门禁（★ 不是安全边界，见 §8）
+├── main.js                    # createApp + pinia + router + 四份 css（★ 顺序有讲究，见 §5.2）
+├── App.vue                    # 外壳：登录页走无侧栏的 .auth 骨架，其余是 .app + AppSidebar
+├── router/index.js            # 13 条路由 + meta.nav + 一条 beforeEach 登录门禁（★ 不是安全边界，§8-6）
 ├── api/
-│   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE
-│   ├── use-mock.js            # ★ 只有一行环境变量判断，刻意独立成文件（见 §6）
-│   ├── makeup.js              # ✏️ 2026-09-29：表单那条路的**编排层**——开会话(带 brief)+传照片+发一句；函数全转发给 agent.js
-│   ├── weather.js             # GET /weather（mock 模式回离线示意值）
-│   ├── users.js               # POST /users · POST /users/login
-│   ├── cabinet.js             # 衣橱 CRUD 四个端点
-│   ├── agent.js               # ★ 对话定妆八条端点（后两条条件注册）。**唯一没有 mock 分支**的模块（见 §6.3）
-│   └── mock.js                # ★ 假后端（账号 / 本地衣橱）。只准惰性引入。✏️ 2026-09-29：假任务流水线整段删了
+│   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE。★ 只有它认识 axios
+│   ├── use-mock.js            # ★ 只有一行环境变量判断，刻意独立成文件（见 §6.3）
+│   ├── users.js               # A 档：POST /users · POST /users/login（桃妆 ID ↔ 后端 nickname 的映射只在这里）
+│   ├── cabinet.js             # A 档：/cabinet/items 四条。★ 只被 api/vanity.js 惰性引用
+│   ├── mock.js                # A 档的假后端（账号 + 本地化妆包）。只准惰性引入
+│   ├── vanity.js              # B+A 混合：目录那半是本地 kb，化妆包那半走 cabinet.js（惰性）
+│   ├── design.js              # B 档：场景 / 表单定义 / 方案推导 / 风格候选。★ 全本地
+│   ├── personas.js            # B 档：人设库，落在本机 localStorage，按 userId 隔离。★ 全本地
+│   ├── home.js                # C 档：首页 / 灵感 / 我的 的策展内容。★ 全本地
+│   └── kb/                    # B 档的数据：catalog / features / products / shades / skintones / styles
 ├── stores/
-│   ├── makeup.js              # 需求简报表单 + 本人照 + **会话 id**。★ 全项目最核心的 store
-│   ├── user.js                # 「这次演示用的是哪个账号」——不是登录态
-│   ├── cabinet.js             # 衣橱列表与增删改
-│   └── agent.js               # 对话定妆：服务端视图（权威）+ 本地气泡。★ api 只能惰性引（见 §6.3）
-├── constants/options.js       # 场合/肤质/肤色选项 + 中文名映射（纯展示，判定逻辑不在这里）
-├── utils/color.js             # rgbToHex / rgbCss / rgbLuminance。✏️ 2026-09-29：零引用（见 §11）
-├── components/                # 5 个共享组件（见 §5）
-├── pages/                     # 6 个页面，每个都是「一个大文件」（196~718 行）
+│   ├── user.js                # 「这次用的是哪个账号」。★ 在首屏链上（见 §6.3）
+│   ├── design.js              # 设计链的一次会话缓存（方案 / 表单 / features / fields）
+│   ├── personas.js            # 人设库：草稿、缩图、增删改查
+│   └── vanity.js              # 美妆台：分类树、目录、我的化妆包、当前选中的产品与色号
+├── composables/               # 页面级复用逻辑（5 个，见 §3 第 7 条）。★ 可引 store/api；components 不许引它
+│   ├── useQueryParam.js       # 读路由上的字符串参数（+ useRouteParam）
+│   ├── useSceneQuery.js       # 设计链的 { sceneId, pick }
+│   ├── useFilePick.js         # 隐藏 file input 的「先清空、再点」
+│   ├── useObjectUrls.js       # objectURL 的 create/revoke 生命周期
+│   └── useStepRail.js         # 结果页步骤滚动高亮 + 锚点跳转
+├── components/                # 10 个共享组件（见 §5.1）
+├── pages/                     # 13 个页面，每个都是「一个大文件」（60 ~ 336 行）
 └── assets/styles/
-    ├── tokens.css             # CSS 变量：颜色/字体/圆角/阴影
-    └── main.css               # reset + 全局类（.page/.card/.btn/.caps/.tag …）
+    ├── tokens.css             # CSS 变量：颜色 / 字体 / 圆角 / 阴影（70 行）
+    ├── base.css               # reset + 骨架 + 侧栏 + 通用类（.btn / .tag / .ph …）
+    ├── pages.css              # 第一层页面（首页 / 灵感 / 我的）
+    └── flow.css               # 第二层动线页（美妆台 / 设计链 / 人设库）· 2713 行，最大的一份
 ```
 
 `pages/` 不设子目录、不为单个页面抽组件——目前每个页面自成一个 `.vue` 文件，
 **页内私有**的样式与小组件就写在同一个文件里（`scoped` 样式 + 页内 `function`）。别为「整洁」把它们拆出去。
 
+★ 这条管的是**页内私有**的东西，**不是**「页面里什么都不许往外抽」——
+跨页面**重复**的逻辑与全仓唯一的红线实现点归 `composables/`（§3 第 7 条）。
+两者的界线是判据：**「重复」或「红线集中」才抽，「看着整齐」不抽。**
+
+**13 条路由与它们的 `meta.nav`**（`AppSidebar` 的高亮键，写路由上是因为页面组件是懒加载的）：
+
+| 路径 | `meta.nav` | 说明 |
+| --- | --- | --- |
+| `/login` | — | `meta.public`，唯一不设防的一屏 |
+| `/` | `home` | 首页 |
+| `/inspiration` | `inspiration` | 灵感广场 |
+| `/mine` | `mine` | 我的 |
+| `/vanity` · `/vanity/add` | `vanity` | 数字美妆台 / 添新宠 |
+| `/create` · `/form` · `/result` | **不写** | 开始设计那条链，一个都不亮 |
+| `/personas` · `/personas/new` · `/personas/quiz` · `/personas/:id` | `personas` | 人设库 |
+
+★ **顺序**：静态段必须排在动态段前面——`/personas/new`、`/personas/quiz` 都注册在 `/personas/:id` 之前，
+否则会被当成 `id='new'` 吃掉。
+
 ---
 
 ## 5. 共享组件与样式词汇表
 
-### 5.1 组件契约
+### 5.1 组件契约（10 个，全部纯展示）
 
-#### `Icon.vue` —— 图标（唯一一个被所有页面用的组件）
-
-```
-props:  name: String(必填)   size: Number|String = 20
-```
-`name` 取值表在文件内的 `paths` 对象里，**目前 11 个**：
-`arrowLeft` `arrowRight` `camera` `upload` `check` `swap` `sparkle` `cabinet` `user` `edit` `trash`
-
-加图标 = 往 `paths` 里加一条 `<path d="…"/>` 字符串（24×24 viewBox，`fill="none"`、描边走 `currentColor`）。
-**取一个不存在的 name 不报错，静默渲染空白**——所以改 `name` 时务必回 `paths` 核对一眼。
-
-```vue
-<Icon name="upload" :size="16" />
-```
-
-#### `PhotoUploader.vue` —— 照片上传 / 预览 / 点选+拖拽
+#### `Icon.vue` —— 图标
 
 ```
-props:  modelValue: String = ''        预览图 URL（v-model）
-        label: String = '上传照片'
-        sub: String = '点击或拖拽图片'
-        height: String = '220px'
-emits:  update:modelValue(url)   预览 URL（objectURL）
-        change(file)             真实 File ★ 提交要用的是这个
+props:  name: String(必填)   size: Number|String = 20   color: String = 'var(--color-icon)'
 ```
-内部只接受 `image/*`（非图片静默丢弃）。已有预览时**会自己 revoke 旧的 objectURL**。
+`name` 取值表在文件内的 `ICONS` 对象里，**目前 29 个**：
+`home brief bulb user wand moon palette faces search bell settings filter camera upload image
+heart more lock eye check wechat phone plus clock sparkle plane arrowLeft arrowDown arrowRight`
 
-⚠️ **它的 `modelValue` 只是预览 URL，不是数据。** 真正的 File 必须靠 `@change` 接住：
+加图标 = 往 `ICONS` 里加一条 `{ vb, d }`（`vb` 是这个图标自己的 viewBox，见下一条；描边写 `stroke="COLOR"`）。
+**两处静默失败，都必须回表核一眼**：
+- **取一个不存在的 `name` 不报错，静默渲染空白**（源站有 4 个这样的名字，见 §11-1）；
+- **`vb` 写错不报错**，只会静默放大或缩小——每个图标的 viewBox 都不一样（12/14/16/18/20/24/28/40），
+  必须逐个标对。
 
-```vue
-<PhotoUploader v-model="store.portraitUrl" @change="onFacePicked" />
-<!-- onFacePicked(file) 里做 store.portraitFile = file -->
-```
+★ `d` 里写的是占位词 `COLOR`，渲染时换成 `currentColor`，再由根上的 `style.color` 驱动。
+**不要改写成 `fill="var(--x)"`**——SVG 的 `fill`/`stroke` **属性**里吃不到 CSS 变量，
+值非法会被整个忽略，图形变成默认黑。要 CSS 变量只能走 style。
 
-#### `LoadingOverlay.vue` —— 全屏遮罩 loading
-
-```
-props:  text: String = '试色生成中…'
-```
-`position: fixed; inset: 0`，本身不含显示逻辑——**由调用方 `v-if` 控制**。
-用法：`<LoadingOverlay v-if="store.submitting" text="正在提交…" />`
-
-#### `CompareSlider.vue` —— 前后对比滑杆（结果页主角）
+#### `AppSidebar.vue` —— 全站侧栏（登录页不挂它）
 
 ```
-props:  defaultPos: Number = 50       初始分割位置(%)
-slots:  #before   顶层（被裁切的那张，一般是原图）
-        #after    底层（一般是妆容后）
-```
-自带鼠标 + 触摸事件、`原图/妆容` 角标、`aspect-ratio: 3/4` 容器。
-槽内容建议直接放 `<img>`——内部对 `:deep(img)` 做了 `object-fit: cover`。
-（✏️ 2026-09-29：原先这里举的例子是「`#after` 里放一个 `<div class="fx">` 包住 img + 色块叠加层，
-见 `pages/ResultView.vue`」——**那个例子做不到了**，结果页重写后 `#after` 里只有一张 `<img>`，
-叠加层靠的 `look.zones` 不在会话视图里（见 §7.2）。要做叠加层得先让服务端把 `look` 透出。）
-
-#### `TipBanner.vue` —— 提示条
-
-```
-props:  tips: Array = []     每项形如 { text }
-        title: String = 'AI 拍摄指导'
-```
-> ⚠️ **当前零引用**（写这份文档时查证）。要么它有主了，要么该删——`tips` 的结构也和页面里散落的
-> `sceneMsg` / `weatherNote` 提示不是一回事。**动它之前先问一句**，别默默删掉。
-
-### 5.2 样式：两条路
-
-**① 设计令牌**（`assets/styles/tokens.css`）——颜色、字体、圆角、阴影，**一律用变量，禁止写死色值**：
-
-```
---c-bg #f5f0e9   暖象牙背景        --c-ink #2a1e22      主文字（墨黑）
---c-surface #fffdfb 卡片           --c-ink-soft #6e5b62 次级文字
---c-surface-2 #efe8df 次级面板     --c-ink-faint #a6999e 弱化文字
---c-line / --c-line-strong        发丝线
---c-accent #b23a48 浆果红(主色)    --c-accent-deep / --c-accent-soft
---c-gold #c7a17a
---font-display 衬线标题   --font-body 正文   --font-mono
---radius-sm 6  --radius 10  --radius-full 999   --shadow-soft
+props:  active: String = ''      高亮谁，取值来自路由的 meta.nav
+        nickname: String = ''    账号名，由 App.vue 传进来（它自己不认识 store）
 ```
 
-**② 全局工具类**（`main.css`，页面里直接用，**不要重定义**）：
+#### `FlowTopbar.vue` —— 第二层动线页的顶栏
 
-| 类 | 用途 |
-| --- | --- |
-| `.page` | 页面容器（`max-width: 440px` 居中，竖排 padding） |
-| `.page-header` + `.back-btn` `.title` `.spacer` | 顶栏：返回按钮 + 标题 + 弹簧 |
-| `.card` + `.card-title` `.card-sub` | 卡片 |
-| `.caps` | 小号大写字母标签（`10px` + 字距），栏目 kicker 用 |
-| `.btn` + `.btn-primary` `.btn-ghost` `.btn-block` | 按钮 |
-| `.text-link` / `.tag` | 文字链接 / 小标签 |
+```
+props:  backTo: String = ''       返回目标路径；空 = 不显示返回
+        title: String
+        steps: Array = []         步骤条文案，★ 由调用方给
+        activeStep: Number = 0    ★ 1 起算；0 = 一个都不高亮
+```
+★ **步骤条每一步都由调用方给**，因为各页步数本来就不一样（源站连相邻两屏都不一致，见 §11-3）。
 
-> **⚠️ 不在全局的那几个（别照这张表去找）**：`.hint`（脚注）、`.text-input`、`.field-label`、
-> `.field-tip`（含 `.warn`）**都不在 `main.css` 里**，而是各页面 `scoped` 样式里各有一份——
-> 到 2026-09-29 为止这**四个各 3 份**（`CabinetView` / `LoginView` / `UploadView`；`.hint` 那份
-> 在 `HomeView` 而不是 `UploadView`——它那边叫 `.opt-hint`，是另一个类）。
-> （2026-09-16 记的是 `.hint`/`.text-input` 各 4 份，`ResultView` 重写时它自己那份没了。）
-> `.spacer` 同理：全局只有 `.page-header .spacer` 一条，页面里单用的 `.spacer` 是页内自己定义的。
->
-> **加新页面时不要再抄下一份**——要么先把它们提进 `main.css`（几处一起删，属小重构），
-> 要么用页内自己的类名。`AgentView` 走的是后一条：它的多行输入框叫 `.draft`、脚注叫 `.foot-note`，
-> 与那几份**形状相近但刻意不同名**——同名会让人以为它们是同一套控件。
-> **把它们提进 `main.css` 是单独一件事，别混进功能改动里做。**
+#### `LookCard.vue` —— 作品卡（首页推荐 / 灵感瀑布流 / 我的作品共用）
+
+```
+props:  item: Object(必填)     需要 { title, coverUrl, author?, likes? }
+        height: Number = 230   ★ 是**数据不是样式**：瀑布流的错落靠每张卡自己的封面高度产生
+        label: String = '妆容封面'
+```
+`coverUrl` 为空时渲染 `.ph` 占位块，不是破图。
+
+#### `PersonaAvatar.vue` —— 人设头像
+
+```
+props:  persona: Object(必填)   size: Number = 72
+```
+有照片用照片，没有则用**名字首字 + 肤色档底色**合成一个方块脸。
+★ 那个底色是 `skinToneHex`（**真人肤色档**），不是装饰色——别为了好看换成品牌粉。
+类名固定 `persona-card__avatar`，被首页预览卡（64）/ 人设卡（72）/ 表单页人设条（44）复用。
+
+#### `SkinTonePicker.vue` —— 肤色档单选（8 档）
+
+```
+props:  tones: Array = []       来自 kb/skintones.js
+        modelValue: String = '' v-model，选中档 id；空 = 未选
+```
+★ 提示语「照片难免有色差，AI 给的是建议档」是**产品要求**：这里的值永远由**用户确认**，
+不能把 `personas.analyze()` 的返回值当判定结果直接存（红线 §8-1）。
+
+#### `FeaturePicker.vue` —— 面部特征多选（按分组铺）
+
+```
+props:  groups / features / modelValue（v-model 绑的是**选中的特征 id 数组**）
+```
+用在两处（问卷建档 / 详情改档），两处的数据都来自同一份 `kb/features.js`——别在页面里再抄一份标签。
+
+#### `ErrorNote.vue` —— 错误提示条
+
+```
+props:  text: String = ''   空串 = 整块不渲染（不是渲染一个空框）
+```
+★ 文案就是后端 `message` 的**原文**。前端**不按 `error.code` 分支**、不写自己的映射表。
+
+#### `EmptyState.vue` —— 空状态
+
+```
+props:  text: String = '暂无内容'
+```
+★ **文案由调用方给**——不同列表的空态说法不一样（`/mine` 三个 Tab 各一句），别在这里写通用兜底。
+
+#### `BrandMark.vue` —— 品牌标识：五瓣桃花
+
+```
+props:  size = 32   color = 'var(--color-peach)'   center = 'var(--color-rose)'
+```
+
+### 5.2 样式：四份 CSS + 设计令牌
+
+`main.js` 里的引入顺序**有讲究，别调换**：
+
+```
+tokens（下面三份都吃它的变量）→ base（骨架/侧栏/通用类）→ pages（第一层页面）→ flow（第二层动线页）
+```
+后两份的选择器更具体，顺序反了会被 `base` 压掉。
+
+**① 设计令牌**（`assets/styles/tokens.css`）——颜色、字体、圆角、阴影，**一律用变量，禁止写死色值**。
+桃妆的色系叫**桃枝粉**：`--color-peach` / `--color-rose` 为主，另有 `--color-green` / `--color-aqua` 两个辅色。
+（早先那份「暖象牙 + 浆果红」的 `--c-*` 令牌**已随旧前端一起删除**——看到 `--c-accent` 这类名字一定是过期的。）
+
+**② 共用类**（`base.css`）：`.btn`(`--primary` / `--soft` / `--danger` / `--brand` / `--done`)、
+`.tag`、`.ph`（占位块）、`.field`、`.topbar`、`.content`、`.icon-btn`、`.checkbox`、以及侧栏那一套 `.side-*`。
+
+**③ 页面专属样式**写在 `pages.css` / `flow.css`，或页面自己的 `<style scoped>` 里。
+`.ph` 占位块是这套设计里的重要一环：**桃妆所有还没图的地方都渲染 `.ph` 而不是破图**（§8-4）。
 
 ---
 
-## 6. 双轨（mock）规则 —— 最容易改坏的地方
+## 6. 数据来源与惰性引入规则
 
-### 6.1 `api/use-mock.js` 为什么单独一个文件
+### 6.1 三档数据（见 §1）在代码里的判别法
+
+看见一个 `api/*.js` 函数，先问「它背后有没有 HTTP 路由」，答案在 §7.1 那张表里对。
+**没有路由的那几档，函数里不该出现 `axios`、`useMock()`、`import('./mock')` 任何一个**
+——出现了就是把本地推导写成了假后端，本仓最怕的那种。
+
+### 6.2 `api/vanity.js` 是全仓最容易读错的一个文件
+
+它**一半接后端、一半本地**，两边必须在脑子里分开：
+
+| 部分 | 来源 | 代表函数 |
+| --- | --- | --- |
+| 产品目录 / 分类树 / 色号库 / 产品性质 | **本地 `kb/`**（后端没有这些端点） | `fetchVanityTree` `fetchCategoryProducts` `fetchCatalogProducts` `fetchShades` `fetchProductInfo` |
+| 「我拥有什么」（我的化妆包） | **真后端 `/cabinet/items`** | `fetchBag` `addProducts` `addShade` `removeShade` `removeProduct` |
+
+**化妆包怎么落到那四条端点上**（改这个文件之前必须读这段）：
+
+后端那条端点的模型是 `{ name, attributes: [{label, value}] }`，而 **`attributes` 单条值 ≤ 40 字符**。
+所以**不能**把「我有的色号」拼成一条特性——小金条有 14 个色号，拼起来 50 多字，**一提交就 422，
+而界面上看起来一切正常**（正是本仓的「假开关」类型）。于是按**色号粒度**落库，一件产品占若干行：
+
+- 「整件」行 —— `attributes = [{label:'产品', value:<pid>}]`
+- 「色号」行 —— `attributes = [{label:'产品', value:<pid>}, {label:'色号', value:<code>}]`
+
+一件产品**恒有且只有一条「整件」行**——它是「这件在包里」的唯一凭据，所以丢掉最后一个色号时
+产品仍留在包里。`ATTR_PRODUCT = '产品'` / `ATTR_SHADE = '色号'` 这两个字面值是本地与后端的**唯一**约定，
+改名等于让已有数据读不出来。
+
+⚠️ **已知代价，别当成 bug**：后端单用户上限 100 件（`MAX_ITEMS_PER_USER`），而这里一件 + N 色号 = N+1 行。
+收录十几支口红的全部色号就会撞上限，后端回 `CABINET_FULL`(409) 并给人话 message，前端原样展示即可。
+
+### 6.3 惰性引入（`api/use-mock.js` 为什么单独一个文件）
 
 它**只是一个环境变量判断**，但它在**首屏链**上（`router 守卫 → stores/user → api`）。
-如果它住在 `mock.js` 里，那几十 KB 的假后端会被打进首屏包（实测 **+24 kB gzip**），
-真实后端模式下白下载。所以：
+如果它住在 `mock.js` 里，那几十 KB 的假后端会被打进首屏包，真实后端模式下白下载。所以：
 
 > **任何 `api/*.js` 里的 mock 分支，必须写成 `await import('./mock')` 惰性引入。禁止静态 `import`。**
 > 同理，`stores/user.js` 里 `@/api/users` 也是惰性引入的（否则 axios 被拽进首屏）。
-> ★ **同一根绳子的另一头**：`stores/agent.js` 也**不许静态 `import '@/api/agent'`**——
-> `stores/user.js` 会静态引 agent store 来做 `logout()` 清理，而 `user.js` 在首屏链上。
-> 它照 `user.js` 引 `@/api/users` 的先例，在 `agentApi()` 里惰性引。反过来它**也不许引
-> `stores/user.js`**（成环），所以 `userId` 一律由页面逐次传进去。
-> ⚠️ **这条没有任何工具能查出来**（本目录零 lint、零测试）：`npm run build` 的产物里
-> `index-*.js` 与 `api-*.js` 是**两个分块**（axios 不在首屏那块）就是它还活着的证据；
-> 哪天它们并成一块了，就是有人写成了静态 `import`。
+> ★ **同一根绳子的另一头**：`api/vanity.js` 里那条 `function cabinet() { return import('./cabinet') }`
+> 也**不许**写成文件顶部的静态 import —— `stores/vanity.js` 在首屏链上静态引 `api/vanity`，
+> 静态引 `./cabinet` 就等于把 axios 拽进首屏包（它只在「我的化妆包」那一屏才用得上）。
 
-### 6.2 场合判定的**唯一源**
+⚠️ **这条没有任何工具能查出来**（本目录零 lint、零测试）。判别方法——`npm run build` 之后：
 
-`server/src/modules/shared/domain/scene-rules.ts` 是**本项目唯一跨端共享资产**。
-前端经 Vite alias `@scene-rules` **直接执行后端那个源文件**——浏览器 mock 模式与真实后端
-必须给出同一个判定，各抄一份会静默漂移。
-
-> ✏️ **2026-09-29：前端现在一处都不引它了。** 唯一的调用点是 `api/mock.js` 那条假任务流水线
-> （`describeScene(brief)`），随 `jobs` 一起删了；`ENGINE_SPECS` / `TONE_MIX` 那两份**知情拷贝**
-> 也一并没了。alias 与 `server.fs.allow` **都还配着**，服务端那条读 `vite.config.js` 的测试也还在
-> ——**下面两条规矩照旧生效**，前端再引它的时候自动重新有用。别看到"没人引"就去删 alias。
-
-**因此有两条硬规矩：**
-
-1. **绝对不要在前端再抄一份关键词表 / 中文名 / 方向 / 标签。**
-   历史上抄过一回，结果是一边改了另一边静默漂移——这正是这个单一源存在的理由。
-   前端要中文名就取 `SCENE_RULES[label].cn`，要判定就叫 `describeScene()`。
-2. **`scene-rules.ts` 里禁止任何运行时 `import` / 顶层副作用**（只允许 `import type`，编译期会被擦除）。
-   往里加一句 `import fs from 'node:fs'`，前端构建会以很难懂的方式炸掉。
-   `server/test/scene-rules.test.ts` 有正则扫源码钉着这条。
-
-### 6.3 其他 mock 规矩
-
-- ★ **`api/agent.js` 是全项目唯一没有 mock 分支的 api 模块——这是有意的，不是漏的。**
-  对话的状态在服务端一个真实的 `messages[]` 上，而「确认出图」是一条**真的会花钱**的 HTTP 路由；
-  在浏览器里复刻一份，复刻出来的既不是那条路由、也不检验那条循环，只会让"看起来能用"与
-  "真的能用"分不清。所以 `VITE_USE_MOCK=true` 时**页面明确显示「对话功能需要真实后端」**，
-  不给假对话（`AgentView.vue` 顶部那道 `isMock` 判断）。**别为了"统一"给它补一个 mock。**
-- `api/mock.js` 返回的对象必须与真实 HTTP 响应的**形状逐字段一致**（`UserView` / `CosmeticItemView`）。
-- 演示模式**不校验密码**——没有后端就没有 scrypt 表。它刻意不存明文密码、也不做假校验。
-- 演示模式的衣橱存 `localStorage`（键 `beauty-app.mock-cabinet`），复刻「刷新后还在」的行为。
-- ✏️ **2026-09-29：`api/mock.js` 只剩账号与衣橱两块。** 假任务流水线（`mockCreateJob` / `mockGetJob`
-  / `STEP_AT` 时间轴 / 场合判定 / 色板 / 参考图那几组）**整段删了**——表单那条路已改走 agent 会话链，
-  而那条链**刻意没有 mock**(见上一条)。
-  ⚠️ 所以 `VITE_USE_MOCK=true` 时**出图那条链明确不可用**(上传页的提交按钮禁用、结果页如实报错)，
-  **不再有假结果可回放**。别为了"离线也能演示"把那条假流水线加回来。
+```bash
+cd vue && npm run build
+grep -l AxiosError dist/assets/*.js    # 期望：只列出 index-*.js 之外的某个分块
+```
+（`grep -c` 在 0 命中时**退出码是 1**，所以列文件名比数个数好用——数个数那条看起来像报错，其实是你要的结果。）
+axios 应该待在**另一个分块**里。2026-09-30 那次构建的实测结果：
+`index-Ci_tvZyZ.js` 142.37 kB（axios 命中 **0** 次）、`use-mock-D0sEYzJ8.js` 50.37 kB（axios 在里面）、
+`mock-9P8snK9u.js` 单独的假后端分块。
+★ 分块名叫 `use-mock-*` 而不是旧文档写的 `api-*`，是 rollup 给这个动态组挑的名字——**别按名字找，
+按「axios 在不在 `index-*` 里」判断**。哪天它出现在 `index-*` 里了，就是有人写成了静态 `import`。
 
 ### 6.4 ⚠️ 构建过 ≠ dev 过
 
-跨根引用（`@scene-rules` 指向 `../server/`）**只在 dev 才暴露问题**——
-`vite.config.js` 里专门配了 `server.fs.allow: ['..']`（本项目根目录没有 `package.json`，
-dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs.allow`，
-**必须 `npm run dev` 实开一次**，`npm run build` 通过说明不了任何事。
-（✏️ 2026-09-29 起前端没有活着的 `@scene-rules` 调用点，所以这条风险暂时压在"配置还在"上
+`vite.config.js` 里配了 `server.fs.allow: ['..']`（项目根目录没有 `package.json`，
+dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
+**动了 alias 或 `fs.allow`，必须 `npm run dev` 实开一次**，`npm run build` 通过说明不了任何事。
+（2026-09-30 起前端没有活着的 `@scene-rules` 调用点，所以这条风险暂时压在「配置还在」上
 ——alias 一删就立刻重新成立。）
 
 ---
 
 ## 7. 后端契约
 
-> **类型唯一真源在 `server/src/modules/*/domain/api/*.ts`。**
+> **类型唯一真源在 `server/src/modules/*/domain/schemas/api/*.ts`。**
 > 本节是给前端看的转述；两边对不上时，**以后端那个 `.ts` 为准**，并回来改这一节。
 
-### 7.1 端点总表（全部挂 `/api`）
+### 7.1 端点总表 —— 后端有 16 条，桃妆只用 6 条
 
-> ✏️ **2026-09-29：`/jobs` 那三个端点整段删掉了**（模块已删）。**出图现在只有一条路**——
-> 下面 `/agent/sessions/*` 那几行。上传页(`/upload`)提交之后走的就是它，不再有"表单流水线"。
+> ★★ **先看这张对照表再动手。** 「后端有这个端点」不等于「前端在用它」：
+>
+> | 模块 | 路由数 | 桃妆用了几条 |
+> | --- | --- | --- |
+> | `user` | 3 | **2**（`POST /users` · `POST /users/login`）——`GET /users/:id` 无人调用 |
+> | `cabinet` | 4 | **4**（全部） |
+> | `agent` | 8 | **0** —— 那 8 条是「对话定妆」，桃妆没有那条动线（见 §1 末） |
+> | `weather` | 1 | **0** —— 桃妆没有天气那一栏 |
+> | `GET /health` | 1 | 0（部署探活用） |
+>
+> 这 10 条没被调用的路由**不是给人的菜单**：它们属于被替换掉的那个前端，
+> 或者属于还没接上的能力。**别为了让某屏"看起来更真"随手接一条上去。**
 
-| 方法 & 路径 | 请求 | 成功响应 |
-| --- | --- | --- |
-| `GET /weather` | `?city=北京` 或 `?lat=&lon=` | **200** `WeatherView` |
-| `POST /users` | `{ nickname, password }` | **201** `UserView` |
-| `POST /users/login` | `{ nickname, password }` | **200** `UserView`；不符 **401** |
-| `GET /users/:id` | — | **200** `UserView` |
-| `POST /cabinet/items` | `{ userId, name, attributes? }` | **201** `CosmeticItemView` |
-| `GET /cabinet/items?userId=` | — | **200** `{ items: [...] }` |
-| `PATCH /cabinet/items/:id` | `{ userId, name?, attributes? }`（二者至少给一个） | **200** `CosmeticItemView` |
-| `DELETE /cabinet/items/:id?userId=` | — | **204** 无响应体 |
-| `POST /agent/sessions` | `{ userId, occasion?, sceneText?, skinType?, skinTone?, dress?, weather? }` —— ✏️ 2026-09-29 起**可以随请求带一份初始 brief**（表单提交那条路要用）。★ **简报字段是平铺的，不是嵌一个 `brief` 键**（服务端把 `shared` 的 `briefFields` 展开，`weather` 是它自己的可选成员），多一个键就 422。不带 brief 的调用与新增之前逐字相同 | **201** `AgentSessionView`（新会话里**一条消息都没有**）。★ 用户不存在 → **404**（服务端 2026-09-16 起校验），`stores/agent.js` 不特判、如实报错——它意味着**这台浏览器存着的登录在服务端已查无此人** |
-| `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView`；会话不在 / 不属于你 → **404**（不区分，免得能被枚举） |
-| `POST /agent/sessions/:id/messages` | `{ userId, text }`（≤1000 字） | **200** `AgentTurnView`（含 `stopReason` + `events`） |
-| `POST /agent/sessions/:id/photo` | multipart：`face`(1 张，字段名就是 `face`)、`userId` | **200** `AgentSessionView` |
-| `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView`；★ **会花钱的端点之一**（另一条是 `POST /agent/sessions/:id/analyses`）。✏️ 2026-09-16 起它有**两个入口**（模型提的 `pendingRender` / 界面自己摆的 `renderOffer`），**前端不必区分**，请求体逐字相同。**422** 有四个真实原因：①没有妆面 ②没有照片 ③上一轮欠着的**不是**出图请求 ④✏️同一个会话**正在出图**时又点了一次（服务端的进程内锁）|
-| `GET /agent/sessions/:id/renders/:seq?userId=` | — | **200** 图片字节流（`renders[].url` 指向它） |
-| `POST /agent/sessions/:id/images` | multipart：`file`(1 张，**字段名就是 `file`**)、`kind`(`style`/`scene`)、`userId` | **200** `AgentSessionView`。**只收图，不分析**（免费）。✏️ 2026-09-29 新增 |
-| `POST /agent/sessions/:id/analyses` | `{ userId, kind }`，`kind`(`face`/`scene`/`style`) | **200** `{ session, kind, status, notice? }`；★ **会花钱的端点之一**（要用户点一次）。**只收「哪一张」**，不收任何分析参数。✏️ 2026-09-29 新增 |
-| ⚠️ 上面两条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404。** 「关掉」表现为**入口不存在**，不是「收了图什么都不发生」 |
-| `GET /health` | — | **200** `{ ok, name, uptimeSec, now }` |
+| 方法 & 路径 | 请求 | 成功响应 | 桃妆 |
+| --- | --- | --- | --- |
+| `POST /users` | `{ nickname, password }` | **201** `UserView` | ✅ 注册 |
+| `POST /users/login` | `{ nickname, password }` | **200** `UserView`；不符 **401** | ✅ 登录 |
+| `GET /users/:id` | — | **200** `UserView` | — |
+| `POST /cabinet/items` | `{ userId, name, attributes? }` | **201** `CosmeticItemView` | ✅ |
+| `GET /cabinet/items?userId=` | — | **200** `{ items: [...] }` | ✅ |
+| `PATCH /cabinet/items/:id` | `{ userId, name?, attributes? }`（二者至少给一个） | **200** `CosmeticItemView` | ✅ |
+| `DELETE /cabinet/items/:id?userId=` | — | **204** 无响应体 | ✅ |
+| `POST /agent/sessions` | `{ userId, ...brief 平铺 }` | **201** `AgentSessionView` | — |
+| `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView` | — |
+| `POST /agent/sessions/:id/messages` | `{ userId, text }` | **200** `AgentTurnView` | — |
+| `POST /agent/sessions/:id/photo` | multipart：`face` + `userId` | **200** `AgentSessionView` | — |
+| `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView` ★ **会花钱** | — |
+| `GET /agent/sessions/:id/renders/:seq?userId=` | — | 图片字节流 | — |
+| `POST /agent/sessions/:id/images` | multipart：`file` + `kind` + `userId` | **200** `AgentSessionView` | — |
+| `POST /agent/sessions/:id/analyses` | `{ userId, kind }` | **200** `{ session, kind, status }` ★ **会花钱** | — |
+| ⚠️ 上面两条 | **服务端配 `VISION_ANALYZER=off`（缺省）时根本不注册 → 404** | | — |
+| `GET /weather` | `?city=` 或 `?lat=&lon=` | **200** `WeatherView` | — |
 
 ### 7.2 DTO 形状（JS 视角）
 
 ```js
-// ✏️ 2026-09-29：`JobView` 与 `look` 两块随 `jobs` 一起删掉了。
-//   结果页现在读的是下面那份 `AgentSessionView`。⚠️ 它**没有** `look.zones`/`look.palette`
-//   ——所以「本人照片 + 色块叠加」的模拟上妆预览**今天做不出来**（要它回来，得先让服务端
-//   把 `look` 透出到会话视图，见 `server/src/modules/makeup/domain/entities/look.ts` 文件头）。
-
-// UserView（★ 永不含密码/凭据）        { id, nickname, createdAt }
-// CosmeticItemView                    { id, userId, name, attributes:[{label,value}], createdAt, updatedAt? }
-// WeatherView                         { condition?, temperatureC?, humidityPct?, uvIndex?, place?, source }
-
-// AgentSessionView —— 开会话 / 取会话 / 传照片都回这一个（对话页那一屏的权威状态）
-{
-  sessionId, userId,
-  brief: { sceneText?, occasion?, skinType?, skinTone?, dress?, weather? },
-  lookSpec?, lookDescription?,          // 妆面单 + describeLook() 那句人话 ★ 原样展示，别自己再拼
-  hasFace: false,                       // ★ 只给布尔：不给路径、不给字节
-  renders: [{ seq, url, lookDescription, createdAt }],   // url 形如 '/agent/sessions/<id>/renders/<seq>'
-  consultedProducts: [{ id, name, categoryLabel }],   // ★ 恒在的数组（空就是 []）；模型读过资料的产品，按首次读到的顺序
-  pendingRender?: { toolUseId, summary },// ★ 有动作在等你点确认时才有（summary 同上，原样展示）
-  renderOffer?: {                        // ✏️ 2026-09-16 新增：界面自己摆的那条出图消息
-    summary,                             //   妆面+照片齐、没有待确认时才出现；summary 同上，原样展示
-    alreadyRendered: boolean             //   最后出的那套就是当前这套 ⇒ 按钮改口叫「再生成一张」
-  },
-  createdAt, updatedAt
-}
-// ★ pendingRender 与 renderOffer **互斥**（服务端保证）：页面上的出图入口只该有一个。
-//   两个按钮指向同一次花钱的话，其中一个必然 422。
-
-// AgentTurnView = 上面那一份 + 本轮这两项（只有 /messages 与 /render 回它，GET 会话**不回**）
-{
-  ...AgentSessionView,
-  stopReason: 'end_turn'|'awaiting_confirmation'|'max_iterations'|'max_tokens'|'refusal'|'llm_unavailable'|'timeout',
-  events: [{ type:'text_delta', text }
-         | { type:'tool_start', toolUseId, name }
-         | { type:'tool_end', toolUseId, name, isError }
-         | { type:'tool_pending', toolUseId, name, summary }
-         | { type:'turn_end', reason, iterations }]
-}
+// UserView（★ 永不含密码/凭据）   { id, nickname, createdAt }
+// CosmeticItemView               { id, userId, name, attributes:[{label,value}], createdAt, updatedAt? }
 ```
 
-**对话契约里前端必须记住的几条：**
+**桃妆只碰这两个形状。** 另外几条（`AgentSessionView` / `AgentTurnView` / `WeatherView`）今天没有任何
+调用点——**接 `agent` 那条链之前，先把它的契约从后端那份 `.ts` 重新读一遍**，别照 §7.1 的表格推。
 
-- ★ **`stopReason` 里只有 `awaiting_confirmation` 是"轮到你了"**，其余六种**都是收束，不是错误**：
-  服务端已经往历史里补了一句人话，那句会**作为助手正文**出现在 `events` 的 `text_delta` 里。
-  **不要再叠一个红色报错**——那是同一件事说两遍。只有**网络 / HTTP 层失败**才该显示错误行。
-  ★ **六种全都补，一个例外都没有**（`refusal` 也从 2026-09-16 起补了：只在模型一个字都没给时补，
-  它自己解释了为什么拒答就不补——那句话就是回答）。**前端不许再自己兜一句**：
-  先前那段 `closingNote` 已删除，留着的话服务端补完前端再补，就是**同一件事说两遍**。
-- ★ **一轮的 `events[]` 是一次性给的**（还不是 SSE）。`text_delta` 每轮**只有一条、内容是整段**；
-  `tool_start` / `tool_end` 拿到时**早就跑完了**。**别把它们演成"正在进行"**——那是假进度。
-- ★ **确认出图是一条独立路由**（`POST …/render`），而**它在屏幕上表现为对话里的一条消息**。
-  ✏️ 2026-09-16 起那条消息**由界面按状态自己摆**（`renderOffer`，不是模型说的话），
-  用户**点一下就出图**——所以它**不是** assistant 气泡，样式上必须一眼看得出是界面自己的话
-  （见 §11 第一条）。
-- ★ **这条路不传任何出图参数**：要出的就是屏幕上那一套，那一套已经在会话里了。
-  **422** 有三个原因（缺妆面 / 缺照片 / 上一轮欠着的不是出图请求）**外加并发连点**（✏️ 服务端锁），
-  message 本身就是人话 → 重新 `GET` 一次会话视图即可（**不按 code 分支**，见 §7.3）。
-- ★ **待确认时用户发任何一句话，那一轮会被按 `declined` 自动了结**。所以「先不出图」的规矩还在
-  （不发那条请求就什么都没发生），只是 ✏️ **实现变了**：以前靠 `stores/agent.js` 的 `DECLINE_TEXT`
-  专门发一条消息，现在界面上**根本没有「先不出图」这个按钮**——用户继续说自己想说的，那条欠账
-  自己就按 `declined` 了结。（`DECLINE_TEXT` 与 `declineRender` 已随之删除。）
-  ⚠️ **那条消息不许藏起来**：藏起来的话服务端那条欠账还挂着，刷新后它会**又冒出来**。
-- ★ **刷新恢复的只有服务端有的那部分**（妆面 / 有没有照片 / 已出的图 / 待确认那条或界面摆的那条 / 参考过的产品）。
-  **聊天原文服务端刻意不给**（不透出 `messages[]`）⇒ **不回放、也别偷着塞 localStorage**（§8）。页面要**如实说**。
-- ★ **`consultedProducts` 是"读过"的集合，不是"推荐了"的清单。** 模型可能读了 6 条只推 2 条，
-  所以页面上的措辞只能是「**这次参考了**这几支」，**不能说成"为你推荐了这几支"**——那是替模型说话。
-  ★ **角标「品牌参考」由前端写死，不由模型生成**（红线 §8-5）：模型那次怎么措辞不能决定它出不出现。
-  **只有真收了钱才该写「赞助」**——少标一个字只是不够显眼，多标一个字是**虚假披露**。
-- ★★ **这块是"用户开口了才有"的：卡里出现东西，就说明用户这一轮问了产品（或答应了模型那一句）。**
-  产品推荐**不是妆容做完的收尾动作**——触发条件钉在提示词和两个工具的描述里（后端 `v4`）。
-  所以**用户没开口时这块不该出现**，前端**也不许**为了"内容更饱满"去引导用户问、
-  或者在 `consultedProducts` 为空时补一句推荐文案（那就是 §8-5 说的「硬贴」）。
-  ⚠️ 注意"模型问一句要不要推荐"是**允许**的（后端明确可以挑话头），
-  但那句话是**气泡里的正文**，**不是这块卡片**——**问 ≠ 读**，卡片只跟"读过"走。
-- ★ **这几条请求必须单独给 `timeout`（`api/agent.js` 的 `AGENT_TIMEOUT_MS`，90 秒 > 实例缺省的 30 秒）**：
-  服务端单轮墙钟预算是 60 秒，而**掐掉 `render` 请求退不了钱**——图已经出了，前端却只能报"失败"。
-  宁可多等，不可错报。
-- `renders[].url` 是**路径式**的，要补 `API_BASE` **再补 `?userId=`**（取图靠查询串判归属）——
-  用 `api/agent.js` 的 `renderImageHref()`，别自己拼。
-- **`VITE_USE_MOCK=true` 时这条链路整个不可用**（它是唯一没有 mock 分支的模块）。页面要**明确说**，
-  不给假对话。理由写在 `api/agent.js` 文件头。
+★ **字段名对不上是 `api/users.js` 的全部要点**：桃妆登录页收的是「桃妆 ID」，
+后端那个字段叫 `nickname`。两边是**同一个东西的两个名字**，映射**只写在这一处**——
+换名字改这里，不要去改后端的 schema，也不要在 store 或页面里各拼一次。
+后端对 `nickname` 的约束是 2–32 字（太短/太长会 422，message 已是人话）。
 
-**几个前端必须记住的细节：**
-
-- ✏️ **2026-09-29：没有 `resultUrl` 了，只有 `renders[].url`。** 成品图一律经
-  `renderImageHref(url, userId)`（`api/makeup.js` 转出，实现在 `api/agent.js`）——它补
-  `API_BASE` **再补 `?userId=`**（取图靠查询串判归属），别自己拼。
-  结果页的「前后对比」= 本人照片(`store.portraitUrl`) vs `renders` 里最后一张。
-- **`WeatherView` 只有 4 个字段能进 `brief.weather`**：`condition`/`temperatureC`/`humidityPct`/`uvIndex`。
-  `place` 和 `source` 是**回显元信息，不进 meta**——后端 weather schema 是 `.strict()`，多一个键就 422。
-  `source` 要**原样透传给 UI**（`'open-meteo'` = 实时 / `'mock'` = 离线示意），别在前端猜来源。
-- **`meta` 只放有值的字段**。`stores/makeup.js` 的 `brief` computed 已经这么做了（空字符串不塞、天气全空就整块省掉）。
-  省掉 `weather` 是**合法契约**，不是绕过。
-- `attributes` 最多 12 条、标签去重；名称 ≤40 字；单用户衣橱上限 100 件。
+`attributes` 最多 12 条、标签去重；名称 ≤40 字；**单条特性值 ≤40 字符**；单用户上限 100 件（§6.2）。
 
 ### 7.3 错误体与错误码
 
-统一 `{ error: { code, message, details? } }`。`api/index.js` 已把它解包成 `Error.message`（取里层 `message`）。
+统一 `{ error: { code, message, details? } }`。`api/index.js` 已把它解包成 `Error.message`。
 
 | 错误码 | HTTP | 前端该怎么办 |
 | --- | --- | --- |
-| `LOCATION_REQUIRED` / `CITY_NOT_FOUND` | 422 / 404 | 天气**失败说明**，不阻塞提交 |
-| `WEATHER_UNAVAILABLE` | 502 | 同上——`clearWeather()` 后整块省掉，**没有手动预设可回落** |
-| `USER_NOT_FOUND` | 404 | 账号没了（开会话时也回它——**这台浏览器存着的登录在服务端查无此人**） |
-| `SESSION_NOT_FOUND` | 404 | 会话不在 / **不属于你**（共用，别去区分）。回上传页重开 |
-| `RENDER_NOT_FOUND` | 404 | 会话是我的，但我没有这个序号的图 |
+| `USER_NOT_FOUND` | 404 | 账号没了（**这台浏览器存着的登录在服务端查无此人**） |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 「不存在」与「不属于你」**共用**，别去区分 |
-| `CABINET_FULL` | 409 | 衣橱满了 |
+| `CABINET_FULL` | 409 | 化妆包满了（§6.2 那个 100 行的代价） |
 | `NICKNAME_TAKEN` | 409 | 昵称占用 |
-| `INVALID_CREDENTIALS` | 401 | 昵称或密码错，**不泄露账号是否存在** |
+| `INVALID_CREDENTIALS` | 401 | ID 或密码错，**不泄露账号是否存在** |
 | `VALIDATION_ERROR` | 422 | 请求体非法 / 枚举越界 / 多给了一个键（`.strict()`） |
-| `INTERNAL_ERROR` | 500 | 引擎输出不过关等 |
+| `INTERNAL_ERROR` | 500 | 服务端内部错误 |
 
-> ✏️ 2026-09-29：删掉了 `JOB_NOT_FOUND` / `JOB_NOT_READY` / `JOB_FAILED` / `FACE_REQUIRED` /
-> `CONTEXT_REQUIRED` / `SCENES_MAX_EXCEEDED` 六行——**服务端连同它们一起删了**（抛出点全在
-> `jobs` 里，留着的是"一份还带 HTTP 状态码的空声明"）。
-> ★ `POST …/render` 的 **422 不是靠 code 认的**：它那几个真实原因（没妆面 / 没照片 /
-> 上一轮欠着的不是出图请求 / 并发连点）**共用 `VALIDATION_ERROR`**，message 本身就是人话
-> ⇒ 重新 `GET` 一次会话视图即可（正是下面那条规矩的用法）。
-
-**前端不按 code 分支**。现有代码一律只展示 `message`——后端给的 message 已经是准确的中文。
-除非你要做**特定 code 的特殊动线**（目前没有），否则别引入 code→文案的映射表，那会和后端文案漂移。
+**前端不按 code 分支。** 现有代码一律只展示 `message`——后端给的 message 已经是准确的中文
+（如「昵称已被占用」）。除非你要做**特定 code 的特殊动线**（目前没有），否则别引入 code→文案的映射表。
 
 ### 7.4 联调
 
@@ -562,58 +568,77 @@ dev server 默认只放行 `vue/`）。动了 `vite.config.js` 的 alias 或 `fs
 cd vue && npm run dev          # :5173，/api 已代理到 :3000
 # 另一个终端：cd server && npm run dev
 ```
-前端默认 mock（`VITE_USE_MOCK` 未设为 `false`），**不创建 `.env` 也能跑通全流程**。
+**不创建 `.env` 也能跑通全流程**（默认 mock，见 §8-7）——但那只覆盖 A 档的账号与化妆包。
+桃妆的 B、C 两档（设计链、人设库、首页内容）**根本不经过网络**，起不起后端都一样。
 
 ---
 
 ## 8. 红线（前端视角：代码里不能出现什么）
 
-> 上游是 `docs/plan/roadmap.md` §13。这里只做**可执行的转述**——每条都告诉你代码里长什么样。
+> 上游是 `docs/plan/roadmap.md` §13。这里只做**可执行的转述**。
 > ✏️ 2026-09-29：那份 plan **已冻结**（见文件头），**这一节才是你要照着做的那份**。
+> ✏️ 2026-09-30：第 3 条按桃妆的新口径重写过（**与旧版相反**），第 4 条是搬迁后新增的。
 
 1. **不默认浅肤色审美。**
-   `stores/makeup.js` 的 `skinTone` 默认 `olive`——**不许改成 `light`**，不许出现 `skinTone || 'light'` 这种兜底。
-   色卡 `SKIN_TONE_OPTIONS[].swatch` 是真实肤底色，不许调成「更白更好看」。
-   文案里**不出现「显白」**——用户写了也不迎合（后端有测试钉着这条）。
+   肤色档**没有默认值**——`SkinTonePicker` 的 `modelValue` 空着就是「未选」，
+   页面不许出现 `skin || 'yellow-1'` 这种兜底。
+   色卡 `SKIN_TONES[].hex` 是真实肤底色，**不许调成「更白更好看」**。
+   文案里**不出现「显白」**（⚠️ 今天有两处存量违反，见 §11-4，别照抄那两处的语气写新文案）。
+   ★ **照片分析只给「建议档」，最终档位由用户确认**——`personas.analyze()` 的结果不能直接落档。
 
 2. **密码只在请求体里出现一次。**
    不进 store、不进 `localStorage`、不进日志、不进 URL。
-   `stores/user.js` 只持久化 `{ id, nickname }` 两个公开字段（键 `beauty-app.user`），多出来的键一律丢弃。
+   `stores/user.js` 只持久化 `{ id, nickname }` 两个公开字段（键 `beauty-app.user`），**多出来的键一律丢弃**
+   （`readStored()` 那道类型检查就是干这个的）。
    `api/users.js` 拿到 `UserView` 后**没有任何凭证可存**——后端不签发 token、不建会话。
 
-3. **照片即用即删，身份边界就是现场照片的边界。**
-   `logout()` **必须**同时调 `useMakeupStore().reset()` 与 `useAgentStore().reset()`——不靠人记得手动清。
-   （对话那边更要紧：agent store 里的 `sessionId` 指向服务端一份**存着本人照片**的会话，
-   它还被写进 `localStorage`（刷新后接回用，键 `beauty-app.agent-session`，只是个不透明 id）。
-   ★ **那条 id 是唯一允许落盘的对话痕迹，会话内容一律不许落盘**——见下面第 7 条。）
-   任何 `URL.createObjectURL()` 都要有对应的 `revokeObjectURL()`（`stores/makeup.js` 的 `revoke()` 已封装，
-   加新的预览 URL 时记得接上；`reset()` 里也要收。`stores/agent.js` 的 `facePreviewUrl` 就是照它做的）。
+3. ★★ **照片：桃妆的口径与旧版前端**不同**，别照旧文档改。**
+   旧前端写的是「本人照片即用即删、一律不落盘」。**人设库那条故意不是这样**——它的功能就是
+   「把一张脸存下来反复用」。所以今天的规矩是**分两类**：
+   - **人设库的照片**：以 dataURL 存进 `localStorage`，键 `tz:personas:<userId>`
+     （★ **按账号隔离**：共用电脑上「A 退出、B 登录」之后 B 不该看到 A 的脸）。
+     **但绝不经任何网络、绝不上传**——`api/personas.js` 里没有一行 HTTP。
+   - **其余任何预览图**（如 `FormView` 的信息图上传）：走 `URL.createObjectURL`，
+     **每次都要有对应的 `revokeObjectURL()`**——移除时收一份，`onBeforeUnmount` 收剩下的。
+     没接上就是每选一张图漏一份内存，而且 blob URL 会把文件一直钉在内存里。
+   - ★ 存进去之前**必须先缩图**（`shrinkPhoto`，长边 ≤640 / q0.82，典型 40–90 KB）。
+     手机照片转 base64 常有 3–6 MB，而 localStorage 配额通常只有 5 MB——
+     第一张就可能 `QuotaExceededError`，而且它**不抛到界面上**：建档"成功"、刷新后人没了。
+     三道防线一道都不能省：缩图 → `writePersonas()` **不吞异常** → 种子人设的照片走
+     `public/` 下的静态 SVG（不进配额）。
 
-4. **天气不编造。**
-   拉不到就**整个省掉 `weather`**，不许有「手动预设天气」的回落路（曾经有过，已删）。
-   mock 模式回的那份样例值**必须带 `source: 'mock'`**，且 UI 要标「离线示意——不是实况」。
+4. ★★ **不许把「本地算出来的 / 策展来的」讲成「真的」。**（这是本仓头号 bug 类型：假开关）
+   配置错/缺失但照跑、返回 200、日志干净，**只有结果是错的**。桃妆的四个具体形状：
+   - **`api/design.js`** 的整套方案是本地推导，**后端没有 `/design/*`**。
+     所以：结果页**不许**写「AI 正在为你编排妆容步骤」这类等待/进行中的文案
+     （本地一次计算是毫秒级的，做假等待屏等于告诉用户刚才有台服务器在干活），
+     也不许声称方案读了你填的信息（见下一条）。
+   - ★ **`stores/design.js` 的 `fields` 今天没有任何东西读它。** 填信息页收上来的
+     `{ key, type, text, images }` 只是存着，**方案完全由 `sceneId` / `styleId` / `features` 推导**。
+     结果页**不许**声称「已根据你的描述调整」。留着这一格是为了接后端时有个明确的落点，
+     **不是为了"看起来用了"**。
+   - **`/result` 的前后两张图是标着「占位」的块**，不是渲染结果。本地方案算得出步骤与色号，
+     算不出一张脸。不许摆假图、不许把 `.ph` 说成效果图（真出图见 §1 末）。
+   - **`snapshotDesign()`** 返回的是一份**本地 JSON 快照**，没有落到任何服务端。
+     所以按钮文案是「已记下这一版」，**不是**「已保存到我的作品」——后者会让人以为换台机器还能看到。
 
 5. **商业内容可辨认、不搬运。**
-   对话页的「参考产品卡」（`AgentView.vue`，2026-09-16 落地）**角标文案由前端写死**——
-   `「品牌参考」`，模型什么时候推、怎么推都不影响它出不出现。
-   **空着也比硬贴强**：`consultedProducts` 为空时整块不渲染，不显示一个空标题。
-   ⚠️ **只有真收了钱才写「赞助」**：少标一个字只是不够显眼，**多标一个字是虚假披露**。
-   资料里那句「社交平台用户反馈摘要」**摘自品牌资料，不是我们采集的口碑**——
-   转述时必须说清出处，**不许讲成用户口碑或中立评测**（后端系统提示规则 7 钉着这条）。
-   外部教程入口只做**外链**，不搬运、不内嵌第三方图文视频、不抓图。
+   产品性质（`kb/products.js` 的 `voice` 字段）**摘自品牌资料，不是我们采集的口碑**——
+   转述时必须说清出处，**不许讲成用户口碑或中立评测**（⚠️ `VanityView.vue:275` 今天的标签
+   就是「用户口碑」，见 §11-4）。**空着也比硬贴强**：`productInfo.voice` 为空时整块不渲染。
+   ★ **只有真收了钱才写「赞助」**——少标一个字只是不够显眼，多标一个字是**虚假披露**。
 
 6. **登录门禁不是安全边界。**
    `router/index.js` 的 `beforeEach` 只看本地那份 `{ id, nickname }`，**拦不住也不该假装能拦住谁**。
-   真正的把关是后端的归属校验（改/删不认别人）。**别把这段代码写成「安全」的样子**，
-   更别基于它做任何「用户只能看到自己的数据」的假设。
+   真正的把关在后端（化妆包改/删一律校验归属，不属于你就报 404）。
+   **别把这段代码写成「安全」的样子**，更别基于它做任何「用户只能看到自己的数据」的假设。
 
-7. **对话内容不落盘，也不假装有记录。**
-   会话内容——用户说了什么、照片、成品图——**一律不进 `localStorage`/`sessionStorage`/IndexedDB**
-   （设计文档 §9 已拍板「会话内容存服务端，不是浏览器 localStorage」）。唯一允许落盘的是一条
-   **不透明的会话 id**（`beauty-app.agent-session`，服务端还要 `userId` 才认它），`reset()` 时收掉。
-   ★ 刷新之后**聊天原文就是没有的**（服务端刻意不透出 `messages[]`，要什么给什么）——
-   页面**要如实说**「聊天原文没有回放」，**不许**用假记录、假开场白或"正在恢复…"把它糊过去，
-   也**不许**为了"体验好一点"把它缓存进浏览器（那就是上面那条禁令）。
+7. **演示模式（`VITE_USE_MOCK !== 'false'`）只覆盖 A 档。**
+   它假的是**账号与化妆包**（`api/mock.js`，化妆包落在 `localStorage` 的
+   `beauty-app.mock-cabinet`，复刻「刷新后还在」）。
+   ★ 演示模式**不校验密码**，也**刻意不存明文密码、不做假校验**——没有后端就没有 scrypt。
+   ★ **别往里补假的方案、假的人脸分析结果**，那会让「看起来能用」和「真的能用」分不清。
+   B、C 两档（设计链、人设库、首页内容）**与这个开关无关**，两种模式下逐字相同。
 
 ---
 
@@ -627,84 +652,85 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 ```bash
 cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4）
 ```
-然后手走一遍受影响的动线。mock 模式走一遍，**`VITE_USE_MOCK=false` 再走一遍**（涉及接口改动时）。
 
-### 「加 / 改一个 brief 字段」——牵动的地方比你想的多
+**块顺序自检**（改了任何 `.vue` 之后跑；**无输出 = 全部合规**）：
 
-以加一个字段 `xxx` 为例，**一处都不能漏**：
+```bash
+cd vue && awk 'FNR==1 && $0!="<template>" {print "顺序不对: " FILENAME}' src/App.vue src/pages/*.vue src/components/*.vue
+```
 
-1. `server/src/modules/shared/domain/entities/brief.ts` —— 接口 + 枚举常量（**枚举单源**）
-2. `server/.../shared/domain/schemas/contracts/brief-fields.ts` —— zod 形状（`.strict()`，多键会 422）
-   ★ 它是 `POST /agent/sessions`（开会话带初值）与 `patch_brief`（对话里改）**共用的那一份**；
-   规则在 `shared/domain/validators/brief-fields.validator.ts`（枚举白名单 / 长度上限 / trim）。
-   改完跑 `server/test/schemas.test.ts`——它钉着「两条入口给同一个答案」。
-   ✏️ 2026-09-29：这两格此前写的是 `jobs` 的 `job-submit.ts` / validator，那个模块已删。
-3. `server/.../makeup/...mock-engine` —— 若它影响文案或调色
-4. `vue/src/constants/options.js` —— 加选项 + 中文名映射（**纯展示，无编译期保护，最容易漏**）
-5. `vue/src/stores/makeup.js` —— 状态 `ref` + `brief` computed 里的条件放入 + `reset()` 清空
-6. `vue/src/pages/UploadView.vue` —— 表单控件
-7. `vue/src/pages/ResultView.vue` —— 回显（`hasEcho` 也要加）
-8. ✏️ ~~`vue/src/api/mock.js` —— 假后端要认这个字段~~：**这一格没了**。假任务流水线已删，
-   而 agent 那条链刻意没有 mock（§6.3）——**加字段不会再牵动 `mock.js`**。
+SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`<style scoped>`。
+本目录**零 lint、零测试**（§2），没有任何工具会拦住写反的文件，所以只能靠这条命令主动验。
+★ 它同时盯住「首行就是 `<template>`」——把一个空行或注释顶在最前面也会被它抓出来。
 
-> 枚举类改动（加场合 / 肤质 / 肤色档）另有两条硬要求：
-> `brief.ts` 的 `OCCASIONS` 与 `scene-rules.ts` 的 `SCENE_RULES`/`SCENE_MATCH_ORDER` 都要加
-> （`Record<Occasion, …>` 漏配会**编译不过**，这是保护），前端 `constants/options.js` 也要跟着加（**无保护**）。
+### 主链路：开始设计（B 档，最容易被改坏的一条）
 
-### 「参考产品卡」这一块（`AgentView.vue`，2026-09-16 落地）
+**不联网也能走完**，`VITE_USE_MOCK` 两种模式行为相同（§1）。
 
-**没有自动化测试，只能手工走。** 前提是服务端**配了产品库**（`PRODUCTS_DIR` 指到 `products/ysl-property`
-或它的上级目录），且 `AGENT_LLM=real`（mock 那段脚本**不会**调 `list_products`）。
+1. `/create` → 5 张场景卡；点任一张 → 进人设库且**已经切到挑人模式**（`?scene=&pick=1`）。
+2. 挑一张脸 → `/form`。★ **`?persona=` 缺失或那份人设已删时必须回人设库**，
+   不许停在一个没有依据的空壳表单上。
+3. 填信息：每个字段「文字 / 图片」两个页签**二选一显示，但提交时两种都要收**。
+   选一张图 → 移除 → **控制台里不应有 blob 泄漏**（这条只能靠肉眼看代码 `revoke` 有没有接上）。
+4. 提交 → `/result`。★ **重点看这三样**：
+   - 步骤的**数量与顺序**来自数据（6~11 步不等，随风格变）——页面里不该出现写死的步骤名或步数；
+   - 顶部「换一个妆容风格」点另一个 → **步骤列表整列重建**，URL 的 `?style=` 跟着变；
+   - 「换一版」→ 换到候选池里的下一个，`?style=` 也跟着变。
+5. **刷新 `/result`** → 还是同一版（三个 query 参数就是全部状态）。
+6. 步骤导航：滚动时**反向高亮**跟着走；点某一项**滚到那一步**（且不被路由的 `scrollBehavior` 抢掉）。
+7. 「保存妆容」→ 按钮变成**「已记下这一版」**（★ 不许是「已保存到我的作品」，见 §8-4）。
+8. 两张 hero 图**写着「占位」**（见 §8-4）。
 
-1. ★★ **先验「用户没答应之前不读库」。** 走完「需求 → 妆面」，让模型把妆定下来、
-   继续调一两轮妆。**它主动问一句「要不要给你挑两支」是允许的**（可以挑话头），
-   但只要你**没答应** → **卡片不该出现**，正文里也不该冒出品牌产品名。
-   这是最容易退化的地方：模型会想"读了不一定推，先备着总没错"。
-2. **然后**答应它、或自己问一句（如「那我该买什么？」）→ 模型调 `list_products` /
-   `read_product` → **妆面卡下方出现「这次参考了」卡**，角标写「品牌参考」。
-3. **列表里每个名字都是库里真有的**（对照 `products/ysl-property/` 下的文件名/id）——
-   出现库里没有的产品就是模型在编，**要报**（后端系统提示规则 7 管这个）。
-4. **模型读了但没推的那几支也该在卡里**（卡是"读过"的超集）——这是**预期行为**，不是 bug。
-5. **没问产品的那一轮，这块不出现**（空清单不渲染，§8-5）。
-6. 刷新页面 → 卡片**还在**（`consultedProducts` 随会话视图回来）。
-7. ★ 把 `PRODUCTS_DIR` 指向一个不存在的路径重启服务 → 卡片**永远不出现**，其余动线一点不变。
+### 人设库（B 档，本机浏览器——文案必须如实说）
 
-### 「出图那条消息」这一块（`AgentView.vue`，✏️ 2026-09-16 落地）
+1. `/personas` → 5 份种子人设；**首次进入就该补齐**（`PERSONA_SEED_VERSION`）。
+2. `/personas/new` → 两个上传入口（拍照 / 相册）驱动同一支隐藏 `input`；
+   ★ **同一个文件连选两次也要能触发**（`useFilePick` 的 `pick()` 点之前清了 `input.value`）。
+   `/personas/:id` 的「换一张照片」走同一条路，**两处都要试**。
+3. 建档 → `/personas/quiz`：肤色与特征**预填成建议值**（可以改）；名字空着时「生成」要走不通。
+4. 详情页 → 换照片 → **只缩图、不碰建档草稿**（`shrinkOnly`，别借 `putDraftPhoto` 那条路）。
+5. 删除 → 先弹 `window.confirm`，取消不该删掉。
+6. ★ **查存储按账号隔离**：`localStorage` 里的键是 `tz:personas:<userId>`。
+   换个 ID 登录 → 人设库是**新的一份**，看不到上一个人的脸。
+7. ★ **配额防线**：传一张几 MB 的手机照片 → **不该出现「保存成功、刷新后变回去」**。
+   要么缩图后存下，要么当场给一句人话的错。
+8. 页面/文案**不许说「已同步到你的账号」**（它只在这台浏览器里，见 §8-3）。
 
-**没有自动化测试，只能手工走。** `AGENT_LLM=mock` + `MAKEUP_ENGINE=mock`（不联网、不花钱），
-`vue` 与 `server` 各 `npm run dev`。★ 这一块的**关键在②**：它验的正是"模型一句话都不说，用户也能出图"。
+### 数字美妆台（A+B 档，唯一真的走网络的几屏之一）
 
-1. 走完「需求 → 妆面 → 传照片」，**盯住对话末尾**：妆面与照片齐了就该出现一条
-   **长得不像 assistant 气泡**的消息（左侧竖线 + 淡底），带「确认生成」按钮，文案里有
-   费用与时长（✏️ 2026-09-29 起不再报次数，配额整条删了）。
-2. ★★ **验"不靠模型"**：整个过程中**模型一次工具都没调**（mock 脚本本来也不会在
-   用户没明说时调 `render_look`）——这条消息**照样在**。这就是这次改动要的东西，
-   以前唯一的入口是"模型提议 → 确认框"，模型不开口就没有路。
-3. 点它 → 图上**显示在对话里**、`seq` 正确；等的那几秒按钮禁用、输入框禁用。
-4. 出完 → 按钮**改口叫「再生成一张」**（同一个妆面又出一次），那条消息**不消失**。
-5. **连点两次**（趁第一下还没回来）→ 只出一张（前端 `waiting` 挡住；就算绕过去，服务端还有锁）。
-6. 改动妆面（让它换唇色之类）→ 那条消息里的妆面描述跟着更新，按钮**回到「确认生成」**。
-7. 再出一张、再出一张 → 按钮**一直都在**（✏️ 2026-09-29 起没有次数上限，从前这里验的是
-   `AGENT_MAX_RENDERS=1` 时按钮消失）。
-8. 刷新页面 → 已出的图还在（页面另起一格「已出的图」），那条出图消息**也还在**
-   （它来自会话视图）；**聊天原文照旧不回放**，页面如实说。
-9. ★ **模型真的提了出图请求时**（mock 脚本里有这条路）→ 屏幕上**只有那一条**，
-   不会两条并排（`pendingRender` 与 `renderOffer` 互斥）；用户继续说别的 → 那条**自己消失**，
-   且**不刷新也消失**（服务端已按 `declined` 了结）。
+1. `/vanity` → 「我的化妆包 / 全部产品」两个视图切换。
+2. 全部产品 → 挑一个色号 → 收进化妆包 → **刷新，它还在**（走 `/cabinet/items`）。
+3. ★ **一件产品的第一个色号入库时，「整件」行要一起建出来**（§6.2）；
+   丢掉最后一个色号后，**这件产品仍留在包里**。
+4. ★ 收录一支有 10+ 色号的产品 → 每条特性**都不该超过 40 字符**
+   （这是 §6.2 那个 422 陷阱的现场验证）；把包塞到 100 行以上 → 后端回 409，
+   **页面要把那句人话原样显示出来**，不是静默失败。
+5. 切到 `VITE_USE_MOCK=false` 再走一遍第 2 步，确认命中真后端。
+
+### 第一层与登录（A+C 档）
+
+1. 未登录时打开任意路径 → 落到 `/login`，地址栏带 `?redirect=`；登录后**回到原本那一页**。
+2. 登录后再访问 `/login` → 直接进首页（不是"退不出去"）。
+3. `/mine` → 「退出登录」→ 回登录页；★ 再登录另一个 ID，**化妆包与人设都该是新的**
+   （`logout()` 里那两个 `reset()` 就是干这个的）。
+4. `/` 与 `/inspiration`：数据是策展内容（C 档），**页面文案不许讲成"社区正在发生的事"**（§8-4）。
+5. `/mine` 的统计数字（作品/粉丝/获赞）是演示值——**不许写给用户看说它们是真实统计**。
 
 ### 其他
 
 | 改动 | 牵动 |
 | --- | --- |
-| 加一个接口 | `api/<域>.js` 加函数（含 mock 分支，**惰性 import**）→ `api/mock.js` 补同形状假实现 → store 里包一层 → 页面调用 |
-| ★ 那条链**在浏览器里复刻不了**（要服务端真实状态 / 会花钱） | **不要**给它加 mock 分支，改成页面明确说「不可用」——`api/agent.js` 是先例（见 §6.3） |
-| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由 → 需要门禁就别加 `meta.public`。★ 页面**可以**静态引 `api/*` 的纯函数（`ResultView` / `AgentView` 都引 `renderImageHref`、后者还引 `MAX_AGENT_TEXT`）——**store 不行**（见 §6.1） |
-| 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 `api/*`**（首屏链，见 §6.1） |
-| 加一个图标 | `Icon.vue` 的 `paths`（24×24，`currentColor`） |
+| 加一个接口 | `api/<域>.js` 加函数（A 档要写 mock 分支，**惰性 import**）→ `api/mock.js` 补同形状假实现 → store 里包一层 → 页面调用 |
+| ★ 那条链**在浏览器里复刻不了**（要服务端真实状态 / 会花钱） | **不要**给它加 mock 分支，改成页面明确说「不可用」 |
+| 加一个页面 | `pages/XxxView.vue` → `router/index.js` 加路由（**静态段排在动态段前**）→ `AppSidebar` 要不要高亮看 `meta.nav` → 需要门禁就别加 `meta.public` |
+| 加一个 store | 放 `stores/`；`reset()` 要把自己那份收干净（含 objectURL 与 localStorage）并接进 `user.js` 的 `logout()`。★ 一旦 `stores/user.js` 要引它，**它就不能静态引 axios**（首屏链，§6.3） |
+| 加一个图标 | `Icon.vue` 的 `ICONS`（**`vb` 要抄对**，见 §5.1） |
+| 改色号 / 加产品 | 只改 `kb/shades.js` / `kb/catalog.js` / `kb/products.js`——**任何地方都不许另写一份 hex**（`api/vanity.js` 文件头钉着这条） |
+| 改人设库 | `api/personas.js` 的存储口径（键名前缀、缩图参数、种子版本）**改一样就要想清楚已有数据怎么办** |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
-| 动 `scene-rules.ts` | **= 同时改前后端行为**。改完 `cd server && npm test`，且前端 dev 实开 |
-| 加一个会话视图字段（如 `consultedProducts`） | 服务端：实体 → `turn-view.mapper.ts` 的 `toSessionView` → 端口/工具按需。前端：`stores/agent.js` 加一个 computed（照 `renders` 恒在数组的写法）→ 页面取用。★ **视图没有 zod schema**，所以前端多读一个不存在的键只会静默拿到 `undefined`——**没有编译期保护，只能手工看** |
+| 接 `agent` 那条链 | **= 重新设计动线**，不是换数据源（§1 末、§7.1） |
 | 加组件 | 放 `components/`，props/emit/slot 契约更新进 §5.1；**不 import store / api** |
+| 加一条 composable | 先过 §3 第 7 条的判据（**重复**或**红线集中**，不是「整齐」）；放 `composables/`，一个文件一个导出；**别被 `components/` 引到**——那会毁掉纯展示那条线 |
 
 ---
 
@@ -714,14 +740,14 @@ cd vue && npm run dev     # ★ 必须实开。构建过 ≠ dev 过（见 §6.4
 cd vue
 npm install
 npm run dev        # 开发 :5173（mock 默认开）
-npm run build      # 生产构建（⚠️ 通过不代表 dev 能跑）
+npm run build      # 生产构建（⚠️ 通过不代表 dev 能跑）。★ 构建完顺手验一次 §6.3 那条 grep
 npm run preview    # 预览构建产物
 ```
 
 ```bash
 cd server
 npm run dev        # 后端 :3000
-npm test           # ★ 前端改到 scene-rules 或契约时，跑这个
+npm test           # 后端测试（前端零测试，跑它只为确认没动到契约）
 npm run typecheck
 ```
 
@@ -729,35 +755,62 @@ npm run typecheck
 
 ## 11. 已知状态（别当成 bug 去「顺手修」）
 
-- ★★ **出图那条消息是界面自己摆的，不是模型说的话**（✏️ 2026-09-16）。
-  妆面与照片齐、没有待确认时，服务端给 `renderOffer`，页面**自己**在对话末尾摆出那条消息 +
-  「确认生成」按钮——**模型说不说话都一样**。以前只有"模型提议 → 确认框"一条链，
-  而"提不提议"是提示词级的事：2026-09-16 实测真实模型在用户**两轮明确要图**时一次都没调
-  `render_look`，界面上**既没有图、也没有确认框**，唯一的入口断了。
-  ⚠️ 因此：**不要**把它画成 assistant 气泡（那是让界面替模型发言），
-  **不要**去动提示词想让它"记得提议"（改过四轮了，`SYSTEM_PROMPT_VERSION` 仍是 `v11`），
-  **不要**加第二个出图入口（两个按钮指向同一次花钱，一个必然 422）。
-  代价与残余风险记在 `server/src/modules/agent/README.md`「人在回路」一节：
-  一次点击就花钱（所以费用与时长必须写在按钮上）、服务端进程内锁只挡并发、
-  **响应丢在回程时用户再点一次会真的再出一张**（那要幂等键，而这条路由刻意不收客户端参数）。
-- **`TipBanner.vue` 零引用**（见 §5.1）。
-- **`.hint` / `.text-input` / `.field-label` / `.field-tip` 各页面各一份，目前各 3 份**（见 §5.2）。
-- ✏️ **`utils/color.js` 现在零引用**（2026-09-29 查证）。它服务的「本人照片 + 色块叠加」预览随
-  `jobs` 一起没了，而结果页重写后不再需要 `rgbCss` / `rgbLuminance`。**先别删**——叠加层要回来
-  （见 §5.1 `CompareSlider`）就得用它。这是**已知的零消费者文件**，不是漏收拾的。
-- ★ **前端零测试基建**：`package.json` 里没有 vitest，全仓没有一个前端测试文件。
-  所以**任何一个页面（含 `/agent`）的回归只有「手工走一遍」这一条路**——
-  改动前后别声称"测过了"。这不是这次的欠债，是本目录一直的状态；**要建它是单独一件事**。
-- **`AGENT_TIMEOUT_MS`（`api/agent.js`）与后端的 `DEFAULT_TURN_TIMEOUT_MS` 是一对**，要一起改。
-  理由：掐掉一条**已经花了钱**的 `render` 请求退不了钱，所以客户端超时必须**严格大于**服务端最坏情况。
-- **`stores/agent.js` 的 `PHOTO_BUBBLE_TEXT` 是服务端 `agent/domain/tools/observations.ts` 里那个常量的副本**，
-  两侧**必须逐字一致**（服务端那份有测试钉着，前端这份**没有任何东西拦着**）。改一边要同时改另一边。
-- **`/agent` 一轮的 `events[]` 是一次性返回的（服务端还没上 SSE）**，
-  所以那一屏只显示"正在想"，**不演工具进度**——想让它变真，先做 SSE，别在前端假播。
-- **`renders[].url` 要带 `?userId=` 才能取到图** ⇒ 那个 URL 会进浏览器历史与缓存。
-  已知、可接受（`GET` 不指望请求体），但**别把它当成"服务端会替你保密"**。
-- **结果页轮询是 650ms 固定间隔**（`ResultView.vue`）。超时用的是 `api/agent.js` 的
-  `AGENT_TIMEOUT_MS`（**90 秒**，不是实例缺省的 30 秒）——`fetchMakeupSession` 转发的就是
-  `fetchAgentSession`。★ 别把这条看小了：掐掉一条**已经花了钱**的 `render` 请求退不了钱。
-- ✏️ 2026-09-29：删掉两条已失效的——`api/mock.js` 的色板拷贝（那份 `ENGINE_SPECS` 随假流水线删了）、
-  以及 `references` 图片素材的合规来源那条（模块已删）。
+### 本次搬迁的刻意出入（源站 ↔ 这里）
+
+1. **源站有 4 个图标名在它的图标表里根本不存在**，`icon()` 对未知名字返回空串——
+   **静默渲染空白，不报错**（假开关家族的一员）。已改成表里真有的：
+   `heart40` → `heart`、`camera40` → `camera`、`upload40` → `upload`。
+   ★ 这条是本节最值得记住的一条：**它同时说明了「没报错」不等于「画出来了」。**
+2. **`.quick-item--active` 这条 CSS 规则是新加的**——源站与旧前端都**只应用了这个类、没有任何规则匹配它**
+   （那个高亮状态一直是死的）。加在 `base.css` 里。
+3. **`/mine` 的「退出登录」是后加的**，源站没有（它没有登录态、也就没有出口）。
+   样式是页内 `scoped` 的 `.mine-foot`。
+4. ★★ **两处文案与红线 §8-1 / §8-5 冲突，是照源站原样搬过来的，我**没有**擅自改**——
+   要改请先拍板：
+   - `api/home.js:50` 的贴士标题「**黄皮显白的口红色号**」——§8-1 明令文案里不出现「显白」。
+   - `VanityView.vue:275` 的标签「**用户口碑** · …」——那个值摘自品牌资料库
+     （`kb/products.js` 的 `voice`，如「熬夜蜡黄脸救星」），**不是我们采集的口碑**，
+     §8-5 不许讲成用户口碑。建议标签改成「品牌宣称」之类，值本身不用动。
+   - （`kb/shades.js:178` 有一个色号叫「显白西红柿」，那是**品牌商品名**，我倾向不动——
+     改商品名等于篡改产品数据。但这条也该由你定。）
+5. **`FormView` 的步骤条统一成 4 步**。源站的 `form.html` 写的是「1 选场景 / 2 填信息 / 3 生成方案」，
+   少一步「选形象」，于是「2」在这一屏指填信息、在上一屏指选形象。这里统一成与
+   create / personas / result 一致的 4 步。
+
+### 零消费者 / 死按钮（**照源站保留**，不是漏收拾的）
+
+6. **一批按钮与链接今天没有任何去处**，全部是照源站原样留的。**不是为了"下一步再做"，就是没有目的地**：
+   - `LoginView`：「忘记密码？」(`href="#"`)、微信登录、手机号登录；
+   - `HomeView`：搜索框、通知铃、右上头像、三处「更多 / 全部 / 查看全部」(`href="#"`)、
+     贴士卡上的 `去试试` 按钮、**hero 的 5 个圆点**（源站 5 张 banner 只展示第一张，
+     圆点既不可点也不轮播，是装饰）；
+   - `MineView`：通知、设置、「编辑资料」、「重新测一测」。
+   ★ **别把它们当成"顺手接一下"的机会**——接任何一个都等于自己发明一个目的地。
+   要么问用户，要么留着。
+7. **`public/demo/` 下的两个 SVG 已无引用**（`demo-photo.svg` / `scenery.svg`），
+   它们服务的是被删掉的 `/upload` 那条链。**先别删**——它们是源站素材，
+   将来要重建"上传 → 出图"那条链时可能还要用。这是**已知的零消费者文件**，不是漏收拾的。
+   （`public/assets/img/ph-*.svg` **不是**死文件：它们是种子人设的照片，见 `api/personas.js`。）
+8. **`/mine` 的统计与 `aiProfile` 标签是策展值**（C 档），不是真实统计（§8-4）。
+9. **`stores/design.js` 的 `fields` 与 `generating` 今天都没有读者**：
+   `fields` 是留给真后端的落点（§8-4），`generating` 恒为 `false`。
+   两个都**故意**留着并写了注释，不是漏收拾的。
+
+### 结构性事实
+
+10. ★★ **搬迁删掉了全项目唯一一条真的会出图的路径。** 现在没有任何一屏能把妆容渲染到脸上
+    （§1 末）。`/result` 的两张图是占位块。**要真出图，得先把 `agent` 那条链接回来。**
+11. ★ **`@scene-rules` 今天零引用**（§2）。桃妆的场景与后端那份 `SCENE_RULES` 是**两套不同的东西**，
+    刻意没有合并。alias 与 `fs.allow` 留着是因为后端测试读 `vite.config.js` 钉着它们。
+12. ★ **前端零测试基建**：`package.json` 里没有 vitest，全仓没有一个前端测试文件。
+    所以**任何一个页面的回归只有「手工走一遍」这一条路**——改动前后别声称"测过了"。
+13. **`api/mock.js` 只剩账号与化妆包两块。** 别为了"离线也能演示"往里补假的方案或假的人脸分析。
+14. **`public/assets/img/` 下只有两张脸**（`ph-colleague.svg` / `ph-sister.svg`）——
+    5 份种子人设里另外 3 份的 `photoUrl` 是空串，靠 `PersonaAvatar` 的「首字 + 肤色档底色」合成。
+    这是设计如此，不是缺图。
+15. ★ **2026-09-30 定了两条新规矩，别再改回去**：
+    （a）SFC 块顺序统一成 `<template>` → `<script setup>` → `<style>`。
+    改之前**全仓 24 个文件都是 `script` 在前**（包括搬迁前就存在的那 5 个），这是**新规矩**、不是修搬迁的错；
+    自检命令在 §9。
+    （b）新增 `src/composables/`（5 个，见 §3 第 7 条）。它的**判据是「重复」或「红线集中」**，
+    与 §4「页内私有的样式与小组件别拆出去」不冲突——别拿那句话当理由把 composables 删掉。

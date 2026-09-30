@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144" role="img" aria-label="示例人设头像占位">
+  <defs>
+    <linearGradient id="gColleague" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FBEFEF"/>
+      <stop offset="1" stop-color="#E7A6AC"/>
+    </linearGradient>
+  </defs>
+  <rect width="144" height="144" rx="18" fill="url(#gColleague)"/>
+  <circle cx="72" cy="56" r="25" fill="#ffffff" opacity="0.92"/>
+  <path d="M30 126c0-23 19-39 42-39s42 16 42 39z" fill="#ffffff" opacity="0.92"/>
+</svg>

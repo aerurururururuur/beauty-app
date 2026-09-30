@@ -1,418 +1,270 @@
+<template>
+  <FlowTopbar
+    back-to="/form"
+    title="生成结果"
+    :steps="['1 选场景', '2 选形象', '3 填信息', '4 生成方案']"
+    :active-step="4"
+  />
+
+  <main v-if="result" class="content content--flow">
+    <section class="result-hero">
+      <div class="result-hero__shots">
+        <!-- 两张都是占位块:本地算得出方案,算不出一张脸(见文件头) -->
+        <div class="shot shot--before ph" style="height: 320px">妆前 · 原图占位</div>
+        <div class="shot shot--after ph" style="height: 320px">妆后 · 效果占位</div>
+        <span class="result-hero__arrow"><Icon name="arrowRight" :size="16" color="var(--color-white)" /></span>
+      </div>
+
+      <div class="result-hero__info">
+        <span class="result-hero__scene">{{ result.sceneName }} · {{ result.tagline }}</span>
+        <h1 class="result-hero__title">{{ result.title }}</h1>
+        <p class="result-hero__summary">{{ result.summary }}</p>
+
+        <div class="result-hero__kw">
+          <span v-for="k in result.keywords" :key="k" class="kw-chip">{{ k }}</span>
+        </div>
+
+        <div class="result-hero__palette-label">本方案用到的色号</div>
+        <div class="result-hero__palette">
+          <span v-for="p in result.palette" :key="p.code" class="palette-chip" :title="p.name || ''">
+            <span class="palette-chip__dot" :style="{ background: p.hex }"></span>
+            <span class="palette-chip__code">{{ p.code || p.name }}</span>
+            <span v-if="p.name" class="palette-chip__from">{{ p.name }}</span>
+          </span>
+        </div>
+
+        <div class="result-hero__meta">
+          <span class="meta-cell"><em>{{ result.meta.stepCount }}</em>个步骤</span>
+          <span class="meta-cell"><em>{{ result.meta.minutes }}</em>分钟</span>
+          <span class="meta-cell"><em>{{ result.meta.level }}</em></span>
+        </div>
+
+        <div class="result-hero__actions">
+          <button class="btn btn--primary" :disabled="saved" @click="onSave">
+            {{ saved ? '已记下这一版' : '保存妆容' }}
+          </button>
+          <button class="btn btn--soft" @click="onRegenerate">换一版</button>
+          <RouterLink class="btn btn--soft" to="/vanity">去美妆台看产品</RouterLink>
+        </div>
+      </div>
+    </section>
+
+    <section class="style-switch">
+      <div class="style-switch__head">
+        <span class="style-switch__title">换一个妆容风格</span>
+        <span class="style-switch__note">不同风格的步骤数量与顺序本来就不同，切一下就能看到变化</span>
+      </div>
+      <div class="style-switch__list">
+        <button
+          v-for="o in design.styleOptions"
+          :key="o.id"
+          class="style-chip"
+          :class="{ 'style-chip--active': o.id === result.styleId }"
+          :title="o.summary || ''"
+          @click="o.id !== result.styleId && applyStyle(o.id)"
+        >
+          <span class="style-chip__name">{{ o.name }}</span>
+          <span class="style-chip__meta">{{ o.family }} · {{ o.stepCount }} 步</span>
+        </button>
+      </div>
+    </section>
+
+    <nav class="step-rail" aria-label="妆容步骤导航">
+      <div class="step-rail__head">
+        <span class="step-rail__title">化妆步骤 · 共 {{ steps.length }} 步</span>
+        <span class="step-rail__note">步骤与顺序由本次妆容风格决定，会随风格变化</span>
+      </div>
+      <div class="step-rail__list">
+        <a
+          v-for="(s, i) in steps"
+          :key="s.id"
+          class="step-rail__item"
+          :class="{ 'step-rail__item--active': s.id === activeStepId }"
+          :href="`#step-${s.id}`"
+          @click.prevent="jumpToStep(s.id)"
+        >
+          <span class="step-rail__no">{{ stepNo(i) }}</span>
+          <span class="step-rail__name">{{ s.name }}</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="step-list">
+      <section
+        v-for="(s, i) in steps"
+        :id="`step-${s.id}`"
+        :key="s.id"
+        ref="stepEls"
+        class="step-block"
+        :data-step="s.id"
+      >
+        <div class="step-block__media">
+          <div class="shot ph" style="height: 260px">{{ s.name }} · 效果图占位</div>
+          <span class="step-block__no">{{ stepNo(i) }}</span>
+          <span class="step-block__name-tag">{{ s.name }}</span>
+        </div>
+        <div class="step-block__body">
+          <header class="step-block__head">
+            <span class="step-block__index">STEP {{ stepNo(i) }}</span>
+            <h3 class="step-block__title">{{ s.name }}</h3>
+            <span v-if="s.duration" class="step-block__dur">
+              <Icon name="clock" :size="14" color="var(--color-text-disabled)" />
+              <span>{{ s.duration }}</span>
+            </span>
+          </header>
+          <p class="step-block__desc">{{ s.desc || '' }}</p>
+
+          <ul v-if="(s.tips || []).length" class="step-tips">
+            <li v-for="t in s.tips" :key="t" class="step-tip">
+              <Icon name="check" :size="14" /><span>{{ t }}</span>
+            </li>
+          </ul>
+
+          <div v-if="(s.products || []).length" class="step-block__products">
+            <span class="step-block__label">用到</span>
+            <span v-for="p in s.products" :key="`${p.name}-${p.code || ''}`" class="step-product">
+              <span v-if="p.hex" class="step-product__dot" :style="{ background: p.hex }"></span>
+              <span class="step-product__name">{{ p.name }}</span>
+              <span v-if="p.code" class="step-product__code">{{ p.code }}</span>
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 个性化调整:内容来自选中人设身上的面部特征,没标特征就整块不出现 -->
+    <section v-if="personalized.length" class="personalized">
+      <h2 class="personalized__title">针对你的面部特征 · {{ personalized.length }} 条调整</h2>
+      <div class="personalized__list">
+        <article v-for="f in personalized" :key="f.id" class="feat-card">
+          <header class="feat-card__head">
+            <span class="feat-card__group">{{ f.groupName || '' }}</span>
+            <h3 class="feat-card__name">{{ f.name }}</h3>
+          </header>
+          <p class="feat-card__desc">{{ f.desc }}</p>
+          <p class="feat-card__fix">{{ f.fix }}</p>
+          <div v-if="(f.products || []).length" class="feat-card__products">
+            <span class="step-block__label">用到</span>
+            <span v-for="n in f.products" :key="n" class="step-product">
+              <span class="step-product__name">{{ n }}</span>
+            </span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="product-summary">
+      <h2 class="product-summary__title">全部用到的产品</h2>
+      <ul class="product-summary__list">
+        <li v-for="line in productLines" :key="`${line.no}-${line.item.name}-${line.item.code || ''}`" class="product-line">
+          <span class="product-line__no">{{ stepNo(line.no - 1) }}</span>
+          <span class="product-line__step">{{ line.stepName }}</span>
+          <span class="product-line__name">{{ line.item.name }}</span>
+          <span class="product-line__code">{{ line.item.code || '—' }}</span>
+        </li>
+        <li v-if="!productLines.length" class="product-line">本次方案未指定产品</li>
+      </ul>
+    </section>
+  </main>
+</template>
+
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMakeupStore } from '@/stores/makeup'
-import { useUserStore } from '@/stores/user'
-import { confirmMakeupRender, fetchMakeupSession, renderImageHref } from '@/api/makeup'
-import {
-  OCCASION_CN,
-  SKIN_TONE_CN,
-  SKIN_TONE_OPTIONS,
-  SKIN_TYPE_CN
-} from '@/constants/options'
-import CompareSlider from '@/components/CompareSlider.vue'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
+import { useQueryParam } from '@/composables/useQueryParam'
+import { useStepRail } from '@/composables/useStepRail'
+import { useUserStore } from '@/stores/user'
+import { usePersonasStore } from '@/stores/personas'
+import { useDesignStore } from '@/stores/design'
 
 /**
- * ResultView —— 表单提交之后那一屏。
+ * 开始设计 · 第 4 步:生成结果。
  *
- * ✏️ 2026-09-29:它原来读的是 `GET /jobs/:id` 那份 `JobView`(状态机 + 进度 +
- *   `STEP_CN` 步骤名 + `result.look.zones` 的 CSS 叠加上妆预览)。`jobs` 删掉之后,
- *   后端只剩**一条**出图路径,状态就是一段 agent 会话(`AgentSessionView`)。
+ * ★ 步骤的**数量与顺序来自方案数据**(6 ~ 11 步不等,不同风格本来就不同),
+ *   页面里不出现任何写死的步骤名或步数。
  *
- * ⚠️ **本轮的界面形态是"能跑起来的最小改动",不是设计稿。** 会话视图里**没有**
- *   `look.zones` / `look.palette`(它只给一句 `lookDescription`),所以这页**不再有**
- *   那张"本人照片 + 色块叠加"的模拟上妆图——那要等前端设计那一轮再定怎么展示。
- *   现在:没图时说清"还没出图",有图就直接展示成品图与本人照片的前后对比。
+ * ★ 这一屏**整屏由 URL 重建**:`?scene=&style=&persona=` 三个参数就够了,
+ *   刷新后还是这一版。所以切风格不是"改个本地状态",而是重算 + `router.replace` 回写地址栏。
  *
- * ★ **这里必须留一次用户确认**(红线 §7.4):agent 那条路出图是会花钱的,
- *   钱只能由人的一次 HTTP 动作触发。`renderOffer` / `pendingRender` 是服务端
- *   给的两个互斥入口,请求体逐字相同,前端不必区分。
+ * ★★ 前后两张图是**占位块**(源站也一样,块的文案就写着「占位」)。
+ *    本地方案算得出步骤与色号,但**算不出一张脸**——渲染要真后端。
+ *    所以这里不摆假图、也不写"正在生成效果图"。
+ *
+ * ★ 「保存妆容」= 导出这一版的 JSON 快照,**没有落到任何服务端**
+ *   (`api/design.js` 的 snapshotDesign 说明了为什么)。按钮文案因此是
+ *   「已记下这一版」,不是「已保存到我的作品」——后者会让人以为换台机器还能看到。
+ *
+ * ★ 步骤导航靠 IntersectionObserver 反向高亮,点击则平滑跳过去(见 `useStepRail`)。
+ *   路由的 scrollBehavior 对带 hash 的跳转返回 false,就是为了不抢这里的锚点滚动——
+ *   改 `useStepRail` 时那条配置要一起看,别只改一边。
  */
-
-const store = useMakeupStore()
-const user = useUserStore()
+const route = useRoute()
 const router = useRouter()
+const user = useUserStore()
+const personas = usePersonasStore()
+const design = useDesignStore()
 
-if (!store.sessionId) {
-  router.replace('/upload')
-}
+// ★ `scene` 的兜底是 'party'(不是 ''):缺了它 /result 也得能算出一版方案
+const sceneId = useQueryParam('scene', 'party')
+const personaId = useQueryParam('persona')
+const styleId = useQueryParam('style')
 
-const view = ref(null)
-const pollError = ref('')
-const confirming = ref(false)
-let timer = null
+const result = computed(() => design.result)
+const saved = ref(false)
 
-async function poll() {
-  try {
-    view.value = await fetchMakeupSession({ sessionId: store.sessionId, userId: user.id })
-    pollError.value = ''
-  } catch (e) {
-    // 404 = 会话不在 / 不属于这个用户(服务端不区分)。这里没有别的出路可指。
-    pollError.value = e?.message || '读不到这段会话'
-    stopPoll()
-  }
-}
+const steps = computed(() => result.value?.steps || [])
 
-function stopPoll() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+/** 步骤导航:滚动时反向高亮、点击平滑跳过去(观察器的生命周期见 useStepRail)。 */
+const { activeId: activeStepId, els: stepEls, jumpTo: jumpToStep } = useStepRail(result, steps)
+
+const personalized = computed(() => result.value?.personalized || [])
+/** 底部产品清单:把每一步用到的产品摊平,并记住它属于第几步。 */
+const productLines = computed(() =>
+  steps.value.flatMap((s, i) => (s.products || []).map((p) => ({ stepName: s.name, no: i + 1, item: p })))
+)
+
+function stepNo(index) {
+  return String(index + 1).padStart(2, '0')
 }
 
 onMounted(() => {
-  poll()
-  timer = setInterval(poll, 650)
+  personas.load(user.id)
+  // 特征优先从人设档案取(选人流程带来的);没有 persona 参数时就没有个性化区
+  const persona = personaId.value ? personas.getById(personaId.value) : null
+  design.buildResult({
+    sceneId: sceneId.value,
+    styleId: styleId.value,
+    features: persona?.features || [],
+  })
+  activeStepId.value = steps.value[0]?.id || ''
 })
-onUnmounted(stopPoll)
 
-// ---- 派生状态 ----
-const renders = computed(() => view.value?.renders || [])
-const latest = computed(() => (renders.value.length ? renders.value[renders.value.length - 1] : null))
-const lookDescription = computed(() => view.value?.lookDescription || '')
+/* --------------------- 滚动高亮 / 锚点跳转 --------------------- */
+
+// 观察器的建立、随换风格重建、以及卸载时 disconnect,全在 useStepRail 里(见那个文件)
+
+/* --------------------------- 三个动作 --------------------------- */
 
 /**
- * 服务端给的那条出图入口。`pendingRender`(模型提的)与 `renderOffer`(界面摆的)
- * **互斥** —— 两个按钮指向同一次花钱的话,其中一个必然 422。
+ * 换风格 /「换一版」都走这里:重算方案 → 回写地址栏 → 回顶部。
+ *
+ * ★ 这里仍然直接用 `route.query`(而不是 `useQueryParam`):它要的是**把整个 query 摊开保留**,
+ *   只覆盖 scene/style/persona 三个,而不是读某一个字符串参数——那是 `useQueryParam` 管的事。
  */
-const renderRequest = computed(() => view.value?.renderOffer || view.value?.pendingRender || null)
-
-/** 成品图地址:路径式 URL 要配 `API_BASE` **再补 `?userId=`**(取图靠查询串判归属)。 */
-const resultSrc = computed(() => (latest.value ? renderImageHref(latest.value.url, user.id) : ''))
-
-// ---- 输入简报回显 ----
-const brief = computed(() => view.value?.brief || {})
-const toneMeta = Object.fromEntries(SKIN_TONE_OPTIONS.map((t) => [t.value, t]))
-const hasEcho = computed(
-  () =>
-    !!brief.value.occasion ||
-    !!brief.value.sceneText ||
-    !!brief.value.skinType ||
-    !!brief.value.skinTone ||
-    !!brief.value.dress ||
-    !!brief.value.weather
-)
-
-function occasionCn(v) {
-  return OCCASION_CN[v] || v || ''
-}
-function skinTypeCn(v) {
-  return SKIN_TYPE_CN[v] || v || ''
-}
-function weatherText(w) {
-  if (!w) return ''
-  const bits = []
-  if (w.condition) bits.push(w.condition)
-  if (w.temperatureC != null) bits.push(`${w.temperatureC}°C`)
-  if (w.humidityPct != null) bits.push(`湿度${w.humidityPct}%`)
-  return bits.join(' · ')
+function applyStyle(nextStyleId) {
+  design.setStyle(nextStyleId)
+  router.replace({ query: { ...route.query, scene: sceneId.value, style: design.result.styleId, persona: personaId.value } })
+  window.scrollTo({ top: 0, behavior: 'auto' })
 }
 
-/** 顶部需求名:命中枚举按中文;自由文字未命中场合时展示需求 snippet。 */
-function briefDisplayName() {
-  const cn = OCCASION_CN[brief.value.occasion]
-  if (cn) return cn
-  const t = (brief.value.sceneText || '').trim()
-  if (t) return `自定义 · ${t.length > 14 ? t.slice(0, 14) + '…' : t}`
-  return '这次的需求'
+function onRegenerate() {
+  applyStyle(design.regenerate()?.styleId || '')
 }
 
-async function confirm() {
-  if (confirming.value || !renderRequest.value) return
-  confirming.value = true
-  pollError.value = ''
-  try {
-    // ★ 这条路由**不收任何出图参数**:要出的就是会话里那一套。
-    view.value = await confirmMakeupRender({ sessionId: store.sessionId, userId: user.id })
-  } catch (e) {
-    // 服务端的 message 本身就是人话(缺妆面 / 缺照片 / 上一轮欠着的不是出图请求 / 并发连点)。
-    pollError.value = e?.message || '这次没能出图'
-  } finally {
-    confirming.value = false
-  }
-}
-
-function restart() {
-  store.reset()
-  router.push('/upload')
+function onSave() {
+  design.snapshot()
+  saved.value = true
 }
 </script>
-
-<template>
-  <div class="page">
-    <header class="page-header">
-      <button class="back-btn" @click="router.push('/')">
-        <Icon name="arrowLeft" :size="18" />
-      </button>
-      <span class="title">妆容结果</span>
-      <span class="spacer"></span>
-    </header>
-
-    <!-- 读不到会话(含 mock 模式下这条链整个不可用) -->
-    <section v-if="pollError" class="card">
-      <h2 class="card-title">这次没能拿到结果</h2>
-      <p class="card-sub">{{ pollError }}</p>
-      <button class="btn btn-primary btn-block" @click="restart">重新开始</button>
-    </section>
-
-    <template v-else>
-      <!-- 成品图 -->
-      <section v-if="latest">
-        <CompareSlider :default-pos="55">
-          <template #after>
-            <img :src="resultSrc" alt="妆容后" />
-          </template>
-          <template #before>
-            <img class="before-img" :src="store.portraitUrl" alt="原图" />
-          </template>
-        </CompareSlider>
-        <p class="compare-hint">拖拽中间滑杆，对比妆容前后</p>
-      </section>
-
-      <!-- 妆面结论 -->
-      <section class="card">
-        <div class="caps card-kicker">{{ latest ? 'LOOK' : 'WAITING' }}</div>
-        <div class="verdict">
-          <span class="scene-name">{{ briefDisplayName() }}</span>
-        </div>
-        <!-- ★ 这句来自服务端 describeLook(),是唯一一份说法——原样展示,别自己再拼一句。 -->
-        <p v-if="lookDescription" class="direction">{{ lookDescription }}</p>
-        <p v-else class="direction faint">
-          妆面还在定。定下来之后这里会说清这一次是什么妆。
-        </p>
-
-        <!-- 出图那条消息。⚠️ 措辞一个字都不自己加:费用与时长那句来自服务端。 -->
-        <div v-if="renderRequest" class="offer">
-          <p class="offer-summary">{{ renderRequest.summary }}</p>
-          <button
-            class="btn btn-primary btn-block"
-            :disabled="confirming"
-            @click="confirm"
-          >
-            {{ confirming ? '正在出图…' : renderRequest.alreadyRendered ? '再生成一张' : '确认生成' }}
-          </button>
-        </div>
-        <p v-else-if="!latest" class="stage-hint faint">
-          还在等一个能出图的妆面与照片。稍等片刻，或回上传页补一张本人正面照。
-        </p>
-      </section>
-
-      <!-- 已出的图 -->
-      <section v-if="renders.length > 1" class="card">
-        <div class="caps card-kicker">RENDERS</div>
-        <ol class="render-list">
-          <li v-for="r in renders" :key="r.seq" class="render-item">
-            <img class="render-thumb" :src="renderImageHref(r.url, user.id)" :alt="`第 ${r.seq} 张`" />
-            <div class="render-body">
-              <span class="render-seq">第 {{ r.seq }} 张</span>
-              <span v-if="r.lookDescription" class="render-desc">{{ r.lookDescription }}</span>
-            </div>
-          </li>
-        </ol>
-      </section>
-
-      <!-- 本次输入回显 -->
-      <section v-if="hasEcho" class="card echo-card">
-        <div class="caps card-kicker">YOUR INPUT</div>
-        <ul class="echo">
-          <li v-if="brief.occasion" class="echo-item">
-            <span class="echo-label">场合</span>
-            <span class="echo-val"><span class="val-text">{{ occasionCn(brief.occasion) }}</span></span>
-          </li>
-          <li v-if="brief.sceneText" class="echo-item">
-            <span class="echo-label">你的需求</span>
-            <span class="echo-val"><span class="val-text echo-free">{{ brief.sceneText }}</span></span>
-          </li>
-          <li v-if="brief.skinType" class="echo-item">
-            <span class="echo-label">肤质</span>
-            <span class="echo-val"><span class="val-text">{{ skinTypeCn(brief.skinType) }}</span></span>
-          </li>
-          <li v-if="brief.skinTone" class="echo-item">
-            <span class="echo-label">肤色</span>
-            <span class="echo-val">
-              <span class="tone-swatch" :style="{ background: toneMeta[brief.skinTone]?.swatch }"></span>
-              <span class="val-text">{{ SKIN_TONE_CN[brief.skinTone] || brief.skinTone }}</span>
-            </span>
-          </li>
-          <li v-if="brief.dress" class="echo-item">
-            <span class="echo-label">穿搭</span>
-            <span class="echo-val"><span class="val-text">{{ brief.dress }}</span></span>
-          </li>
-          <li v-if="brief.weather" class="echo-item">
-            <span class="echo-label">天气</span>
-            <span class="echo-val"><span class="val-text">{{ weatherText(brief.weather) || '未提供' }}</span></span>
-          </li>
-        </ul>
-      </section>
-
-      <div class="actions">
-        <button class="btn btn-primary btn-block" @click="restart">换个场合，再来一次</button>
-      </div>
-    </template>
-  </div>
-</template>
-
-<style scoped>
-.page {
-  gap: 14px;
-}
-
-.card-kicker {
-  margin-bottom: 10px;
-}
-
-.compare-hint {
-  text-align: center;
-  font-size: 11px;
-  color: var(--c-ink-faint);
-  margin: 8px 0 2px;
-}
-
-.stage-hint {
-  font-size: 12px;
-  color: var(--c-ink-soft);
-  line-height: 1.7;
-  margin: 18px 0 0;
-}
-
-.faint {
-  color: var(--c-ink-faint);
-}
-
-/* ---- 出图那条消息 ---- */
-.offer {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--c-line);
-}
-
-.offer-summary {
-  font-size: 12.5px;
-  color: var(--c-ink-soft);
-  line-height: 1.7;
-  margin: 0 0 12px;
-}
-
-/* ---- 输入回显 ---- */
-.echo-card {
-  padding: 16px 20px;
-}
-
-.echo {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.echo-item {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 12.5px;
-}
-
-.echo-label {
-  flex: none;
-  width: 62px;
-  color: var(--c-ink-faint);
-}
-
-.echo-val {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  color: var(--c-ink);
-}
-
-.val-text {
-  word-break: break-word;
-}
-
-.echo-free {
-  color: var(--c-ink-soft);
-  line-height: 1.6;
-}
-
-.tone-swatch {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--c-line-strong);
-}
-
-.verdict {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-family: var(--font-display);
-  font-size: 19px;
-}
-
-.scene-name {
-  color: var(--c-accent);
-}
-
-.direction {
-  font-size: 13px;
-  color: var(--c-ink-soft);
-  line-height: 1.7;
-  margin: 12px 0 0;
-}
-
-/* ---- 已出的图 ---- */
-.render-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.render-item {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.render-item + .render-item {
-  margin-top: 12px;
-}
-
-.render-thumb {
-  width: 56px;
-  height: 56px;
-  object-fit: cover;
-  border-radius: 8px;
-  flex-shrink: 0;
-  background: var(--c-surface);
-  border: 1px solid var(--c-line);
-}
-
-.render-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.render-seq {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--c-ink-faint);
-}
-
-.render-desc {
-  font-size: 12.5px;
-  color: var(--c-ink-soft);
-  line-height: 1.6;
-}
-
-.actions {
-  margin-top: 4px;
-}
-</style>

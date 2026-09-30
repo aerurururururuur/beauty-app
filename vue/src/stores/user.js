@@ -1,16 +1,16 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useMakeupStore } from '@/stores/makeup'
-import { useAgentStore } from '@/stores/agent'
+import { useVanityStore } from '@/stores/vanity'
+import { usePersonasStore } from '@/stores/personas'
 
 /**
- * user store —— 只回答一个问题:「这次演示用的是哪个账号(id + 昵称)」。
+ * user store —— 只回答一个问题:「这次用的是哪个账号(id + 昵称)」。
  *
- * ★ 这不是登录态。后端 user 模块只核对凭据、**不签发 token、不建会话**
- *   (见 roadmap 红线 5),所以前端也没有任何"凭证"可存:
- *   localStorage 里只有 { id, nickname } 这两个公开字段——
- *   **密码绝不落本地、绝不进 store**。刷新后靠它恢复"我是谁",
- *   而不是靠它证明"我有权"。归属校验真正的把关在后端(改/删不认别人)。
+ * ★ 这不是登录态。后端 user 模块只核对凭据、**不签发 token、不建会话**,
+ *   所以前端也没有任何「凭证」可存:localStorage 里只有 `{ id, nickname }`
+ *   这两个公开字段——**密码绝不落本地、绝不进 store、绝不进日志**。
+ *   刷新后靠它恢复「我是谁」,而不是靠它证明「我有权」。
+ *   真正的把关在后端(衣橱改/删一律校验归属,不属于你就报 404)。
  */
 const STORAGE_KEY = 'beauty-app.user'
 
@@ -18,7 +18,8 @@ function readStored() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const saved = raw ? JSON.parse(raw) : null
-    // 只认这两个字段:id 用于请求,昵称用于回显。多出来的键一律丢弃。
+    // ★ 只认这两个字段:id 用于请求,昵称用于回显。多出来的键一律丢弃。
+    //   历史版本/手改过的 localStorage 里可能塞着别的东西,不能原样信。
     if (saved && typeof saved.id === 'string' && typeof saved.nickname === 'string') {
       return { id: saved.id, nickname: saved.nickname }
     }
@@ -46,23 +47,27 @@ export const useUserStore = defineStore('user', () => {
   }
 
   /**
-   * 登录 / 注册共用:两者都返回 UserView,拿到就记下来。密码用完即弃。
+   * 登录 / 注册共用:两者都返回同一个用户视图,拿到就记下来。密码用完即弃。
    *
-   * ★ api/users 走**惰性引入**:它经 api/index → axios(打包后 ~50 kB)。
-   *   本 store 在路由守卫的首屏链上(router → user store → isLoggedIn),静态引入
-   *   会把 axios 整个拽进首屏包——而守卫只读 localStorage 里那点状态,
-   *   真正发请求是用户点了按钮之后的事。同理见 api/use-mock.js 的注释。
+   * ★ `@/api/users` 走**惰性引入**:它经 api/index → axios(打包后 ~50 kB)。
+   *   本 store 在路由守卫的首屏链上(router → user store → isLoggedIn),
+   *   静态引会把 axios 整个拽进首屏包——而守卫只读 localStorage 里那点状态,
+   *   真正发请求是用户点了按钮之后的事。
+   *
+   * ★ `remember` 是**「要不要写 localStorage」**,不是后端参数(后端没有这一项)。
+   *   不勾 = 只存在内存里,关掉标签页就要重新登录。别把它当成"记住密码"。
    */
-  async function submit(action, credentials) {
+  async function submit(action, { taozhuangId, password, remember = true }) {
     if (busy.value) return false
     busy.value = true
     error.value = ''
     try {
       const users = await import('@/api/users')
-      const view = await users[action](credentials)
+      const view = await users[action]({ taozhuangId, password })
       id.value = view.id
       nickname.value = view.nickname
-      persist()
+      if (remember) persist()
+      else clearStored()
       return true
     } catch (e) {
       error.value = e?.message || '操作失败,请稍后再试'
@@ -72,34 +77,37 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  // action 是 @/api/users 里的导出名,惰性引入时才解析(见上)
   const login = (credentials) => submit('loginUser', credentials)
   const register = (credentials) => submit('registerUser', credentials)
 
-  /**
-   * 退出:清本地身份,不动后端数据(后端本来就没有会话可注销)。
-   *
-   * 顺带把上传页的状态一起 reset——**身份边界就是现场照片的边界**:
-   * 不清的话,换个人登录后进上传页,上一个人的本人照还留在内存里。
-   * 红线 4 要求现场采集的照片即用即删,这条不能靠"记得手动清"。
-   *
-   * ★ 对话那条路是**同一条边界**:agent store 里挂着会话 id(那个 id 指向服务端
-   *   一份**存着本人照片**的会话),还有本地那份 objectURL 缩略图。不清就是换个人
-   *   登录后仍指着上一个人的会话。它比 makeup 更要紧的一点:会话 id 还写在
-   *   localStorage 里(只用来刷新后接回),`reset()` 会一并收掉。
-   *   (那个 import 不会把 axios 拽进首屏包——`stores/agent.js` 对 api 是惰性引,见其文件头。)
-   */
-  function logout() {
-    id.value = ''
-    nickname.value = ''
-    error.value = ''
-    useMakeupStore().reset()
-    useAgentStore().reset()
+  function clearStored() {
     try {
       localStorage.removeItem(STORAGE_KEY)
     } catch {
       /* 同上 */
     }
+  }
+
+  /**
+   * 退出:清本机身份,不动后端数据(后端本来就没有会话可注销)。
+   *
+   * ★ 顺带把另外两个 store 一起 reset——**身份边界就是本机数据的边界**:
+   *   · 化妆包在内存里挂着上一个账号的东西,不清的话换个人登录会先看到别人的货;
+   *   · 人设库里存的是**人脸照片**(键本就按 userId 隔离,但内存里的那一份要收掉),
+   *     它比化妆包更要紧。
+   *   这两条不能靠「记得手动清」。
+   *
+   * ★ 这两个 store 能被**静态引**:它们引的 `api/vanity`、`api/personas` 顶层只吃
+   *   `kb/` 纯数据、不碰 axios(vanity 里那条 `./cabinet` 是惰性的)。所以这里
+   *   静态 import 不会破坏「首屏包里没有 axios」这条。改那两个文件时先确认这一点。
+   */
+  function logout() {
+    id.value = ''
+    nickname.value = ''
+    error.value = ''
+    useVanityStore().reset()
+    usePersonasStore().reset()
+    clearStored()
   }
 
   function clearError() {

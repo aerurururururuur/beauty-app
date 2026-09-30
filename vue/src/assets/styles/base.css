@@ -1,0 +1,465 @@
+/* 令牌由 main.js 先引 tokens.css,这里不再 @import(否则同一份变量加载两遍) */
+
+/* ---------- reset ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-page);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+/* ---------- 应用骨架 ---------- */
+.app {
+  display: flex;
+  width: var(--container-w);
+  min-height: 100vh;
+  margin: 0 auto;
+  background: var(--color-white);
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  width: var(--content-w);
+  background: var(--color-page);
+}
+
+/* ---------- 侧栏 ---------- */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--sidebar-w);
+  padding: var(--space-7) var(--space-5) var(--space-6);
+  gap: var(--space-3);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sidebar);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: var(--space-2);
+}
+
+.sidebar__brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sidebar__brand-en {
+  font-size: 10px;
+  color: var(--color-text-disabled);
+  letter-spacing: 0.08em;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--space-5);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  transition: background 0.18s var(--ease);
+}
+
+.nav-item:hover {
+  background: var(--color-card);
+}
+
+.nav-item--active {
+  background: var(--color-pink-soft);
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+.sidebar__spacer {
+  flex: 1;
+  min-height: var(--space-4);
+}
+
+.sidebar__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--grad-brand-h);
+  color: var(--color-white);
+  font-size: 15px;
+  font-weight: 700;
+  transition: opacity 0.18s var(--ease);
+}
+
+.sidebar__cta:hover {
+  opacity: 0.9;
+}
+
+.sidebar__quick {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.quick-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.18s var(--ease);
+}
+
+.quick-item:hover {
+  background: var(--color-warm-white);
+}
+
+/* ✏️ 源站缺的就是这一条:`quick-item--active` 一直被贴上、却**没有任何规则**,
+   于是快捷区的高亮从来没出现过——类名在、效果不在,是样式版的静默失效。
+   补上与 `.nav-item--active` 同一套语言(浅粉底 + 玫红字),图标走 currentColor 跟随。 */
+.quick-item--active,
+.quick-item--active:hover {
+  background: var(--color-pink-soft);
+  color: var(--color-rose);
+  font-weight: 600;
+}
+
+.sidebar__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: var(--space-2);
+}
+
+.sidebar__user-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  height: var(--topbar-h);
+  padding: 0 var(--space-8);
+  background: var(--color-white);
+}
+
+.topbar__title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+.searchbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 420px;
+  height: 42px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+}
+
+.searchbox__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.searchbox__input::placeholder {
+  color: var(--color-text-disabled);
+}
+
+/* 内联图标统一走 currentColor：搜索/字段图标用禁用色令牌，其余继承 body 文字色 */
+.searchbox svg,
+.field svg {
+  color: var(--color-text-disabled);
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  transition: background 0.18s var(--ease);
+}
+
+.icon-btn:hover {
+  background: var(--color-warm-white);
+}
+
+/* ---------- 内容区 ---------- */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding: var(--space-7) var(--space-8) var(--space-8);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.section__title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.section__more {
+  font-size: 13px;
+  color: var(--color-text-sub);
+  transition: color 0.18s var(--ease);
+}
+
+.section__more:hover {
+  color: var(--color-rose);
+}
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.card-row {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* 卡片数量不固定时（如首页人设库联动）：保持卡宽、横向滚动，不被挤扁 */
+.card-row--scroll {
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  scrollbar-width: thin;
+}
+
+.card-row--scroll > * {
+  flex: none;
+}
+
+.look-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 272px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.look-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hover);
+}
+
+.look-card__cover {
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+}
+
+.look-card__title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.look-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.look-card__author {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.look-card__count {
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-peach);
+}
+
+/* ---------- 图片占位 ---------- */
+.ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px 10px;
+  line-height: 1.4;
+  /* 品牌柔光 + 极淡斜纹纹理；多层背景叠在文字之下，文字始终清晰 */
+  background:
+    repeating-linear-gradient(45deg, rgba(212, 141, 149, 0.05) 0 6px, transparent 6px 12px),
+    radial-gradient(circle at 28% 22%, rgba(231, 166, 172, 0.22), transparent 55%),
+    linear-gradient(135deg, var(--color-pink-soft) 0%, var(--color-card) 100%);
+  color: var(--color-text-sub);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+
+/* ---------- chip / 按钮 ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  font-size: 14px;
+  color: var(--color-text);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.chip:hover {
+  background: var(--color-warm-white);
+}
+
+.chip--active,
+.chip--active:hover {
+  background: var(--color-peach);
+  color: var(--color-white);
+  font-weight: 500;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn--soft {
+  background: var(--color-pink-soft);
+  color: var(--color-rose);
+}
+
+.btn--soft:hover {
+  background: var(--color-pink-soft-hover);
+}
+
+.btn--brand {
+  background: var(--grad-brand-h);
+  color: var(--color-white);
+}
+
+.btn--brand:hover {
+  opacity: 0.9;
+}
+
+/* ---------- 空状态 ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 48px 0;
+  color: var(--color-text-disabled);
+  font-size: 14px;
+}

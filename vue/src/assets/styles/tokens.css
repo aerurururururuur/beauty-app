@@ -1,29 +1,70 @@
+/* 桃妆 · 设计令牌
+   色值来自配色卡程序化提取，勿凭感觉改动。
+   组件样式一律引用这里的变量，不要写死色值。 */
+
 :root {
-  /* 暖象牙底 · 浆果红 · 墨黑文字 —— 杂志编辑感 */
-  --c-bg: #f5f0e9;              /* 暖象牙背景 */
-  --c-surface: #fffdfb;         /* 卡片 */
-  --c-surface-2: #efe8df;       /* 次级面板 / 按下态 */
+  /* 品牌色 */
+  --color-peach: #e7a6ac;      /* 桃枝粉，主强调色 */
+  --color-rose: #d48d95;       /* 落花红，强调色深一档 */
+  --color-green: #a1c2b1;      /* 浮翠绿，辅助 */
+  --color-aqua: #b6d5c6;       /* 水光青，辅助浅 */
 
-  --c-ink: #2a1e22;             /* 墨黑文字 */
-  --c-ink-soft: #6e5b62;        /* 次级文字 */
-  --c-ink-faint: #a6999e;       /* 弱化文字 */
+  /* 中性色 */
+  --color-page: #f7f3f0;       /* 内容区底 */
+  --color-card: #faf6f4;       /* 卡片灰底 */
+  --color-pink-soft: #fbefef;  /* 激活态浅粉底 */
+  --color-pink-soft-hover: #f8e4e6; /* 浅粉底 hover 态（略深一档） */
+  --color-warm-white: #f3eeea;
+  --color-white: #ffffff;
+  --color-line: #f0e7e2;
 
-  --c-line: rgba(42, 30, 34, 0.1);         /* 发丝线 */
-  --c-line-strong: rgba(42, 30, 34, 0.2);
+  /* 文字 */
+  --color-text: #241f20;
+  --color-text-sub: #8a7879;
+  --color-text-disabled: #b9a5a6;
+  --color-icon: #4a4042;            /* 图标默认描边/填充色（中性深） */
+  --color-shade-text-dark: #5a3b38; /* 浅色号块上的文字色（动态对比） */
+  --color-shade-text-light: #ffffff; /* 深色号块上的文字色（动态对比） */
 
-  --c-accent: #b23a48;          /* 浆果红（主色） */
-  --c-accent-deep: #8e2733;
-  --c-accent-soft: #f3e4e5;
-  --c-gold: #c7a17a;
+  /* 状态色 */
+  --color-danger: #b4454e;         /* 危险操作文字（删除人设） */
+  --color-danger-bg: #fbecec;      /* 危险操作 hover 底 */
+  --color-danger-border: #e3b6ba;   /* 危险操作 hover 边 */
 
-  --font-display: Georgia, 'Songti SC', 'Noto Serif SC', 'STSong', SimSun, serif;
-  --font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI',
-    'Microsoft YaHei', sans-serif;
-  --font-mono: 'SF Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+  /* 渐变 */
+  --grad-brand: linear-gradient(135deg, #e7a6ac 0%, #d48d95 100%);
+  --grad-brand-h: linear-gradient(90deg, #e7a6ac 0%, #d48d95 100%);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-full: 999px;
+  /* 圆角 */
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
 
-  --shadow-soft: 0 1px 2px rgba(42, 30, 34, 0.04), 0 12px 32px rgba(42, 30, 34, 0.06);
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  /* 尺寸 */
+  --sidebar-w: 240px;
+  --topbar-h: 76px;
+  --container-w: 1440px;
+  --content-w: 1200px;
+
+  /* 阴影 */
+  --shadow-card: 0 2px 12px rgba(36, 31, 32, 0.04);
+  --shadow-hover: 0 8px 24px rgba(36, 31, 32, 0.08);
+  --shadow-sidebar: 2px 0 16px rgba(36, 31, 32, 0.04);
+
+  /* 字体 */
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Hiragino Sans GB", sans-serif;
+
+  /* 动效 */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
