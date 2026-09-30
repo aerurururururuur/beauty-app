@@ -137,8 +137,8 @@ describe('三个适配器 —— 越界当场抛错,绝不"就近映射"', () =>
     await expect(face.read({ image: IMG })).rejects.toThrow(/不是合法 JSON/);
   });
 
-  it('★ scene:回一个不在 5 档里的词 ⇒ 抛错', async () => {
-    const scene = new SceneAnalyzer(new FakeVisionClient('{"occasion":"party"}'));
+  it('★ scene:回一个不在 8 档里的词 ⇒ 抛错', async () => {
+    const scene = new SceneAnalyzer(new FakeVisionClient('{"occasion":"birthday"}'));
     await expect(scene.read({ image: IMG })).rejects.toThrow(/场合/);
   });
 
@@ -448,6 +448,8 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
     artifacts: createSessionArtifacts(artifactStore, { engineOutDir: config.makeupOutDir }),
     // 这一组不碰妆面校验,所以调色盘给空的就够(它只在 propose_look 那一步被读)。
     palette: { toneKeysFor: () => undefined, labelOf: () => undefined },
+    // 同上:特征策略卡也只在 propose_look 那一步被读。
+    features: { byId: () => undefined },
     ...(analyzers ? { analyzers } : {}),
   });
 

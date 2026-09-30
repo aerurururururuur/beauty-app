@@ -7,14 +7,14 @@
  * (`patch_brief` 工具)。两条路各自持一份 schema 是**对的**(入参契约不同:开会话一次给全,
  * 对话是增量补丁,而且补丁**没有** `weather`)——但**字段本身的规则**只该有一份。
  *
- * 此前两边各写了一遍这五行,`agent/domain/schemas/api/brief-patch.ts` 的注释把风险写得很准:
+ * 此前两边各写了一遍这几行,`agent/domain/schemas/api/brief-patch.ts` 的注释把风险写得很准:
  * 「改 `MakeupBrief` 时两处都要看」。那不是一种能靠自觉维持的约定:
  * 改了一边忘了另一边,同一个用户输入会因为**从哪条路进来**而受不同限制——
  * 表现是"开会话时能写 2000 字,对话里却报错"这种极难归因的 bug。
  * 所以这里只放**字段**,不放对象:两处各自 `z.object({ ...briefFields, … })`,
  * 各自的 `.strict()`、各自的成员(开会话多一个 `weather`)都留在原地。
  *
- * ★ **这里只有形状,没有规则**(§4.2):五个字段都是「可选字符串」。
+ * ★ **这里只有形状,没有规则**(§4.2):五个是「可选字符串」,一个是「可选字符串数组」。
  *   「哪些取值合法」「最长多少字」是**业务规则**,在
  *   `shared/domain/validators/brief-fields.validator.ts` —— 两条路都调那一份。
  *   ⚠️ 所以**别在这里加 `.max()` / `z.enum()`**:加了就等于规则又多了第二个落点,
@@ -35,4 +35,6 @@ export const briefFields = {
   skinType: z.string().optional(),
   skinTone: z.string().optional(),
   dress: z.string().optional(),
+  /** 面部特征 id 列表。★ 成员白名单不在这里(那是 `face-catalog` 的目录),见 validator。 */
+  features: z.array(z.string()).optional(),
 } as const;

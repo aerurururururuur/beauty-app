@@ -17,6 +17,7 @@
  */
 import type { ImageRef, MakeupBrief } from '../../../shared/index.js';
 import type { AnalyzeCase, LookSpec, StyleRead } from '../../../makeup/index.js';
+import type { PlanView } from '../../../styling/index.js';
 import type {
   AnalysisRecordRow,
   ConsultedProductRow,
@@ -140,9 +141,33 @@ export function patchBrief(session: Session, changes: MakeupBrief): Session {
   return new Session({ ...session, brief: next, updatedAt: nowIso() });
 }
 
-/** 记下当前妆面单。 */
-export function setLookSpec(session: Session, lookSpec: LookSpec): Session {
-  return new Session({ ...session, lookSpec, updatedAt: nowIso() });
+/**
+ * 记下当前妆面单**和它的方案**。
+ *
+ * ★★ **`plan` 是必填的第三个参数,这不是啰嗦。** 方案(步骤 / 色号 / 产品 / 个性化)
+ *   与妆面单是**同一次 `propose_look`** 的两样产出,`/result` 那一屏两样都摆。
+ *   让它可选、或者分成两个函数调,就会出现"方案还是 A、妆面已经换成 B"的中间态
+ *   —— 而那个中间态会被原样渲染给用户,她会拿 A 的步骤去理解 B 的成片。
+ *   所以这里**刻意不给缺省**:谁改妆面,谁就必须把方案一起交出来。
+ *
+ * `plan` 允许是 `undefined`,那表达的是**「这套妆面没有配方」**——不是一个可以
+ * 省略的参数,而是一个必须明写的判断(目前唯一的写者是 `propose_look`,它永远给得出)。
+ */
+export function setLookSpec(
+  session: Session,
+  lookSpec: LookSpec,
+  plan: PlanView | undefined,
+): Session {
+  // ★ 上一份 `plan` **先摘掉再装**(不是"没给就留着"):传 `undefined` 的意思是
+  //   "这套妆面没有配方",而留着一份属于**旧妆面**的方案,正是上面那段要防的中间态。
+  //   { ...session } 是复制不出"少一个键"的,所以这里显式解构掉它。
+  const { plan: _previous, ...rest } = session;
+  return new Session({
+    ...rest,
+    lookSpec,
+    ...(plan !== undefined ? { plan } : {}),
+    updatedAt: nowIso(),
+  });
 }
 
 /** 记下用户上传的本人照片。 ★ 再传一张**覆盖**旧的(用户就是想换一张)。 */

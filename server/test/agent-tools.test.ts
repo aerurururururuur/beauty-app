@@ -26,7 +26,7 @@ import {
   validateLookSpec,
 } from '../src/modules/makeup/index.js';
 import type { SkinTonePalette } from '../src/modules/makeup/index.js';
-import { realPalette } from './helpers/face-catalog.js';
+import { realFeatures, realPalette } from './helpers/face-catalog.js';
 import { MAX_SCENE_TEXT, OCCASIONS } from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
@@ -81,6 +81,17 @@ const SAMPLE_LOOK = new LookSpec({
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
   },
 });
+
+/**
+ * 调 `propose_look` 时发出去的那份入参:妆面单 **+ 它的配方 id**。
+ *
+ * ★ **不能就用 `SAMPLE_LOOK`**:`styleId` **不属于妆面单**(`lookSpecSchema` 是 `.strict()`
+ *   的,多一格整份被打回),所以两份样例必须分开 ——
+ *   `SAMPLE_LOOK` 是"一份妆面",这一份是"要调那个工具时发什么"。
+ *   ⚠️ 两边都跟着 JSON Schema 的 `required` 走(见下面那条结构核对)。
+ * `commute` 在 `interview` 的候选池里,而 `SAMPLE_LOOK` 的场合正是 `interview`。
+ */
+const LOOK_INPUT = { ...SAMPLE_LOOK, styleId: 'commute' };
 
 interface JsonSchema {
   type?: string;
@@ -224,6 +235,7 @@ describe('工具契约', () => {
       engine: { generate: async () => ({}) } as never,
       artifacts: {} as never,
       palette,
+      features: realFeatures(),
     };
     const without = createToolRegistry(base);
     expect([...without.keys()]).toEqual([
@@ -260,9 +272,10 @@ describe('工具契约', () => {
   it('手写的 JSON Schema 结构与 zod 的 LookSpec 对得上(样例双向校验)', () => {
     const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
 
-    // 一侧:JSON Schema 认这份样例。
-    assertSchemaCoversSample(propose.inputSchema as JsonSchema, SAMPLE_LOOK, '$');
-    // 另一侧:zod 也认同一份样例(不传 `skinTone` ⇒ 不收窄,只看形状)。
+    // 一侧:JSON Schema 认**工具入参**那份样例(它比妆面单多一格 `styleId`)。
+    assertSchemaCoversSample(propose.inputSchema as JsonSchema, LOOK_INPUT, '$');
+    // 另一侧:zod 认**妆面单**那份(不传 `skinTone` ⇒ 不收窄,只看形状)。
+    // ⚠️ 两份样例在这里**故意不同**:`LookSpec` 里没有 `styleId`,而工具入参里它是必填。
     expect(() => validateLookSpec(SAMPLE_LOOK, { palette })).not.toThrow();
   });
 });
@@ -339,10 +352,10 @@ describe('patch_brief', () => {
 // ── propose_look ────────────────────────────────────────────────────────────
 
 describe('propose_look', () => {
-  const tool = new ProposeLookTool(palette);
+  const tool = new ProposeLookTool(palette, realFeatures());
 
   it('产出记进会话,并把 describeLook 的结果交回去(那段文字就是"预览")', async () => {
-    const out = await run(tool, SAMPLE_LOOK, session());
+    const out = await run(tool, LOOK_INPUT, session());
 
     expect(out.session?.lookSpec).toEqual(SAMPLE_LOOK);
     expect(out.content).toContain(describeLook(SAMPLE_LOOK));
@@ -351,11 +364,25 @@ describe('propose_look', () => {
   });
 
   it('形状不对时把合法取值清单一起回给模型(报错就是 prompt)', async () => {
-    const out = await run(tool, { ...SAMPLE_LOOK, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } }, session());
+    const out = await run(tool, { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } }, session());
 
     expect(out.isError).toBe(true);
     expect(out.content).toContain('可用');
     expect(out.content).toContain('rose');
+  });
+
+  it('★ `styleId` 不在这个场合的候选池里 → 打回,并把**整池**列给它', async () => {
+    // `banquet` 在 `party` 的池子里,不在 `interview` 的 —— 而 `SAMPLE_LOOK` 的场合是 interview。
+    // ★ 这一格是「模型挑了一个别的场合的配方」的现场:配方本身是好的,只是**这套妆配不上这个场合**。
+    const out = await run(tool, { ...LOOK_INPUT, styleId: 'banquet' }, session());
+
+    expect(out.isError).toBe(true);
+    // 与形状错误同一条规矩(见下一条):开头就得说清"这次什么都没记下"。
+    expect(out.content).toMatch(/^★ 这次\*\*没有记下任何妆面/);
+    // ★ 候选池是**唯一**能让它改对的东西 —— 少了它,模型只能换一个猜。
+    expect(out.content).toContain('候选风格');
+    expect(out.content).toContain('commute');
+    expect(out.session).toBeUndefined(); // 失败就是不写会话
   });
 
   it('★★ 失败时必须**开头就说"没有记下任何妆面"** —— 否则模型会在正文里把一套妆面讲成已定', async () => {
@@ -366,7 +393,7 @@ describe('propose_look', () => {
     //   必须把"这次什么都没发生"这个事实放在最前面(同 render_look 失败分支的做法)。
     const out = await run(
       tool,
-      { ...SAMPLE_LOOK, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } },
+      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } },
       session(),
     );
 
@@ -382,7 +409,7 @@ describe('propose_look', () => {
     // nude 不在 deep_brown 的可用色域里(词表占位值),应当被打回。
     const out = await run(
       tool,
-      { ...SAMPLE_LOOK, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
+      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
       deep,
     );
 
@@ -394,14 +421,14 @@ describe('propose_look', () => {
   it('肤色**未知**时不收窄 —— 「不知道」和「知道但违反」是两回事', async () => {
     const out = await run(
       tool,
-      { ...SAMPLE_LOOK, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
+      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
       session(),
     );
     expect(out.isError).toBeUndefined();
   });
 
   it('自由文本字段塞不进来(§6:开了这个口子,身份保持就形同虚设)', async () => {
-    const out = await run(tool, { ...SAMPLE_LOOK, note: '眼睛放大一点' }, session());
+    const out = await run(tool, { ...LOOK_INPUT, note: '眼睛放大一点' }, session());
     expect(out.isError).toBe(true);
     expect(out.content).toContain('note');
   });

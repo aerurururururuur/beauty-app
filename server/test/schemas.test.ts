@@ -237,7 +237,7 @@ describe('★ §4.2 其余模块:schema 只答形状,规则在 validator', () =>
   it('validator 层统统照旧拒(且说的是同一句话)', () => {
     expect(() =>
       validateCredentials({ nickname: tooLongBy(MAX_NICKNAME_RAW), password: 'x' }),
-    ).toThrow(`昵称原文最多 ${MAX_NICKNAME_RAW} 字`);
+    ).toThrow(`桃妆 ID 原文最多 ${MAX_NICKNAME_RAW} 字`);
     expect(() =>
       validateCredentials({ nickname: '小美', password: tooLongBy(MAX_PASSWORD) }),
     ).toThrow(`密码最多 ${MAX_PASSWORD} 位`);

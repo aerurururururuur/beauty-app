@@ -62,13 +62,29 @@ export const skinToneFileSchema = z
   })
   .strict();
 
-/** ★ 导出理由同 `toneTierSchema`。收窄(`route.slot` ∈ `GEOMETRY_SLOTS`)在 validator 里。 */
+/**
+ * ★ 导出理由同 `toneTierSchema`。收窄(`route.slot` ∈ `GEOMETRY_SLOTS`)在 validator 里。
+ *
+ * ✏️ 2026-09-30 加了 `desc` / `fix` / `products` 三格(源自桃妆的
+ * `vue/src/api/kb/features.js`)。**这一步推翻过本目录的一条旧决定**,缘由写在这份
+ * JSON 的 `note` 里,别只看这里。
+ *
+ * ⚠️ `products` 是**知识库原文里点到的产品名**,自由文本,**不是 `pid`** ——
+ *   它连不上 `products` 模块的库,也别拿它去查。要给用户可点的产品,
+ *   那条路是 agent 的 `list_products` / `read_product`。
+ */
 export const featureValueSchema = z
   .object({
-    /** 取值 id。存进 `brief.features` 的是它。 */
+    /** 取值 id。存进 `brief.features` 的是它。★ **全表唯一**,那条在 validator 里查。 */
     id: z.string().min(1),
-    /** 中文名,直接上界面。 */
+    /** 中文名,直接上界面。与前端 `FEATURE_LIBRARY[].name` 逐字相同(有测试钉着)。 */
     label: z.string().min(1),
+    /** 特征识别:这个特征长什么样。 */
+    desc: z.string().min(1),
+    /** 调整策略:针对这个特征该怎么调。★ 内容,不是代码拼的。 */
+    fix: z.string().min(1),
+    /** 策略里点到的那几支产品(名字)。 */
+    products: z.array(z.string().min(1)).min(1),
     /** 这个取值在图像提示词里的去向。`advisory` = 只给用户建议,一个字都不进出图文案。 */
     route: routeSchema,
   })
@@ -77,7 +93,7 @@ export const featureValueSchema = z
 /** ★ 导出理由同 `toneTierSchema`。 */
 export const dimensionSchema = z
   .object({
-    /** 类 id,如 `eye_shape`。 */
+    /** 类 id,如 `eye`(与前端 `FEATURE_GROUPS[].id` 逐字相同,有测试钉着)。 */
     id: z.string().min(1),
     /** 中文类名,如「眼型」。 */
     label: z.string().min(1),

@@ -2,7 +2,7 @@
  * domain/entities/brief.ts —— 一次上妆的「用户需求简报」(值对象)。
  *
  * roadmap 把输入重心从「风景图」移到「场合 + 人本维度」:
- *   - occasion  重要场合(面试/约会/上台/见家长/日常)= 风格主判据
+ *   - occasion  重要场合(面试/约会/上台/见家长/日常 + 聚会/旅行/奇想)= 风格主判据
  *   - 肤质/肤色 是「按真实肤色走、禁止默认浅肤色审美」的包容落点
  *   - 穿搭 tag + 日期天气 只作为可选的辅助回显/文案素材,不深建模
  *   - sceneText 仍是自由输入自定义板
@@ -10,7 +10,21 @@
  * 枚举常量数组作为「单源」:schema、validator、mock 适配器、
  * 前端契约都从这里取,避免各自再写一遍字符串集合。
  */
-export const OCCASIONS = ['interview', 'date', 'stage', 'family', 'daily'] as const;
+/**
+ * 场合(单一源)。前 5 个是原有的,`party` / `travel` / `fantasy` 是 2026-09-30 补的
+ * ——补完之后这 8 个与桃妆前端的 5 个场景 id(`vue/src/api/design.js` 的 `SCENES`)完全同名。
+ * 判定优先级不看这个数组,看 `scene-rules.ts` 的 `SCENE_MATCH_ORDER`。
+ */
+export const OCCASIONS = [
+  'interview',
+  'date',
+  'stage',
+  'family',
+  'daily',
+  'party',
+  'travel',
+  'fantasy',
+] as const;
 export type Occasion = (typeof OCCASIONS)[number];
 
 export const SKIN_TYPES = ['dry', 'oily', 'combination', 'sensitive', 'neutral'] as const;
@@ -61,5 +75,16 @@ export interface MakeupBrief {
   skinTone?: SkinTone;
   /** 穿搭一句话:风格 + 主色,如「西装 · 藏青」。 */
   dress?: string;
+  /**
+   * 用户本人的面部特征 id(可多选),如 `eye-drop` / `face-round`。
+   *
+   * ★ **取值与含义不在这里**,在 `face-catalog` 的目录
+   *   (`assests/face-catalog/features.json`)——`shared` 不能 import 它(反向依赖)。
+   *   这里只声明"有这一列"。**合法成员在 `face-catalog` 的 validator 里查**。
+   *
+   * ★ **未知 id 由消费者剔掉,不在这里报错**(见 `styling` 的方案推导):
+   *   用户数据里存的 id 可能比后端词表旧,那不该让整份需求被打回。
+   */
+  features?: readonly string[];
   weather?: WeatherInfo;
 }

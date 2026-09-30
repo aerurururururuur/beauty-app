@@ -93,6 +93,12 @@ export class FaceVocabulary {
 
   readonly #byId: Map<string, SkinToneTier>;
   readonly #dimensions: Map<string, FeatureDimension>;
+  /**
+   * ★ 特征取值**跨全部六类**的索引。建它的前提是 id 全表唯一 —— 那条不变量
+   *   2026-09-30 起由 `vocabulary.validator.ts` 在启动时查(从前只在类内查,因为
+   *   那时候没有任何东西按裸 id 取特征)。
+   */
+  readonly #features: Map<string, { dimension: FeatureDimension; value: FeatureValue }>;
   readonly #defaultTier: SkinToneTier;
 
   constructor(
@@ -108,6 +114,14 @@ export class FaceVocabulary {
 
     this.#byId = new Map(tones.map((t) => [t.id, t]));
     this.#dimensions = new Map(dimensions.map((d) => [d.id, d]));
+    this.#features = new Map(
+      dimensions.flatMap((dimension) =>
+        dimension.values.map((value): [string, { dimension: FeatureDimension; value: FeatureValue }] => [
+          value.id,
+          { dimension, value },
+        ]),
+      ),
+    );
 
     const def = this.tones.find((t) => t.isDefault);
     if (!def) throw new Error('面部词表:没有任何一档标了 isDefault。');
@@ -130,5 +144,17 @@ export class FaceVocabulary {
   /** 按 id 取一类特征;不认识就是 `undefined`。 */
   dimensionById(id: string): FeatureDimension | undefined {
     return this.#dimensions.get(id);
+  }
+
+  /**
+   * 按 id 取一个特征取值,**跨全部六类**;不认识就是 `undefined`。
+   *
+   * ★ 为什么是跨类:`brief.features` 是一串**裸 id**,不带类名(前端人设里存的就是
+   *   这样)。方案里那张调整卡要写「眼部 · 眼尾下垂」,所以取的时候得一并知道它属于哪一类。
+   *   逐类 `dimensionById(...)?.valueById(...)` 试一遍也行,但那样每加一类就多一轮扫描,
+   *   而且**全表唯一**这条不变量没人替它把关。
+   */
+  featureById(id: string): { dimension: FeatureDimension; value: FeatureValue } | undefined {
+    return this.#features.get(id);
   }
 }

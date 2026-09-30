@@ -32,7 +32,9 @@ export class StartSession {
    */
   async execute(userId: string, brief: MakeupBrief = {}): Promise<Session> {
     // ★ 顺序:**先问"这人存在吗",再谈存什么**——所以检查在建实体、落库之前。
-    //   同 `AddCosmetic`,连错误文案都一致(`用户不存在:<id>`)。
+    //   判据与 `AddCosmetic` 是同一条,但**文案刻意不同**:那边说「桃妆账号不存在」
+    //   (桃妆用户看得见),这里说「用户不存在:<id>」(这条路由今天没有前端在调,
+    //   读者是排查的人,回显 id 有用)。见 `agent/README` 的「各写面向自己读者的文案」。
     //   这和"多一条垃圾记录"不是一个量级的问题,理由见端口文件头。
     if (!(await this.deps.users.exists(userId))) {
       throw new AppError(ErrorCode.USER_NOT_FOUND, `用户不存在:${userId}`);

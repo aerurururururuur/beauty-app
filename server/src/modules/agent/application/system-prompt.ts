@@ -24,6 +24,7 @@ import type { Session } from '../domain/entities/session.js';
 import { describeBrief } from './brief-description.js';
 import { describeLookState } from './look-state-description.js';
 import { describeRenderState } from './render-state-description.js';
+import { describeStylePool } from './style-pool-description.js';
 
 /**
  * 提示版本号。★ 随每次 LLM 调用记进夹具(同 §5.2 对 `prompt-builder` 模板版本号的要求):
@@ -344,8 +345,23 @@ import { describeRenderState } from './render-state-description.js';
  *   一句「我下周面试,肤色偏深、混油皮」+ 一句「那我该买什么」,看**最后那段正文里
  *   有没有 id、有没有「从库里」**。⚠️ 若复现,② 的下一手**不是再改措辞**(版面已经让过了),
  *   而是在循环里拦正文;① 的下一手则值得回头问"那个话头是不是根本不该由模型说"。
+ * - `v14` ——(2026-09-30)**`propose_look` 多了一个必填入参 `styleId`,提示里补一行候选池。**
+ *   从这一版起,**「方案」(步骤 / 色号 / 产品 / 个性化调整)与妆面单由同一次工具调用产出**
+ *   (`styling` 模块的 `derivePlan`,落进 `session.plan`),所以 `styleId` 必须与这套妆
+ *   **是一套**,不能各说各的——`/result` 上那一屏两样都摆。
+ *
+ *   ★ **为什么把池子印进提示词**:候选池随场合变,而 **JSON Schema 表达不了这层依赖**
+ *   (`enum` 是按字段写死的;`oneOf` 按另一个字段分支,模型也读不出来)。
+ *   摆在那儿只有两条路:让它先猜一个 id、被拒、再照错误消息改(白花一个回合),
+ *   或者**把清单直接给它**。选了后者,渲染只有一份(见 `style-pool-description.ts`)。
+ *   ⚠️ **场合还不知道时列全部八档**:纯对话那条路场合是模型自己判的,
+ *   它判完场合紧接着就要挑 `styleId`,中间没有第二次读提示词的机会。
+ *
+ *   ⚠️ **本版尚未经过真实调用** ⇒ 按本仓口径记成 `[未验证]`。最小验证:
+ *   一句「下周有个聚会,帮我定一套」,看 `propose_look` 的入参里 `styleId` 在不在
+ *   `party` 那一行(`banquet` / `princess` / `festival` / `wolf`)。
  */
-export const SYSTEM_PROMPT_VERSION = 'v13';
+export const SYSTEM_PROMPT_VERSION = 'v14';
 
 export interface SystemPromptOptions {
   /**
@@ -448,6 +464,12 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '## 你的工作',
     '把用户模糊的说法,收敛成一份**结构化的妆面**——只用颜色、质地、浓度这三样描述,',
     '用 `propose_look` 工具记下来,然后用文字讲给她听。',
+    // ★ v14:妆面单上还多一格 `styleId`,而**池子随场合变**(见文件头 v14 那段)。
+    //   ⚠️ 这两句里「从下面那一行里挑」指的就是 `## 当前状态` 的「风格池」那行——
+    //   改这一句时别把它指丢了。
+    '★ 这次调用还要带一格 `styleId`:**从「当前状态」里「风格池」那一行列出的候选里挑一个**,',
+    '不要自己编、也不要挑别的场合的。它和这套妆面是**同一件事的两面**——',
+    '你提的是一套妆,`styleId` 就是这套妆的配方,两者要是一套,不能各说各的。',
     '',
     '## 硬规则(不是建议)',
     ...rules,
@@ -466,6 +488,10 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '',
     '## 当前状态',
     `已知需求:${describeBrief(session.brief)}`,
+    // ★ 存在理由见文件头 v14 那段:候选池随场合变,而 JSON Schema 表达不了那层依赖。
+    //   ⚠️ **场合定了也照印**:用户中途换个场合(「改成见家长」)时,池子要跟着换,
+    //     而那时 `plan` 还是旧的那一份——按 `plan` 有没有来省这一行会正好把它藏掉。
+    describeStylePool(session.brief.occasion),
     look,
     // ★ 出图那一行的存在理由见文件头 v5 那段:模型过去只能靠猜,而它猜错过一次。
     describeRenderState(session),

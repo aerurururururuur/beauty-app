@@ -22,6 +22,12 @@ export type { AgentLlmKind, AgentModuleOptions, AgentModuleServices } from './co
 // ---- ② 组装根要用的端口类型(注入 cabinet / assets / user 的实现时只认这些)----
 export type { CosmeticReader, CabinetAttribute, CabinetItemSnapshot } from './domain/ports/cosmetic-reader.js';
 /**
+ * ★ 特征策略卡端口。组装根把 `face-catalog` 的 `FaceVocabulary` 包一层喂进来——
+ * ⚠️ 与 cabinet / products 那两份同理:它与 face-catalog 的类型**同名同形但不是同一个类型**(§7.1)。
+ * 必填:缺了它方案里「针对本人」那一块恒为空,而界面上看不出来。
+ */
+export type { FeatureStrategies } from './domain/ports/feature-strategies.js';
+/**
  * ★ 读品牌产品库的端口。组装根把 products 模块的 `ProductCatalog` 包一层喂进来——
  * ⚠️ 与 cabinet 那份同理,它与 products 的类型**同名同形但不是同一个类型**(§7.1)。
  * 可选依赖:不传就不注册那两个工具(见 `application/tools/registry.ts`)。

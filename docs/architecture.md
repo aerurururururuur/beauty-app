@@ -47,6 +47,7 @@ src/
     ├── weather/             # 当日天气:open-meteo 实拉(无 key)+ WMO 码映射 + mock 兜底 + 查询校验
     ├── cabinet/             # 衣橱:用户自己的化妆品(名称 + 自定义特性),按 userId 归属 + 归属校验 + JSON 落盘
     ├── products/            # 品牌产品库(内容库,给模型读的品类资料):加载 + 校验 + 只读查询
+    ├── styling/             # ★ 妆容方案:21 套风格配方 + 展开成步骤/色板/产品/个性化(纯函数,无 IO)
     └── agent/               # 对话 agent:工具调用循环 + LookSpec 产出 + 会话 + **出图(人在回路)**
 ```
 
@@ -63,11 +64,12 @@ src/
 
 | 字段 | 枚举 / 约束 | 说明 |
 | --- | --- | --- |
-| `occasion` | `interview` 面试 / `date` 约会 / `stage` 上台 / `family` 见家长 / `daily` 日常兜底 | 主风格信号，直进 domain |
+| `occasion` | **8 个**：`interview` 面试 / `date` 约会 / `stage` 上台 / `family` 见家长 / `daily` 日常兜底 / `party` 聚会 / `travel` 旅行 / `fantasy` 奇想 | 主风格信号，直进 domain。★ 后 3 个是 2026-09-30 为桃妆补的（5 → 8）；补完之后这 8 个与桃妆前端那 5 张场景卡**同名同义**，前端把 `sceneId` 直传当 `occasion` 用，不再需要映射表 |
 | `sceneText` | ≤2000 字 | 自由文字自定义需求 |
 | `skinType` | `dry`/`oily`/`combination`/`sensitive`/`neutral` | 肤质（持妆策略） |
 | `skinTone` | `cool_porcelain`/`pink_porcelain`/`warm_ivory`/`warm_beige`/`olive`/`warm_tan`/`wheat`/`deep_brown` **8 档** | **缺省 `olive`（橄榄皮·橄榄调）**，不默认浅肤色审美 |
 | `dress` | ≤80 字 | 穿搭一句话（风格 + 主色） |
+| `features` | 面部特征 id 数组（有**条数上限**，形状校验在 `shared`） | 用户在人设里勾选的特征，如 `eye-drop` / `face-round`。★ **取值与含义不在 `shared`**——合法成员在 `face-catalog` 的目录里（`shared` 不能反向 import 它），这里只声明"有这一列"。★ **未知 id 由消费者剔掉，不在这里报错**：用户数据里存的 id 可能比后端词表旧，那不该让整份需求被打回 |
 | `weather` | `{ condition?, temperatureC?, humidityPct?, uvIndex? }` | 当日天气，整块 `.optional()`：前端拉不到就**整个省掉**（无手动预设可填，不吃假数据） |
 
 ## 3. schema vs validator
@@ -94,7 +96,16 @@ src/
 产出 `SceneDescriptor{ label, direction, tags }`。修饰词**只改 `direction` 与 `tags`**，
 不改 `label`、不动色板。判定规则是前后端单一源，详见 `modules/shared/README.md`。
 
-⚠️ **当前零消费者**：表单流水线与前端 mock 那条消费链都随 `jobs` 删了（见 §8）。
+★ **2026-09-30：场合从 5 个变 8 个，这个文件也从"半死"变回"活的"——但只活一半。**
+弄清是哪一半，别整块当成零消费者删掉：
+
+- `SCENE_RULES`（场合 → 中文名 / 方向 / 关键词）**是活的**：`makeup` 的
+  `look-description.ts` / `prompt-builder.ts` 与 agent 的 `propose-look.ts` /
+  `style-pool-description.ts` 都在读它。`SCENE_MATCH_ORDER` 与 `OCCASIONS`
+  的全集相等由 `test/scene-rules.test.ts` 钉着。
+- `describeScene` 这个纯函数**仍然零消费者**：吃它的那条链（表单流水线与前端 mock）
+  随 `jobs` 一起删了（见 §8），而新接上的 `/form` 动线**走的是 `brief.occasion` 直传**，
+  不经过关键词兜底。
 
 **没有「场景理解」模块**，2026-09-10 删掉了。方向是一个纯查表函数，它没有可替换的实现，
 所以既不该有端口，也不该有开关。曾经包着它的那个模块，全部内容是一个 `sleep`、
@@ -117,7 +128,7 @@ src/
 | `GET /api/cabinet/items?userId=` | → **200** `{ items: [...] }`（按建档时间升序；**只回该用户的**） |
 | `PATCH /api/cabinet/items/:id` | JSON `{ userId, name?, attributes? }` → **200** `CosmeticItemView`。两者**至少给一个**（都不给 = 空操作，直接 422） |
 | `DELETE /api/cabinet/items/:id?userId=` | → **204** 无响应体。归属走**查询串**（DELETE 带 body 会被不少代理丢掉） |
-| `POST /api/agent/sessions` | JSON `{ userId }` → **201** 会话视图。对话式定妆入口（见 `modules/agent/README.md`）。★ **用户不存在 → 404**，且一条会话都不落库（同衣橱的归属校验） |
+| `POST /api/agent/sessions` | JSON `{ userId, ...brief }` → **201** 会话视图。对话式定妆入口（见 `modules/agent/README.md`）。★ **用户不存在 → 404**，且一条会话都不落库（同衣橱的归属校验） |
 | `GET /api/agent/sessions/:id?userId=` | → **200** 会话视图。刷新页面接着看；归属走查询串 |
 | `POST /api/agent/sessions/:id/messages` | JSON `{ userId, text }`（text ≤1000 字）→ **200** 会话视图 + `stopReason` + 本轮 `events[]` |
 | `POST /api/agent/sessions/:id/photo` | multipart，字段 `face`（文件，仅图片）+ `userId` → **200** 会话视图。照片**字节不进对话记录**，会话里只留一个引用 |
@@ -129,6 +140,15 @@ src/
 
 > 衣橱的 `userId` 由客户端显式传（本轮无登录态、不签发 token）。**改 / 删一律校验归属**：
 > 条目不存在与不属于你**共用** `CABINET_ITEM_NOT_FOUND` / 404，不泄露「这条存在但不属于你」。
+
+> ★ **2026-09-30：会话视图里多了一格 `plan`（妆容方案）。** `propose_look` 成功时服务端
+> **同时**存下 `lookSpec`（给引擎出图的那份妆面单）与 `plan`（给人看的那份方案，
+> 由 `modules/styling` 展开）；桃妆的 `/result` 渲染的就是后者。
+> **为什么是同一个工具产出两样**见 `modules/agent/README.md` 的 `propose_look` 那一节。
+> ⚠️ **brief 的字段是平铺在请求体上的**（`startSessionSchema` 把 `shared` 的 `briefFields`
+> 直接展开），**不是嵌在 `brief` 键下**；而它是 `.strict()`，多给一个键就是 422。
+> 这个形状最容易出的错是：客户端写成 `{ userId, brief }` → 422；
+> 或者干脆不收 brief → **请求照样 200、日志干净，而用户填的东西一字段不剩地被丢掉**。
 
 ### 5.1 错误体（与错误码 → HTTP 映射）
 
@@ -223,6 +243,7 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 | `AGENT_BASE_URL` | 由 `DASHSCOPE_API_HOST` 拼出 | 仅 `real` 用。走自建代理/网关时才设 |
 | `AGENT_SESSION_TTL_HOURS` | `24` | 会话空闲多久算过期（§10 `[I8]`），到期**真删**照片与成品图。★ **它同时是「用户本人的照片在服务端最多留多久」这个承诺，改大它等于改隐私条款**。清理每小时扫一次（`src/index.ts` 的 `PURGE_INTERVAL_MS`），扫**两遍**：第二遍从盘上反查**没有会话认领的目录**并真删，所以**进程重启后上一轮留下的照片也会被删掉**（不是只在"没重启过"时才成立） |
 | `PRODUCTS_DIR` | `../products/ysl-property` | 产品库内容目录（绝对路径）。**用户主动问起产品时** agent 靠它推荐（★ 不是妆容做完就自动推，见 §7）。★ **三种加载结果口径不同，见 §7**——尤其是「坏数据启动即失败」这一条是**故意**的 |
+| `FACE_CATALOG_DIR` | `../assests/face-catalog` | 面部词表内容目录（绝对路径）。★ 与 `PRODUCTS_DIR` 有意不同：**没有「目录不存在 = 关掉功能」这一格**，读不到一律**启动即失败**——它是 `brief.skinType` / `skinTone` 合法取值的来源，缺了它整条 brief 校验无从谈起。见 `modules/face-catalog/README.md` 与 `compose.ts` 文件头 |
 | `DASHSCOPE_API_KEY` | — | `AGENT_LLM=real` / `MAKEUP_ENGINE=image` / `VISION_ANALYZER=real` 时**必填**（缺 key 启动即失败） |
 | `DASHSCOPE_API_HOST` | `https://dashscope.aliyuncs.com` | 上面两条路径共用的端点基址 |
 | `MAX_UPLOAD_MB` | `25` | 上传体积上限 |
@@ -280,17 +301,21 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 
 ## 8. 测试
 
-> ⚠️ **`test/` 不被任何 tsconfig 覆盖。** 根 `tsconfig.json` 的 `include` 只有 `["src"]`，
-> `scripts/tsconfig.json` 收的是 `scripts/` 和 `src/`，所以 **`npm run typecheck` 不会检查测试文件**，
-> 类型错误只会在运行时冒出来。
+> ✏️ **2026-09-29：`test/` 那份 tsconfig 已经补上了（`npm run typecheck:test`），
+> 所以「类型检查是五道门」而不是三道——`test` / `typecheck` / `typecheck:test` /
+> `typecheck:scripts` / `build`，缺一不可。** 下面这段是它补上之前的样子，留着是因为
+> **它描述的坏法还在**（只是现在会被当场拦下），而且解释了为什么这个脚本不能省。
+>
+> 在此之前：根 `tsconfig.json` 的 `include` 只有 `["src"]`，`scripts/tsconfig.json` 收的是
+> `scripts/` 和 `src/`，所以 **`npm run typecheck` 不检查测试文件**，类型错误只会在运行时冒出来。
 >
 > 这不是理论风险。一个假端口类少实现一个新增方法时，`typecheck` 是绿的，测试也可能是绿的；
 > 如果那个方法的缺失被 `try/catch` 吞掉，被测的那条分支就静默不跑了。
 > `PurgeExpiredSessions` 的第二遍扫盘出过这个坑，对策写在 `test/agent-render.test.ts` 里
 > 那个假存储的注释上：**给新加的端口方法补假实现，并写一条「它缺了就会红」的测试。**
 >
-> `scripts/` 有自己那份 tsconfig 就是为了不被漏掉，`test/` 至今没有。要么给它补一份，
-> 要么在评审时记住这句。
+> ★ 补上那天第一次跑 `typecheck:test`，**当场炸出 29 条"运行时全绿"的类型谎言**——
+> 这就是它存在的全部理由。别把这一步从验证清单里省掉。
 
 `test/` 用内存假端口 `helpers/fakes.ts` 跑用例，外加 validator 的形状与行为用例。
 
@@ -298,7 +323,20 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
 
 - `schemas.test.ts` — 纯形状：结构、格式、长度、严格模式。
 - `validator.test.ts` — 输入业务规则码；输出几何与颜色把关。
-- `face-catalog.test.ts` — 8 档肤色 → 色号词表。
+- `face-catalog.test.ts` — 8 档肤色 → 色号词表（含随包那份真词表的加载与体检）。
+  ★ 另有一组**与前端 `kb/features.js` 的对表**：31 条特征 id、6 个分组的 id 与 `name`、
+  以及分组 `hint` ↔ 后端 `strategy`，判据是**用户数据那边说了算**——前端那套 id
+  已经落在用户 `localStorage` 的人设里，后端的 id 当时零消费者，所以**改后端对齐前端**。
+- `styling-plan.test.ts` — ★ 2026-09-30 新增。跨端对表 + `derivePlan` 的行为契约：
+  ① 后端那份配方（21 套 `STYLE_LIBRARY` + 5 个共有场合的 `SCENE_STYLES` 池）
+  与**前端的 `kb/styles.js` 逐字段相同**；② 配方里每一对非空的 `(pid, code)` 都能在前端
+  `kb/shades.js` 里查到非空 hex（这条一红，色板会少几块而**没人看得出来**）；
+  ③ 展开不许漏、不许多：步骤数 / id 拼法 `${style.id}-${两位下标}` / `desc` 就是那一步的
+  「操作手法」/ 产品逐条照搬；④ 色板按 `code` 去重、上限 8、只收步骤里真用到的色号；
+  ⑤ 未知特征 id **剔掉**、顺序即用户勾选的顺序。
+  ★ 对表的**方向是"前端说了算"**：`kb/styles.js` 是搬运前的原件，后端那份是搬迁版，
+  搬家搬错一格没有任何别的征兆（方案照算、页面照渲染、日志干净）。
+  ⚠️ 前端只有 5 个场景，另 3 个场合（`stage`/`family`/`daily`）没有可比的那一半。
 - `user.test.ts` — 注册、重名、登录成败、查档案；外加真实 JSON 仓库与 scrypt 凭据，守「明文不落库、视图不含凭据」。
 - `weather.test.ts` — WMO 码映射、查询校验、用例错误翻译；open-meteo 适配器打桩 fetch，单测不联网。
 - `cabinet.test.ts` — 衣橱边界：空名、超长、特性重名、控制字符、空更新。用例层验 `USER_NOT_FOUND`
@@ -353,6 +391,14 @@ curl -s -X POST http://localhost:3000/api/agent/sessions/$SID/render \
   停在等确认、引擎一次都没调；带 `'approved'` 重放后真出图并记下第 1 张；换句话变 `declined` 后
   待确认被收掉且不再提议出图，再聊一句也不提议，宁可如实说「脚本演完了」；新会话能从头再演一遍，
   这是它按状态求值、不按顺序取脚本的理由。
+  ★ 2026-09-30 补的两组（都走**表单那条路**——它才有明确的 `occasion`，因而提示词里只印一行池子）：
+  ① **表单带下来的「用户原话」不会被开场白盖掉**（`brief` 那一格以表单为准，
+   `patch_brief` 一次都没调）；② **换风格那一轮**——新提的 `propose_look` 就是点的那一个、
+   `plan` 跟着换；桌面上正摆着确认框时换风格，**先按"不出图"了结欠账、照旧重配一套**；
+  点的还是**当前**这一个则**不重配**（判据是"与上次提的不同"，不是"句子里有风格 id"）。
+  ⚠️ ②里那条判据是**一次真 bug 的现场**：「出图那件事的结局只对**它当时提的那一套妆**有效」——
+  不看 `propose_look` 与 `render_look` 的**先后**，换完风格会收到一句指向上**一套**妆的
+  「那这次先不出图」，而旁边正摆着一个出图按钮。
 - `analysis.test.ts` — ★ 读图那一轮（用户点了才跑）。三个适配器**越界一律抛错**（含 `unknown` 这条
   失败通道）；「用户填的优先」断言的是**一次都没调**；`VISION_ANALYZER=off` 时两条入口 **404**；
   端到端走 `buildApp` 验收图 → 分析 → 落点。★ 它管不了的那半句写在文件头：真实端点的请求形状

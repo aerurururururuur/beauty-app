@@ -52,7 +52,9 @@ import type {
   SessionArtifacts,
   ToolResultBlock,
 } from '../src/modules/agent/index.js';
-import { realPalette } from './helpers/face-catalog.js';
+import type { Occasion } from '../src/modules/shared/index.js';
+import { realFeatures, realPalette } from './helpers/face-catalog.js';
+import { SCENE_STYLES, styleById, stylePoolFor } from '../src/modules/styling/index.js';
 
 const USER = 'u1';
 /**
@@ -63,6 +65,11 @@ const USER = 'u1';
 const users = { exists: async (userId: string): Promise<boolean> => userId === USER };
 /** 一句话里带"面试",所以演示脚本会把它认成 `interview` 这个场合。 */
 const START_TEXT = '下周三面试,我偏油,不要太浓';
+/**
+ * 表单页那条动线的开场白 —— **逐字照抄** `vue/src/stores/design.js` 的 `OPENING_TEXT`。
+ * ★ 一个字都不提场合,也不提肤色:需求全在 `POST /agent/sessions` 带的那份 `brief` 里。
+ */
+const FORM_OPENING = '按我填的需求给我定一套妆。';
 
 /**
  * 记录每次 `generate` 的入参,行为仍然是**真的 `MockEngine`**。
@@ -100,12 +107,12 @@ function setup() {
   const engine = new RecordingMockEngine();
   const sessions = new InMemorySessionStore();
   // ★ `DemoLlm` 是**装配里那一个**,不是测试自己的替身(见文件头)。
-  const llm = new DemoLlm();
+  const llm = new DemoLlm(realPalette());
   const loop = new AgentLoop({
     llm,
     // ★ `palette` 是 `ToolDeps` 的必填项(缺了肤色收窄会**静默失效**)。
     //   这里用与组装根同一份真实词表 —— 拿假档位凑一个,测的就不是生产那条链路了。
-    tools: createToolRegistry({ cosmetics, engine, artifacts, palette: realPalette() }),
+    tools: createToolRegistry({ cosmetics, engine, artifacts, palette: realPalette(), features: realFeatures() }),
   });
   const renderTool = new RenderLookTool({ engine, artifacts });
 
@@ -326,7 +333,10 @@ describe('observation 标记', () => {
     const sessionId = 'pinsession01';
     const faceRef = await h.artifacts.putFace(sessionId, upload());
     const session = setFaceRef(
-      setLookSpec(createSession(sessionId, USER), interviewLook()),
+      // ★ 第三个实参是**方案**,这里给 `undefined` = "这套妆面没有配方":
+      //   这一组验的是出图那两个前缀,与方案无关,而 `setLookSpec` 刻意不给缺省
+      //   (理由见那个函数的注释)。
+      setLookSpec(createSession(sessionId, USER), interviewLook(), undefined),
       faceRef,
     );
 
@@ -362,6 +372,225 @@ describe('observation 标记', () => {
     expect(withFace.faceRef).toBeDefined();
     // ★ 照片字节不进消息历史(几 MB 的 base64 进去,会话就没法落盘、每轮都要带着它)。
     expect(JSON.stringify(withFace.messages)).not.toContain('face-bytes');
+  });
+});
+
+// ── ④ ★ 表单那条路:需求一次填完,脚本要照着 `brief` 演 ──────────────────────
+
+/**
+ * **最后一次** `propose_look` 的入参。
+ *
+ * ★ 必须从这里取,不能从 `session.lookSpec` 取:`styleId` **不属于妆面单**
+ *   (它是工具自己那一格,`lookSpecSchema` 是 `.strict()` 的),落不到 `lookSpec` 上。
+ *   要验的恰恰是"脚本挑的配料是哪一个",那就只有这一处看得到。
+ *
+ * ⚠️ **取最后一次而不是第一次**:换风格那一轮之后历史里有两条,而当前那份方案
+ *   来自**后**提的那一条(会话那次是"重跑一遍",不是"再记一份")。
+ */
+function proposeInputOf(session: Session): Record<string, unknown> {
+  const calls = session.messages
+    .flatMap((m) => m.content)
+    .filter((b) => b.type === 'tool_use' && b.name === TOOL_NAMES.proposeLook);
+  const call = calls[calls.length - 1];
+  if (!call || call.type !== 'tool_use') throw new Error('这一轮没有调用 propose_look');
+  if (typeof call.input !== 'object' || call.input === null) {
+    throw new Error('propose_look 的入参不是对象');
+  }
+  return call.input as Record<string, unknown>;
+}
+
+/**
+ * `/result` 那条切换条发给 agent 的原话 —— **逐字照抄** `vue/src/stores/design.js` 的 `setStyle`。
+ * ★ 别自己写一句"换成 X":演示脚本认的就是括号里那个 id,句子一改它就认不出来。
+ */
+function switchTextOf(styleId: string): string {
+  const style = styleById(styleId);
+  if (!style) throw new Error(`测试里写了一个不存在的风格 id:${styleId}`);
+  return `换成「${style.name}」(${style.id}) 这个风格，重新给我一套。`;
+}
+
+/** 从入参里读一格妆面的色。入参是 `unknown`,所以这里逐层窄化。 */
+function toneOfZone(input: Record<string, unknown>, zone: string): unknown {
+  const zones = input.zones;
+  if (typeof zones !== 'object' || zones === null) return undefined;
+  const spec = (zones as Record<string, unknown>)[zone];
+  if (typeof spec !== 'object' || spec === null) return undefined;
+  return (spec as Record<string, unknown>).tone;
+}
+
+describe('★ 表单那条路:需求一次填完(demo 脚本照着 brief 演)', () => {
+  it('★ 表单带下来的「用户原话」不会被那句开场白盖掉(brief 那一格以表单为准)', async () => {
+    const h = setup();
+    // 用户真正写的东西随 `brief` 一次填完,而第一句话是上面那句**固定句式**。
+    const sceneText = '下个月闺蜜生日会,想亮一点但别太夸张;我脸偏圆,人多的时候要拍照。';
+    const session = await h.startSession.execute(USER, { occasion: 'party', sceneText });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    // ★ `patch_brief` 的 `sceneText` 是**设为**不是追加,所以脚本在这里再记一次
+    //   就会把用户写的那段整个换成"按我填的需求给我定一套妆"——方案照出、日志干净,
+    //   只有"用户原话"那一格是废话(假开关家族)。纯对话那条路仍然要记第一句
+    //   (见本文件 ① 那条断言),两条合起来才是完整的行为。
+    expect(turn.session.brief.sceneText).toBe(sceneText);
+    expect(turn.session.brief.sceneText).not.toContain('按我填的需求');
+    // 这一条不是废话:它证明"记需求"那一步是**被跳过**的,而不是把同样的字又写了一遍。
+    expect(callsOf(turn.session, TOOL_NAMES.patchBrief)).toBe(0);
+    expect(turn.session.plan).toBeDefined();
+  });
+
+  it('★ 场合以用户填的为准(这句话单看文字只能落到 daily)', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, { occasion: 'travel' });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    const input = proposeInputOf(turn.session);
+    expect(stylePoolFor('travel')).toContain(input.styleId);
+    // ★ 钉到具体那一个:`'vital'` **同时在** `travel` 与 `daily` 两个池子里,
+    //   所以"它不在 daily 的池里"这句话不成立 —— 拿它当判据,
+    //   脚本照旧按 `daily` 演也照样绿。只有钉到池子里的第一条才真的证明 brief 说了算。
+    expect(input.styleId).toBe('natural');
+    expect(turn.session.lookSpec?.occasion).toBe('travel');
+    expect(hasToolError(turn.session)).toBe(false);
+  });
+
+  it('★ 深肤色档:脚本挑的色落在该档的色域里(写死的那三个色在这档是非法的)', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, {
+      occasion: 'party',
+      skinTone: 'deep_brown',
+    });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    const allowed = realPalette().toneKeysFor('deep_brown');
+    expect(allowed).toBeDefined();
+    // ★ 前提:旧脚本写死的 rose / coral / nude 在这一档里**确实不在色域里**。
+    //   少了这条,即使脚本一点没收窄,下面的断言也会全绿 —— 那就成了假开关。
+    for (const tone of ['rose', 'coral', 'nude']) expect(allowed).not.toContain(tone);
+
+    const input = proposeInputOf(turn.session);
+    const picked = ['lip', 'cheek', 'eyeshadow'].map((zone) => toneOfZone(input, zone));
+    for (const tone of picked) expect(allowed).toContain(tone);
+    // 色收窄了而妆面单照旧定下来 ⇒ `validateLookSpec` 真的用这个色域放行了。
+    expect(turn.session.lookSpec).toBeDefined();
+    expect(hasToolError(turn.session)).toBe(false);
+  });
+
+  it('★ brief 里没有肤色档 → 不收窄(还是那三个色):「不知道」与「不能用」是两回事', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, { occasion: 'party' });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    const input = proposeInputOf(turn.session);
+    expect(toneOfZone(input, 'lip')).toBe('rose');
+    expect(toneOfZone(input, 'cheek')).toBe('coral');
+    expect(toneOfZone(input, 'eyeshadow')).toBe('nude');
+  });
+
+  it('★ 浅档不会因为"收窄"把色换掉(warm_ivory 那三个色本来就在色域里)', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, {
+      occasion: 'party',
+      skinTone: 'warm_ivory',
+    });
+
+    const turn = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+
+    // ★ 前提:`warm_ivory` 的色域里**本来就有** rose / coral / nude ——
+    //   所以这条验的是"收窄在允许时不改动配色",与上面那条(不允许时换掉)配成一对。
+    const allowed = realPalette().toneKeysFor('warm_ivory');
+    for (const tone of ['rose', 'coral', 'nude']) expect(allowed).toContain(tone);
+
+    const input = proposeInputOf(turn.session);
+    expect(toneOfZone(input, 'lip')).toBe('rose');
+    expect(toneOfZone(input, 'cheek')).toBe('coral');
+    expect(toneOfZone(input, 'eyeshadow')).toBe('nude');
+  });
+});
+
+// ── ⑤ ★ 换风格:`/result` 那条切换条点下去,脚本要真的重配一套 ──────────────────
+
+/**
+ * 表单那条路走到"确认框已经弹出来"。
+ * ★ 用**表单**那条路而不是 ① 那组的关键词路:换风格认的是提示词里那行风格池,
+ *   而只有场合定下来时那一行才**只列这一档**。纯对话那条路场合没写进 `brief`,
+ *   提示词会把八档全列出来,同一个 id 会横跨好几行(如 `natural` 在四档里都有),
+ *   读回来的场合就是"最后一行那个"——不是这一组要验的东西。
+ */
+async function upToPendingWith(occasion: Occasion) {
+  const h = setup();
+  const session = await h.startSession.execute(USER, { occasion });
+  const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+  await h.attachPhoto.execute(session.id, USER, upload());
+  const pending = await h.sendMessage.execute(session.id, USER, '行,就按你说的');
+  return { h, sessionId: session.id, first, pending };
+}
+
+describe('★ 换风格:照用户点的那一个重配一套', () => {
+  it('★ 需求刚填完就换 → 新提的 `propose_look` 就是点的那一个,方案跟着换', async () => {
+    const h = setup();
+    const session = await h.startSession.execute(USER, { occasion: 'party' });
+    const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+    // 前提:脚本缺省挑的是池子里的第一条,而下面点的是池子里的另一条。
+    expect(proposeInputOf(first.session).styleId).toBe(SCENE_STYLES.party[0]);
+
+    await h.attachPhoto.execute(session.id, USER, upload());
+    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf('wolf'));
+
+    // ★ 多出来的那一条 `propose_look` 就是证据:没有它,脚本会落到 ⑤,
+    //   用户点的是「换成 X」,收到的却是一个出图确认框(而方案一格没变)。
+    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(2);
+    expect(proposeInputOf(turn.session).styleId).toBe('wolf');
+    // 用户看得到的那一格也要跟着换 —— `/result` 整屏的方案都照它重建。
+    expect(turn.session.plan?.styleId).toBe('wolf');
+    expect(turn.session.plan?.styleName).toBe(styleById('wolf')?.name);
+    expect(hasToolError(turn.session)).toBe(false);
+  });
+
+  it('★★ 桌面上正摆着确认框时换风格 → 先按"不出图"了结欠账,**照旧**重配一套', async () => {
+    // 这一条才是真现场:用户看到的那个确认框在服务端是一条**欠着的** `render_look`,
+    // 下一句话进来时会先按 `declined` 重放掉。而"刚被拒"那条分支(②)正好在这一刻成立
+    // ——少了 ⓪ 的优先判断,用户点了风格却只收到一句「行,那这次先不出图」。
+    const { h, sessionId } = await upToPendingWith('party');
+
+    const turn = await h.sendMessage.execute(sessionId, USER, switchTextOf('princess'));
+
+    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(2);
+    expect(proposeInputOf(turn.session).styleId).toBe('princess');
+    expect(turn.session.plan?.styleId).toBe('princess');
+    expect(hasToolError(turn.session)).toBe(false);
+    // ★ 旧那一条已经被"不出图"了结掉了(它拿到了结果,不再是悬挂状态)——
+    //   下半句是重点:了结**不等于**这次的结局。重配完之后脚本照 ⑤ 重新问一次,
+    //   所以最后悬挂的那条是**为新方案提的那条**,而不是旧那条留着不走。
+    expect(danglingToolUses(turn.session.messages)).toHaveLength(1);
+    expect(danglingToolUses(turn.session.messages)[0]?.name).toBe(TOOL_NAMES.renderLook);
+    expect(turn.stopReason).toBe('awaiting_confirmation');
+    // ★★ 话里不能再指"刚才那套":用户屏幕上已经是新那套了。
+    //   (原来这里会收到「行,那这次先不出图。我们接着调——你觉得刚才那套哪里想改?」——
+    //   `readState` 把"上一套妆被拒"当成"这一套的结局"了。)
+    expect(lastAssistantText(turn.session)).not.toContain('刚才那套');
+    expect(lastAssistantText(turn.session)).toContain('成片');
+  });
+
+  it('★ 点的还是**当前**这一个 → 不重配(判据是"与上次提的不同",不是"句子里有风格 id")', async () => {
+    // ★ 这条防的是空转:若 ⓪ 只看"这句话里提到了池子里的 id",那么它在**同一轮的重跑里
+    //   会反复命中**(重跑时最后一句用户话没变),一路空转到 `max_iterations` ——
+    //   而 `max_iterations` 在界面上就是"转了很久最后什么都没变"。
+    //   这里的期望是**没花样**:方案不动(还是那一条 `propose_look`),
+    //   脚本照 ⑤ 摆出那个出图确认框(用户点了个已经选中的风格,问他要不要出图并不算错)。
+    const h = setup();
+    const session = await h.startSession.execute(USER, { occasion: 'party' });
+    await h.sendMessage.execute(session.id, USER, FORM_OPENING);
+    await h.attachPhoto.execute(session.id, USER, upload());
+
+    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf('banquet'));
+
+    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(1);
+    expect(proposeInputOf(turn.session).styleId).toBe('banquet');
+    expect(turn.session.plan?.styleId).toBe('banquet');
+    expect(turn.stopReason).toBe('awaiting_confirmation');
   });
 });
 

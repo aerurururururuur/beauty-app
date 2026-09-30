@@ -46,6 +46,9 @@ export const SCENE_MATCH_ORDER: readonly Occasion[] = [
   'stage',
   'date',
   'family',
+  'party',
+  'travel',
+  'fantasy',
   'daily',
 ];
 
@@ -74,6 +77,25 @@ export const SCENE_RULES: Record<Occasion, SceneStyle> = {
     direction: '温婉得体 · 自然提气色,亲切耐看',
     tags: ['温婉', '自然', '提气色', '耐看'],
     keywords: ['见家长', '家长'],
+  },
+  // ↓ 三条 2026-09-30 补(见 entities/brief.ts 的 OCCASIONS),`cn` 用桃妆页面上的词。
+  party: {
+    cn: '聚会',
+    direction: '派对焦点 · 灯光下要存在感,高显色可以大胆',
+    tags: ['焦点', '高显色', '光感', '大胆'],
+    keywords: ['聚会', '派对', '闺蜜局', '生日会', '宴会', '酒吧'],
+  },
+  travel: {
+    cn: '旅行',
+    direction: '上镜持妆 · 抗汗抗油,拍照好看',
+    tags: ['持妆', '抗汗', '上镜', '轻便'],
+    keywords: ['旅行', '旅游', '出游', '度假', '海边', '街拍'],
+  },
+  fantasy: {
+    cn: '奇想',
+    direction: '不被定义 · 非日常可创作,妆面本身就是作品',
+    tags: ['创作', '非日常', '艺术', '个性'],
+    keywords: ['奇想', '赛博', '水墨', '主题妆', '艺术妆'],
   },
   daily: {
     cn: '日常',

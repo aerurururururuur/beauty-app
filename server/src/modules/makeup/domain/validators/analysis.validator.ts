@@ -75,7 +75,7 @@ export function validateFaceReading(raw: unknown): AnalysisOf['face'] {
   return { skinTone: checked.brief.skinTone };
 }
 
-/** 校验一次 `scene` 读数(场合 5 档之一)。 */
+/** 校验一次 `scene` 读数(场合 8 档之一)。 */
 export function validateSceneReading(raw: unknown): AnalysisOf['scene'] {
   const parsed = sceneReadingSchema.safeParse(raw);
   if (!parsed.success) {

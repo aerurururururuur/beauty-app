@@ -86,6 +86,7 @@ function readRoute(file: string, where: string, route: { kind: 'geometry'; slot:
  *   · `TONE_KEYS` 里每个色至少有一档能用它(否则是死色,任何肤色都配不出来);
  *   · `order` 从 1 起、`swatch` 是 `#rrggbb`、槽位 ∈ `GEOMETRY_SLOTS`;
  *   · 特征类 `id` 不重复,同一类里取值 `id` 不重复;
+ *   · ★ **特征取值 `id` 全表唯一**(不是"类内唯一"就够,理由见下面那一段);
  *   · 两个文件 `version` 一致(它们是一份词表的两半)。
  */
 export function parseFaceVocabulary(
@@ -193,6 +194,13 @@ export function parseFaceVocabulary(
 
   const dims: FeatureDimension[] = [];
   const seenDimensions = new Set<string>();
+  /**
+   * ★ **全表**的取值 id —— 不是每个类各一个。`brief.features` 收的是一串裸 id
+   *   (前端人设里存的就是那样),取的时候按 id 反查,所以两个类里出现同一个 id
+   *   会让反查**静默取到先建索引的那一个**:用户勾的是「眼距远」,方案里印出来的
+   *   可能是另一个类下的同 id 条目。**这类错没人看得出来**,所以在这里拒收。
+   */
+  const seenFeatureIds = new Map<string, string>();
   for (const dimension of dimensions) {
     if (seenDimensions.has(dimension.id)) {
       fail(files.features, `特征类 id 重复:${dimension.id}`);
@@ -200,12 +208,16 @@ export function parseFaceVocabulary(
     seenDimensions.add(dimension.id);
 
     const values: FeatureValue[] = [];
-    const seenValues = new Set<string>();
     for (const value of dimension.values) {
-      if (seenValues.has(value.id)) {
-        fail(files.features, `同一类里取值 id 重复:${dimension.id}.${value.id}`);
+      const takenBy = seenFeatureIds.get(value.id);
+      if (takenBy !== undefined) {
+        fail(
+          files.features,
+          `取值 id「${value.id}」在「${takenBy}」和「${dimension.label}」里都出现了 ——` +
+            '特征 id 必须**全表唯一**:`brief.features` 收的是不带类名的裸 id,重了会取到错的那一条。',
+        );
       }
-      seenValues.add(value.id);
+      seenFeatureIds.set(value.id, dimension.label);
 
       const where = `特征类「${dimension.label}」的取值「${value.label}」`;
       values.push(new FeatureValue({ ...value, route: readRoute(files.features, where, value.route) }));

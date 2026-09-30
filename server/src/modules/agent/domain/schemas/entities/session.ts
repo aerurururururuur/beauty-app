@@ -8,19 +8,20 @@
  * ⚠️ **这份 schema 不解析任何外部数据**(会话在内存里,不落盘、没有持久化行),
  *   所以它只描述形状,**不含取值规则**(§4.2)。
  *
- * ★ 下面三格用 `z.custom<T>()`:**只接类型,不做任何运行时检查** ——
- *   `brief` / `lookSpec` / `styleRead` 的形状属于**别的模块**,收窄在各自的校验器里
+ * ★ 下面四格用 `z.custom<T>()`:**只接类型,不做任何运行时检查** ——
+ *   `brief` / `lookSpec` / `plan` / `styleRead` 的形状属于**别的模块**,收窄在各自的校验器里
  *   (`shared/domain/validators/brief-fields.validator.ts`、
  *   `makeup/domain/validators/look-spec.validator.ts`:它们是「类型谓词 + 复合守卫 +
  *   逐字段装配」,不是 zod)。在这里把那些形状重述一遍就是写第二份;
  *   把枚举搬进 schema 又会让那些校验器给模型看的中文文案失去落点。
- *   ★ **所以别拿这份 schema 去 `.parse` 外部数据** —— 那三格会全放行,
+ *   ★ **所以别拿这份 schema 去 `.parse` 外部数据** —— 那几格会全放行,
  *   而它长得跟别的 schema 一样,是个看不出来的假开关。
  */
 import { z } from 'zod';
 import type { MakeupBrief } from '../../../../shared/index.js';
 import { imageRefSchema } from '../../../../shared/index.js';
 import type { LookSpec, StyleRead } from '../../../../makeup/index.js';
+import type { PlanView } from '../../../../styling/index.js';
 import { ANALYZE_CASES } from '../api/agent-http.js';
 import { messageSchema } from './message.js';
 
@@ -105,6 +106,18 @@ const sessionRowSchema = z
     brief: z.custom<MakeupBrief>(),
     /** 当前妆面单(`propose_look` 的产出)。还没提出过时为 `undefined`。 */
     lookSpec: z.custom<LookSpec>().optional(),
+    /**
+     * ★ 当前**方案**(步骤 / 色板 / 产品 / 个性化调整),`propose_look` 与 `lookSpec`
+     * **同一次调用**写下的(见 `styling` 模块)。
+     *
+     * 形状归 `styling` 那一侧(`PlanView` 是它的视图,不是本模块的实体),
+     * 所以这里同 `brief` / `lookSpec` 一样用 `z.custom<T>()` —— **只接类型,不做运行时检查**。
+     *
+     * ⚠️ **它不跟随 `lookSpec` 自动更新**:两者只能靠 `setLookSpec` 那一个入口一起写。
+     *   分成两次写就会出现"方案已经换成 B、妆面还是 A"的中间态,而它**是能被读到的**
+     *   ——`/result` 那一屏两样都摆,对不上就是给用户看一份假的承诺。
+     */
+    plan: z.custom<PlanView>().optional(),
     /**
      * ★ 用户上传的**本人照片**(阶段 3 起)。`render_look` 没有它出不了图。
      *

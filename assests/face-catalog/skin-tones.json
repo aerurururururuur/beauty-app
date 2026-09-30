@@ -1,5 +1,5 @@
 {
-  "version": "2026-09-29.1",
+  "version": "2026-09-30.1",
   "note": "肤色档位词表。这是 roadmap 红线 §13-3 那张表的现行版本:档数由 5 档改为 8 档(2026-09-29,owner 拍板)。原红线依据是 ICCC V 2026 肤色偏差审计(DOI 10.1145/3810417.3810425),它的实质要求是「不许默认浅肤色审美」——那条要求没有放宽,而是变成了 isDefault 那一档不得是最浅档的启动校验。order 是浅到深,不许重复。toneKeys 是该档可用的色域(§6 规矩 4),内容是占位、无实测依据,接线前必须用实测结果替换。",
   "disclaimer": "照片难免有色差,AI 给的是建议档,请按素颜自然光下的真实肤色确认。",
   "tones": [
@@ -9,7 +9,12 @@
       "order": 1,
       "isDefault": false,
       "swatch": "#f6e7e1",
-      "toneKeys": ["rose", "coral", "peach", "nude"]
+      "toneKeys": [
+        "rose",
+        "coral",
+        "peach",
+        "nude"
+      ]
     },
     {
       "id": "pink_porcelain",
@@ -17,7 +22,12 @@
       "order": 2,
       "isDefault": false,
       "swatch": "#f7e3df",
-      "toneKeys": ["rose", "coral", "peach", "nude"]
+      "toneKeys": [
+        "rose",
+        "coral",
+        "peach",
+        "nude"
+      ]
     },
     {
       "id": "warm_ivory",
@@ -25,7 +35,13 @@
       "order": 3,
       "isDefault": false,
       "swatch": "#f0dcc0",
-      "toneKeys": ["rose", "coral", "peach", "nude", "berry"]
+      "toneKeys": [
+        "rose",
+        "coral",
+        "peach",
+        "nude",
+        "berry"
+      ]
     },
     {
       "id": "warm_beige",
@@ -33,7 +49,13 @@
       "order": 4,
       "isDefault": false,
       "swatch": "#e8cfae",
-      "toneKeys": ["rose", "coral", "peach", "nude", "berry"]
+      "toneKeys": [
+        "rose",
+        "coral",
+        "peach",
+        "nude",
+        "berry"
+      ]
     },
     {
       "id": "olive",
@@ -41,7 +63,14 @@
       "order": 5,
       "isDefault": true,
       "swatch": "#d9c79e",
-      "toneKeys": ["rose", "coral", "berry", "brick", "nude", "plum"]
+      "toneKeys": [
+        "rose",
+        "coral",
+        "berry",
+        "brick",
+        "nude",
+        "plum"
+      ]
     },
     {
       "id": "warm_tan",
@@ -49,7 +78,12 @@
       "order": 6,
       "isDefault": false,
       "swatch": "#c79a6b",
-      "toneKeys": ["berry", "brick", "plum", "coral"]
+      "toneKeys": [
+        "berry",
+        "brick",
+        "plum",
+        "coral"
+      ]
     },
     {
       "id": "wheat",
@@ -57,7 +91,12 @@
       "order": 7,
       "isDefault": false,
       "swatch": "#bd8f62",
-      "toneKeys": ["berry", "brick", "plum", "coral"]
+      "toneKeys": [
+        "berry",
+        "brick",
+        "plum",
+        "coral"
+      ]
     },
     {
       "id": "deep_brown",
@@ -65,7 +104,11 @@
       "order": 8,
       "isDefault": false,
       "swatch": "#8a5f44",
-      "toneKeys": ["berry", "brick", "plum"]
+      "toneKeys": [
+        "berry",
+        "brick",
+        "plum"
+      ]
     }
   ]
 }

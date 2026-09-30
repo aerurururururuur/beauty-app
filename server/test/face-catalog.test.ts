@@ -23,6 +23,7 @@ import {
 import { TONE_KEYS } from '../src/modules/shared/index.js';
 import type { ToneKey } from '../src/modules/shared/index.js';
 import { REAL_CATALOG_DIR } from './helpers/face-catalog.js';
+import { frontendFeatureGroups, frontendFeatures } from './helpers/frontend-kb.js';
 
 /** 仓库里那份真词表。★ 改了它的内容,这个文件的部分用例会红——那是应该的。 */
 const REAL_CATALOG = REAL_CATALOG_DIR;
@@ -37,9 +38,18 @@ interface RawTone {
   toneKeys: ToneKey[];
   swatch?: string;
 }
+/**
+ * ★ 四格文案(`label` / `desc` / `fix` / `products`)**不是可选的**:
+ *   它们是 2026-09-30 从前端 `kb/features.js` 搬进来的,`featureValueSchema` 里都带 `min(1)`。
+ *   基准样本漏掉任何一格,下面每条反例都会先被 zod 拦住,测到的就不是它自己那条规则了。
+ *   (`products` 是知识库原文里的**产品名**,自由文本,别拿它当 `pid`。)
+ */
 interface RawValue {
   id: string;
   label: string;
+  desc: string;
+  fix: string;
+  products: string[];
   route: { kind: string; slot?: string };
 }
 interface Raw {
@@ -57,6 +67,10 @@ interface Raw {
  *   另起一套的话,每条反例都会先被对账那条拦住,测到的就不是它自己那条规则了。
  *
  * ★ 七个色也要**分完**("每个色至少有一档能用"),否则基准样本自己就带死色。
+ *
+ * ⚠️ **只有档位 id 有这条约束。** 特征类的 id / 取值 id 是**随手编的**
+ *   (校验器不对它们与代码对账,只查重复),真词表那六个类叫什么、31 条取值叫什么,
+ *   归下面「随包词表」那组管 —— 别从这里读真 id。
  */
 function validRaw(): Raw {
   const all = [...TONE_KEYS];
@@ -85,8 +99,22 @@ function validRaw(): Raw {
           strategy: '决定眼线与眼影的走向',
           multi: true,
           values: [
-            { id: 'upturned', label: '眼尾上扬', route: { kind: 'geometry', slot: 'eyeliner' } },
-            { id: 'puffy', label: '肿眼泡', route: { kind: 'advisory' } },
+            {
+              id: 'upturned',
+              label: '眼尾上扬',
+              desc: '眼头低、眼尾高。',
+              fix: '眼线不要上扬,沿眼睑弧度自然下垂拉长。',
+              products: ['眼线笔'],
+              route: { kind: 'geometry', slot: 'eyeliner' },
+            },
+            {
+              id: 'puffy',
+              label: '肿眼泡',
+              desc: '上眼皮脂肪层厚。',
+              fix: '只用哑光大地色,避开珠光。',
+              products: ['哑光眼影盘'],
+              route: { kind: 'advisory' },
+            },
           ],
         },
       ],
@@ -118,13 +146,16 @@ describe('随包词表(assests/face-catalog)', () => {
   });
 
   it('六类特征齐全', () => {
+    // ★ 这六个 id 2026-09-30 起就是**前端 `FEATURE_GROUPS` 那六个**(见下面跨端对表那条)。
+    //   这里硬写一份不是重复:跨端对表管的是"两边一样",这条管的是"发出去的这份词表
+    //   确实是这六类"——两边一起漂走的坏法只有这条看得见。
     expect(vocabulary.dimensions.map((d) => d.id)).toEqual([
-      'eye_shape',
-      'face_shape',
-      'cheekbone',
-      'lip_shape',
-      'skin_type',
-      'proportion',
+      'eye',
+      'face',
+      'cheek',
+      'lip',
+      'skin',
+      'ratio',
     ]);
   });
 
@@ -234,10 +265,34 @@ describe('parseFaceVocabulary:坏词表一律抛错', () => {
     expect(() => parse(raw)).toThrow(/面部词表内容不合法/);
   });
 
+  // ★ 取值 id 查的是**全表唯一**,不是"类内唯一" —— `brief.features` 收的是裸 id,
+  //   两个类里同名会反查错条目。所以下面两条都撞在这同一道闸门上,只是撞法不同。
   it('同一类里取值 id 重复 → 抛错', () => {
     const raw = validRaw();
     raw.features.dimensions[0]!.values[1]!.id = 'upturned';
-    expect(() => parse(raw)).toThrow(/取值 id 重复/);
+    expect(() => parse(raw)).toThrow(/取值 id「upturned」.*都出现了/);
+  });
+
+  it('★ 不同类之间取值 id 撞了也抛错(错在这里的坏词表查表时会静默取错条目)', () => {
+    const raw = validRaw();
+    raw.features.dimensions.push({
+      id: 'lip',
+      label: '唇形',
+      strategy: '决定唇线怎么勾',
+      multi: true,
+      // 抄的是上面「眼型」那一类的 id —— 单看这一类它完全合法。
+      values: [
+        {
+          id: 'upturned',
+          label: '嘴角上扬',
+          desc: '嘴角天然高于唇中。',
+          fix: '唇线不要重新勾勒唇角。',
+          products: ['唇线笔'],
+          route: { kind: 'advisory' },
+        },
+      ],
+    });
+    expect(() => parse(raw)).toThrow(/取值 id「upturned」在「眼型」和「唇形」里都出现了/);
   });
 
   it('两个文件版本对不上 → 抛错', () => {
@@ -382,9 +437,87 @@ describe('★ 实体的键集合 = schema 的那一份(单源的对表)', () => 
       strategy: '决定眼线与眼影的走向',
       multi: true,
       values: [
-        { id: 'upturned', label: '眼尾上扬', route: { kind: 'geometry', slot: 'eyeliner' } },
-        { id: 'puffy', label: '肿眼泡', route: { kind: 'advisory' } },
+        {
+          id: 'upturned',
+          label: '眼尾上扬',
+          desc: '眼头低、眼尾高。',
+          fix: '眼线不要上扬,沿眼睑弧度自然下垂拉长。',
+          products: ['眼线笔'],
+          route: { kind: 'geometry', slot: 'eyeliner' },
+        },
+        {
+          id: 'puffy',
+          label: '肿眼泡',
+          desc: '上眼皮脂肪层厚。',
+          fix: '只用哑光大地色,避开珠光。',
+          products: ['哑光眼影盘'],
+          route: { kind: 'advisory' },
+        },
       ],
     });
+  });
+});
+
+// ── ✏️ 2026-09-30:与前端 `kb/features.js` 的对表 ────────────────────────────
+//
+// 这 31 条特征 id / 名称 / 三格文案是**从用户数据那边来**的,不是后端发明的:
+// `localStorage` 里的人设存的就是 `features: ['eye-drop', …]`。所以后端这一份
+// 必须与前端那一份**逐字相同** —— 两边漂开的坏法是"用户勾了 A、方案里印出 B",
+// 而界面上看不出来(§4.2 那条"内容与展示必须对得上")。
+//
+// ★ 分组 id 是**同一件事的另一半**:`brief.features` 存的是裸 id,
+//   方案里要按 `group` 去查分组中文名,所以分组 id 也得对得上。
+
+describe('★ 与前端 kb/features.js 的对表(用户数据那边说了算)', () => {
+  const vocabulary = loadFaceVocabulary(REAL_CATALOG);
+
+  it('31 条取值:id / label / desc / fix / products 逐条相同', async () => {
+    const frontend = await frontendFeatures();
+
+    // 先把两边的条数钉住:少了任何一边的条目,下面的对表会因为"找不到"而红,
+    // 但那时候的错误信息会指向某一条,**看不出是"整体少了一半"**。
+    expect(frontend).toHaveLength(31);
+
+    const backendById = new Map(
+      vocabulary.dimensions
+        .flatMap((d) => d.values)
+        .map((value) => [value.id, value] as const),
+    );
+    expect(backendById.size).toBe(31);
+
+    for (const fe of frontend) {
+      const be = backendById.get(fe.id);
+      expect(be, `后端词表里没有 ${fe.id}`).toBeDefined();
+      expect(be?.label).toBe(fe.name);
+      expect(be?.desc).toBe(fe.desc);
+      expect(be?.fix).toBe(fe.fix);
+      // 展开成新数组再比:后端实体上那一格是 `readonly`,`toEqual` 会因只读标记不同而红。
+      expect([...(be?.products ?? [])]).toEqual(fe.products);
+    }
+  });
+
+  it('6 个分组:后端 label / strategy = 前端 name / hint', async () => {
+    const groups = await frontendFeatureGroups();
+
+    expect(groups).toHaveLength(6);
+    expect(vocabulary.dimensions).toHaveLength(6);
+
+    for (const [i, g] of groups.entries()) {
+      const be = vocabulary.dimensionById(g.id);
+      expect(be, `后端词表里没有分组 ${g.id}`).toBeDefined();
+      expect(be?.label).toBe(g.name);
+      expect(be?.strategy).toBe(g.hint);
+      // 顺序也要一致:方案里「针对本人」那一块是按 `FEATURE_GROUPS` 的次序排的。
+      expect(vocabulary.dimensions[i]?.id).toBe(g.id);
+    }
+  });
+
+  it('★ 每条取值都落在前端**确实存在**的分组里(不是"分组名自己写的")', async () => {
+    const groups = await frontendFeatureGroups();
+    const groupIds = new Set(groups.map((g) => g.id));
+    const frontend = await frontendFeatures();
+
+    for (const fe of frontend) expect(groupIds.has(fe.group)).toBe(true);
+    for (const d of vocabulary.dimensions) expect(groupIds.has(d.id)).toBe(true);
   });
 });

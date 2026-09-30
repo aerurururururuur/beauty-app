@@ -28,6 +28,14 @@ import { OCCASIONS, SKIN_TONES, SKIN_TYPES } from '../entities/brief.js';
 export const MAX_SCENE_TEXT = 2000;
 /** 穿搭一句话描述上限（字）。 */
 export const MAX_DRESS = 80;
+/**
+ * 面部特征最多带几条。
+ *
+ * ★ 它挡的是**畸形请求**，不是产品限制：词表里一共只有三十几条特征，
+ *   64 是任何正常输入都够不着的高度。真正的成员白名单在 `face-catalog` 的目录里
+ *   （`shared` 不能 import 它），未知 id 由消费者剔掉，见 `MakeupBrief.features`。
+ */
+export const MAX_FEATURES = 64;
 
 /**
  * 待检字段。**故意用 `string` 而不是枚举联合**：调用方给的是「刚过形状、还没过规则」
@@ -40,6 +48,8 @@ export interface BriefFieldsInput {
   skinType?: string | undefined;
   skinTone?: string | undefined;
   dress?: string | undefined;
+  /** 元素同样只保证是字符串；是不是**认得出来的**特征 id 不在这里判。 */
+  features?: readonly string[] | undefined;
 }
 
 export type BriefFieldsCheck =
@@ -53,6 +63,7 @@ export type BriefFieldsCheck =
  *   - `occasion` / `skinType` / `skinTone` 必须在 `entities/brief.ts` 的元组里；
  *   - `sceneText` / `dress` **按原文长度**判上限（与 schema 时的口径一致：
  *     先量后 trim，不因为补一个尾随空格就放宽），trim 后为空视同**没给**；
+ *   - `features` 只查条数上限 + 去重 + 去掉空串，**不查成员**（合法 id 在 `face-catalog`）；
  *   - `weather` **不在这里**——它是表单独有的成员，不属于共用字段。
  */
 export function checkBriefFields(input: BriefFieldsInput): BriefFieldsCheck {
@@ -63,6 +74,7 @@ export function checkBriefFields(input: BriefFieldsInput): BriefFieldsCheck {
   const skinTone = pickEnum('skinTone', input.skinTone, SKIN_TONES, problems);
   const sceneText = checkText('sceneText', input.sceneText, MAX_SCENE_TEXT, problems);
   const dress = checkText('dress', input.dress, MAX_DRESS, problems);
+  const features = checkFeatures(input.features, problems);
 
   if (problems.length > 0) return { ok: false, message: problems.join(';') };
 
@@ -73,7 +85,32 @@ export function checkBriefFields(input: BriefFieldsInput): BriefFieldsCheck {
   if (skinTone) brief.skinTone = skinTone;
   if (sceneText) brief.sceneText = sceneText;
   if (dress) brief.dress = dress;
+  if (features) brief.features = features;
   return { ok: true, brief };
+}
+
+/**
+ * 特征 id 列表：去重（保序）、丢掉空白项、按 `MAX_FEATURES` 封顶。
+ *
+ * ★ **空数组视同「没给」**，与上面 `checkText` 的「trim 后为空」同一口径：
+ *   一次「部分更新」不该把用户填过的特征静默清空。
+ *   ⚠️ 现在**没有**任何一条路能清空它——真要清空得是一个显式动作，不是"少传一个键"。
+ */
+function checkFeatures(
+  value: readonly string[] | undefined,
+  problems: string[],
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (value.length > MAX_FEATURES) {
+    problems.push(`features 最多 ${MAX_FEATURES} 条(收到 ${value.length} 条)`);
+    return undefined;
+  }
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const id = raw.trim();
+    if (id) seen.add(id);
+  }
+  return seen.size > 0 ? [...seen] : undefined;
 }
 
 /**

@@ -17,7 +17,7 @@ import { createCabinetModule } from './modules/cabinet/index.js';
 import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
 import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { createAgentModule } from './modules/agent/index.js';
-import type { CosmeticReader, ProductLibrary } from './modules/agent/index.js';
+import type { CosmeticReader, FeatureStrategies, ProductLibrary } from './modules/agent/index.js';
 import type { SkinTonePalette } from './modules/makeup/index.js';
 import { AppError, ErrorCode } from './modules/shared/index.js';
 import { createSessionArtifacts } from './session-artifacts.js';
@@ -91,6 +91,33 @@ async function main(): Promise<void> {
   const palette: SkinTonePalette = {
     toneKeysFor: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.toneKeys,
     labelOf: (skinTone) => faceCatalog.vocabulary.tierById(skinTone)?.label,
+  };
+
+  /**
+   * `FaceVocabulary` → agent 的 `FeatureStrategies`(同一个词表,第二条缝)。
+   *
+   * ★ **显式挑字段**:这张卡会**原样出现在 `/result` 的「针对本人」那一块上**,
+   *   所以经过这条缝的每一格都要有人认领 —— 同 `palette` 那段。
+   *   `route` 那一格**刻意不往下传**:它是留给几何提示词(P3)的,
+   *   漏进方案只会多一格没人读、却会被当成"方案的一部分"渲染出去的东西。
+   *
+   * ⚠️ 查不到就返回 `undefined`,**不回落**:用户人设里存的 id 可能比词表旧,
+   *   那是正常情况,由 `propose_look` 把那一条剔掉(`brief.features` 的注释里写着这条)。
+   */
+  const features: FeatureStrategies = {
+    byId: (id) => {
+      const hit = faceCatalog.vocabulary.featureById(id);
+      if (!hit) return undefined;
+      return {
+        id: hit.value.id,
+        group: hit.dimension.id,
+        groupName: hit.dimension.label,
+        name: hit.value.label,
+        desc: hit.value.desc,
+        fix: hit.value.fix,
+        products: [...hit.value.products],
+      };
+    },
   };
 
   // 账号表落 dataDir/users/users.json;密码只存 scrypt 凭据,不存明文。
@@ -246,6 +273,9 @@ async function main(): Promise<void> {
     engine,
     artifacts: sessionArtifacts,
     palette,
+    // ★ 同一个词表的第二条缝(见上面 `features` 那段):`propose_look` 靠它把
+    //   `brief.features` 翻成方案里「针对本人」那几张调整卡。
+    features,
     // ★ 没配产品库时**整个键不出现在 options 里**(不是给一个 `undefined`)——
     //   语义上就是"这个部署没有产品库",agent 那边照此不注册那两个工具。
     ...(productLibrary ? { products: productLibrary } : {}),

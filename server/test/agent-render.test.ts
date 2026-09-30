@@ -275,8 +275,17 @@ const call = (id: string, name: string, input: unknown = {}): ToolUseBlock =>
 const baseSession = (over: Partial<Session> = {}): Session =>
   new Session({ ...createSession('s1', 'u1'), ...over });
 
+/**
+ * `setLookSpec` 现在还要一份**方案**(第三个实参,刻意不给缺省)。
+ * ★ 本文件里没有一条用例与方案有关(它们验的是出图那条链),所以从这里统一给
+ *   `undefined` —— 那表达的是"这套妆面没有配方",正是这些夹具的意思。
+ *   ⚠️ 要造一份**有方案**的会话就别用它,直接调 `setLookSpec`(那才是它不给缺省的原因)。
+ */
+const withLookSpec = (session: Session, lookSpec: LookSpec): Session =>
+  setLookSpec(session, lookSpec, undefined);
+
 const readySession = (): Session =>
-  setFaceRef(setLookSpec(baseSession(), SAMPLE_LOOK), FACE_REF);
+  setFaceRef(withLookSpec(baseSession(), SAMPLE_LOOK), FACE_REF);
 
 function renderTool(engine: Engine, artifacts: SessionArtifacts): RenderLookTool {
   return new RenderLookTool({ engine, artifacts });
@@ -316,7 +325,7 @@ describe('render_look 三态', () => {
     const engine = new RecordingEngine();
     const out = await renderTool(engine, new FakeSessionArtifacts()).run(
       {},
-      { session: setLookSpec(baseSession(), SAMPLE_LOOK) },
+      { session: withLookSpec(baseSession(), SAMPLE_LOOK) },
     );
 
     expect(out.isError).toBe(true);
@@ -424,7 +433,7 @@ describe('render_look 三态', () => {
     });
     const out = await renderTool(engine, new FakeSessionArtifacts()).run(
       {},
-      { session: setFaceRef(setLookSpec(full, SAMPLE_LOOK), FACE_REF) },
+      { session: setFaceRef(withLookSpec(full, SAMPLE_LOOK), FACE_REF) },
     );
 
     expect(out.isError).not.toBe(true);
@@ -446,7 +455,7 @@ describe('render_look 三态', () => {
     );
     const noFace = await renderTool(new RecordingEngine(), new FakeSessionArtifacts()).run(
       {},
-      { session: setLookSpec(baseSession(), SAMPLE_LOOK) },
+      { session: withLookSpec(baseSession(), SAMPLE_LOOK) },
     );
 
     const engineDown = await renderTool(
@@ -858,7 +867,7 @@ describe('ConfirmRender —— 入口 B(用户点界面上那条消息)', () => 
 
   it('★ 缺照片 → 422 且点名照片', async () => {
     const { engine, store, usecase } = await setupB();
-    await store.create(setLookSpec(baseSession(), SAMPLE_LOOK));
+    await store.create(withLookSpec(baseSession(), SAMPLE_LOOK));
 
     await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
@@ -902,7 +911,7 @@ describe('ConfirmRender —— 入口 B(用户点界面上那条消息)', () => 
 
   it('★ 锁**一定要放开**:一次失败之后,下一次点击照常能出图', async () => {
     const { store, usecase } = await setupB();
-    await store.create(setLookSpec(baseSession(), SAMPLE_LOOK)); // 缺照片 ⇒ 第一次抛
+    await store.create(withLookSpec(baseSession(), SAMPLE_LOOK)); // 缺照片 ⇒ 第一次抛
 
     await expect(usecase.execute('s1', 'u1')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
@@ -1218,7 +1227,7 @@ describe('renderReadiness —— 缺什么才算不能出图', () => {
   it('三态各报各的', () => {
     expect(renderReadiness(readySession())).toBe('ready');
     expect(renderReadiness(setFaceRef(baseSession(), FACE_REF))).toBe('no_look');
-    expect(renderReadiness(setLookSpec(baseSession(), SAMPLE_LOOK))).toBe('no_face');
+    expect(renderReadiness(withLookSpec(baseSession(), SAMPLE_LOOK))).toBe('no_face');
   });
 
   it('两样都缺时报 `no_look`(顺序是定的:先说妆面,再说照片)', () => {
@@ -1278,7 +1287,7 @@ describe('会话视图', () => {
 
   it('★ 缺妆面 / 缺照片 → 不摆那条消息(点下去必然失败的动作不该出现在屏幕上)', () => {
     const noLook = toSessionView(setFaceRef(baseSession(), FACE_REF));
-    const noFace = toSessionView(setLookSpec(baseSession(), SAMPLE_LOOK));
+    const noFace = toSessionView(withLookSpec(baseSession(), SAMPLE_LOOK));
 
     expect('renderOffer' in noLook).toBe(false);
     expect('renderOffer' in noFace).toBe(false);
@@ -1288,7 +1297,7 @@ describe('会话视图', () => {
     // 这条消息**不会**在出完图之后消失(妆面照片还在),所以按钮会停在那里。
     // 出完还写着「确认生成」读起来像"刚才那件事还没做完",诱着用户再点一次——那一次是真花钱。
     const rendered = setFaceRef(
-      setLookSpec(
+      withLookSpec(
         baseSession({
           renders: [
             // ★ 与 `describeLook(session.lookSpec)` 逐字同源(服务端出图时就是这么记的)。
@@ -1307,7 +1316,7 @@ describe('会话视图', () => {
     expect(toSessionView(rendered).renderOffer?.alreadyRendered).toBe(true);
 
     // 只改了唇色 ⇒ 已经不是那一套了,按钮该回到「确认生成」。
-    const changed = setLookSpec(
+    const changed = withLookSpec(
       rendered,
       new LookSpec({
         occasion: SAMPLE_LOOK.occasion,
@@ -1322,7 +1331,7 @@ describe('会话视图', () => {
     // 从前这里有两条配额断言(left 为 0 / 不限量时 left 是 null),随配额一起删了。
     // 留下的这条是**没有上限之后唯一还成立的**那条:出到第 4 张,入口还在。
     const spent = setFaceRef(
-      setLookSpec(
+      withLookSpec(
         baseSession({
           renders: [
             new RenderRecord({

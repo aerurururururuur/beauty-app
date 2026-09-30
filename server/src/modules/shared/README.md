@@ -6,7 +6,7 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/brief.ts` | ★ 枚举单源：`OCCASIONS`(interview/date/stage/family/daily) · `SKIN_TYPES`(5) · `SKIN_TONES`(**5 档,缺省 `medium` 中间档,不默认浅肤色**) · `WeatherInfo` · `MakeupBrief` |
+| `domain/entities/brief.ts` | ★ 枚举单源：`OCCASIONS`(**8**：interview/date/stage/family/daily/party/travel/fantasy，后三者 2026-09-30 为桃妆前端补) · `SKIN_TYPES`(5) · `SKIN_TONES`(**8 档,无缺省值,不默认浅肤色**) · `WeatherInfo` · `MakeupBrief` |
 | `domain/entities/image.ts` | `ImageRef`(存储键 + MIME)/ `ResolvedImage`(已解析到本机:`filePath`/`mimeType`/`originalName`)——引擎**入参**与读回的**产物**共用后者 |
 | `domain/scene-rules.ts` | ★ **前后端单一源**:`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。**零运行时依赖,前端会直接执行它**——见下 |
 | `domain/errors/app-error.ts` | `AppError` + `ErrorCode`(**不携带 HTTP 状态码**) |
@@ -52,4 +52,4 @@
   `jobs` 已删，那两条入口现在是 **`POST /agent/sessions`（随会话建立带初值）** 与
   **`patch_brief`（对话里改）**——它们共用上面那份形状与规则，改一处两处一起变。
 - **加减场合时是两处**：`brief.ts` 的 `OCCASIONS` + `scene-rules.ts` 的 `SCENE_RULES` / `SCENE_MATCH_ORDER`（漏配后两者会编译不过 / 测试红）。前端 `OCCASION_OPTIONS` 是纯展示，也要跟着加。
-- **红线**：`SKIN_TONES` 5 档、缺省 `medium`，不要默认浅肤色审美。场合语义里**刻意不收「显白」**（见 `scene-rules.ts` 文件头）。
+- **红线**：`SKIN_TONES` 8 档、**没有默认档**，不要默认浅肤色审美。场合语义里**刻意不收「显白」**（见 `scene-rules.ts` 文件头）。

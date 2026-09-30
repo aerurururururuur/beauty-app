@@ -31,10 +31,12 @@
  *   它只是"提议"出图,点不点是用户的事(见 `agent-loop.ts` 文件头 ⑦)。
  *   这也是它可以放心当缺省的原因——**它没有多花一分钱的能力**。
  */
-import type { Occasion } from '../../../shared/index.js';
+import type { Occasion, SkinTone } from '../../../shared/index.js';
 import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../../../makeup/index.js';
+import type { SkinTonePalette, ToneKey } from '../../../makeup/index.js';
+import { stylePoolFor } from '../../../styling/index.js';
 // ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
-import { MAX_SCENE_TEXT } from '../../../shared/index.js';
+import { MAX_SCENE_TEXT, OCCASIONS, SKIN_TONES } from '../../../shared/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
 import { PHOTO_ATTACHED_NOTE } from '../../domain/tools/observations.js';
 import {
@@ -60,26 +62,70 @@ const OCCASION_HINTS: readonly { readonly words: readonly string[]; readonly occ
   { words: ['约会', '相亲', '纪念日'], occasion: 'date' },
   { words: ['上台', '演出', '演讲', '主持', '舞台', '年会'], occasion: 'stage' },
   { words: ['家长', '长辈', '父母', '婚礼', '拜年'], occasion: 'family' },
+  { words: ['聚会', '派对', '闺蜜局', '生日会'], occasion: 'party' },
+  { words: ['旅行', '旅游', '出游', '度假'], occasion: 'travel' },
+  { words: ['奇想', '赛博', '水墨', '主题妆'], occasion: 'fantasy' },
 ];
 
 /**
- * 演示用的那套妆面。
- * ★ 取值**照抄 `test/agent-render.test.ts` 里那份 `SAMPLE_LOOK`**——那是仓库里唯一一份
- *   已知合法的样例。新编一个没验过的 spec,第一次 `propose_look` 就会被校验器打回,
- *   而那时看起来像"演示脚本坏了",不像"这个 spec 是编的"。
- *   (`test/demo-llm.test.ts` 跑通整条链路,就是这份 spec 能过校验的证据。)
+ * 把系统提示里「已知需求:…」那一行读回成一个表。
+ *
+ * ★ **为什么是读文本**:`DemoLlm` 手里只有 `messages` 与 `system`(见 `domain/ports/llm.ts`),
+ *   而它要演的那两件事——用户填的**场合**、人设带上来的**肤色深浅**——都落在
+ *   `session.brief` 上,每一轮由 `buildSystemPrompt` 印进那一行。
+ *   ⚠️ **不给端口加一格会话状态**:真模型(`DashScopeLlm`)用不上它,
+ *   为了一个假后端去改那道缝,是把成本记在业务层账上。
+ *
+ * ⚠️ **版式归 `brief-description.ts` 的 `FIELD_LABELS` 所有**(`键=值;键=值`),
+ *   改那边就要一起改这里。读不到某一格是**正常情况**(那一格还没填),
+ *   表里就是没有它——与"没填过"在这里本来就是同一件事。
  */
-function demoLook(occasion: Occasion): LookSpec {
-  return new LookSpec({
-    occasion,
-    base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
-    zones: {
-      lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-      cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-      eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
-      brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
-    },
-  });
+function readBriefLine(system: string | undefined): ReadonlyMap<string, string> {
+  const fields = new Map<string, string>();
+  const line = /^已知需求:(.*)$/m.exec(system ?? '')?.[1];
+  if (line === undefined) return fields;
+  for (const part of line.split(';')) {
+    const at = part.indexOf('=');
+    if (at > 0) fields.set(part.slice(0, at).trim(), part.slice(at + 1).trim());
+  }
+  return fields;
+}
+
+/** 「已知需求」里那个场合。没填过就是 `undefined`——纯对话那条路本来就没人填。 */
+function occasionFrom(brief: ReadonlyMap<string, string>): Occasion | undefined {
+  const raw = brief.get('场合');
+  return OCCASIONS.find((o) => o === raw);
+}
+
+/** 「已知需求」里那个肤色。同上:没填过就是 `undefined`。 */
+function skinToneFrom(brief: ReadonlyMap<string, string>): SkinTone | undefined {
+  const raw = brief.get('肤色深浅');
+  return SKIN_TONES.find((s) => s === raw);
+}
+
+/**
+ * 这个场合的**首选**风格:池子里的第一个(顺序即优先级,见 `SCENE_STYLES`)。
+ *
+ * ★ 脚本**只演一遍**:它不读工具结果(见 `readState` 的 `answered`),也就没有
+ *   "被拒了再改一次"的机会,所以 `styleId` 必须一次给对。
+ * ⚠️ 池子非空这件事 `Record<Occasion, readonly string[]>` 的类型保证不了;
+ *   真出现空池是**内容坏了**,该把话说明白,别拿空串去调工具(那会读成"id 不存在")。
+ */
+function firstStyleOf(occasion: Occasion): string {
+  const first = stylePoolFor(occasion)[0];
+  if (first === undefined) throw new Error(`演示脚本:场合「${occasion}」的风格池是空的。`);
+  return first;
+}
+
+/**
+ * 从这一档可用的色里挑一个:首选色能用就用它,不能用就取该档的第 `offset` 个。
+ * ★ `offset` 只是让三个区**不至于都撞成同一个色**——挑色的标准是**合法**,不是好看。
+ * ⚠️ `allowed === undefined` 表达的是**还不知道肤色**(不是"没有色可用"),
+ *   那时原样返回首选色:校验器在肤色未知时本来就不收窄(`validateLookSpec` ③)。
+ */
+function toneFor(preferred: ToneKey, allowed: readonly ToneKey[] | undefined, offset: number): ToneKey {
+  if (allowed === undefined || allowed.includes(preferred)) return preferred;
+  return allowed[offset % allowed.length] ?? preferred;
 }
 
 // ── 它要说的话 ───────────────────────────────────────────────────────────────
@@ -106,6 +152,11 @@ const ASK_PHOTO_TEXT =
 const PROPOSE_RENDER_TEXT = '妆面定下来了。要我出一张成片看看吗?';
 const AFTER_RENDER_TEXT = '图出来了,你看这张行不行?有想调的地方告诉我。';
 const AFTER_DECLINE_TEXT = '行,那这次先不出图。我们接着调——你觉得刚才那套哪里想改?';
+/**
+ * 换风格那一支的话。★ 同样**不描述那套妆长什么样**(见上面那一段),
+ * 也不提确认框:那个框由界面自己摆,`v7` 起模型一律不许转述。
+ */
+const SWITCH_TEXT = '行,照这个风格重新配了一套。';
 
 /**
  * 脚本演完之后的话。★ **它明说自己是脚本**——继续演下去就得现编,
@@ -122,11 +173,38 @@ export class DemoLlm implements Llm {
    */
   readonly name = 'demo';
 
+  /**
+   * ★ `palette` 是**词表端口**,与 `ProposeLookTool` 拿的是同一个实例(组装根注入)。
+   *
+   * **它为什么必须有**:表单那条路会把人设上的肤色带进 `brief`,而 `propose_look`
+   * 会**按肤色收窄色域**(§6 规矩 4)。写死一套色的脚本对 `warm_tan` / `wheat` /
+   * `deep_brown` 三档是**整套被拒**的(`rose` / `nude` 不在那三档的色域里),
+   * 缺省配置(`AGENT_LLM=mock`)下那就成了"配好了却出不了方案"——假开关的那张脸。
+   * 所以三个区的色要从这一档可用的色里挑。
+   * ⚠️ **必填、不给缺省**:缺省就退回到"写死一套色",而那正是这里要防的。
+   */
+  constructor(private readonly palette: SkinTonePalette) {}
+
   /** 调用 id 的自增计数。★ 全局唯一,不按会话重来——重了会让结果回填对错块。 */
   private calls = 0;
 
   async chat(request: LlmRequest): Promise<LlmResponse> {
     const state = readState(request.messages);
+    const brief = readBriefLine(request.system);
+
+    // ⓪ ★ 用户在换风格(结果页那条切换条把 id 写在括号里)→ 照他点的那个人重配一套。
+    //   没有这一支,换风格会落到 ② :用户点的是「换成 X」,脚本答的却是
+    //   「行,那这次先不出图」——而结果页那条切换条**在缺省配置下就是个死按钮**
+    //   (方案确实换了才行,见 `/result` 那一屏)。
+    //   ⚠️ 判据是"点的那个人与**上次提的**不同"(不是"这句话里提到过风格"):
+    //      后者会在同一轮的重跑里反复命中,一路空转到 `max_iterations`。
+    const switched = styleInPool(state.lastUserText, stylePoolOf(request.system));
+    if (switched !== undefined && switched.id !== state.lastStyleId) {
+      const look = this.demoLook(switched.occasion, skinToneFrom(brief));
+      return mockTextAndToolCalls(SWITCH_TEXT, [
+        this.call(TOOL_NAMES.proposeLook, { ...look, styleId: switched.id }),
+      ]);
+    }
 
     // ① 刚刚出完图 → 讲一句、问行不行。★ 不再提议第二次(脚本只演一遍,见 ⑥)。
     if (state.justRanTools && state.lastRender === 'done') return mockText(AFTER_RENDER_TEXT);
@@ -140,10 +218,21 @@ export class DemoLlm implements Llm {
     if (!state.hasProposedLook) {
       const calls: ToolUseBlock[] = [];
       // 用户第一句话就是传照片时没有"需求原文"可言,那就只提妆面、不硬塞一句空的需求。
-      if (state.firstUserText) {
+      // ★ 表单那条路上第一句话是**开场白**(「按我填的需求给我定一套妆。」),
+      //   而用户真正写的东西已经拼进 `brief` 了。这里再记一次会**把那份原文整个盖掉**
+      //   (`patch_brief` 这一格是"设为",不是"追加"),所以简报里已经有
+      //   「用户原话」时就不动它——那一格以表单收上来的为准。
+      if (state.firstUserText && !brief.has('用户原话')) {
         calls.push(this.call(TOOL_NAMES.patchBrief, { sceneText: state.firstUserText }));
       }
-      calls.push(this.call(TOOL_NAMES.proposeLook, demoLook(occasionOf(state.firstUserText))));
+      // ★ 场合以**用户填的**为准,读不到才退回关键词表 —— 与 `propose_look` 那条
+      //   `brief.occasion ?? spec.occasion` 是同一个先后,两处不一致会让 `styleId`
+      //   落在**别的场合**的池子里,而工具会当场拒掉它(脚本没有第二次机会)。
+      const occasion = occasionFrom(brief) ?? occasionOf(state.firstUserText);
+      const look = this.demoLook(occasion, skinToneFrom(brief));
+      calls.push(
+        this.call(TOOL_NAMES.proposeLook, { ...look, styleId: firstStyleOf(occasion) }),
+      );
       return mockTextAndToolCalls(INTRO_TEXT, calls);
     }
 
@@ -164,6 +253,31 @@ export class DemoLlm implements Llm {
     return mockText(SCRIPT_END_TEXT);
   }
 
+  /**
+   * 演示用的那套妆面。
+   * ★ 取值**照抄 `test/agent-render.test.ts` 里那份 `SAMPLE_LOOK`**——那是仓库里唯一一份
+   *   已知合法的样例。新编一个没验过的 spec,第一次 `propose_look` 就会被校验器打回,
+   *   而那时看起来像"演示脚本坏了",不像"这个 spec 是编的"。
+   *   (`test/demo-llm.test.ts` 跑通整条链路,就是这份 spec 能过校验的证据。)
+   *
+   * ★★ **三个区的色不能写死**(理由见构造参数 `palette` 那一段):先试首选色,
+   *   不在这一档的色域里就顺次取该档的第 `i` 个。肤色不知道时**照旧用首选色**
+   *   ——`validateLookSpec` 那时本来就不收窄。
+   */
+  private demoLook(occasion: Occasion, skinTone: SkinTone | undefined): LookSpec {
+    const allowed = skinTone === undefined ? undefined : this.palette.toneKeysFor(skinTone);
+    return new LookSpec({
+      occasion,
+      base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+      zones: {
+        lip: new ZoneSpec({ tone: toneFor('rose', allowed, 0), finish: 'matte', intensity: 3 }),
+        cheek: new ZoneSpec({ tone: toneFor('coral', allowed, 1), finish: 'satin', intensity: 2 }),
+        eyeshadow: new ZoneSpec({ tone: toneFor('nude', allowed, 2), finish: 'satin', intensity: 2 }),
+        brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+      },
+    });
+  }
+
   private call(name: string, input: unknown): ToolUseBlock {
     this.calls += 1;
     return new ToolUseBlock({ type: 'tool_use', id: `demo-${this.calls}`, name, input });
@@ -173,6 +287,17 @@ export class DemoLlm implements Llm {
 /** 出图那件事最后一次的结局。`null` = 还没提议过。 */
 type RenderOutcome = 'done' | 'declined' | 'other';
 
+/**
+ * `calls` 里最后一个叫 `name` 的下标;一次都没有就是 `-1`。
+ * ★ 要的是**先后**(谁更晚),所以给下标而不是给那个块本身。
+ */
+function lastIndexOfCall(calls: readonly ToolUseBlock[], name: string): number {
+  for (let i = calls.length - 1; i >= 0; i -= 1) {
+    if (calls[i]?.name === name) return i;
+  }
+  return -1;
+}
+
 interface DemoState {
   /** 最后一条消息是"工具刚跑完"的续跑(而不是用户在说话)。 */
   justRanTools: boolean;
@@ -181,6 +306,10 @@ interface DemoState {
   lastRender: RenderOutcome | null;
   /** 用户说的第一句话(原样,已按 schema 上限截断)。 */
   firstUserText: string;
+  /** 用户说的最后一句话(同上)。★ 换风格那一支认的是它,不是第一句。 */
+  lastUserText: string;
+  /** 最后一次 `propose_look` 提的那个配方 id(提过才有)。 */
+  lastStyleId: string | undefined;
 }
 
 /**
@@ -213,7 +342,19 @@ function readState(messages: readonly Message[]): DemoState {
     (c) => c.name === TOOL_NAMES.proposeLook && answered.has(c.id),
   );
 
-  const renderCall = calls.filter((c) => c.name === TOOL_NAMES.renderLook).pop();
+  const proposeAt = lastIndexOfCall(calls, TOOL_NAMES.proposeLook);
+  const lastPropose = calls[proposeAt];
+
+  /**
+   * ★★ **出图那件事的结局只对"它当时提的那一套妆"有效。**
+   *   换风格会在历史里留下一条**更新**的 `propose_look`,于是那条
+   *   「被拒了」/「出成了」讲的是**上一套**妆的事——用户屏幕上已经不是那一套了。
+   *   不看这个先后,换完风格会收到「行,那这次先不出图。我们接着调——你觉得**刚才那套**
+   *   哪里想改?」:话里指的是已经不在屏幕上的那一套,而旁边正摆着一个出图按钮。
+   *   ⚠️ 判据是**下标先后**(`calls` 是按消息顺序铺平的),不是时间戳。
+   */
+  const renderAt = lastIndexOfCall(calls, TOOL_NAMES.renderLook);
+  const renderCall = renderAt > proposeAt ? calls[renderAt] : undefined;
   let lastRender: RenderOutcome | null = null;
   if (renderCall) {
     const result = resultOf.get(renderCall.id);
@@ -224,8 +365,10 @@ function readState(messages: readonly Message[]): DemoState {
   }
 
   const texts = messages.map((m) => textOf(m));
-  const firstUserMessage = messages.find((m) => m.role === 'user' && textOf(m).trim() !== '');
-  const firstText = (firstUserMessage ? textOf(firstUserMessage) : '').trim();
+  const userTexts = messages
+    .filter((m) => m.role === 'user' && textOf(m).trim() !== '')
+    .map((m) => textOf(m).trim());
+  const firstText = userTexts[0] ?? '';
   const hasPhoto = texts.some((t) => t.includes(PHOTO_ATTACHED_NOTE));
 
   const last = messages[messages.length - 1];
@@ -244,7 +387,60 @@ function readState(messages: readonly Message[]): DemoState {
       firstText === PHOTO_ATTACHED_NOTE || firstText === ''
         ? ''
         : firstText.slice(0, MAX_SCENE_TEXT),
+    // ★ 不排除那张照片的提示语:它认不出任何风格 id,对 ⓪ 是无害的,
+    //   而它**只可能**出现在第一句上(见上面的注释),最后一句轮不到它。
+    lastUserText: (userTexts[userTexts.length - 1] ?? '').slice(0, MAX_SCENE_TEXT),
+    lastStyleId: lastPropose === undefined ? undefined : styleIdOf(lastPropose),
   };
+}
+
+/**
+ * 从「当前状态」那几行**风格池**里读回 `风格 id → 场合`。
+ *
+ * ★ **为什么是读提示词**:候选池随场合变,而这个脚本手上只有 `messages` 与 `system`
+ *   (同 `readBriefLine` 的理由)。而这几行**本来就是印给模型看的那份清单**
+ *   (`style-pool-description.ts` 是它唯一的出处),照它读不会多出一个真相。
+ *
+ * ★ 场合还没定时,那一行是**每档一节**的多行形状;定了场合就只有一行。
+ *   两种形状的场合名都落在**该行第一个括号**里(`风格池(聚会 party):…` 与
+ *   `- 聚会(party):…`),所以这里只有一条判据,不必分两种版式。
+ */
+function stylePoolOf(system: string | undefined): ReadonlyMap<string, Occasion> {
+  const byId = new Map<string, Occasion>();
+  for (const line of (system ?? '').split('\n')) {
+    const head = /\(([^)]*)\)/.exec(line)?.[1];
+    if (head === undefined) continue;
+    const occasion = OCCASIONS.find((o) => head.split(/[\s,]+/).includes(o));
+    if (occasion === undefined) continue;
+    for (const [, id] of line.matchAll(/([a-z0-9-]+)\([^()]*\)/g)) {
+      if (id !== undefined) byId.set(id, occasion);
+    }
+  }
+  return byId;
+}
+
+/**
+ * 用户这句话里点名了池子里的哪个风格。
+ *
+ * ★ 认的是 `/result` 那条切换条的原话(`换成「名字」(id) 这个风格…`),
+ *   而 id 就写在括号里——**不去理解语义**,同本文件开头那段:它是一段脚本。
+ */
+function styleInPool(
+  text: string,
+  pool: ReadonlyMap<string, Occasion>,
+): { id: string; occasion: Occasion } | undefined {
+  for (const [id, occasion] of pool) {
+    if (text.includes(`(${id})`)) return { id, occasion };
+  }
+  return undefined;
+}
+
+/** 一次 `propose_look` 调用里提的那个配方 id。`input` 是 `unknown`(见 message schema)。 */
+function styleIdOf(call: ToolUseBlock): string | undefined {
+  const input: unknown = call.input;
+  if (typeof input !== 'object' || input === null) return undefined;
+  const value = (input as Record<string, unknown>)['styleId'];
+  return typeof value === 'string' ? value : undefined;
 }
 
 /** 用户那句话里能认出来的场合;认不出来就是日常。 */

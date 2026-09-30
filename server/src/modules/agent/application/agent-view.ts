@@ -20,6 +20,7 @@
 import { describeLook } from '../../makeup/index.js';
 import type { AnalyzeCase, LookSpec, StyleRead } from '../../makeup/index.js';
 import type { MakeupBrief } from '../../shared/index.js';
+import type { PlanView } from '../../styling/index.js';
 import {
   analysisWouldOverwrite,
   hasSourceImage,
@@ -108,6 +109,17 @@ export interface AgentSessionView {
   lookSpec?: LookSpec;
   /** ★ `describeLook` 的渲染结果——给用户看的那段人话。 */
   lookDescription?: string;
+  /**
+   * ★ 这套妆面的**方案**(步骤 / 色板 / 产品 / 个性化调整),`/result` 那一屏的数据。
+   *
+   * 与 `lookSpec` **同生同灭**:两样都是同一次 `propose_look` 的产出
+   * (见 `entities/session.ts` 的 `setLookSpec`),所以不会出现"妆面在、方案不在"。
+   *
+   * ⚠️ **`products[]` / `palette[]` 里没有 `hex`** —— 色值的唯一来源是前端的
+   *   `kb/shades.js`(`styles.js` 自己立的规矩 2),后端不存第二份。
+   *   要显示色块的前端自己用 `hexOf(pid, code)` 补。
+   */
+  plan?: PlanView;
   /** `style` 分析的产物(闭集读数)。★ 空则无键——它表达"读出来了没有"。 */
   styleRead?: StyleRead;
   /** 收到本人照片了没有。★ **不透出路径、也不透出字节**——前端只需要知道能不能出图。 */
@@ -237,6 +249,7 @@ export function toSessionView(
     brief: session.brief,
     ...(look ? { lookSpec: look } : {}),
     ...(lookDescription !== undefined ? { lookDescription } : {}),
+    ...(session.plan ? { plan: session.plan } : {}),
     ...(session.styleRead ? { styleRead: session.styleRead } : {}),
     hasFace: session.faceRef !== undefined,
     hasStyleRef: session.styleRef !== undefined,

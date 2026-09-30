@@ -47,7 +47,7 @@ export interface AnalyzeInput {
 export interface AnalysisOf {
   /** 肤色 8 档之一(`SKIN_TONES`)。 */
   face: { skinTone: SkinTone };
-  /** 场合 5 档之一(`OCCASIONS`)。 */
+  /** 场合 8 档之一(`OCCASIONS`)。 */
   scene: { occasion: Occasion };
   /** 风格图读数(复合值,所以它是个实体类)。 */
   style: StyleRead;

@@ -22,6 +22,7 @@ const FIELD_LABELS: readonly (readonly [keyof MakeupBrief, string])[] = [
   ['sceneText', '用户原话'],
   ['skinType', '肤质'],
   ['skinTone', '肤色深浅'],
+  ['features', '本人特征'],
   ['dress', '穿搭'],
 ];
 

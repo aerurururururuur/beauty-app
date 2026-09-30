@@ -8,6 +8,7 @@
  */
 import type { Analyzers, Engine, SkinTonePalette } from '../makeup/index.js';
 import type { CosmeticReader } from './domain/ports/cosmetic-reader.js';
+import type { FeatureStrategies } from './domain/ports/feature-strategies.js';
 import type { ProductLibrary } from './domain/ports/product-library.js';
 import type { UserDirectory } from './domain/ports/user-directory.js';
 import type { SessionStore } from './domain/ports/session-store.js';
@@ -87,6 +88,11 @@ export interface AgentModuleOptions {
    */
   palette: SkinTonePalette;
   /**
+   * 特征策略卡端口。★ 由组装根把 `face-catalog` 的 `FaceVocabulary` 包一层传进来(§7.1)。
+   * **必填**:缺了它方案里「针对本人」那一块恒为空,而界面上看不出来,理由同 `palette`。
+   */
+  features: FeatureStrategies;
+  /**
    * 读品牌产品库。★ 由组装根把 `products` 模块的 `ProductCatalog` 包一层传进来(§7.1)。
    *
    * ★ **可选,而且这是本模块唯一一个可选依赖。** 不传 = 这个部署没有内容目录 →
@@ -146,6 +152,7 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
     engine: options.engine,
     artifacts: options.artifacts,
     palette: options.palette,
+    features: options.features,
     // 只在真有时才传:`exactOptionalPropertyTypes` 下不能塞一个 `undefined` 进去,
     // 而且"没有产品库"与"产品库是 undefined"在这里本来就是同一件事。
     ...(options.products ? { products: options.products } : {}),
@@ -197,7 +204,9 @@ function buildLlm(options: AgentModuleOptions): Llm {
   // ★ `mock` ⇒ 脚本化演示(见上面 `AgentLlmKind` 的注释)。
   //   ⚠️ `MockLlm` **没有删**:它是单测的驱动源(按脚本顺序回话),测试直接 new 它;
   //     而 `DemoLlm` 按**请求状态**求值,所以同一个进程里开新会话能重演一遍,不用重启。
-  if (options.kind === 'mock') return new DemoLlm();
+  // ★ 它要 `palette`:演示脚本得挑出**这个用户肤色下合法**的色,否则表单那条路配深肤色
+  //   人设时会整套被 `validateLookSpec` 拒掉(理由见 `DemoLlm` 的构造参数)。
+  if (options.kind === 'mock') return new DemoLlm(options.palette);
 
   const { apiKey, baseUrl, model, timeoutMs } = options.real;
   if (!apiKey) {

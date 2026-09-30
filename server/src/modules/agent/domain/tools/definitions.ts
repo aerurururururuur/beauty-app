@@ -126,16 +126,31 @@ export const PATCH_BRIEF: LlmToolDefinition = {
  * §6 规矩 5 末 + §13 都点名盯着这条:`LookSpec` 故意没有自由文本字段,
  * 而模型遇到表达不了的诉求(「放大感美瞳」)时,**最顺手的做法就是编一个字段塞进去**。
  * 描述是唯一能提前拦住它的地方——schema 只能打回,不能解释为什么。
+ *
+ * ★★ **2026-09-30:`styleId` 加进来了,而且它是必填。** 它不属于 `LookSpec`
+ *   (那是一份**妆面**),所以进不了 `validateLookSpec` 的形状,本工具自己摘出来校验
+ *   (见 `propose-look.ts`)。
+ *
+ *   **为什么不新开一个 `propose_plan` 工具**:两次调用就有两个决定,
+ *   「讲给用户的那套方案」与「真的要拿去出图的那套妆」可能不是一套——
+ *   而用户是拿方案当成片的承诺的。**一次调用、一个决定、两样产出**,
+ *   一致性由结构保证,不需要提示词去嘱咐。
+ *
+ *   ⚠️ **取值必须落在该场合的候选池里,那份池子随场合变、写不进这个 schema**,
+ *   所以这里只说规矩,清单在系统提示的「当前状态」那一行(`buildSystemPrompt`),
+ *   挑错了则由工具返回一条**列出整池**的错误(同本仓「错误消息即 prompt」的既有做法)。
  */
 export const PROPOSE_LOOK: LlmToolDefinition = {
   name: TOOL_NAMES.proposeLook,
   description: [
-    '提出或修改一套妆面。这是你在这个对话里的主要产出物。',
+    '提出或修改一套妆面,并**同时**定下它对应哪一套风格配方。这是你在这个对话里的主要产出物。',
     '如果上文里出现过**风格参考图的读数**,就照它填这套妆面;它只是参考,',
     '与用户自己说过的要求冲突时,以用户为准。',
     '妆面只由这些维度描述:**颜色、质地、浓度**(底妆另有冷暖偏移),没有别的。',
     '所以「眼睛放大一点」「脸显小」「拉长眼型」这类**形态**诉求,',
     '这套妆面表达不了——遇到时要用文字向用户说明做不到,不要硬塞进这几个字段。',
+    '★ `styleId` **只从「当前状态」里那一行列出的候选里挑**,不要自己编、也不要挑别的场合的。',
+    '它和这套妆面是**同一件事的两面**:用户按那套配方去理解你说了什么,所以两者要配得上。',
     '调用后你会拿到这段妆面的中文描述,把它讲给用户听,并问清楚要不要调整。',
     '这个操作免费,不需要用户确认。',
   ].join(''),
@@ -143,6 +158,16 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
     type: 'object',
     properties: {
       occasion: { type: 'string', enum: [...OCCASIONS], description: '这套妆服务的场合' },
+      /**
+       * ⚠️ **不写 `enum`**:候选池随 `occasion` 变,而 JSON Schema 表达不了这层依赖
+       * (`oneOf` 按另一个字段分支也表达不了,而模型读不出那种结构)。
+       * 校验在工具里做,错误消息列出整池——那才是模型读得懂的形式。
+       */
+      styleId: {
+        type: 'string',
+        description:
+          '风格配方 id。**从「当前状态」里那一行列出的候选里挑一个**,不要自己编。',
+      },
       base: {
         type: 'object',
         properties: {
@@ -178,7 +203,7 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
         additionalProperties: false,
       },
     },
-    required: ['occasion', 'base', 'zones'],
+    required: ['occasion', 'styleId', 'base', 'zones'],
     additionalProperties: false,
   },
 };

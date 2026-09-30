@@ -50,6 +50,7 @@ import {
   loadDotEnvIfPresent,
   readDashScopeApiKey,
 } from '../src/modules/shared/infrastructure/config.js';
+import type { FeatureStrategies } from '../src/modules/agent/index.js';
 import { createFaceCatalogModule } from '../src/modules/face-catalog/index.js';
 import type { SkinTonePalette } from '../src/modules/makeup/index.js';
 
@@ -388,11 +389,28 @@ async function main(): Promise<void> {
     toneKeysFor: (skinTone) => vocabulary.tierById(skinTone)?.toneKeys,
     labelOf: (skinTone) => vocabulary.tierById(skinTone)?.label,
   };
+  // ★ 同上:特征策略卡也是**同一个词表的第二条缝**(组装根里就是这么搭的)。
+  const features: FeatureStrategies = {
+    byId: (id) => {
+      const hit = vocabulary.featureById(id);
+      if (!hit) return undefined;
+      return {
+        id: hit.value.id,
+        group: hit.dimension.id,
+        groupName: hit.dimension.label,
+        name: hit.value.label,
+        desc: hit.value.desc,
+        fix: hit.value.fix,
+        products: [...hit.value.products],
+      };
+    },
+  };
   const tools = createToolRegistry({
     cosmetics: noopCosmetics,
     engine: neverUsedEngine,
     artifacts: fakeArtifacts,
     palette,
+    features,
     ...(argv.products ? { products: fakeProducts } : {}),
   });
 

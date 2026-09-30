@@ -11,6 +11,7 @@
  */
 import type { Engine, SkinTonePalette } from '../../../makeup/index.js';
 import type { CosmeticReader } from '../../domain/ports/cosmetic-reader.js';
+import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
 import type { ProductLibrary } from '../../domain/ports/product-library.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import type { Tool } from '../../domain/tools/tool.js';
@@ -35,6 +36,13 @@ export interface ToolDeps {
    */
   palette: SkinTonePalette;
   /**
+   * 特征策略卡端口:`propose_look` 拿它把 `brief.features` 里的裸 id 翻成
+   * 「针对本人」那几张调整卡。
+   * ★ **必填**——缺了它那一块**永远为空**,而界面上没人看得出来
+   * (见 `agent/domain/ports/feature-strategies.ts`)。
+   */
+  features: FeatureStrategies;
+  /**
    * ★ **唯一一个可选依赖。** 读品牌产品库。
    *
    * 缺省 = **这个部署没有产品库** → `list_products` / `read_product` **不注册**。
@@ -42,8 +50,8 @@ export interface ToolDeps {
    *   然后对着空库编出似是而非的推荐,而它自己完全不知道哪里不对。
    *   工具**不在名单里**,模型连想都不会想,那才是诚实的。
    *
-   * 为什么它可以可选、而上面四个必须必填:那四个缺了,这个 agent 就**干不成它的事**
-   * (没引擎出不了图、没衣橱读不了柜子)。产品库是**增强项**——没有它,
+   * 为什么它可以可选、而上面五个必须必填:那五个缺了,这个 agent 就**干不成它的事**
+   * (没引擎出不了图、没衣橱读不了柜子、没策略卡方案里那块恒空)。产品库是**增强项**——没有它,
    * "聊需求 → 出妆面 → 出图"整条链路一点没缺,只是最后少一句"买什么"。
    */
   products?: ProductLibrary;
@@ -57,7 +65,7 @@ export interface ToolDeps {
 export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
   return indexTools([
     new PatchBriefTool(),
-    new ProposeLookTool(deps.palette),
+    new ProposeLookTool(deps.palette, deps.features),
     new ListCabinetTool(deps.cosmetics),
     ...(deps.products
       ? [new ListProductsTool(deps.products), new ReadProductTool(deps.products)]
