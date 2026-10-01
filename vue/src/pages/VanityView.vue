@@ -81,7 +81,14 @@
                   @click="vanity.openInAllView(p.id)"
                   @pointerenter="vanity.prefetchDetail(p.id)"
                 >
-                  <div class="bag-card__thumb"></div>
+                  <img
+                    v-if="!brokenImages.has(p.id)"
+                    class="bag-card__thumb"
+                    :src="productImageOf(p.id)"
+                    alt=""
+                    @error="markImageBroken(p.id)"
+                  />
+                  <div v-else class="bag-card__thumb"></div>
                   <div class="bag-card__body">
                     <span class="bag-card__cat">{{ p.categoryLabel || '' }}</span>
                     <span class="bag-card__name">{{ p.name }}</span>
@@ -175,7 +182,14 @@
               @click="vanity.selectProduct(p.id)"
               @pointerenter="vanity.prefetchDetail(p.id)"
             >
-              <div class="product-card__thumb"></div>
+              <img
+                v-if="!brokenImages.has(p.id)"
+                class="product-card__thumb"
+                :src="productImageOf(p.id)"
+                alt=""
+                @error="markImageBroken(p.id)"
+              />
+              <div v-else class="product-card__thumb"></div>
               <div class="product-card__name">{{ p.name }}</div>
               <div class="product-card__texture">{{ p.text || '' }}</div>
               <div class="product-card__shades" :class="{ 'product-card__shades--none': !p.hasShades }">
@@ -186,7 +200,14 @@
         </section>
 
         <aside class="shade-panel">
-          <div class="shade-panel__preview ph">试色预览</div>
+          <img
+            v-if="shadeImageSrc && !brokenImages.has(shadeImageSrc)"
+            class="shade-panel__preview"
+            :src="shadeImageSrc"
+            alt=""
+            @error="markImageBroken(shadeImageSrc)"
+          />
+          <div v-else class="shade-panel__preview ph">试色预览</div>
           <div class="shade-panel__name">{{ vanity.activeProduct?.name || '' }}</div>
           <div class="shade-panel__picked">
             {{ vanity.activeShade ? shadeLabel(vanity.activeShade) : '暂无色号' }}
@@ -292,8 +313,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { productImageOf, shadeImageOf } from '@/api/vanity'
 import ErrorNote from '@/components/ErrorNote.vue'
 import Icon from '@/components/Icon.vue'
 import { useUserStore } from '@/stores/user'
@@ -321,6 +343,23 @@ import { useVanityStore } from '@/stores/vanity'
  */
 const user = useUserStore()
 const vanity = useVanityStore()
+
+/**
+ * 取不到图的产品 id / 图片 URL。★ 缺图是**常态**(大量产品本来就没有图),
+ * 所以回落的是那个本来就摆着的占位块,不是破图、也不代用同类别的图。
+ * DEV 下把没取到的喊一声——否则「路径写错了」与「这条本来就没图」在界面上长得一样。
+ */
+const brokenImages = ref(new Set())
+
+function markImageBroken(key) {
+  brokenImages.value.add(key)
+  if (import.meta.env.DEV) console.warn('[美妆台] 产品图没取到:', key)
+}
+
+/** 当前选中色号的试色图。没选色号 → 空串 → 走那个占位块。 */
+const shadeImageSrc = computed(() =>
+  vanity.activeShade ? shadeImageOf(vanity.activeProductId, vanity.activeShade.code) : ''
+)
 
 /** 一张化妆包卡片上最多摆几个色号,多出来的折成「+N」。 */
 const MAX_BAG_DOTS = 5

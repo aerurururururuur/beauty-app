@@ -63,7 +63,14 @@
           @click="vanity.togglePick(p.id)"
         >
           <span class="catalog-card__tick"><Icon name="check" :size="16" /></span>
-          <div class="catalog-card__thumb"></div>
+          <img
+            v-if="!brokenImages.has(p.id)"
+            class="catalog-card__thumb"
+            :src="productImageOf(p.id)"
+            alt=""
+            @error="markImageBroken(p.id)"
+          />
+          <div v-else class="catalog-card__thumb"></div>
           <div class="catalog-card__body">
             <span class="catalog-card__cat">{{ p.categoryLabel || '' }}</span>
             <span class="catalog-card__name">{{ p.name }}</span>
@@ -93,8 +100,9 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { productImageOf } from '@/api/vanity'
 import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
@@ -115,6 +123,17 @@ import { useVanityStore } from '@/stores/vanity'
 const user = useUserStore()
 const vanity = useVanityStore()
 const router = useRouter()
+
+/**
+ * 取不到图的产品 id。★ 缺图是**常态**,回落的是那个本来就摆着的占位块,
+ * 不是破图、也不代用同类别的图。DEV 下把没取到的喊一声,免得「路径写错」与「本来就没图」长得一样。
+ */
+const brokenImages = ref(new Set())
+
+function markImageBroken(id) {
+  brokenImages.value.add(id)
+  if (import.meta.env.DEV) console.warn('[添新宠] 产品图没取到:', id)
+}
 
 onMounted(async () => {
   await vanity.load(user.id)

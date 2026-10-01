@@ -108,6 +108,20 @@ export function cardsByIdOf(products = []) {
   return cards
 }
 
+/**
+ * 产品图 URL。图在**前端** `vue/public/assets/products/` 下,所以**不拼 `API_BASE`**
+ * (与 `avatarSrc` / `renderImageHref` / `photoUrl` 那三条走后端字节的相反)。
+ * 命名是落图时定的:`<产品 id>.webp`;缺图时由页面回落 `.ph` 占位块,不代用别的图。
+ */
+export function productImageOf(id = '') {
+  return id ? `/assets/products/${id}.webp` : ''
+}
+
+/** 试色图 URL。`<产品 id>__<色号>.webp`。★ 色号对不上的产品**没有图**,取不到就回落占位块。 */
+export function shadeImageOf(id = '', code = '') {
+  return id && code ? `/assets/products/${id}__${code}.webp` : ''
+}
+
 /** 分类 id → 分类名(从目录树里查,不另存一张表)。 */
 export function categoryNameOf(groups = [], id = '') {
   for (const g of groups) {

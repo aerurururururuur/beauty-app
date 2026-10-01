@@ -181,6 +181,19 @@
   margin-bottom: 8px;
 }
 
+/* ★ 四张缩略图各有两副面孔:有图时是本类名的 `<img>`,取不到时是同一个类名的空 `div`
+   或 `.ph` 块(见 VanityView / VanityAddView)。这里只补 `<img>` 独有的几格,不动上面那条,
+   免得 `.ph` 的斜纹底被覆盖掉。块内按比例摆下、不裁切——产品图是方图,卡是扁的。 */
+img.product-card__thumb,
+img.bag-card__thumb,
+img.catalog-card__thumb,
+img.shade-panel__preview {
+  display: block;
+  width: 100%;
+  object-fit: contain;
+  background: var(--color-card);
+}
+
 .product-card__name {
   font-size: 13px;
   font-weight: 500;
