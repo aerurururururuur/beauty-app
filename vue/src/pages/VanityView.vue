@@ -228,26 +228,19 @@
             </span>
           </div>
 
-          <!-- ★★ 产品性质:品牌资料原文与我们的补充**分两段摆**。
-               一行是品牌说的、一行是我们补的,并成一段就分不清谁说的了(§8-5)。
+          <!-- ★★ 产品性质:一个列表,一个 key 一行(2026-10-01 用户拍板,原来是分两段的)。
+               ⚠️ 明知故犯的代价:一行里混着品牌原文与手写层那句,读的人分不出哪句是品牌说的
+                 —— 分两段本来就是为这个。别再把两个标题加回来。
+               标题不再写「品牌资料」:它现在盖着两处来源的话。
                来源是 `GET /api/products/:id`(点开这一件时才取,取到就缓存)。 -->
           <p v-if="vanity.detailLoading" class="prod-info prod-info--busy">正在取这件产品的资料…</p>
           <p v-else-if="vanity.detailError" class="prod-info prod-info--fail">{{ vanity.detailError }}</p>
-          <div v-else-if="infoRows.length || wordingRows.length" class="prod-info">
-            <template v-if="infoRows.length">
-              <div class="prod-info__title">为什么选它 · 品牌资料</div>
-              <div v-for="row in infoRows" :key="row.key" class="prod-info__row">
-                <span class="prod-info__k">{{ row.label }}</span>
-                <span class="prod-info__v">{{ row.text }}</span>
-              </div>
-            </template>
-            <template v-if="wordingRows.length">
-              <div class="prod-info__title">我们补的</div>
-              <div v-for="row in wordingRows" :key="`w-${row.key}`" class="prod-info__row">
-                <span class="prod-info__k">{{ row.label }}</span>
-                <span class="prod-info__v">{{ row.text }}</span>
-              </div>
-            </template>
+          <div v-else-if="infoRows.length" class="prod-info">
+            <div class="prod-info__title">为什么选它</div>
+            <div v-for="row in infoRows" :key="row.key" class="prod-info__row">
+              <span class="prod-info__k">{{ row.label }}</span>
+              <span class="prod-info__v">{{ row.text }}</span>
+            </div>
           </div>
 
           <div class="shade-panel__head">
@@ -411,8 +404,18 @@ function isLightHex(hex = '') {
 
 const productCountText = computed(() => `共 ${vanity.categoryProducts.length} 个产品`)
 
-/** 品牌资料原文那几段。标签与取舍由服务端给,前端不再自己写一张表。 */
-const infoRows = computed(() => vanity.productInfo?.dimensions || [])
-/** 手写层补的那几段。★ 与上面那段分开渲染,别合并。 */
-const wordingRows = computed(() => vanity.productInfo?.wording || [])
+/**
+ * 信息面板那几行:**品牌原文在前,手写层那句接在同一行后面**。
+ * ★ 一个 key 只出一行(两边都有「质地/妆效」这类重叠 key,不合并就会同一格写两遍)。
+ * ★ 顺序照品牌那份走,品牌没有的 key 追加在后面。标签与取舍由服务端给。
+ */
+const infoRows = computed(() => {
+  const byKey = new Map((vanity.productInfo?.dimensions || []).map((row) => [row.key, { ...row }]))
+  for (const row of vanity.productInfo?.wording || []) {
+    const hit = byKey.get(row.key)
+    if (hit) hit.text = `${hit.text} ${row.text}`
+    else byKey.set(row.key, { ...row })
+  }
+  return [...byKey.values()]
+})
 </script>

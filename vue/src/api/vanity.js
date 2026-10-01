@@ -72,8 +72,8 @@ export async function fetchCatalog() {
 /**
  * 一件产品的六维原文 + 手写补充(信息面板点开时才取)。
  * 返回 `{ id, name, categoryId, categoryLabel, number, dimensions[], wording[], shades? }`。
- * ★ `dimensions`(品牌资料原文)与 `wording`(我们补的)是**两段**,别并起来渲染——
- *   一行是品牌说的、一行是我们说的,并起来就分不清了(§8-5)。
+ * ★ 两段都原样返回,是**服务端的两处来源**:`dimensions` = 品牌资料原文,`wording` = 手写补充。
+ *   怎么摆由页面定(`VanityView` 现在按 key 并成一个列表)。
  */
 export async function fetchProductInfo({ productId = '' } = {}) {
   if (!productId) return null
