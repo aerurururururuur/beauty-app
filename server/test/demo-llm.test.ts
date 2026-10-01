@@ -55,6 +55,11 @@ import type {
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
 import { realHexOf } from './helpers/product-content.js';
 import { STYLE_LIBRARY, styleById } from '../src/modules/styling/index.js';
+import {
+  renderCountOf,
+  requiredZonesOf,
+  targetOfStepName,
+} from '../src/modules/agent/application/step-zones.js';
 
 const USER = 'u1';
 /**
@@ -246,21 +251,44 @@ describe('离线演示的整条链路', () => {
     expect(lastAssistantText(pending.session)).toContain('成片');
   });
 
-  it('★ 点「确认出图」→ 整轮重放、真出图,会话里记下第 1 张', async () => {
+  it('★ 点「确认出图」→ 整轮重放、**每个上妆步各出一张**,会话里全记下', async () => {
     const { h, sessionId, pending } = await upToPending();
 
     const done = await h.confirmRender.execute(sessionId, USER);
 
     expect(done.stopReason).toBe('end_turn');
-    // ★ 引擎真的被调了一次,拿到的是**那份妆面**与**那张照片**(不是空的)。
-    expect(h.engine.inputs).toHaveLength(1);
-    expect(h.engine.inputs[0]?.lookSpec).toEqual(pending.session.lookSpec);
-    expect(h.engine.inputs[0]?.face.filePath).toBeTruthy();
+    // ★ ✏️ 2026-10-01:一次确认出**多张**(每个上妆步一张)。示范脚本给的是
+    //   `STYLE_LIBRARY[0]`(`natural`:底妆 / 局部提亮 / 腮红 / 眼妆 / 唇妆)⇒ 5 张。
+    //   ⚠️ 这个数是**配方决定的**,不是常量:改 `STYLE_LIBRARY[0]` 这条会跟着动,
+    //   而它要钉的正是"张数与配方对得上"这件事。
+    const plan = pending.session.plan!;
+    const shots = renderCountOf(plan);
+    expect(shots).toBe(5);
+    expect(h.engine.inputs).toHaveLength(shots);
+    for (const input of h.engine.inputs) {
+      expect(input.lookSpec).toEqual(pending.session.lookSpec);
+      expect(input.face.filePath).toBeTruthy();
+    }
+    // ★ 逐张累积:`appliedZones` 只增不减,最后一张才是整套(它 = 今天那张成片)。
+    const applied = h.engine.inputs.map((i) => i.appliedZones?.length ?? 0);
+    expect(applied).toEqual([...applied].sort((a, b) => a - b));
+    expect(h.engine.inputs.at(-1)?.appliedZones).toEqual(requiredZonesOf(plan).map((z) => z.role));
+    // 第一张是底妆那一步 ⇒ 一个区都还没画上(但键**在**,不是 `undefined`)。
+    expect(h.engine.inputs[0]?.appliedZones).toEqual([]);
 
     const view = toSessionView(done.session);
-    expect(view.renders).toHaveLength(1);
-    expect(view.renders[0]?.seq).toBe(1);
+    expect(view.renders).toHaveLength(shots);
+    expect(view.renders.map((r) => r.seq)).toEqual(
+      Array.from({ length: shots }, (_, i) => i + 1),
+    );
     expect(view.renders[0]?.url).toBe(`/agent/sessions/${sessionId}/renders/1`);
+    // ★ 每个上妆步都对到一张图;护肤 / 妆前 / 防晒 / 定妆不在这张表里(它们没有图,
+    //   服务端不摆一个点下去没有结果的入口)。
+    const renderable = plan.steps.filter((s) => {
+      const target = targetOfStepName(s.name);
+      return target !== undefined && target !== 'none';
+    });
+    expect(Object.keys(view.stepRenders)).toHaveLength(renderable.length);
     // ★ 出了图就不再欠账,确认框不该再出现(否则用户会被问第二次)。
     expect(view.pendingRender).toBeUndefined();
     expect(danglingToolUses(done.session.messages)).toEqual([]);

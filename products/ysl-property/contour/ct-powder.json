@@ -6,7 +6,9 @@
   "kind": "product",
   "dimensions": {},
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.contour"
+    ]
   },
   "origin": "overlay",
   "wording": {

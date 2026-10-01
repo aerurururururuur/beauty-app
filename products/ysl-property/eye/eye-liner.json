@@ -12,7 +12,9 @@
     "warnings": "成分相对温和，含霍霍巴油；含少量着色剂。"
   },
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.liner"
+    ]
   },
   "origin": "docx",
   "wording": {

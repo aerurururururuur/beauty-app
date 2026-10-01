@@ -12,7 +12,9 @@
     "warnings": "含滑石粉。成分相对安全。"
   },
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.highlight"
+    ]
   },
   "origin": "docx",
   "wording": {

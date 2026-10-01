@@ -15,6 +15,7 @@ export { validateEngineResult } from './domain/validators/engine-output.validato
 // ★ 前四个是**类**(名义类型),必须当值导出 —— 构造点只有校验器与演示数据两处,
 //   见 `entities/look-spec.ts` 里那段「字段不在这里声明」(形状与品牌都来自 schema)。
 export {
+  ADDED_ZONE_ROLES,
   BROW_SHAPES,
   BrowSpec,
   FINISHES,
@@ -28,11 +29,21 @@ export {
   ZONE_ROLES,
   ZoneSpec,
 } from './domain/entities/look-spec.js';
-export type { BrowShape, Finish, Intensity, ToneKey, ZoneRole } from './domain/entities/look-spec.js';
+export type {
+  AddedZoneRole,
+  BrowShape,
+  Finish,
+  Intensity,
+  ToneKey,
+  ZoneRole,
+} from './domain/entities/look-spec.js';
 export { lookSpecSchema } from './domain/schemas/index.js';
 // ★ **色域表不再从这里导出**(`TONE_KEYS_BY_SKIN_TONE` 已删):档位表进了词表目录,
 //   要按肤色取色域请走 `SkinTonePalette` 端口,由组装根注入。
 export { validateLookSpec, validateStyleRead } from './domain/validators/look-spec.validator.js';
+// ★ `RequiredZone` = 「本套配方该有哪些区」。调用方(`agent`)算好传进 `validateLookSpec`,
+//   本模块不认识配方、也不许认识(§7.1),所以这个类型必须公开。
+export type { RequiredZone } from './domain/validators/look-spec.validator.js';
 export {
   validateFaceReading,
   validateSceneReading,

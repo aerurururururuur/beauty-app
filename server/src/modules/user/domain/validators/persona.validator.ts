@@ -2,6 +2,7 @@
  * domain/validators/persona.validator.ts —— 人设入参校验:长度 / 上限(常量与正则在**本文件**,§4.2),
  * 失败统一成 `VALIDATION_ERROR`;⚠️ 上限仍是魔数(§4.3 欠账,要兑现得由组合根注入)。
  * ★★ `relation` / `skinTone` / `features` **没有成员白名单,不是漏了** —— 三格只判形状,认不出的值由消费者处理。
+ * ✏️ 2026-10-01 照片的体积/类型上限与解码器搬去 `photo.validator.ts`(账号头像共用那一份)。
  */
 import { AppError, ErrorCode, MAX_FEATURES, zodIssuesMessage } from '../../../shared/index.js';
 import {
@@ -14,6 +15,7 @@ import {
   personaUpdateSchema,
 } from '../schemas/index.js';
 import { Persona } from '../entities/persona.js';
+import { dataUrlToBytes } from './photo.validator.js';
 
 /** 名称原文上限(字,给 trim 留余量;清洗后的上限另判)。 */
 export const MAX_NAME_RAW = 48;
@@ -43,23 +45,6 @@ export const MAX_FEATURE_ID = 64;
  */
 export const MAX_NOTES = 200;
 
-/** 照片解码后的字节上限(1 MiB);`shrinkPhoto` 典型产出 40–90 KB,留两个量级余量。 */
-export const MAX_PHOTO_BYTES = 1024 * 1024;
-/**
- * 照片 dataURL **字符串**上限(2 MiB),解码前先判。必须比 `MAX_PHOTO_BYTES` 松(base64 放大 4/3)。
- * `shrinkPhoto` 拿不到 canvas 时会**原样返回原图**(那种 dataURL 可能几 MB),在这里被 422 是诚实的。
- * ⚠️ 路由上的 `bodyLimit` 要**比这个数更大**,否则先到的是框架那句英文 413。
- */
-export const MAX_PHOTO_DATAURL = 2 * 1024 * 1024;
-
-/** 认的图片类型。★ 与浏览器 `canvas.toDataURL('image/jpeg')` 的产出对齐,不多认。 */
-const PHOTO_MIME = ['image/jpeg', 'image/png', 'image/webp'] as const;
-
-/** dataURL 的头:`data:<mime>;base64,`。 */
-const DATA_URL_PREFIX = /^data:([a-z]+\/[a-z0-9.+-]+);base64,/i;
-/** base64 载荷的字符集(含尾部 padding)。先验字符集: `Buffer.from(s,'base64')` 会静默丢掉非法字符。 */
-const BASE64_PAYLOAD = /^[A-Za-z0-9+/]*={0,2}$/;
-
 /**
  * 人设 id 与归属用户 id 的格式:URL 安全字符,1..80 位。
  * ★ 两句分开写,不合成一条 —— 那是两个不同的失败。种子 id(`ps-self`)也走这条。
@@ -74,12 +59,6 @@ const OWNER_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 export type PersonaPhotoInput =
   | { kind: 'none' }
   | { kind: 'file'; mime: string; bytes: Buffer };
-
-/** 一次 base64 dataURL 的解码结果。 */
-export interface DecodedPhoto {
-  mime: string;
-  bytes: Buffer;
-}
 
 /** 通过校验、可交给用例使用的建档入参。 */
 export interface CreatePersonaInput {
@@ -195,35 +174,6 @@ function cleanFeatures(raw: readonly string[]): string[] {
     seen.add(id);
   }
   return [...seen];
-}
-
-/**
- * 解码一个图片 dataURL。**全项目唯一一份** —— 落盘与组装根接读脸端口都走它。
- * 检查顺序从便宜到贵(长度 → 头/mime → 字符集 → 真解码 → 字节数),免得 10 MB 载荷先被解出来再拒。
- */
-export function dataUrlToBytes(dataUrl: string): DecodedPhoto {
-  if (dataUrl.length > MAX_PHOTO_DATAURL) {
-    fail(`照片太大了(最多 ${Math.round(MAX_PHOTO_BYTES / 1024)} KB),请换一张小一点的`);
-  }
-
-  const head = DATA_URL_PREFIX.exec(dataUrl);
-  if (!head) fail('照片格式不对:需要 data:image/... 开头的 base64 图片');
-  const mime = (head[1] ?? '').toLowerCase();
-  if (!(PHOTO_MIME as readonly string[]).includes(mime)) {
-    fail(`照片类型不支持(收到 ${mime});只认 ${PHOTO_MIME.join(' / ')}`);
-  }
-
-  const payload = dataUrl.slice(head[0].length);
-  if (payload.length === 0) fail('照片是空的,请重新选一张');
-  if (!BASE64_PAYLOAD.test(payload)) fail('照片不是合法的 base64 编码');
-
-  const bytes = Buffer.from(payload, 'base64');
-  if (bytes.length === 0) fail('照片是空的,请重新选一张');
-  if (bytes.length > MAX_PHOTO_BYTES) {
-    fail(`照片太大了(最多 ${Math.round(MAX_PHOTO_BYTES / 1024)} KB),请换一张小一点的`);
-  }
-
-  return { mime, bytes };
 }
 
 /** 照片入参 → 可落库的指向。★ `''` 是**明确的「不要照片」**;`undefined`(没传)保持不动 —— 分支在调用方。 */

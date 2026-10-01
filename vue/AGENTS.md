@@ -135,7 +135,7 @@
 
 | 档 | 谁 | `VITE_USE_MOCK=false` 会变吗 | 数据在哪 |
 | --- | --- | --- | --- |
-| **A. 真后端** | 账号（登录/注册）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图 / 换风格）、`/form` 上的**今日天气**、**产品库**（数字美妆台的目录 / 色号 / 产品性质） | 会（账号与化妆包）／**与它无关**（agent、人设库、天气与产品库，见下） | `POST /users` · `POST /users/login` · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 · `api/weather.js` 那 1 条 · `api/products.js` 那 2 条 |
+| **A. 真后端** | 账号（登录/注册/**资料：简介 + 头像**）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图 / 换风格）、`/form` 上的**今日天气**、**产品库**（数字美妆台的目录 / 色号 / 产品性质） | 会（账号与化妆包）／**与它无关**（agent、人设库、天气与产品库，见下） | `api/users.js` 那 5 条 · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 · `api/weather.js` 那 1 条 · `api/products.js` 那 2 条 |
 | **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义） | ❌ **不会** | `api/design.js` · `api/kb/*` |
 | **C. 策展演示内容** | 首页轮播/推荐/贴士/热点、灵感广场、`/mine` 的统计数字 | ❌ **不会** | `api/home.js` |
 
@@ -156,7 +156,9 @@
   这是本节新出现的失败模式：**后端不起，这两屏是整屏一句人话的错**，不是一份看起来正常的空目录。
   ⚠️ 同理，`api/products.js` **刻意不给 mock 分支**（§8-7）。
 - **C 档也不是 mock 分支**，是**写好的一批演示内容**：没有别人的作品、没有真实的点赞数。
-  唯一一处**真数据**是 `/mine` 的昵称，它来自 A 档登录返回的那个 `nickname`。
+  ✏️ 2026-10-01：`/mine` 上的**昵称 / 简介 / 头像三格是真的**（走 A 档 `GET /users/:id`），
+  所以那一屏现在是两档混着的——**桃妆号（按 id 推的）、三项统计、AI 档案标签是演示值**，
+  别把整屏都当成真数据，也别把整屏都当成演示。
 - ★★ **设计链不再走本地推导（2026-09-30 改的，与本节此前写法相反）。**
   `/form` 把填的东西拼成一份 `brief` 交给后端 agent，**方案（步骤 / 色号 / 产品 / 个性化）
   由 `propose_look` 在服务端展开**（`server/src/modules/styling`）。前端那一套本地展开
@@ -176,7 +178,8 @@
 > ### ★★ 全项目唯一一条真的会出图的路径回来了（2026-09-30）
 > 被替换掉的那个前端里，`/upload` → `/agent` 那条链能真的把妆容渲染到本人照片上——
 > 搬迁时删掉了，现在**从 `/form` 这条动线接回来了**：
-> `POST /agent/sessions/:id/render`（**会花钱**，按次计费）→ `GET …/renders/:seq` 那张真图。
+> `POST /agent/sessions/:id/render`（**会花钱**，按次计费）→ `GET …/renders/:seq` 那几张真图
+> （✏️ 2026-10-01 起**一次确认出 3~7 张**：每个上妆步一张、逐步累积，最后一张才是成片）。
 > 出图前**有一次确认**：服务端把「要出的是哪一套」写成确认框，用户点了才调引擎
 > （见 `server/src/modules/agent/README.md`）。
 > ★ **`/result` 上不再有任何标着「占位」的假图**：没出图时那一块**什么都不摆**，
@@ -297,15 +300,16 @@ vue/src/
 ├── api/
 │   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE。★ 只有它认识 axios
 │   ├── use-mock.js            # ★ 只有一行环境变量判断，刻意独立成文件（见 §6.3）
-│   ├── users.js               # A 档：POST /users · POST /users/login（桃妆 ID ↔ 后端 nickname 的映射只在这里）
+│   ├── users.js               # A 档：账号 5 条（注册 / 登录 / 读档案 / **改资料** / **头像**）+ `avatarSrc`（★ 桃妆 ID ↔ 后端 nickname 的映射只在这里）
+│   ├── image.js               # 纯函数：`shrinkPhoto`（选的照片 → 长边 ≤640 的 dataURL）。✏️ 2026-10-01 从 personas.js 提出来，人设照片与账号头像共用
 │   ├── cabinet.js             # A 档：/cabinet/items 四条。★ 只被 api/vanity.js 惰性引用
-│   ├── mock.js                # A 档的假后端（账号 + 本地化妆包）。只准惰性引入
+│   ├── mock.js                # A 档的假后端（账号（含资料）+ 本地化妆包）。只准惰性引入
 │   ├── vanity.js              # A 档两半：产品目录走 products.js（惰性），化妆包走 cabinet.js（惰性）。★ 顶层零 import
 │   ├── products.js            # A 档：产品库 2 条（§7.1）。★ 只被 api/vanity.js 惰性引用，刻意不给 mock 分支
 │   ├── design.js              # B 档：**输入侧**的表单定义（SCENES / SCENE_FORMS）+ brief 拼装。★ 全本地
 │   ├── agent.js               # A 档：设计链那条会话链的 8 条（§7.1）。★ 全仓唯一不给 mock 分支的 api 模块
 │   ├── personas.js            # A 档：人设库 10 条（§7.1，含两个自建小库）。★ 与 agent.js 一样**刻意不给 mock 分支**
-│   │                          #   照片走 dataURL（不是 multipart）；`shrinkPhoto` 留着，理由已换成 JSON 体积
+│   │                          #   照片走 dataURL（不是 multipart）；`shrinkPhoto` 从 `./image` 转出（调用点不改）
 │   ├── weather.js             # A 档：`GET /weather` 那 1 条（`/form` 的今日天气）。★ 与 agent.js / personas.js 一样**刻意不给 mock 分支**
 │   ├── home.js                # C 档：首页 / 灵感 / 我的 的策展内容。★ 全本地
 │   └── kb/                    # B 档的数据：features / skintones / styles
@@ -616,13 +620,13 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > **类型唯一真源在 `server/src/modules/*/domain/schemas/api/*.ts`。**
 > 本节是给前端看的转述；两边对不上时，**以后端那个 `.ts` 为准**，并回来改这一节。
 
-### 7.1 端点总表 —— 后端有 29 条，桃妆用 26 条
+### 7.1 端点总表 —— 后端有 31 条，桃妆用 28 条
 
 > ★★ **先看这张对照表再动手。** 「后端有这个端点」不等于「前端在用它」：
 >
 > | 模块 | 路由数 | 桃妆用了几条 |
 > | --- | --- | --- |
-> | `user` | 13 | **12** —— 账号 2 条（`POST /users` · `POST /users/login`）+ **人设库 10 条**（含下面那**两个自建小库**各 2 条）；`GET /users/:id` 无人调用 |
+> | `user` | 15 | **14** —— 账号 5 条（`api/users.js` 的注册 / 登录 / 查档案 / **改资料** / **取头像**）+ **人设库 10 条**（含下面那**两个自建小库**各 2 条） |
 > | `cabinet` | 4 | **3**（`POST` · `GET` · `DELETE`）——`PATCH /cabinet/items/:id` 无人调用 |
 > | `agent` | 8 | **8** —— 设计链那条会话（§1）+ `/images`（提交时传参考图）+ `/analyses`（`/result` 的读图按钮，会花钱） |
 > | `products` | 2 | **2** —— 数字美妆台的目录（`GET /products`）与信息面板（`GET /products/:id`），见 ✏️（七） |
@@ -665,18 +669,25 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 > ⚠️ 两条都**不收 `userId`、不校验归属**：产品库是品牌内容，形状与 `GET /weather` 同类。
 > ⚠️ **`PRODUCTS_DIR` 指空 ⇒ 这两条根本不注册 ⇒ `/vanity` 两屏整屏报错。**
 >
-> 其余 3 条没被调用的路由（`GET /users/:id` · `PATCH /cabinet/items/:id` · `GET /health`）
+> ✏️ 2026-10-01（八）：**「编辑资料」接上了**（31 条 / 28 条）——`/mine` 上那个一直是死按钮的
+> 按钮现在真的能用，后端那两条新路由（`PATCH /users/:id` · `GET /users/:id/avatar`）也就有人调了。
+> ⚠️ 这一条**与（七）不同**：它没有把任何东西从 B/C 档搬上来，`/mine` 的统计与 AI 档案标签
+> **仍然是策展值**（§1）。★ 做的范围由用户拍板：**只有简介 + 头像**（昵称不动、统计不做、
+> 桃妆号不开放改）；界面是 **`MineView` 页内展开的面板**，**没有新开一屏、没加路由**。
+>
+> 其余 2 条没被调用的路由（`PATCH /cabinet/items/:id` · `GET /health`）
 > **不是给人的菜单**：它们大多属于被替换掉的那个前端，
 > 或者属于还没接上的能力。**别为了让某屏"看起来更真"随手接一条上去。**
-> ⚠️ 两条例外，都是**属于桃妆真在用的模块、只是还没有界面**：
-> `PATCH /cabinet/items/:id`（将来做「改名」时才有人调）、
-> `GET /users/:id`（账号档案，桃妆的登录态只存 `{ id, nickname }`，没人再查一次）。
+> ⚠️ 唯一一条例外是**属于桃妆真在用的模块、只是还没有界面**的：
+> `PATCH /cabinet/items/:id`（将来做「改名」时才有人调）。
 
 | 方法 & 路径 | 请求 | 成功响应 | 桃妆 |
 | --- | --- | --- | --- |
 | `POST /users` | `{ nickname, password }` | **201** `UserView` | ✅ 注册 |
 | `POST /users/login` | `{ nickname, password }` | **200** `UserView`；不符 **401** | ✅ 登录 |
-| `GET /users/:id` | — | **200** `UserView` | — |
+| `GET /users/:id` | — | **200** `UserView` | ✅ `/mine` 读档案（简介 / 头像的真身，✏️ 2026-10-01 起有人调） |
+| `PATCH /users/:id` | `{ bio?, avatar? }`（★ 二者**至少给一个**；`bio: ''` = 清空简介，`avatar: ''` = **删掉头像**；不给那一格 = **不动**） | **200** `UserView` | ✅ 「编辑资料」的保存（✏️ 2026-10-01 加） |
+| `GET /users/:id/avatar` | — | 图片字节（`content-type` 随行里的 mime）；★ **没设过头像 → 404** `USER_AVATAR_NOT_FOUND` | ✅ `<img>` 的 src（✏️ 2026-10-01 加） |
 | `GET /personas?userId=` | — | **200** `{ personas: PersonaView[], skinTones: SkinToneView[], customFeatures: CustomFeatureView[], canAnalyzeFace: boolean }` | ✅ 人设库列表（两类自建档搭它一起回） |
 | `POST /personas` | `{ userId, name, relation, skinTone, features?, photo? }`（`photo` 是 dataURL，可省） | **201** `PersonaView` | ✅ 建档 |
 | `PATCH /personas/:id` | `{ userId, name?, relation?, skinTone?, features?, photo? }`（★ `photo: ''` = **删掉照片**；不给这一格 = 不动） | **200** `PersonaView` | ✅ 改名 / 换照片 / 移除照片 |
@@ -712,13 +723,18 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 ★ 两者的判别标准是后端给的那个 `kind`（`face` / `scene` / `style`），不是"顺手多传一张"——
 ⚠️ `VISION_ANALYZER=off`（缺省）时这两条路由**根本不注册**，调它得到的是 404，
 而不是"传上去了但没用"。
-★ **`GET …/renders/:seq` 与 `GET /personas/:id/photo` 是仅有的两条走 `<img>` 而不是 axios 的**：
-它们带的是 `?userId=` 而**没有任何 token**（后端不签发凭据，§8-2）。所以它们在
-本节里长得不像别的那些。
-⚠️ **也因此这两条 URL 必须先补 `API_BASE` 再进 `<img :src>`**：dev 下 Vite 会把
+★ **`GET …/renders/:seq` · `GET /personas/:id/photo` · `GET /users/:id/avatar` 是仅有的三条
+走 `<img>` 而不是 axios 的**：前两条带的是 `?userId=`，第三条连它都不带，三条都**没有任何 token**
+（后端不签发凭据，§8-2）。所以它们在本节里长得不像别的那些。
+⚠️ **也因此这三条 URL 都必须先补 `API_BASE` 再进 `<img :src>`**：dev 下 Vite 会把
 `/personas/<id>/photo` 当成**前端路由** `/personas/:id` 处理，回的是 SPA 的 index.html
 ⇒ 破图/空白，**而且不报错**。拼这一步在 `api/personas.js` 的 `decoratePersona` 里
-（同 `api/agent.js` 的 `renderImageHref`），页面拿到的是**能直接塞 `<img :src>` 的成品字符串**。
+（同 `api/agent.js` 的 `renderImageHref`、`api/users.js` 的 `avatarSrc`），
+页面拿到的是**能直接塞 `<img :src>` 的成品字符串**。
+★ **头像这条还有一坑是它独有的**（✏️ 2026-10-01）：它的 URL **不带版本号**，
+而 `/mine` 换完头像后 `src` 字符串不变 ⇒ Vue 不重设属性 ⇒ 浏览器**一次请求都不发**，
+界面上还是旧那张（服务端的 `no-store` 挡的是缓存，挡不住"根本没再请求"）。
+所以 `MineView` 在更新成功后给 URL 追加一个 `?v=<自增>`——**别把这个 nonce 当成多余的**。
 ★ **`POST /personas/analyze` 的响应不落任何库**——它是一次「建议」，
 落档由用户确认后的 `POST /personas` 完成（§8-1）。
 ★ **两个自建小库（肤色档 / 特征）是「整账号共用一份」，不是挂在某份人设底下**：任何一张脸
@@ -730,7 +746,13 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 ### 7.2 DTO 形状（JS 视角）
 
 ```js
-// UserView（★ 永不含密码/凭据）   { id, nickname, createdAt }
+// UserView（★ 永不含密码/凭据）   { id, nickname, bio, avatarUrl, avatarSource, createdAt }
+// ✏️ 2026-10-01 加的后三格。★ `bio` / `avatarUrl` **恒在**（没有就是 `''`，不是 `undefined`）——
+//   `undefined` 会让 `<textarea>` / `<img>` 在 Vue 里变成**非受控**，而那是静默的。
+// ★ `avatarUrl` 是**裸路径** `/users/<id>/avatar`：**不含 `API_BASE`、也不含版本号**，
+//   所以页面永远不要直接塞进 `<img :src>`，一律过 `api/users.js` 的 `avatarSrc()`（§7.1 那条 ⚠️）。
+// ★ `avatarSource` 只有 `'none'` / `'stored'` 两个值（今天没有种子头像那种第三态）。
+// ★ 这三格都是**账号资料**，与 `api/home.js` 无关——那个文件只剩桃妆号 / 统计 / AI 标签。
 // CosmeticItemView               { id, userId, name, attributes:[{label,value}], createdAt, updatedAt? }
 
 // AgentSessionView —— 设计链那一屏的全部状态（`stores/design.js` 收的就是它）
@@ -743,8 +765,15 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
   plan,                              // ★ 方案：steps / palette / personalized / styleOptions（后端产出）
   pendingRender,                     // 模型提的、等用户点头（**与 renderOffer 互斥**）
   renderOffer,                       // 界面按状态自己摆的那个入口（`alreadyRendered` 决定按钮文案）
-  renders: [{ seq, url, lookDescription }],
+  renders: [{ seq, url, lookDescription, stepIds }],
+  stepRenders,                       // ★ `{ 步骤 id: seq }` —— 每个上妆步对到「到这一步为止」那张图
 }
+// ✏️ 2026-10-01：**一次确认出 3~7 张**（每个上妆步一张，逐步累积；最后一张 = 完整妆面 = 成片）。
+//   `stepIds` 是**数组**：同一个区在一套配方里出现两次时（两次遮瑕）只出一张，那几步共用它。
+// ★ **`stepRenders` 由服务端算**（`agent-view.ts` 的 `stepRendersOf`，取最后一轮，不落库）——
+//   前端**不许**自己由步骤名推部位：「步骤名 → 区」那张表全仓只有服务端一份。
+// ★ 护肤 / 妆前 / 防晒 / 定妆**永远不在里面**：那几步没有图 ⇒ `/result` 取不到就**整块不摆**，
+//   **不许补 `.ph`**（§8-4：占位块会让人以为"这张待会儿会出现"）。
 // AgentTurnView = AgentSessionView + { events, stopReason }（一轮的返回值）
 //   ★ 这三个「发一句话 / 出图」的端点回的是它，而前端**一格都没读**那多出来的两格
 //     （`design.js` 的 `adopt()` 把它们一起缓存着，没有害处，但别以为有人在用）。
@@ -849,6 +878,7 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | 错误码 | HTTP | 前端该怎么办 |
 | --- | --- | --- |
 | `USER_NOT_FOUND` | 404 | 账号没了（**这台浏览器存着的登录在服务端查无此人**） |
+| `USER_AVATAR_NOT_FOUND` | 404 | ★ **账号在、只是没设过头像**（`GET /users/:id/avatar`）。✏️ 2026-10-01：刻意**不复用**上面那个码——那句「桃妆账号不存在」摆在一个明明存在的账号上是**假话**。⚠️ 前端**不该**把这一条当成错误提示：没有头像时按 `avatarSource: 'none'` 渲染 `.ph` 就够了，别去请一个注定 404 的图 |
 | `CABINET_ITEM_NOT_FOUND` | 404 | 「不存在」与「不属于你」**共用**，别去区分 |
 | `PERSONA_NOT_FOUND` | 404 | 同上，人设那一族：「这份人设不存在」与「这份人设不是你的」**共用同一个码**（不外泄存在性） |
 | `PRODUCT_NOT_FOUND` | 404 | 产品库里的 id 没了（`GET /products/:id`）。★ 产品库**不校验归属**，所以这是真的"没有这件产品"，不是"不是你的" |
@@ -1021,7 +1051,11 @@ cd vue && npm run dev          # :5173，/api 已代理到 :3000
 
 7. **演示模式（`VITE_USE_MOCK !== 'false'`）只覆盖账号与化妆包。**
    它假的是**账号与化妆包**（`api/mock.js`，化妆包落在 `localStorage` 的
-   `beauty-app.mock-cabinet`，复刻「刷新后还在」）。
+   `beauty-app.mock-cabinet`，复刻「刷新后还在」；✏️ 2026-10-01 起**账号那块连资料一起假**——
+   简介与头像落在 `beauty-app.mock-profile`，头像直接存 dataURL，因为演示模式没有那条取字节的路由）。
+   ★ 资料这一半**是允许假的**，理由与化妆包相同：它就该是"存下来下次还在"，
+   演示模式复刻的是**同一件事**（localStorage 而不是服务端）。
+   ⚠️ 但它与人设库那条不同：**真实模式的头像字节确实在服务端**，所以别把这段当成"头像本来就不用后端"。
    ★ 演示模式**不校验密码**，也**刻意不存明文密码、不做假校验**——没有后端就没有 scrypt。
    ★ **别往里补假的方案、假的人脸分析结果**，那会让「看起来能用」和「真的能用」分不清。
    ✏️ **2026-09-30 订正了这句的范围**：此前写的是「B、C 两档与这个开关无关」，
@@ -1106,8 +1140,9 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 7. **刷新 `/result`** → 还是同一次会话（地址栏那个 `?session=` 就是全部状态）。
    ★ 这条是 §3 第 6 条那个「走 query、可深链」的现场验证。
 8. 步骤导航：滚动时**反向高亮**跟着走；点某一项**滚到那一步**（且不被路由的 `scrollBehavior` 抢掉）。
-9. **点确认出图** → 真的调引擎 → 出现一张图。★ 缺省引擎下那张图**就是刚才传的照片原样**，
-   别把它当成渲染结果去判断妆效（§8-4 末条）。
+9. **点确认出图** → 真的调引擎 → ✏️ 2026-10-01 起**每个上妆步各出现一张图**（3~7 张，逐步累积）：
+   步骤列表里那几步各自摆上自己那张「到这一步为止」，**护肤 / 妆前 / 防晒 / 定妆不摆空块**。
+   ★ 缺省引擎下这些图**就是刚才传的照片原样**，别拿它们判断妆效（§8-4 末条）。
 10. 「保存妆容」→ 按钮变成**「已记下这一版」**（★ 不许是「已保存到我的作品」，见 §8-4）。
 
 ### ★ 出图那条路（要花钱，单独走一遍）
@@ -1202,6 +1237,20 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
    （`logout()` 里那两个 `reset()` 就是干这个的）。
 4. `/` 与 `/inspiration`：数据是策展内容（C 档），**页面文案不许讲成"社区正在发生的事"**（§8-4）。
 5. `/mine` 的统计数字（作品/粉丝/获赞）是演示值——**不许写给用户看说它们是真实统计**。
+6. ★✏️ 2026-10-01 **编辑资料**（`/mine` 页内那个面板，走真后端——**这一屏要两个终端一起开**）：
+   - 「编辑资料」展开面板 → 改简介 → 保存 → 刷新仍在；**换一个无痕窗口登录同一账号，简介与头像也还在**
+     （这条与 §9 人设库第 2 条同理：它证明的是"真的存到账号里了"）。
+   - ★ **只改简介时头像不许消失**，只换头像时简介不许被清空 —— 这是本次最容易写错的一处
+     （"没传"被当成"清空"），错了**不报错**。
+   - 头像三态各走一遍：没动过 / 换一张 / 点「删掉头像」。删掉之后再进 `/mine`，
+     卡片上该回落成 `.ph` 占位块，**不是破图**（后者是 `avatarSrc` 漏拼 `API_BASE` 的典型样子）。
+   - ★ **换完头像那一屏要立刻变新的**（不是刷新后才变）——那一条靠的是 `MineView` 里那个 `?v=` nonce
+     （§7.1 那条 ★）。看不见变化就是它没了。
+   - 传一张几 MB 的手机照片 → 要么缩图后存下，要么后端那句人话（「照片太大了…」）**原样**出现在面板里。
+   - 把后端停掉再进 `/mine`：**演示统计照常显示**，档案那一块给一句人话的错——
+     ★ **不许**拿 `api/home.js` 里的演示简介/头像顶上（那正是 §8-4 要防的形状）。
+   - 切到演示模式（`VITE_USE_MOCK=true`）再走一遍上面几条：简介与头像应当落在本机 localStorage 里
+     （`beauty-app.mock-profile`），刷新不丢（§8-7）。
 
 ### 其他
 
@@ -1278,9 +1327,11 @@ npm run typecheck
    - `HomeView`：搜索框、通知铃、右上头像、三处「更多 / 全部 / 查看全部」(`href="#"`)、
      贴士卡上的 `去试试` 按钮、**hero 的 5 个圆点**（源站 5 张 banner 只展示第一张，
      圆点既不可点也不轮播，是装饰）；
-   - `MineView`：通知、设置、「编辑资料」、「重新测一测」。
+   - `MineView`：通知、设置、「重新测一测」。
    ★ **别把它们当成"顺手接一下"的机会**——接任何一个都等于自己发明一个目的地。
    要么问用户，要么留着。
+   ✏️ 2026-10-01：**「编辑资料」从这份名单里出去了**——用户拍板要做（范围：只有简介 + 头像），
+   现在它连着后端 `PATCH /users/:id`（§7.1 ✏️（八））。**剩下那三个照旧没有目的地。**
 7. **`public/demo/` 下的两个 SVG 已无引用**（`demo-photo.svg` / `scenery.svg`），
    它们服务的是被删掉的 `/upload` 那条链。**先别删**——它们是源站素材，
    将来要重建"上传 → 出图"那条链时可能还要用。这是**已知的零消费者文件**，不是漏收拾的。
@@ -1308,6 +1359,8 @@ npm run typecheck
     ★ 后端那一侧的跨端对表测试（`server/test/*.test.ts` 里读 `vue/src/**` 的那几条）
     **不能替代这一条**：它们钉的是内容与契约，**钉不住"这一屏跑不跑得起来"**。
 13. **`api/mock.js` 只剩账号与化妆包两块。** 别为了"离线也能演示"往里补假的方案或假的人脸分析。
+    ✏️ 2026-10-01：账号那块**含资料**（简介 / 头像，落在 `beauty-app.mock-profile`）——
+    这不是"补了一份假的"，它复刻的正是真后端那份行为（见 §8-7）。
 14. **`public/assets/img/` 下只有两张脸**（`ph-colleague.svg` / `ph-sister.svg`）——
     5 份种子人设里另外 3 份的 `photoUrl` 是空串，靠 `PersonaAvatar` 的「首字 + 肤色档底色」合成。
     这是设计如此，不是缺图。

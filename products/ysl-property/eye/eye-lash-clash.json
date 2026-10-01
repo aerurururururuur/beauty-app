@@ -12,7 +12,9 @@
     "warnings": "含香精；非防水版更易卸除，对睫毛摩擦更小。"
   },
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.lash"
+    ]
   },
   "origin": "docx",
   "wording": {

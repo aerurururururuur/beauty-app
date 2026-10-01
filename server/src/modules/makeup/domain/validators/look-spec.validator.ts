@@ -13,6 +13,11 @@
  *   两者逐条规则相同,共用下面那批 `read*` 助手 —— 分家就得把 `TONE_KEYS` / `FINISHES` /
  *   区间写成第二份,而它们不会一起改(§4.1 的同一条道理,只是从类型换成了规则)。
  *
+ * ✏️ **2026-10-01:妆面单多了六个可选区,于是多了一条「与配方的区集合相等」的检查**
+ *   (②c,入参 `requiredZones`)。它**不在**上面那三件事里 —— 它既不是形状也不是取值,
+ *   而是"这份妆面单配不配得上所选的那套配方"。判据由调用方算好传进来:
+ *   本模块不认识配方,也不许认识(§7.1)。
+ *
  * ★ **错误消息是写给 LLM 看的 prompt,不是给人看的日志。** §7.3 第 4 条:工具错误
  *   不抛穿循环,`propose_look` 把这里的消息**原样回填成 observation**,模型据此改。
  *   所以每条都必须带上「可用:…」清单 —— 只说「不合法」,模型只能瞎猜,那是循环空转的典型成因。
@@ -27,6 +32,7 @@
 import { MAX_OCCASION } from '../../../shared/index.js';
 import type { SkinTone } from '../../../shared/index.js';
 import {
+  ADDED_ZONE_ROLES,
   BROW_SHAPES,
   BrowSpec,
   FINISHES,
@@ -40,7 +46,7 @@ import {
   ZONE_ROLES,
   ZoneSpec,
 } from '../entities/look-spec.js';
-import type { Intensity } from '../entities/look-spec.js';
+import type { Intensity, ZoneRole } from '../entities/look-spec.js';
 import { StyleRead } from '../entities/style-read.js';
 import type { SkinTonePalette } from '../ports/skin-tone-palette.js';
 import { lookSpecSchema, styleReadSchema } from '../schemas/index.js';
@@ -112,6 +118,20 @@ function readWarmth(reading: Reading, at: string, value: number): number | undef
   return undefined;
 }
 
+/**
+ * 一个**可选**区(✏️ 2026-10-01 的六个新区)。
+ *
+ * ★ **「没填」是合法的,不打分**:该不该有它由 ②c 对着配方判,那里能说出"哪一步"。
+ *   这里只把**填了但填错**的说出来(`readZone` 已经有那块逻辑)。
+ */
+function readOptionalZone(
+  reading: Reading,
+  role: ZoneRole,
+  raw: { tone: string; finish: string; intensity: number } | undefined,
+): ZoneSpec | undefined {
+  return raw === undefined ? undefined : readZone(reading, `zones.${role}`, raw);
+}
+
 /** 一个「色 + 质地 + 浓度」区:三项全对才算读到。 */
 function readZone(
   reading: Reading,
@@ -126,6 +146,18 @@ function readZone(
 }
 
 /**
+ * ★ **本套配方该有哪些区。**
+ *
+ * 由调用方(唯一认识「配方步骤名」与「妆面单区名」两侧的 `agent`)算好传进来 ——
+ * 本模块既不 import `styling` 也不认识步骤名(§7.1)。`stepName` 只用来把报错写成
+ * 模型改得动的那句话(「这套配方有「眼线」这一步」)。
+ */
+export interface RequiredZone {
+  readonly role: ZoneRole;
+  readonly stepName: string;
+}
+
+/**
  * 校验并清洗一份妆面单。
  *
  * @param raw      待校验的原始值(通常直接来自 LLM 的工具入参,形状不可信)。
@@ -133,10 +165,13 @@ function readZone(
  *   因为「不知道肤色」和「知道了但违反了」是两回事:前者该让对话继续问,后者才该打回。
  * @param opts.palette  词表端口。**必填**:不给就没法按肤色收窄,
  *   而"悄悄不收窄"正是本仓库的头号 bug 类型(见该端口的文件头)。
+ * @param opts.requiredZones ★ **本套配方该有的区**(✏️ 2026-10-01)。**必填**:
+ *   不给就等于"妆面单与配方对不对得上"这条整条不查,而妆面里多填一个区
+ *   **会真的画到图上**——方案里没有眼线、成片里有,正是本仓最恨的形状。
  */
 export function validateLookSpec(
   raw: unknown,
-  opts: { skinTone?: SkinTone; palette: SkinTonePalette },
+  opts: { skinTone?: SkinTone; palette: SkinTonePalette; requiredZones: readonly RequiredZone[] },
 ): LookSpec {
   // ① 形状(类型、`.strict()`;取值一条都没查)
   const parsed = lookSpecSchema.safeParse(raw);
@@ -173,12 +208,73 @@ export function validateLookSpec(
     fail('妆面单', reading.problems.join(';'));
   }
 
+  // ②b 六个**可选**区(✏️ 2026-10-01):没填就是 `undefined`,那是合法的
+  //     ——「该不该有它」由下面 ②c 对着配方判,不在这里判。
+  //     ⚠️ 每一格的键名必须与 schema 的字段名**逐字相同**,所以这里逐格写出来。
+  const concealer = readOptionalZone(reading, 'concealer', shape.zones.concealer);
+  const contour = readOptionalZone(reading, 'contour', shape.zones.contour);
+  const highlight = readOptionalZone(reading, 'highlight', shape.zones.highlight);
+  const aegyoSal = readOptionalZone(reading, 'aegyoSal', shape.zones.aegyoSal);
+  const liner = readOptionalZone(reading, 'liner', shape.zones.liner);
+  const lash = readOptionalZone(reading, 'lash', shape.zones.lash);
+
+  // ②c ★ **妆面单与所选配方的区必须集合相等。**
+  //    少了 ⇒ 那一步没有图(`/result` 上摆着一个点下去出不来图的步骤);
+  //    多了 ⇒ 提示词里会画出一套**方案里根本没有的妆**(用户拿方案理解成片,而两者不是一套)。
+  //    两个方向都把「哪一步 / 哪个区」写出来——模型收到一条就能改对,不用猜。
+  const present = new Set<ZoneRole>(
+    (
+      [
+        ['lip', lip],
+        ['cheek', cheek],
+        ['eyeshadow', eyeshadow],
+        ['concealer', concealer],
+        ['contour', contour],
+        ['highlight', highlight],
+        ['aegyoSal', aegyoSal],
+        ['liner', liner],
+        ['lash', lash],
+      ] as const
+    )
+      .filter(([, zone]) => zone !== undefined)
+      .map(([role]) => role),
+  );
+  const required = new Map(opts.requiredZones.map((z) => [z.role, z.stepName] as const));
+  const missing = [...required].filter(([role]) => !present.has(role));
+  // ⚠️ **"多出"只查新增的那六个区**(✏️ 2026-10-01 实测后收窄)。`MEASURED_ZONE_ROLES`
+  //   那三个在 `lookSpecSchema` 里是**必填**,每份妆面单都必然有它们;而
+  //   `flowers`(底妆/眼妆/唇妆/定妆)**根本没有腮红那一步**、`newchinese` 也没有眼影那一步
+  //   ——21 套里 2 套的配方步骤覆盖不到那三个区的全部。那是**本次改动之前就存在的**形状,
+  //   在这里打回等于:① 让这 2 套配方从此配不出任何妆面;② 顺手改掉它们的成片(那三句
+  //   提示词一直是渲染的,少一个区 = 换一张付费图)。两件都不是这次要做的事。
+  //   ★ 收窄不会放走这次防的那件事:新加的六个区**没有一个是必填的**,它们多出来
+  //   一定是模型自己填的 ⇒ 照样打回。
+  const extra = ADDED_ZONE_ROLES.filter((role) => present.has(role) && !required.has(role));
+  if (missing.length > 0 || extra.length > 0) {
+    const said: string[] = [];
+    if (missing.length > 0) {
+      said.push(
+        `缺 ${missing.map(([role, step]) => `${role}(这套配方里有「${step}」这一步)`).join('、')}`,
+      );
+    }
+    if (extra.length > 0) {
+      said.push(`多出 ${extra.join('、')}(这套配方的步骤里没有这个部位)`);
+    }
+    fail(
+      '妆面单',
+      `zones 与所选配方的步骤对不上:${said.join(';')}。` +
+        `请按那套配方里**真实存在**的部位逐区填,不多填也不漏填。`,
+    );
+  }
+
   // ★ §6:逐项显式列字段,**不许对象展开** —— 展开会把"少写一个字段"变成"它恰好没传"。
   //   ⚠️ 下面传的是**对象实参,但那不是展开**:每一格都按 `schemas/contracts/look-spec.ts`
   //   的字段名逐字写出来,少写一格 TS 当场报错(missing property)。被禁的只有 `{ ...shape }`
   //   —— 那样 schema 哪天少给一格,这里就静默变成"它恰好没传",而形状层那边 `.strict()`
   //   什么都不缺,没人会红。
   //   走到这里每一项都已收窄成具体类型(不是 `as LookSpec` 那种断言出来的)。
+  //   ⚠️ 没填的可选区**整个键都不出现**(不是填一个 `undefined`):妆面单是**过 HTTP 给前端**的,
+  //     而 `describeLook` / 引擎都按"键在不在"读它。
   const spec = new LookSpec({
     occasion,
     base: new LookSpecBase({ coverage: baseCoverage, finish: baseFinish, warmth: baseWarmth }),
@@ -187,6 +283,12 @@ export function validateLookSpec(
       cheek,
       eyeshadow,
       brow: new BrowSpec({ shape: browShape, intensity: browIntensity }),
+      ...(concealer ? { concealer } : {}),
+      ...(contour ? { contour } : {}),
+      ...(highlight ? { highlight } : {}),
+      ...(aegyoSal ? { aegyoSal } : {}),
+      ...(liner ? { liner } : {}),
+      ...(lash ? { lash } : {}),
     },
   });
 
@@ -201,9 +303,14 @@ export function validateLookSpec(
     }
     const violations: string[] = [];
     for (const role of ZONE_ROLES) {
-      const tone = spec.zones[role].tone;
-      if (!allowed.includes(tone)) {
-        violations.push(`${role} 的 tone「${tone}」`);
+      // ★ 本套配方没有这一步 ⇒ 妆面单里也没有这个区,没有色相要查。
+      //   ⚠️ 漏掉这句判断会让可选区在 `spec.zones[role]` 上炸 —— 更要紧的是
+      //   `ZONE_ROLES` 那 9 个必须**一个不漏**地进这张循环,漏一个就等于那个区的
+      //   色号静默绕过肤色可用色域(§6 规矩 4 失效,而界面上看不出来)。
+      const zone = spec.zones[role];
+      if (!zone) continue;
+      if (!allowed.includes(zone.tone)) {
+        violations.push(`${role} 的 tone「${zone.tone}」`);
       }
     }
     if (violations.length > 0) {

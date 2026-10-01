@@ -214,7 +214,7 @@ describe('ImageEngine', () => {
     expect(res.image.mimeType).toBe('image/png');
     expect(readFileSync(res.image.filePath)).toEqual(imageBytes);
     expect(path.dirname(res.image.filePath)).toBe(path.join(dir, 'out'));
-    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v1' });
+    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v2' });
     // style 复用 describeLook:确定性、与 LookSpec 一一对应。
     expect(String((res.look as { style: string }).style)).toContain('玫瑰粉');
   });

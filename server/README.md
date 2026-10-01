@@ -186,8 +186,12 @@ chcp 65001 > $null
 请求日志一个请求**一行**：`方法 路径 状态 耗时`，4xx 走 warn、5xx 走 error。
 （框架自带的那套两条 JSON 已关掉——见 `src/app.ts` 里的 `logController`，别把两边都开着。）
 
-**上传大图失败**看 `MAX_UPLOAD_MB`，缺省 25。框架级超限会保留 `413`，不走我们那套
-`{ error: { code, message } }` 错误体，前端要两种都认。
+**上传大图失败**看 `MAX_UPLOAD_MB`，缺省 25。框架级错误（超限 413、空 body、坏 JSON……）
+**保留它自己的状态码**，但错误体是**同一个信封**：`{ error: { code: 'HTTP_ERROR', message } }`。
+没挂上的路由（404）同理——此前 fastify 缺省那套 `{ message, error, statusCode }` 会让前端
+取到字符串 `"Not Found"` **直接显示在界面上**。
+★ 那个 `message` **恒是中文**：fastify / zod 给的都是英文原文，而前端把它**原样**打在输入框旁边，
+所以 `error-handler.ts` 与 `zod-issues.ts` 各有一张表逐条翻；表里没有的也回中文、原文进日志。
 ⚠️ **那条 25 MB 管不着人设照片**：走 `/personas` 的那张脸是 **JSON 里的一串 dataURL**
 （不是 multipart），上限在 `persona.validator.ts` 的 `MAX_PHOTO_BYTES`（1 MiB），
 比它更外面还有一道路由 `bodyLimit`。两个都要改才动得了这个上限——

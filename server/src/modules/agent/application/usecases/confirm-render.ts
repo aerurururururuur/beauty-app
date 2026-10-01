@@ -51,7 +51,21 @@ import { appendMessages, renderReadiness } from '../../domain/entities/session.j
 import type { Session } from '../../domain/entities/session.js';
 import type { SessionStore } from '../../domain/ports/session-store.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
+import { renderCountOf } from '../step-zones.js';
+import { SECONDS_PER_IMAGE } from '../tools/render-look.js';
 import type { AgentLoop, AgentTurnResult } from '../agent-loop.js';
+
+/**
+ * ★ **出图那一轮的超时预算**(✏️ 2026-10-01)。缺省的 60 秒只够一张多一点,
+ * 而一次确认要跑 3~7 次引擎调用 —— 截断的后果是"图出了但模型没说话",而钱已经花了。
+ *
+ * 与 `SECONDS_PER_IMAGE`(7 秒,那句人话用的)**刻意不是一个数**:这个是预算,
+ * 要留出慢的那几次的余量。7 张时 = 60 + 140 = 200 秒。
+ * ⚠️ 前端 `vue/src/api/agent.js` 的 `AGENT_RENDER_TIMEOUT_MS` **必须大于**这个上限,
+ * 否则前端先断开、服务端还在跑。两处要一起改。
+ */
+const RENDER_BUDGET_BASE_MS = 60_000;
+const RENDER_BUDGET_PER_IMAGE_MS = 20_000;
 
 export class ConfirmRender {
   /**
@@ -82,7 +96,8 @@ export class ConfirmRender {
       // 处理即可(见 `vue/AGENTS.md` §7.3),不为它单开一个码。
       throw new AppError(
         ErrorCode.VALIDATION_ERROR,
-        '这个会话正在出图,等它出完(大约 7 秒)再点。',
+        `这个会话正在出图(${renderCountOf(session.plan)} 张),等它出完` +
+          `(大约 ${renderCountOf(session.plan) * SECONDS_PER_IMAGE} 秒)再点。`,
       );
     }
     this.inFlight.add(sessionId);
@@ -113,7 +128,12 @@ export class ConfirmRender {
     // ── 入口 A:原样;入口 B:代递一条提议(缺东西时在这一步抛)──
     const prepared = proposal ? session : this.prepareProposal(session);
 
-    const result = await this.deps.loop.run(prepared, undefined, { resume: 'approved' });
+    const result = await this.deps.loop.run(prepared, undefined, {
+      resume: 'approved',
+      // ★ 张数由会话现算:一套 3 步的配方不该为 7 张的预算等着,7 步的也不该被 60 秒截断。
+      turnTimeoutMs:
+        RENDER_BUDGET_BASE_MS + renderCountOf(prepared.plan) * RENDER_BUDGET_PER_IMAGE_MS,
+    });
     // ★ 无论循环怎么结束都要存回(同 `SendMessage`):哪怕这一轮出图失败,
     //   会话里也已经多了一条 `tool_result` 和一句收束语——不存的话那个
     //   "欠着的 tool_use" 会**原样还在**,用户再点一次确认就会重复花钱。

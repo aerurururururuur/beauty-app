@@ -152,6 +152,20 @@
         class="step-block"
         :data-step="s.id"
       >
+        <!--
+          ★ 这一步的**累积图**：画到这一步为止的妆（哪一步对哪张图由服务端算，
+            见 `design.stepRenders`——前端不自己由步骤名推部位）。
+          ⚠️ 护肤 / 妆前 / 防晒 / 定妆**没有图**，那几步整块不摆。**不补空块、不补 `.ph`**
+             （§8-4：占位块会让人以为"这张待会儿会出现"）。
+          ⚠️ 缺省引擎（`MAKEUP_ENGINE=mock`）下这张就是**你传的那张照片原样**，
+             所以标签只说「到这一步为止」，不写「效果图」也不写「渲染」。
+        -->
+        <div v-if="stepShots[s.id]" class="step-block__media">
+          <img class="step-shot" :src="stepShots[s.id]" :alt="`画到「${s.name}」这一步为止的妆容`" />
+          <span class="step-block__no">{{ stepNo(i) }}</span>
+          <span class="step-block__name-tag">到这一步为止</span>
+        </div>
+
         <div class="step-block__body">
           <header class="step-block__head">
             <span class="step-block__index">STEP {{ stepNo(i) }}</span>
@@ -252,6 +266,11 @@ import { useDesignStore } from '@/stores/design'
  *   所以:有图就显示真图,没图就**什么都不摆**、只摆那条确认框。
  *   **不许**再拿一个灰块顶着说它是效果图(§8-4)。
  *
+ * ★ 步骤块左边那一格也是真图(2026-10-01「每一步一张图」):出图时服务端**逐步**出,
+ *   每一步一张累积累积图,`stepRenders` 把「哪一步对哪张」算好了。护肤/妆前/防晒/定妆
+ *   那四步**没有图**,取不到就整块不摆——**不许补 `.ph`**(它会让人以为"这张待会儿会出现")。
+ *   ★ 缺省引擎下这些图就是输入照本身,所以图上只写「到这一步为止」(§8-4)。
+ *
  * ★ 出图入口**全屏只有一个**:`pendingRender`(模型提的)与 `renderOffer`
  *   (界面按状态自己摆的)在服务端就是互斥的,这里也只是**二选一**地读——
  *   两个都读、都摆,就会出现两个按钮,而点两下是真的要花两次钱。
@@ -299,6 +318,21 @@ const productLines = computed(() =>
 const shotSrc = computed(() => {
   const last = design.renders[design.renders.length - 1]
   return last ? renderImageHref(last.url, user.id) : ''
+})
+
+/**
+ * 每一步那张累积图：`{ [步骤 id]: 能直接塞 <img> 的地址 }`。
+ * ★ 是服务端给的 `stepRenders`（`{步骤 id: seq}`）+ 已出的图，页面只做拼接。
+ * ★ 还没出图时它是 `{}` ⇒ 每个步骤块都不摆图位（不是摆个空壳）。
+ */
+const stepShots = computed(() => {
+  const bySeq = new Map(design.renders.map((r) => [r.seq, r]))
+  return Object.fromEntries(
+    Object.entries(design.stepRenders).map(([stepId, seq]) => {
+      const shot = bySeq.get(seq)
+      return [stepId, shot ? renderImageHref(shot.url, user.id) : '']
+    })
+  )
 })
 
 const canRender = computed(() => Boolean(design.pendingRender || design.renderOffer))
@@ -381,6 +415,21 @@ function onSave() {
 .hero-side .shot {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* ---------- 步骤块左边那一格图 ---------- */
+/* `flow.css` 那条是给"撑满整列"写的；这里要的是按图自己的比例，免得裁掉脸。 */
+.step-block__media {
+  align-self: flex-start;
+}
+
+/* 图块的宽由 `.step-block__media` 定死，高度随图（引擎出的是 2:3 竖图）。 */
+.step-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-card);
 }
 
 /* 没出图时它是这一列里唯一的东西，自己占满整列 */

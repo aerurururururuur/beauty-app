@@ -11,7 +11,8 @@
 | `domain/scene-rules.ts` | ★ **前后端单一源**:`SCENE_RULES`(场合→中文名/方向/标签/关键词) · `SCENE_MATCH_ORDER`(命中优先级) · `DEFAULT_OCCASION` · 纯函数 `describeScene(brief)`。**零运行时依赖,前端会直接执行它**——见下 |
 | `domain/errors/app-error.ts` | `AppError` + `ErrorCode`(**不携带 HTTP 状态码**) |
 | `infrastructure/config.ts` | `.env`/环境变量读取(属组装关心,只由 `src/index.ts` 深路径取用,**不进 barrel**) |
-| `presentation/error-handler.ts` | 错误码 → HTTP 的唯一映射(由 `src/app.ts` 深路径取用) |
+| `presentation/error-handler.ts` | 错误码 → HTTP 的唯一映射(由 `src/app.ts` 深路径取用)。★ **框架错误的 message 一律换中文**(超限/空 body/坏 JSON…逐码翻,认不出的也回中文、原文进日志)——那几句会**原样显示在界面上** |
+| `domain/validators/zod-issues.ts` | zod 错误 → 一句中文：`unrecognized_keys` / `invalid_type` 逐类翻,其余回落原文;`details.issues` 照旧原样留着(那是给排查的)。⚠️ `agent` 那份**不是它的副本**,别合并(见文件头) |
 | `index.ts` | public barrel：导出 brief 常量/类型 + 图片类型(`ImageRef`/`ResolvedImage`) + `AppError`/`ErrorCode` + 场合规则与 `describeScene` |
 | `compose.ts` | 占位组合根(shared 无独立运行时服务;未来日志器/时钟从此暴露) |
 

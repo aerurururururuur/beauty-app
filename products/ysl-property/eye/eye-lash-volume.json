@@ -12,7 +12,9 @@
     "warnings": "含香精。敏感眼用户建议先测试。"
   },
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.lash"
+    ]
   },
   "origin": "docx"
 }

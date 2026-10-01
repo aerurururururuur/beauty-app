@@ -16,6 +16,11 @@ export const ErrorCode = {
   USER_NOT_FOUND: 'USER_NOT_FOUND',
   NICKNAME_TAKEN: 'NICKNAME_TAKEN',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  /**
+   * 账号**在**、但它没有头像。★ 与 `USER_NOT_FOUND` 分开的理由同 `PERSONA_PHOTO_NOT_FOUND`:
+   *   那时候回「桃妆账号不存在」是与事实相反的一句话,而这句 message 前端会原样上屏。
+   */
+  USER_AVATAR_NOT_FOUND: 'USER_AVATAR_NOT_FOUND',
   CABINET_ITEM_NOT_FOUND: 'CABINET_ITEM_NOT_FOUND',
   CABINET_FULL: 'CABINET_FULL',
   /** 人设不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */

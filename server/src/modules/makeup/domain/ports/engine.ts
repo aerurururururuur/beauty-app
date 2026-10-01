@@ -9,7 +9,7 @@
  */
 import type { MakeupBrief, ResolvedImage } from '../../../shared/index.js';
 import type { Look } from '../entities/look.js';
-import type { LookSpec } from '../entities/look-spec.js';
+import type { LookSpec, ZoneRole } from '../entities/look-spec.js';
 
 export interface EngineInput {
   face: ResolvedImage;
@@ -40,6 +40,14 @@ export interface EngineInput {
    * 而不是瞎编一套妆。这条后果记在 `modules/makeup/README.md`。
    */
   lookSpec?: LookSpec;
+  /**
+   * ★ **只画这几个区**(✏️ 2026-10-01 逐步累积出图:一个上妆步一张图)。
+   *
+   * 缺省 = `lookSpec.zones` 里填了的区全画,也就是今天的行为。
+   * ⚠️ **引擎只拿它收窄措辞,不拿它挑色** —— 色仍然来自 `lookSpec` 本身,
+   * 所以"同一份妆面单的第 3 张与第 5 张"变化只在画到哪儿了。
+   */
+  appliedZones?: readonly ZoneRole[];
 }
 
 export interface EngineResult {

@@ -8,7 +8,7 @@
 import type { FastifyInstance } from 'fastify';
 import { makePersonasController } from '../personas.controller.js';
 import type { PersonasDeps } from '../personas.controller.js';
-import { MAX_PHOTO_DATAURL } from '../../domain/validators/persona.validator.js';
+import { MAX_PHOTO_DATAURL } from '../../domain/validators/photo.validator.js';
 
 /**
  * 带照片那几条路由的请求体上限。

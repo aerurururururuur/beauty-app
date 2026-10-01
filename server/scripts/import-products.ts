@@ -104,15 +104,17 @@ const NOTE_LABEL = '说明';
 
 /**
  * 类目 → `LookSpec` 槽位。**派生,非原文**,而且刻意做得比"按类别一刀切"更细:
- * `eye` 类里只有眼影盘对得上 `zones.eyeshadow`、眉笔对得上 `zones.brow`,
- * 睫毛膏/眼线笔**对不上任何槽位**;`contour`(高光/修容)也对不上。
+ * `eye` 类里眼影盘 → `eyeshadow`、眉笔/眉粉 → `brow`、眼线笔 → `liner`、睫毛膏 → `lash`;
+ * `contour` 类里高光 → `highlight`、修容/古铜 → `contour`。
  * 一刀切会让模型以为"眼部彩妆"整类都能填眼影槽,那是错的。
  */
 function deriveLookSpecSlots(categoryId: string, name: string): string[] {
   switch (categoryId) {
     case 'base':
-    case 'concealer':
       return ['base'];
+    case 'concealer':
+      // 两个都留:去掉 `base` 会让底妆那一步少推荐一件,而那件在底妆层确实用得上。
+      return ['base', 'zones.concealer'];
     case 'lip':
       return ['zones.lip'];
     case 'blush':
@@ -120,9 +122,15 @@ function deriveLookSpecSlots(categoryId: string, name: string): string[] {
     case 'eye':
       if (/眼影/.test(name)) return ['zones.eyeshadow'];
       if (/眉笔|眉粉/.test(name)) return ['zones.brow'];
+      if (/眼线/.test(name)) return ['zones.liner'];
+      if (/睫毛/.test(name)) return ['zones.lash'];
+      return [];
+    case 'contour':
+      if (/高光|提亮/.test(name)) return ['zones.highlight'];
+      if (/修容|古铜/.test(name)) return ['zones.contour'];
       return [];
     default:
-      // 护肤 / 妆前 / 定妆 / 修容:LookSpec 里没有对应槽位。★ 空着是**如实**,不是缺失。
+      // 护肤 / 妆前 / 防晒 / 定妆:LookSpec 里没有对应槽位。★ 空着是**如实**,不是缺失。
       return [];
   }
 }

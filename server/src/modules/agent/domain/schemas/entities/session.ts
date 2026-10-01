@@ -39,6 +39,12 @@ export const renderRecordSchema = z
     ref: imageRefSchema,
     /** 出这张图时 `describeLook(lookSpec)` 的人话。 */
     lookDescription: z.string(),
+    /**
+     * ★ 这一张图**同时代表**哪几步(✏️ 2026-10-01「每一步一张图」)。
+     * 通常只有一步;重复的区(两次遮瑕 / 两次眼妆)与眉步会**折进**上一张,于是这里会有多个。
+     * ⚠️ **空数组 = 那张「整脸」兜底图**(会话里没有方案时出的那一张),不是"没有代表任何步"。
+     */
+    stepIds: z.array(z.string()),
     createdAt: z.string(),
   })
   .strict();

@@ -6,7 +6,8 @@
 
 两件事，同属一个聚合边界：
 
-1. **账号** = 昵称（登录身份，唯一）+ 密码。提供三个能力：注册建档、登录核对、按 id 查档案。
+1. **账号** = 昵称（登录身份，唯一）+ 密码 + **资料（个人简介 / 头像）**。提供五个能力：
+   注册建档、登录核对、按 id 查档案、**改资料**、**取头像字节**（✏️ 2026-10-01 加的后两个）。
    密码只以 **scrypt 凭据**落盘（每条独立随机盐），明文永不落库、不进日志、不回视图。
 2. **人设库**（`/personas` 那一族，✏️ 2026-09-30 落地）。一份人设 = 挂在账号下的一张脸：
    名字 / 关系 / 肤色档 / 面部特征 / **照片**。它在这里而不是单开一个模块，
@@ -20,17 +21,19 @@
 
 | 路径 | 内容 |
 | --- | --- |
-| `domain/entities/user.ts` | `User{ id, nickname, passwordHash, createdAt }` + `createUser` 工厂 |
+| `domain/entities/user.ts` | `User{ id, nickname, passwordHash, createdAt, bio?, avatarMime? }` + `createUser` 工厂 + `updateUserProfile`（`''` = 删掉那一格）+ `userNotFound` / `userAvatarMissing` |
 | `domain/ports/user-repository.ts` | `UserRepository`：`save` / `findById` / `findByNickname` |
+| `domain/ports/user-avatar-store.ts` | 头像字节的存/读/删（`save` / `read` / `remove`） |
 | `domain/ports/password-hasher.ts` | `PasswordHasher`：`hash` / `verify`（领域不认识 scrypt） |
-| `domain/schemas/entities/user.ts` | 形状：凭据（昵称/密码都是字符串）、用户 id——**只有类型与 `.strict()`** |
-| `domain/validators/user.validator.ts` | 行为：长度上下限与五个常量（`MAX_NICKNAME_RAW`…）、用户 id 的格式正则、清洗昵称（trim）、拒控制字符、`VALIDATION_ERROR`（§4.2：规则与文案同处一地） |
+| `domain/schemas/entities/user.ts` | 形状：凭据（昵称/密码都是字符串）、用户 id、**资料那两格（可选）**——**只有类型与 `.strict()`** |
+| `domain/validators/user.validator.ts` | 行为：长度上下限与那批常量（`MAX_NICKNAME_RAW`…`MAX_BIO`）、用户 id 的格式正则、清洗昵称（trim）、拒控制字符、`validateProfileInput`（简介 + 头像三态）、`VALIDATION_ERROR`（§4.2：规则与文案同处一地） |
+| `domain/validators/photo.validator.ts` | ★ **本模块唯一的 dataURL 解码**：mime 白名单、1 MiB 上限、`PHOTO_EXT_BY_MIME`。人设照片与账号头像共用（✏️ 2026-10-01 从 `persona.validator.ts` 提出来的） |
 | `domain/schemas/api/user-view.ts` | ★ 对外契约 `UserView`——**不含 passwordHash** |
-| `application/usecases/` | `RegisterUser` / `AuthenticateUser` / `GetUser` |
-| `application/user-view.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体） |
+| `application/usecases/` | `RegisterUser` / `AuthenticateUser` / `GetUser` / `UpdateProfile` / `ReadUserAvatar` |
+| `application/user-view.ts` | 实体 → 视图（凭据在此剥掉，别绕开它直接回实体）；`userAvatarPath(id)` |
 | `infrastructure/json/user-repository.ts` | 账号表落 `dataDir/users/users.json`（tmp + rename 原子写） |
 | `infrastructure/crypto/scrypt-password-hasher.ts` | scrypt 凭据 `scrypt$<salt>$<key>`，核对走定时安全比较 |
-| `presentation/users.controller.ts` + `presentation/routes/users.route.ts` | `POST /users` · `POST /users/login` · `GET /users/:id` |
+| `presentation/users.controller.ts` + `presentation/routes/users.route.ts` | `POST /users` · `POST /users/login` · `GET /users/:id` · `PATCH /users/:id` · `GET /users/:id/avatar` |
 | `index.ts` / `compose.ts` | public barrel / `createUserModule({ dataDir, faceReader? })` |
 
 ### 人设库那半边（✏️ 2026-09-30 新增）
@@ -49,7 +52,7 @@
 | `application/usecases/read-persona-photo.ts` | 取字节（先过归属守卫） |
 | `application/usecases/analyze-persona-face.ts` | 调端口、原样转手。**不落库、不翻译成前端档** |
 | `infrastructure/json/persona-repository.ts` | `dataDir/personas/personas.json` + `seeded.json`，平坦表、读出口过解析器、tmp + rename |
-| `infrastructure/file-system/persona-photo-store.ts` | 字节落 `dataDir/personas/photos/<id>.<ext>`。**换照片/删照片时旧字节一起删** |
+| `infrastructure/file-system/photo-store.ts` | `FilePhotoStore(dir, label)`——**一份实现同时是人设照片端口与头像端口**（✏️ 2026-10-01，原 `persona-photo-store.ts`）。字节落 `dataDir/personas/photos/` 或 `dataDir/users/avatars/`。**换照片/删照片时旧字节一起删** |
 | `presentation/personas.controller.ts` + `presentation/routes/personas.route.ts` | 10 条；★ `analyze` 那条**由 deps 是否存在决定注册** |
 
 ### 两个自建小库（✏️ 2026-09-30 新增）
@@ -79,6 +82,20 @@
   要补的话，实现一个新的 `UserRepository` 在 `compose.ts` 换掉即可——用例、校验、路由、测试都不用动（Node ≥22 可用零依赖的 `node:sqlite`）。
 - **错误码不区分「账号不存在」与「密码错」**：都回 `INVALID_CREDENTIALS` / 401，避免逐昵称枚举已注册账号。
 - **登录不签发 token**：够演示用；要加登录态就在 `AuthenticateUser` 里补签发，核对逻辑不动。
+
+资料（简介 / 头像，✏️ 2026-10-01）：
+
+- ★ **「有没有头像」就是行里 `avatarMime` 那一格在不在**，不另立一个 boolean：
+  两格并存的形状会出现「说有头像但不知道什么格式」，而那种行**什么都不会报错**，
+  只是在取字节时 500。代价：那一格可选（老行没有），读出口的 `.strict()` 因此放行缺失。
+- ★ **字节先落盘、再写行**（两条路径都如此）：反过来会出现「行说换了、图上还是旧的」——
+  而那时两个请求都是 200。代价：写盘成功但写行失败会留下一个孤儿字节文件。
+- ★ **头像与人设照片共用 `photo.validator.ts` 的 `dataUrlToBytes`**：两处的 mime 白名单、
+  1 MiB 上限、扩展名映射必须逐字相同，各写一份迟早漂。代价：本模块多一个只被两处引用的文件。
+- ★ **头像给的是新码 `USER_AVATAR_NOT_FOUND`（404），不复用 `USER_NOT_FOUND`**：
+  后者那句是「桃妆账号不存在」，而这时账号明明在，只是没设过头像——**假话比 404 更坏**。
+- ⚠️ **`PATCH /users/:id` 不是访问控制**：拿到 id 就能改那个账号的资料。本服务不签发凭据，
+  这与其它路由同级，别把它当安全边界。
 
 人设库那半边（✏️ 2026-09-30）：
 
@@ -126,3 +143,6 @@
 人设照片存 `<dataDir>/personas/photos/`，**没有 TTL**，只有用户自己删掉那份人设才消失
 （与 agent 会话照片那条「24h 真删」是两套口径）。所以文案不许说「不上传 / 只在这台浏览器里」，
 也不许说「已加密」。
+
+✏️ 2026-10-01：**账号头像同理**——存 `<dataDir>/users/avatars/`，跟着账号走，
+用户清空头像（`avatar: ''`）时才删掉那份字节。

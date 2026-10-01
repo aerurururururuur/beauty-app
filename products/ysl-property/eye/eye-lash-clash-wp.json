@@ -13,7 +13,9 @@
     "feedback": "“对于我这种眼周非常敏感、经常戴眼镜或隐形眼镜的人来说，这款产品的舒适度是关键。”"
   },
   "derived": {
-    "lookSpecSlots": []
+    "lookSpecSlots": [
+      "zones.lash"
+    ]
   },
   "origin": "docx",
   "wording": {

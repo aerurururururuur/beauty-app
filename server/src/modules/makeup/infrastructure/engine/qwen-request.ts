@@ -113,6 +113,9 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
 
   const { prompt, negativePrompt } = buildPrompt(spec, {
     ...(input.brief?.skinTone ? { skinTone: input.brief.skinTone } : {}),
+    // ★ 分步出图(✏️ 2026-10-01):只画到这一步为止的部位。缺省时它不出现,
+    //   于是"发出去的请求"与 v1 逐字相同(见 `prompt-builder` 的 `PromptOptions`)。
+    ...(input.appliedZones ? { appliedZones: input.appliedZones } : {}),
   });
 
   // ★ 参考图与本人照片走**同一条**本地文件路径(`toImageField`):接口要的是 URL,

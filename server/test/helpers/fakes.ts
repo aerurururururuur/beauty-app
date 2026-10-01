@@ -15,6 +15,7 @@ import type {
   PersonaPhotoStore,
   PersonaRepository,
   User,
+  UserAvatarStore,
   UserRepository,
 } from '../../src/modules/user/index.js';
 import type {
@@ -190,6 +191,34 @@ export class FakePersonaPhotoStore implements PersonaPhotoStore {
   /** 断言辅助:这个 id 名下还有没有字节。 */
   has(personaId: string): boolean {
     return this.map.has(personaId);
+  }
+}
+
+/** 同 `FakePersonaPhotoStore`,只是 id 空间是账号(头像)。 */
+export class FakeUserAvatarStore implements UserAvatarStore {
+  private map = new Map<string, { mime: string; bytes: Buffer }>();
+  /** 被调用过的方法名与 id,按顺序。删除路径的顺序断言靠它。 */
+  readonly calls: string[] = [];
+
+  async save(userId: string, mime: string, bytes: Buffer): Promise<void> {
+    this.calls.push(`save:${userId}`);
+    this.map.set(userId, { mime, bytes });
+  }
+  async read(userId: string, mime: string): Promise<Buffer> {
+    this.calls.push(`read:${userId}`);
+    const hit = this.map.get(userId);
+    if (!hit) throw new Error(`账号头像不见了:${userId}(假实现)`);
+    void mime;
+    return hit.bytes;
+  }
+  async remove(userId: string): Promise<void> {
+    this.calls.push(`remove:${userId}`);
+    this.map.delete(userId);
+  }
+
+  /** 断言辅助:这个 id 名下还有没有字节。 */
+  has(userId: string): boolean {
+    return this.map.has(userId);
   }
 }
 

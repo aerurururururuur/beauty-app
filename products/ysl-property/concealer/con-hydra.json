@@ -14,7 +14,8 @@
   },
   "derived": {
     "lookSpecSlots": [
-      "base"
+      "base",
+      "zones.concealer"
     ]
   },
   "origin": "docx",

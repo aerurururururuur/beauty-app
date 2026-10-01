@@ -117,6 +117,15 @@ export interface AgentRunOptions {
    * - `'approved'`:只有「用户点了确认」那条 HTTP 路径会传它。
    */
   resume?: 'approved' | 'declined';
+  /**
+   * ★ **这一轮的独立超时预算**(✏️ 2026-10-01),毫秒。缺省用 `AgentLoopOptions.turnTimeoutMs`。
+   *
+   * 需要它是因为出图那一轮要跑 **3~7 次**引擎调用(每个上妆步一张),
+   * 而缺省的 60 秒只够一张多一点 —— 截断的后果是"图出了但模型没说话",
+   * 而用户已经付了钱。见 `confirm-render.ts`。
+   * ⚠️ 判据仍在**每轮迭代开头**(`agent-loop.ts` 主循环),所以它不是"硬中断"。
+   */
+  turnTimeoutMs?: number;
 }
 
 export interface AgentLoopOptions {
@@ -184,7 +193,8 @@ export class AgentLoop {
     options: AgentRunOptions = {},
   ): Promise<AgentTurnResult> {
     const maxIterations = this.opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
-    const deadline = this.now() + (this.opts.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS);
+    const deadline =
+      this.now() + (options.turnTimeoutMs ?? this.opts.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS);
     const definitions = [...this.opts.tools.values()].map((t) => t.definition);
     const events: AgentEvent[] = [];
 

@@ -43,15 +43,25 @@
  */
 import { presetOccasionCn } from '../../../shared/index.js';
 import type { SkinTone } from '../../../shared/index.js';
-import type { Finish, Intensity, LookSpec, ToneKey } from '../../domain/entities/look-spec.js';
+import {
+  ADDED_ZONE_ROLES,
+  MEASURED_ZONE_ROLES,
+  ZONE_ROLES,
+} from '../../domain/entities/look-spec.js';
+import type { Finish, Intensity, LookSpec, ToneKey, ZoneRole } from '../../domain/entities/look-spec.js';
 
 /**
  * ★ 模板版本号,**随每次引擎调用记进夹具**(§5.2 / §5.4)。
  *
  * 理由照抄 `scripts/README.md` 那句:**"没有它,过两天没人说得清这张图是哪组参数出的。"**
  * ⚠️ **改动本文件的任何措辞都要 +1**——措辞变了但版本没变,历史夹具就变成了假证据。
+ *
+ * ✏️ **v1 → v2(2026-10-01)**:妆面单从 3 个区扩到 9 个(+ 分步出图时的子集与
+ *   「未列出的部位保持素颜」那句)。**实测过的那五句一个字没动、顺序也没动**
+ *   (见 `MEASURED_ZONE_ROLES`),但整份产出的措辞确实变了,所以版本必须 +
+ *   否则 v1 那批历史夹具会被当成"就是这次的产出"。
  */
-export const TEMPLATE_VERSION = 'v1';
+export const TEMPLATE_VERSION = 'v2';
 
 // ── 词表 ────────────────────────────────────────────────────────────────────
 //
@@ -77,6 +87,25 @@ const TONE_TOKEN: Record<ToneKey, string> = {
   brick: '砖红',
   nude: '裸色',
   plum: '梅子紫',
+};
+
+/**
+ * 区名的词组。★ 与上面两张同一条规矩:`Record<ZoneRole, …>` ——
+ * **加一个区就编译不过**,不会出现"某个区没有措辞"。
+ *
+ * ⚠️ **词里不许出现几何词**(眼尾 / 轮廓 / 晕染)或置景词——那是 `GEOMETRY_WORDS` /
+ *   `STAGING_WORDS` 两张表盯着的,加新区时先看一遍它们。
+ */
+const ZONE_TOKEN: Record<ZoneRole, string> = {
+  lip: '唇部',
+  cheek: '腮红',
+  eyeshadow: '眼影',
+  concealer: '遮瑕',
+  contour: '修容',
+  highlight: '提亮',
+  aegyoSal: '卧蚕',
+  liner: '眼线',
+  lash: '睫毛',
 };
 
 /** 浓度。`Record<Intensity, …>`:`INTENSITY_MIN/MAX` 一旦改档,这里编译不过。 */
@@ -157,19 +186,30 @@ const QUALITY_TAIL =
  *   这类几何/风格词。run 2 带着它们跑也保住了身份(§4.4 表),所以**不是**因为有害才去掉,
  *   而是因为**色 / 质地 / 浓度是唯一有实测支撑的通道,本函数不往里加第二条没测过的**。
  *   要加,先补实测。
+ *
+ * ✏️ **2026-10-01:`applied` 给了就只渲染那几个区**(逐步累积出图,见 `PromptOptions`)。
+ *   底妆不受它管;实测过的三句顺序与措辞一个字没动,六个新区追加在最后。
  */
-export function renderLookClauses(spec: LookSpec): string[] {
+export function renderLookClauses(spec: LookSpec, applied?: readonly ZoneRole[]): string[] {
   const { base, zones } = spec;
-  const zone = (label: string, z: { tone: ToneKey; finish: Finish; intensity: Intensity }): string =>
-    `${label}用${TONE_TOKEN[z.tone]}、${FINISH_TOKEN[z.finish]}质地、${INTENSITY_TOKEN[z.intensity]}浓度`;
+  /** 本套妆**这一步要画**的区;没填 / 不在 `applied` 里都没有措辞。 */
+  const clause = (role: ZoneRole): string[] => {
+    const z = zones[role];
+    if (!z) return [];
+    if (applied !== undefined && !applied.includes(role)) return [];
+    return [`${ZONE_TOKEN[role]}用${TONE_TOKEN[z.tone]}、${FINISH_TOKEN[z.finish]}质地、${INTENSITY_TOKEN[z.intensity]}浓度。`];
+  };
 
   return [
+    // ★ 底妆**不受 `applied` 管**:它是底子,每一张累积图都带着它。
     `底妆:${INTENSITY_TOKEN[base.coverage]}遮瑕的${FINISH_TOKEN[base.finish]}质地,${warmthToken(base.warmth)}。`,
-    `${zone('唇部', zones.lip)}。`,
-    `${zone('腮红', zones.cheek)}。`,
-    `${zone('眼影', zones.eyeshadow)}。`,
+    // ── 实测过的那三句:★ **顺序与措辞一个字不许改**(§4.4.3 run 4)──
+    ...MEASURED_ZONE_ROLES.flatMap(clause),
     // 只有浓度,没有形状(见函数头 ★)。
     `眉部:${INTENSITY_TOKEN[zones.brow.intensity]}浓度,色调自然。`,
+    // ── ✏️ 2026-10-01 新增的六个区:**追加在实测那几句之后** ──
+    //    ⚠️ 插进中间 = 对那份实测做第二次未验证的改动。新区若要挪位置,先补实测。
+    ...ADDED_ZONE_ROLES.flatMap(clause),
   ];
 }
 
@@ -180,6 +220,28 @@ export interface PromptOptions {
    * 所以"不知道"时宁可不提,也不许暗示一个缺省肤色。
    */
   skinTone?: SkinTone;
+  /**
+   * ★ **只渲染这几个区**(✏️ 2026-10-01 逐步累积出图)。
+   *
+   * 缺省 = 妆面单里填了的区全渲染,也就是今天的行为。给值时是一次"分步"渲染:
+   * 只画到这一步为止的部位,并补一句「未列出的部位保持素颜」(见 `buildPrompt`)。
+   *
+   * ⚠️ **底妆不受它管** —— 每一张累积图都带着底妆,理由同 `renderLookClauses`。
+   * ⚠️ 这个字段**不改变 `TEMPLATE_VERSION` 之外任何实测结论**:全套那一张的条款
+   *   与 v1 逐字相同,所以"最后一张 = 今天那张成片"这条仍然成立。
+   */
+  appliedZones?: readonly ZoneRole[];
+}
+
+/**
+ * 分步渲染时补的那一句。★ **只在"这一步还没画完"时出现**
+ * ——最后一张(全套)的条款必须与今天逐字相同,加了这句就是改了成片。
+ */
+const KEEP_BARE_CLAUSE = '未列出的部位保持素颜,不要额外上妆。';
+
+/** 本套妆要画的区**是不是全画上了**。空集与子集都算没画完。 */
+function coversEveryZone(spec: LookSpec, applied: readonly ZoneRole[]): boolean {
+  return ZONE_ROLES.every((role) => spec.zones[role] === undefined || applied.includes(role));
 }
 
 /**
@@ -208,7 +270,12 @@ export function buildPrompt(spec: LookSpec, opts: PromptOptions = {}): {
   // ★ 场合是**自由文本**:预设 id 翻成中文名,用户自己的说法(如「朋友的婚礼」)原样念。
   //   裸下标 `SCENE_RULES[spec.occasion]` 在自定义场合上会拿到 `undefined` 再炸在 `.cn` 上。
   lines.push(`妆容方向:${presetOccasionCn(spec.occasion) ?? spec.occasion}场合。`);
-  lines.push(...renderLookClauses(spec));
+  lines.push(...renderLookClauses(spec, opts.appliedZones));
+  // ★ 分步出图时补这一句:模型最容易的"帮忙"就是顺手把没让画的部位也画了。
+  //   ⚠️ **全套那一张不加**——它的条款要与 v1 逐字相同(见 `PromptOptions.appliedZones`)。
+  if (opts.appliedZones !== undefined && !coversEveryZone(spec, opts.appliedZones)) {
+    lines.push(KEEP_BARE_CLAUSE);
+  }
   lines.push(QUALITY_TAIL);
 
   return { prompt: lines.join('\n'), negativePrompt: NEGATIVE_PROMPT };

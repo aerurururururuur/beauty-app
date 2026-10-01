@@ -47,6 +47,17 @@ import api, { API_BASE } from './index'
 export const AGENT_TIMEOUT_MS = 90000
 
 /**
+ * ★ **出图那一次**的超时(毫秒),比上一条宽得多。
+ *
+ * 出图那一轮要在**同一次请求里**跑完 3~7 次引擎调用(每一步出一张),服务端为此
+ * 单独算了一份预算:`confirm-render.ts` 的 `60 秒 + 每张 20 秒`,7 张时 = **200 秒**。
+ * ⇒ 前端必须**严格大于**它,否则前端先断开、服务端还在跑,而掐掉这一次**退不了钱**
+ * (同 `AGENT_TIMEOUT_MS` 第 ③ 条)。300 = 200 + 网络与 JSON 的余量。
+ * ⚠️ 与那对 `RENDER_BUDGET_*` **是一对,要一起改**。
+ */
+export const AGENT_RENDER_TIMEOUT_MS = 300000
+
+/**
  * 一句话的长度上限(字)。**与后端 `agent/domain/validators/agent-http.validator.ts` 的
  * `MAX_AGENT_TEXT` 同值**。前端先挡一道只是省一次白跑的 422;真正的把关在后端
  * (**两处要一起改**)。
@@ -55,6 +66,9 @@ export const MAX_AGENT_TEXT = 1000
 
 /** 这几条都走同一份超时(理由见 `AGENT_TIMEOUT_MS`)。 */
 const longRequest = { timeout: AGENT_TIMEOUT_MS }
+
+/** ★ 只有出图那一条吃这一份(理由见 `AGENT_RENDER_TIMEOUT_MS`)，别顺手换给旁边的几条。 */
+const renderRequest = { timeout: AGENT_RENDER_TIMEOUT_MS }
 
 /**
  * 开一个会话 → 会话视图(新会话里一条消息都没有)。
@@ -149,9 +163,13 @@ export async function analyzeAgentImage({ sessionId, userId, kind }) {
  *   ① 没有妆面;② 没有照片;③ 上一轮欠着的**不是**出图请求(那是「崩在中间」的畸形状态)。
  *   message 本身就是人话,调用方**不按 code 分支**,重新拉一次会话视图即可。
  *   ★ 还有一种是并发连点:同一个会话正在出图时也回 422(「正在出图」)。
+ *
+ * ⚠️ **它用的是 `renderRequest`(300 秒),不是 `longRequest`**:这一轮里是 3~7 次
+ *   引擎调用,服务端的最坏情况 200 秒。换成 `longRequest` 会让前端在服务端还在出图时
+ *   先报「请求失败」——而图已经出了、钱已经花了(上面 `AGENT_TIMEOUT_MS` 那条 ③)。
  */
 export async function confirmAgentRender({ sessionId, userId }) {
-  return api.post(`/agent/sessions/${encodeURIComponent(sessionId)}/render`, { userId }, longRequest)
+  return api.post(`/agent/sessions/${encodeURIComponent(sessionId)}/render`, { userId }, renderRequest)
 }
 
 /**

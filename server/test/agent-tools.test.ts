@@ -14,6 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  ADDED_ZONE_ROLES,
   BrowSpec,
   FINISHES,
   INTENSITY_MAX,
@@ -25,7 +26,11 @@ import {
   describeLook,
   validateLookSpec,
 } from '../src/modules/makeup/index.js';
-import type { SkinTonePalette } from '../src/modules/makeup/index.js';
+import type { AddedZoneRole, SkinTonePalette, ZoneRole } from '../src/modules/makeup/index.js';
+import { derivePlan } from '../src/modules/styling/index.js';
+// ★ 深一层 import:`step-zones` 是 agent 模块内部的实现(不是对外 API),
+//   但它的对照表是这批测试要钉的对象之一(见 `zonesFor`)。
+import { requiredZonesOf } from '../src/modules/agent/application/step-zones.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
 import { realHexOf } from './helpers/product-content.js';
 import {
@@ -92,15 +97,70 @@ const SAMPLE_LOOK = new LookSpec({
 });
 
 /**
- * 调 `propose_look` 时发出去的那份入参:妆面单 **+ 它的配方 id**。
- *
- * ★ **不能就用 `SAMPLE_LOOK`**:`styleId` **不属于妆面单**(`lookSpecSchema` 是 `.strict()`
- *   的,多一格整份被打回),所以两份样例必须分开 ——
- *   `SAMPLE_LOOK` 是"一份妆面",这一份是"要调那个工具时发什么"。
- *   ⚠️ 两边都跟着 JSON Schema 的 `required` 走(见下面那条结构核对)。
- * `commute` 在 `interview` 的候选池里,而 `SAMPLE_LOOK` 的场合正是 `interview`。
+ * 六个可选区随便配的值。
+ * ★ `Record<AddedZoneRole, …>` 是刻意的:加一个区就编译不过,而不是那份样例
+ *   静默少一个区(于是"手写的那份形状漏了一个区"这条再也没人查)。
  */
-const LOOK_INPUT = { ...SAMPLE_LOOK, styleId: 'commute' };
+const ADDED_ZONE_LOOK: Record<AddedZoneRole, ZoneSpec> = {
+  concealer: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
+  contour: new ZoneSpec({ tone: 'brick', finish: 'satin', intensity: 2 }),
+  highlight: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+  aegyoSal: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
+  liner: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
+  lash: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
+};
+
+/**
+ * 某条配方该有的区 → 一份**合法**的 `zones`。
+ *
+ * ★ ✏️ 2026-10-01:`validateLookSpec` 起会拿妆面单与配方的区**比集合**,所以样例
+ *   不能写死一套区了(`coolclean` 有睫毛那一步、`flowers` 连腮红那一步都没有)。
+ *   这里照 `requiredZonesOf` **现算成员**,不手抄一张表 —— 手抄的表会在配方改动时
+ *   静默过期,而那时看起来像"propose_look 坏了",不像"样例该更新了"。
+ *   ⚠️ 色 / 质地 / 浓度是随便填的:它们不参与这条判据(那是 `describeLook` 的事)。
+ */
+function zonesFor(styleId: string): LookSpec['zones'] {
+  const plan = derivePlan({ styleId });
+  const needed = new Set<ZoneRole>(plan ? requiredZonesOf(plan).map((z) => z.role) : []);
+  const optional: Partial<Record<AddedZoneRole, ZoneSpec>> = {};
+  for (const role of ADDED_ZONE_ROLES) {
+    if (needed.has(role)) optional[role] = ADDED_ZONE_LOOK[role];
+  }
+  return { ...SAMPLE_LOOK.zones, ...optional };
+}
+
+/** 一份妆面单(**不含 `styleId`**——`lookSpecSchema` 是 `.strict()` 的,多一格整份被打回)。 */
+function lookFor(styleId: string): Record<string, unknown> {
+  return { occasion: SAMPLE_LOOK.occasion, base: SAMPLE_LOOK.base, zones: zonesFor(styleId) };
+}
+
+/** 调 `propose_look` 时发出去的那份入参:妆面单 **+ 它的配方 id**。 */
+function lookInput(styleId: string): Record<string, unknown> {
+  return { ...lookFor(styleId), styleId };
+}
+
+/** 同一份,只把唇色换成另一个 —— 色域那几条用例就是靠它把一份合法妆面改坏的。 */
+function withLip(tone: string): Record<string, unknown> {
+  return {
+    ...lookFor(PLAIN_STYLE),
+    styleId: PLAIN_STYLE,
+    zones: { ...zonesFor(PLAIN_STYLE), lip: { tone, finish: 'matte', intensity: 3 } },
+  };
+}
+
+/**
+ * 只含实测那三个区的妆面单对应的配方(`vital` / `early8` / `rococo` 都是这一档)。
+ * ★ 多数用例用它,因为它们检查的是**别的**东西(色域、场合、自由文本),
+ *   不需要六个新区来凑热闹。
+ */
+const PLAIN_STYLE = 'vital';
+
+/**
+ * 结构核对要走的配方清单。★ 挑的是"六个新区**一个不落**地各出现过至少一次"的那几条
+ *   (`concealer`/`contour` 在 coolclean、`highlight` 在 natural、`aegyoSal` 在 rich、
+ *   `liner` 在 festival、`lash` 在 butterfly),外加 `vital` 那一档做对照。
+ */
+const SAMPLED_STYLES = ['vital', 'coolclean', 'natural', 'rich', 'festival', 'butterfly'];
 
 interface JsonSchema {
   type?: string;
@@ -301,10 +361,24 @@ describe('工具契约', () => {
     const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
 
     // 一侧:JSON Schema 认**工具入参**那份样例(它比妆面单多一格 `styleId`)。
-    assertSchemaCoversSample(propose.inputSchema as JsonSchema, LOOK_INPUT, '$');
+    // ★ ✏️ 2026-10-01 **逐条配方各走一遍**:六个新区分散在不同配方里
+    //   (`concealer`/`contour` 在 coolclean、`liner` 在 festival、`lash` 在 butterfly…),
+    //   一份样例最多只带其中几个,而"手写的那份形状漏了某个区"正是这条要抓的。
+    for (const styleId of SAMPLED_STYLES) {
+      assertSchemaCoversSample(propose.inputSchema as JsonSchema, lookInput(styleId), '$');
+    }
+
     // 另一侧:zod 认**妆面单**那份(不传 `skinTone` ⇒ 不收窄,只看形状)。
     // ⚠️ 两份样例在这里**故意不同**:`LookSpec` 里没有 `styleId`,而工具入参里它是必填。
-    expect(() => validateLookSpec(SAMPLE_LOOK, { palette })).not.toThrow();
+    for (const styleId of SAMPLED_STYLES) {
+      const plan = derivePlan({ styleId })!;
+      expect(() =>
+        validateLookSpec(lookFor(styleId), {
+          palette,
+          requiredZones: requiredZonesOf(plan),
+        }),
+      ).not.toThrow();
+    }
   });
 });
 
@@ -398,7 +472,7 @@ describe('propose_look', () => {
   const tool = new ProposeLookTool(palette, realFeatures(), { hexOf: realHexOf });
 
   it('产出记进会话,并把 describeLook 的结果交回去(那段文字就是"预览")', async () => {
-    const out = await run(tool, LOOK_INPUT, session());
+    const out = await run(tool, lookInput(PLAIN_STYLE), session());
 
     expect(out.session?.lookSpec).toEqual(SAMPLE_LOOK);
     expect(out.content).toContain(describeLook(SAMPLE_LOOK));
@@ -407,7 +481,7 @@ describe('propose_look', () => {
   });
 
   it('形状不对时把合法取值清单一起回给模型(报错就是 prompt)', async () => {
-    const out = await run(tool, { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } }, session());
+    const out = await run(tool, withLip('荧光粉'), session());
 
     expect(out.isError).toBe(true);
     expect(out.content).toContain('可用');
@@ -417,7 +491,7 @@ describe('propose_look', () => {
   it('★ `styleId` 不在表里 → 打回,并把**整份清单**列给它', async () => {
     // ✏️ 2026-09-30:此前这里是「挑了一个**别的场合**的池子里的配方」(`banquet` 对 `interview`)。
     //   池子删了,现在唯一的失败原因就是"这个 id 根本查不到"。
-    const out = await run(tool, { ...LOOK_INPUT, styleId: 'no-such-style' }, session());
+    const out = await run(tool, { ...lookInput(PLAIN_STYLE), styleId: 'no-such-style' }, session());
 
     expect(out.isError).toBe(true);
     // 与形状错误同一条规矩(见下一条):开头就得说清"这次什么都没记下"。
@@ -434,7 +508,7 @@ describe('propose_look', () => {
     // ⚠️ 第三个取值是**表外的场合** —— 它得同时满足两件事:自己不被拦,
     //   而且**不改变**配方清单(列表页那句"风格不随场合变"在下游的真实版本)。
     for (const occasion of ['interview', 'party', '朋友的婚礼']) {
-      const out = await run(tool, { ...LOOK_INPUT, occasion, styleId: 'banquet' }, session());
+      const out = await run(tool, { ...lookInput('banquet'), occasion }, session());
 
       expect(out.isError, `场合「${occasion}」下 banquet 被拒了`).toBeUndefined();
       expect(out.session?.plan?.styleId).toBe('banquet');
@@ -450,7 +524,7 @@ describe('propose_look', () => {
     //   必须把"这次什么都没发生"这个事实放在最前面(同 render_look 失败分支的做法)。
     const out = await run(
       tool,
-      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: '荧光粉', finish: 'matte', intensity: 3 } } },
+      withLip('荧光粉'),
       session(),
     );
 
@@ -466,7 +540,7 @@ describe('propose_look', () => {
     // nude 不在 deep_brown 的可用色域里(词表占位值),应当被打回。
     const out = await run(
       tool,
-      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
+      withLip('nude'),
       deep,
     );
 
@@ -478,14 +552,14 @@ describe('propose_look', () => {
   it('肤色**未知**时不收窄 —— 「不知道」和「知道但违反」是两回事', async () => {
     const out = await run(
       tool,
-      { ...LOOK_INPUT, zones: { ...SAMPLE_LOOK.zones, lip: { tone: 'nude', finish: 'matte', intensity: 3 } } },
+      withLip('nude'),
       session(),
     );
     expect(out.isError).toBeUndefined();
   });
 
   it('自由文本字段塞不进来(§6:开了这个口子,身份保持就形同虚设)', async () => {
-    const out = await run(tool, { ...LOOK_INPUT, note: '眼睛放大一点' }, session());
+    const out = await run(tool, { ...lookInput(PLAIN_STYLE), note: '眼睛放大一点' }, session());
     expect(out.isError).toBe(true);
     expect(out.content).toContain('note');
   });
@@ -731,12 +805,16 @@ describe('系统提示', () => {
             seq: 1,
             ref: { storeKey: 'a', mimeType: 'image/png' },
             lookDescription: '',
+            // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+            stepIds: [],
             createdAt: '2026-09-16T00:00:00.000Z',
           }),
           new RenderRecord({
             seq: 2,
             ref: { storeKey: 'b', mimeType: 'image/png' },
             lookDescription: '',
+            // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+            stepIds: [],
             createdAt: '2026-09-16T00:00:00.000Z',
           }),
         ],

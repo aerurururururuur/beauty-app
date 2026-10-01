@@ -26,12 +26,13 @@ import {
   hasSourceImage,
   renderReadiness,
 } from '../domain/entities/session.js';
-import type { Session } from '../domain/entities/session.js';
+import type { RenderRecord, Session } from '../domain/entities/session.js';
 import { danglingToolUses } from '../domain/entities/message.js';
 import { ANALYZE_CASES } from '../domain/schemas/index.js';
 import { TOOL_NAMES } from '../domain/tools/definitions.js';
 import type { AgentEvent, AgentStopReason } from './agent-loop.js';
 import { analysisMessage } from './analysis-messages.js';
+import { renderCountOf } from './step-zones.js';
 import type { AnalyzeOutcome, AnalyzeStatus } from './usecases/analyze-image.js';
 import { renderConfirmationSummary } from './tools/render-look.js';
 
@@ -44,6 +45,11 @@ export interface RenderView {
   url: string;
   /** 出这张图时那份妆面单的说法。★ 是**历史**,不随用户后来改妆而变。 */
   lookDescription: string;
+  /**
+   * ★ 这一张**同时代表**哪几步(✏️ 2026-10-01「每一步一张图」)。空数组 = 那张「整脸」兜底图。
+   * ⚠️ **前端不许自己由步骤名推区名**——那张表只有服务端的 `application/step-zones.ts` 有一份。
+   */
+  stepIds: string[];
   createdAt: string;
 }
 
@@ -141,6 +147,16 @@ export interface AgentSessionView {
   /** 已出的图(按 `seq` 升序)。 */
   renders: RenderView[];
   /**
+   * ★ **每个上妆步对到哪一张图**(✏️ 2026-10-01):`{ [stepId]: seq }`,取**最后一轮**。
+   *
+   * 派生的视图字段,不落库(理由见 `stepRendersOf`)。**恒在的对象**,没出过图就是 `{}`——
+   * 前端只要 `stepRenders[step.id]` 取不到就**整块不渲染**。
+   *
+   * ⚠️ **护肤 / 妆前 / 防晒 / 定妆这四步永远不在这张表里**:它们没有图,
+   * 服务端不摆一个点下去没有结果的入口(同 `analysisOffer` 的 `hasImage`)。
+   */
+  stepRenders: Record<string, number>;
+  /**
    * ★ 本次对话里查过的品牌产品(按 id 去重、按查到的先后)。
    *
    * **恒在的数组**(照 `renders`,不是 `pendingRender` 那种"空则无键"):
@@ -208,6 +224,26 @@ export interface SessionViewOptions {
 }
 
 /**
+ * ★ **每个上妆步对到哪一张图** —— 从 `stepIds` 现算,不落库。
+ *
+ * 「派生出来的东西不存第二遍」:同一件事(`renders[].stepIds`)已经在会话里了,
+ * 再存一张反向表就会有一天两边不一样,而界面照旧一切正常。
+ *
+ * ★ **只取最后一轮**:`renders` 是累积的,再点一次「再生成一张」会在后面追加一整组,
+ * 两组里同一个 `stepId` 指向不同的 `seq`。一轮之内的 `stepIds` **互不相交**
+ * (每一步只属于一张图),所以从后往前扫、**撞上一个已经收过的步号就停** = 正好一轮。
+ */
+function stepRendersOf(renders: readonly RenderRecord[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (let i = renders.length - 1; i >= 0; i -= 1) {
+    const render = renders[i];
+    if (!render || render.stepIds.some((id) => id in out)) break;
+    for (const id of render.stepIds) out[id] = render.seq;
+  }
+  return out;
+}
+
+/**
  * 会话快照(不含本轮事件)。
  *
  * ★ `options` 可以整个省掉,等价于 `{}` = **这个部署没有读图能力**。
@@ -229,7 +265,7 @@ export function toSessionView(
   const renderOffer: RenderOfferView | undefined =
     pendingCall === undefined && renderReadiness(session) === 'ready'
       ? {
-          summary: renderConfirmationSummary(),
+          summary: renderConfirmationSummary(renderCountOf(session.plan)),
           // 两个字符串都由 `describeLook` 产出 ⇒ 逐字可比(比的是**说法**,不是 spec 对象)。
           // ⚠️ 这一句**必须留在 `ready` 这一支里**:没有妆面时 `lookDescription` 是
           //    `undefined`,而那一边(`renders` 为空时)也是 `undefined` ——
@@ -273,8 +309,10 @@ export function toSessionView(
       seq: r.seq,
       url: `/agent/sessions/${session.id}/renders/${r.seq}`,
       lookDescription: r.lookDescription,
+      stepIds: [...r.stepIds],
       createdAt: r.createdAt,
     })),
+    stepRenders: stepRendersOf(session.renders),
     consultedProducts: session.consultedProducts.map((p) => ({
       id: p.id,
       name: p.name,
@@ -284,7 +322,7 @@ export function toSessionView(
       ? {
           pendingRender: {
             toolUseId: pendingCall.id,
-            summary: renderConfirmationSummary(),
+            summary: renderConfirmationSummary(renderCountOf(session.plan)),
           },
         }
       : {}),

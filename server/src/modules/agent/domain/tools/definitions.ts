@@ -161,6 +161,8 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
     '这套妆面表达不了——遇到时要用文字向用户说明做不到,不要硬塞进这几个字段。',
     '★ `styleId` **只从「当前状态」里「可选风格」那一行列出的清单里挑**,不要自己编。',
     '它和这套妆面是**同一件事的两面**:用户按那套配方去理解你说了什么,所以两者要配得上。',
+    '★ `zones` 只填**那套配方里真有对应步骤**的部位(配方里有眼线那一步才填 `liner`)。',
+    '多填或少填都会被拒绝,并且会告诉你差哪一步 / 多哪个区,照着改再调一次就行。',
     '调用后你会拿到这段妆面的中文描述,把它讲给用户听,并问清楚要不要调整。',
     '这个操作免费,不需要用户确认。',
   ].join(''),
@@ -214,6 +216,14 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
             required: ['shape', 'intensity'],
             additionalProperties: false,
           },
+          // ✏️ 2026-10-01 新增的六个区。★ **不是必填** —— 该不该有它由所选配方的步骤决定
+          //   (见 `propose-look.ts` 的 `requiredZonesOf`),填了配方里没有的区会被打分回。
+          concealer: { ...zoneSchema, description: '遮瑕' },
+          contour: { ...zoneSchema, description: '修容' },
+          highlight: { ...zoneSchema, description: '提亮 / 高光' },
+          aegyoSal: { ...zoneSchema, description: '卧蚕' },
+          liner: { ...zoneSchema, description: '眼线' },
+          lash: { ...zoneSchema, description: '睫毛' },
         },
         required: ['lip', 'cheek', 'eyeshadow', 'brow'],
         additionalProperties: false,

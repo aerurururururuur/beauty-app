@@ -62,6 +62,13 @@ export const useDesignStore = defineStore('design', () => {
   const pendingRender = computed(() => session.value?.pendingRender || null)
   const renderOffer = computed(() => session.value?.renderOffer || null)
   const renders = computed(() => session.value?.renders || [])
+  /**
+   * ★ **每个上妆步对到哪一张图**:`{ [步骤 id]: seq }`,取最后一轮。由服务端算好
+   * (`agent-view.ts` 的 `stepRendersOf`),因为「步骤名 → 区名」那张表服务端只有一份。
+   * ⚠️ 护肤 / 妆前 / 防晒 / 定妆**永远不在里面**——它们没有图,所以页面取不到就整块不摆,
+   * 不许补一个点下去没结果的空位。
+   */
+  const stepRenders = computed(() => session.value?.stepRenders || {})
   /** ★ 这个部署的读图入口(`VISION_ANALYZER=real` 才有);**空则无键**,不是空数组。 */
   const analysisOffer = computed(() => session.value?.analysisOffer || null)
   /** 上一次读图没读成的理由(后端 `notice` 原文)。★ 不是错误,别塞进 `error`。 */
@@ -319,6 +326,7 @@ export const useDesignStore = defineStore('design', () => {
     pendingRender,
     renderOffer,
     renders,
+    stepRenders,
     stepCount,
     styleOptions,
     analysisOffer,

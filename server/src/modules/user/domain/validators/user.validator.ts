@@ -11,6 +11,7 @@
  *   ⚠️ §4.3 欠账:这些上限仍是文件里的魔数,要真兑现得由组合根注入(单独一轮)。
  *
  * 注册与登录同形同规则,故共用一个校验器(将来若注册规则变严,在此按意图分叉)。
+ * ✏️ 2026-10-01 多了**改资料**(`validateProfileInput`:简介 + 头像)这一支 —— 它与凭据无关,单独一条。
  * 密码**不做任何清洗**:空格、首尾空白都是密码的合法字符,动了就和用户之后输入的密码对不上。
  *
  * ★ **对外文案用前端页面上的词**:身份字段叫「桃妆 ID」、账号叫「桃妆账号」——
@@ -23,9 +24,10 @@
  *   自己读者的文案」)。别照着这里把那句也改了。
  */
 import { AppError, ErrorCode } from '../../../shared/index.js';
-import { credentialsSchema, userIdSchema, userTableSchema } from '../schemas/index.js';
+import { credentialsSchema, userProfileSchema, userIdSchema, userTableSchema } from '../schemas/index.js';
 import { zodIssuesMessage } from '../../../shared/index.js';
 import type { User } from '../entities/user.js';
+import { dataUrlToBytes } from './photo.validator.js';
 
 /** 昵称原文上限(字,给 trim 留余量;清洗后的上下限另判)。 */
 export const MAX_NICKNAME_RAW = 64;
@@ -37,6 +39,14 @@ export const MIN_NICKNAME = 2;
 export const MIN_PASSWORD = 6;
 /** 密码上限(位,同时是防超长 payload 的闸门)。 */
 export const MAX_PASSWORD = 128;
+
+/** 个人简介原文上限(字,给 trim 留余量;清洗后的上限另判)。 */
+export const MAX_BIO_RAW = 120;
+/**
+ * 个人简介清洗后上限(字)。
+ * ★ **改资料那页 textarea 的 `maxlength` 要跟这个数一致**(前端也有一份,见 `vue/src/api/users.js`)。
+ */
+export const MAX_BIO = 60;
 
 /**
  * 用户 id 的格式:只认 URL 安全字符,1..80 位。
@@ -116,6 +126,66 @@ export function validateCredentials(raw: unknown): Credentials {
 
   // ④ 输出(密码原样透传,不清洗)
   return { nickname, password: parsed.data.password };
+}
+
+/**
+ * 通过校验、可交给用例的头像指向。★ `''` 是**明确的「不要头像」**;`undefined`(没传)保持不动 ——
+ * 分支在调用方(同 `PersonaPhotoInput`)。字节只在这里解出来,路上不再传 dataURL。
+ */
+export type UserAvatarInput = { kind: 'none' } | { kind: 'file'; mime: string; bytes: Buffer };
+
+/** 通过校验的改资料入参:未给的字段保持不动。★ `bio` 传 `''` 是**清空**,与"没给"不同。 */
+export interface UserProfileInput {
+  bio?: string;
+  avatar?: UserAvatarInput;
+}
+
+/**
+ * 个人简介:换行统一成 `\n`、trim 后为空一律当**空串**返回(同 `cleanNotes`,理由也同)。
+ * ★ 「My 页」上虽然显示成一行,但**换行照收** —— 用户从别处粘两句进来不该 422。
+ */
+function cleanBio(raw: string): string {
+  if (raw.length > MAX_BIO_RAW) fail(`个人简介原文最多 ${MAX_BIO_RAW} 字`);
+
+  const bio = raw.replace(/\r\n?/g, '\n').trim();
+  if (bio.length > MAX_BIO) fail(`个人简介最多 ${MAX_BIO} 个字`);
+  for (const ch of bio) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp !== 0x0a && (cp < 0x20 || cp === 0x7f)) fail('个人简介不能包含控制字符');
+  }
+  return bio;
+}
+
+/**
+ * 改资料入参。★ **至少要改一样**(`bio: ''` / `avatar: ''` 也算):全不给就是空操作,拒掉,
+ * 免得客户端以为改成功了(同 `validateUpdateInput`)。
+ */
+export function validateProfileInput(raw: unknown): UserProfileInput {
+  const parsed = userProfileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, zodIssuesMessage(parsed.error), {
+      issues: parsed.error.issues,
+    });
+  }
+
+  const { bio, avatar } = parsed.data;
+  if (bio === undefined && avatar === undefined) {
+    // ★ 不说「至少要给出 bio 或 avatar」—— 把 JSON 字段名念给用户听是另一类毛病。
+    fail('至少要修改一项(个人简介 / 头像)');
+  }
+
+  return {
+    ...(bio !== undefined ? { bio: cleanBio(bio) } : {}),
+    ...(avatar !== undefined
+      ? { avatar: avatar === '' ? { kind: 'none' as const } : avatarToBytes(avatar) }
+      : {}),
+  };
+}
+
+/** 头像入参 → 可落库的指向。字节解码走 `photo.validator`(全项目唯一一份解码器)。 */
+function avatarToBytes(dataUrl: string): UserAvatarInput {
+  const { mime, bytes } = dataUrlToBytes(dataUrl);
+  return { kind: 'file', mime, bytes };
 }
 
 /**

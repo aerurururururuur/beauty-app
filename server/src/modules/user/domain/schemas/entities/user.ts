@@ -43,8 +43,30 @@ export const userSchema = z
     nickname: z.string(),
     /** 密码凭据(哈希,不含明文);由 `PasswordHasher` 产出、只由它校验。 */
     passwordHash: z.string(),
+    /**
+     * 「我的」页上那一句自我介绍。上限在 validator(`MAX_BIO`)。
+     * ★ **可选**是为了 2026-10-01 之前落盘的行照样读得出来;没写过就是没有这一格,不是空串。
+     */
+    bio: z.string().optional(),
+    /**
+     * 头像图片的 mime(`image/jpeg` 等)。**有这一格 ⟺ 有头像** —— 字节在
+     * `<dataDir>/users/avatars/<id>.<ext>`,这里不存 URL(对外那条由视图层拼)。
+     */
+    avatarMime: z.string().optional(),
     /** 建档时间(ISO 8601)。 */
     createdAt: z.string(),
+  })
+  .strict();
+
+/**
+ * 改资料入参:只改传来的字段(与 `personaUpdateSchema` 同款的部分更新)。
+ * ★ 两格都是**字符串** —— 头像是 dataURL 或空串(本模块不接 multipart),不是文件。
+ * ★ 三态:不给 = 不动;`''` = **清空**;有字 = 改。
+ */
+export const userProfileSchema = z
+  .object({
+    bio: z.string().optional(),
+    avatar: z.string().optional(),
   })
   .strict();
 
@@ -53,6 +75,8 @@ export const userTableSchema = z.record(z.string(), userSchema);
 
 /** 通过形状校验的账号凭据(仍需清洗,见 validator)。 */
 export type CredentialsRaw = z.output<typeof credentialsSchema>;
+/** 通过形状校验的改资料入参(仍需清洗,见 validator)。 */
+export type UserProfileRaw = z.output<typeof userProfileSchema>;
 /** 通过校验后的用户 id(字符串)。 */
 export type UserIdScalar = z.output<typeof userIdSchema>;
 /** 一条账号记录(落盘行)。★ 领域实体 `User` 就是它,见 `domain/entities/user.ts`。 */

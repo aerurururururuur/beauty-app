@@ -5,10 +5,16 @@
  * ★ 这里只有形状;长度上下限与 id 格式在 `domain/validators/user.validator.ts`(§4.2)。
  * ★ `UserView` 不含 `passwordHash`，落地在 `application/user-view.ts` 的投影里。
  */
-export { credentialsSchema, userIdSchema, userSchema, userTableSchema } from './entities/user.js';
-export type { CredentialsRaw, UserIdScalar, UserRow } from './entities/user.js';
+export {
+  credentialsSchema,
+  userIdSchema,
+  userProfileSchema,
+  userSchema,
+  userTableSchema,
+} from './entities/user.js';
+export type { CredentialsRaw, UserIdScalar, UserProfileRaw, UserRow } from './entities/user.js';
 
-export { userViewSchema } from './api/user-view.js';
+export { userAvatarSourceSchema, userViewSchema } from './api/user-view.js';
 export type { UserView } from './api/user-view.js';
 
 // ---- 人设库(2026-09-30 落地:此前整块住在前端 localStorage 里)----

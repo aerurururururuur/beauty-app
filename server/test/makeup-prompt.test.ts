@@ -19,6 +19,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  ADDED_ZONE_ROLES,
   BrowSpec,
   FINISHES,
   IDENTITY_ANCHOR,
@@ -26,6 +27,7 @@ import {
   LookSpecBase,
   TEMPLATE_VERSION,
   TONE_KEYS,
+  ZONE_ROLES,
   ZoneSpec,
   buildPrompt,
   renderLookClauses,
@@ -42,6 +44,28 @@ const SPEC = new LookSpec({
     cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
     eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+  },
+});
+
+/**
+ * ✏️ 2026-10-01:**九个区全填上**的那一份底稿。
+ * ★ 新区用**内联字面量**逐格写出来(不写循环):六格各有各的名字,而 `.strict()` 的
+ *   妆面单里多一格少一格都编译不过——循环写会把这个保护绕掉。
+ */
+const FULL_SPEC = new LookSpec({
+  occasion: 'interview',
+  base: SPEC.base,
+  zones: {
+    lip: SPEC.zones.lip,
+    cheek: SPEC.zones.cheek,
+    eyeshadow: SPEC.zones.eyeshadow,
+    brow: SPEC.zones.brow,
+    concealer: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
+    contour: new ZoneSpec({ tone: 'brick', finish: 'satin', intensity: 2 }),
+    highlight: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    aegyoSal: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
+    liner: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
+    lash: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
   },
 });
 
@@ -97,8 +121,10 @@ const STAGING_WORDS = [
   '刘海',
   '盘发',
   '美瞳',
-  '睫毛',
-  '眼线',
+  // ⚠️ ✏️ 2026-10-01 **从这里删掉了「睫毛」「眼线」两条**。它们进这张表是因为
+  //   §4.1「模板里没有这些槽位」;现在每一步都要出图,这两个部位就得有槽位。
+  //   这是**明知故犯**:这两句措辞没有实测支撑,风险与 run 3 的「放大感美瞳」同类,
+  //   记在 `modules/makeup/README.md` 的重测待办里。
 ];
 
 /** 把一句话里的每个禁词都找出来(便于失败时一次看清全貌)。 */
@@ -199,6 +225,73 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
   });
 });
 
+/** 九个区在措辞里的名字。★ 测试**故意抄一份**:这条断言要钉的就是"那句话长什么样"。 */
+const ZONE_NAME = {
+  lip: '唇部',
+  cheek: '腮红',
+  eyeshadow: '眼影',
+  concealer: '遮瑕',
+  contour: '修容',
+  highlight: '提亮',
+  aegyoSal: '卧蚕',
+  liner: '眼线',
+  lash: '睫毛',
+} as const;
+
+const MEASURED_NAMES = ['唇部', '腮红', '眼影'];
+
+/**
+ * 某个区那条措辞在第几行。
+ * ⚠️ **认行首不认包含**:底妆那句里就有「遮瑕」二字(「中等遮瑕的…」),
+ *   拿 `includes` 找 `concealer` 会认到那一行上去。
+ */
+function zoneLine(lines: readonly string[], name: string): number {
+  return lines.findIndex((l) => l.startsWith(`${name}用`));
+}
+
+describe('✏️ 2026-10-01 新增的六个区', () => {
+  it('每一个新区都真的被写出来了(不是把内容删空换来的"无禁词")', () => {
+    const lines = renderLookClauses(FULL_SPEC);
+    // 底妆 + 九个区 + 眉部 = 11 行:一个区都没漏。
+    expect(lines).toHaveLength(ZONE_ROLES.length + 2);
+    for (const role of ADDED_ZONE_ROLES) {
+      expect(zoneLine(lines, ZONE_NAME[role]), `${role} 没有措辞`).toBeGreaterThan(-1);
+    }
+  });
+
+  it('★ 新增的六个区不含几何词 —— 那两条禁词这次放行了,别处不许再漏进来', () => {
+    const body = renderLookClauses(FULL_SPEC).join('\n');
+    expect(hits(body, GEOMETRY_WORDS)).toEqual([]);
+    expect(hits(body, STAGING_WORDS)).toEqual([]);
+  });
+
+  it('★ 新区追加在实测那三句之后 —— 插进中间等于对那份实测做第二次未验证的改动', () => {
+    const lines = renderLookClauses(FULL_SPEC);
+    for (const measured of MEASURED_NAMES) {
+      for (const added of ADDED_ZONE_ROLES) {
+        expect(zoneLine(lines, measured)).toBeLessThan(zoneLine(lines, ZONE_NAME[added]));
+      }
+    }
+  });
+});
+
+describe('renderLookClauses(spec, applied) —— 逐步累积出图', () => {
+  it('只渲染 `applied` 里那几个区,底妆与眉部照旧每一张都带', () => {
+    const lines = renderLookClauses(FULL_SPEC, ['lip']);
+    expect(lines).toHaveLength(3); // 底妆 + 唇部 + 眉部
+    expect(lines[0]).toContain('底妆');
+    expect(zoneLine(lines, ZONE_NAME.lip)).toBe(1);
+  });
+
+  it('`applied` 是空数组 ⇒ 只剩底妆与眉部(**不是**"等于没给")', () => {
+    expect(renderLookClauses(FULL_SPEC, [])).toHaveLength(2);
+  });
+
+  it('★ 给全套 ⇒ 与不给时逐字相同(最后一张累积图 = 今天那张成片)', () => {
+    expect(renderLookClauses(FULL_SPEC, ZONE_ROLES)).toEqual(renderLookClauses(FULL_SPEC));
+  });
+});
+
 describe('buildPrompt', () => {
   it('★ 锚句之外的部分不含构图 / 服装 / 头发词', () => {
     const { prompt } = buildPrompt(SPEC, { skinTone: 'olive' });
@@ -220,6 +313,13 @@ describe('buildPrompt', () => {
   it('带身份锚句,且锚句在最前面', () => {
     const { prompt } = buildPrompt(SPEC);
     expect(prompt.startsWith(IDENTITY_ANCHOR)).toBe(true);
+  });
+
+  it('★ 分步那张补「未列出的部位保持素颜」;全套那张**一个字都不加**', () => {
+    expect(buildPrompt(FULL_SPEC, { appliedZones: ['lip'] }).prompt).toContain('保持素颜');
+    // ⚠️ 全套那张加了这句 = 改掉今天那张成片的措辞,而它没有实测支撑。
+    expect(buildPrompt(FULL_SPEC, { appliedZones: ZONE_ROLES }).prompt).not.toContain('保持素颜');
+    expect(buildPrompt(FULL_SPEC).prompt).not.toContain('保持素颜');
   });
 
   it('★ 肤色知道才写肤色锚句 —— 「不知道」和「知道但不提」是两回事', () => {
@@ -248,7 +348,7 @@ describe('buildPrompt', () => {
   });
 
   it('模板版本是个非空常量 —— 措辞一改它就得 +1,否则历史夹具变成假证据', () => {
-    expect(TEMPLATE_VERSION).toBe('v1');
+    expect(TEMPLATE_VERSION).toBe('v2');
   });
 
   it('场合只作为一句语境,不带 SCENE_RULES 的 direction / tags(那里有「利落」「立体」这类词)', () => {

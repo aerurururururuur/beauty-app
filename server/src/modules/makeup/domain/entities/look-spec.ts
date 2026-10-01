@@ -83,9 +83,51 @@ export type Finish = (typeof FINISHES)[number];
 export const BROW_SHAPES = ['natural', 'soft_arch', 'straight'] as const;
 export type BrowShape = (typeof BROW_SHAPES)[number];
 
-/** 三个「色 + 质地 + 浓度」区。**这三个维度是实测里安全的那一类。** */
-export const ZONE_ROLES = ['lip', 'cheek', 'eyeshadow'] as const;
+/**
+ * ★ 提示词里**已经实测过**的那三个区(§4.4.3 run 4)。
+ *   `prompt-builder` 最先渲染这一组,而且是**原样照抄**——
+ *   重排或改写这三句等于对那份实测做第二次未验证的改动。
+ */
+export const MEASURED_ZONE_ROLES = ['lip', 'cheek', 'eyeshadow'] as const;
+
+/**
+ * ✏️ 2026-10-01 新增的六个区。提示词里**追加在实测那几句之后**,不插进中间。
+ *
+ * ⚠️ **这六个区的产物质量没有实测支撑**——`test/makeup-prompt.test.ts` 的禁词表里
+ *   原来**刻意删掉了**「睫毛」「眼线」两条(它们来自 §4.1「模板里没有这些槽位」)。
+ *   这一次是**明知故犯**:要图就得有槽位。代价记在 `modules/makeup/README.md` 的重测待办里。
+ */
+export const ADDED_ZONE_ROLES = [
+  'concealer',
+  'contour',
+  'highlight',
+  'aegyoSal',
+  'liner',
+  'lash',
+] as const;
+export type AddedZoneRole = (typeof ADDED_ZONE_ROLES)[number];
+
+/**
+ * 「色 + 质地 + 浓度」区。**这三个维度是实测里安全的那一类。**
+ *
+ * ✏️ 2026-10-01:原来只有 `lip` / `cheek` / `eyeshadow` 三个。配方里有 125 个上妆步,
+ *   只认 3 个区就有一大半的步骤配不出图,所以扩到 9 个(遮瑕 / 修容 / 提亮 / 卧蚕 / 眼线 / 睫毛)。
+ *   ⚠️ **新增的那 6 个在 schema 里是可选**的:一份 4 步的配方不该被迫编出眼线睫毛的参数
+ *   ——那些字段会进 `describeLook`,于是方案说 4 步、妆面描述却讲起眼线。
+ *
+ * ★ 它由上面两组**拼出来**,不是另抄一份字面量:加一个区就必须落进某一组,
+ *   而分组带着"在提示词里排第几"这条信息(见 `MEASURED_ZONE_ROLES`)。
+ */
+export const ZONE_ROLES = [...MEASURED_ZONE_ROLES, ...ADDED_ZONE_ROLES] as const;
 export type ZoneRole = (typeof ZONE_ROLES)[number];
+
+/**
+ * 风格参考图读数的闭集。★ 与 `ZONE_ROLES` **刻意分成两份,不许合并**:
+ *   前者是"妆面单能表达的全部区",后者是"读图读得出、也读得准的那三个"。
+ *   合成一份的话,给妆面单加一个区就会连带扩到读数那边(`STYLE_PROMPT` 与
+ *   `StyleRead` 的形状都要跟着改),而那是另一件事、另一次实测。
+ */
+export const STYLE_READ_ZONES = ['lip', 'cheek', 'eyeshadow'] as const;
 
 // ── ★ 下面四个类:字段不在这里声明,名义化也不靠 `declare` ──────────────────
 //
@@ -156,12 +198,26 @@ export interface LookSpec extends LookSpecShape {
   /** 场合,**自由文本**——预设表之外也能说(如「朋友的婚礼」)。校验只管长度。 */
   readonly occasion: string;
   readonly base: LookSpecBase;
-  /** 三个区 + 眉。分组用内联形状即可:成员全是名义类型,不必再加一层。 */
+  /** 区 + 眉。分组用内联形状即可:成员全是名义类型,不必再加一层。 */
   readonly zones: {
+    // ── 实测过的三个:任何配方都可能有,一律必填 ──
     readonly lip: ZoneSpec;
     readonly cheek: ZoneSpec;
     readonly eyeshadow: ZoneSpec;
-    /** ⚠️ 几何字段(见 {@link BROW_SHAPES})。 */
+    /**
+     * ⚠️ 几何字段(见 {@link BROW_SHAPES})。
+     * ★ 它**不是** `ZoneSpec`(没有 `tone`),所以不在 `ZONE_ROLES` 里 ——
+     *   两处收窄(按肤色查色域)都只跑 `ZONE_ROLES`,眉部没有色相可查。
+     */
     readonly brow: BrowSpec;
+    // ── ✏️ 2026-10-01 新增的六个:**可选**,只有本套配方的步骤里真有它时才填 ──
+    //    ⚠️ 必填的话,一份 4 步的配方会被迫编出眼线睫毛的参数,而那些字段会进
+    //    `describeLook` —— 方案说 4 步、妆面描述却讲起眼线(见 `ZONE_ROLES` 那段)。
+    readonly concealer?: ZoneSpec;
+    readonly contour?: ZoneSpec;
+    readonly highlight?: ZoneSpec;
+    readonly aegyoSal?: ZoneSpec;
+    readonly liner?: ZoneSpec;
+    readonly lash?: ZoneSpec;
   };
 }

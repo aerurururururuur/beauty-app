@@ -89,6 +89,15 @@ const zonesSchema = z
     eyeshadow: zoneSchema,
     /** ⚠️ 几何字段(见 {@link browRowSchema})。 */
     brow: browSchema,
+    // ★ ✏️ 2026-10-01 新增的六个区,**可选**(见 `entities/look-spec.ts` 的 `ADDED_ZONE_ROLES`)。
+    //   「该不该有它」不是形状问题——那要对着**本套配方的步骤**判,所以判在 validator 里。
+    //   ⚠️ 六格全是 `zoneSchema`,与上面三个**同一个形状对象**:改一处两边一起改。
+    concealer: zoneSchema.optional(),
+    contour: zoneSchema.optional(),
+    highlight: zoneSchema.optional(),
+    aegyoSal: zoneSchema.optional(),
+    liner: zoneSchema.optional(),
+    lash: zoneSchema.optional(),
   })
   .strict();
 

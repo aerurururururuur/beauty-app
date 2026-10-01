@@ -1,6 +1,7 @@
 /**
  * modules/user —— 用户模块(public barrel)。
  * 账号 = 昵称 + 密码(只存哈希,不存明文):注册 / 登录核对 / 按 id 查档案。
+ * ✏️ 2026-10-01:「编辑资料」落地 —— 账号多了可改的简介与头像(`PATCH /users/:id`)。
  * ✏️ 2026-09-30:它**还拿着人设库**(`/personas` 那一族)—— 一份人设是挂在账号下的一张脸,
  * 归属校验直接问本模块的账号仓库,所以落在同一个模块里(见 `modules/user/README.md`)。
  * 本轮仍不做登录态(不签发 token);跨模块协作只经由这里。
@@ -8,7 +9,13 @@
 
 // ---- 领域实体(纯数据 + 工厂)----
 export type { User } from './domain/entities/user.js';
-export { createUser } from './domain/entities/user.js';
+export type { UserAvatarChange } from './domain/entities/user.js';
+export {
+  createUser,
+  updateUserProfile,
+  userAvatarMissing,
+  userNotFound,
+} from './domain/entities/user.js';
 export type { Persona } from './domain/entities/persona.js';
 export { createPersona, personaNotFound, updatePersona } from './domain/entities/persona.js';
 export type { SkinTone } from './domain/entities/skin-tone.js';
@@ -35,23 +42,30 @@ export type { CredentialsRaw, UserIdScalar } from './domain/schemas/index.js';
  * 读出口的解析依据是它(§7.2),而「盘上写下去的键集合与这份 schema 一格不差」
  * 只有拿到 schema 才验得了(`test/user.test.ts` 的往返那条)。**它是形状,不是规则。**
  */
-export { userSchema, userTableSchema } from './domain/schemas/index.js';
-export type { UserRow } from './domain/schemas/index.js';
+export { userAvatarSourceSchema, userProfileSchema, userSchema, userTableSchema } from './domain/schemas/index.js';
+export type { UserProfileRaw, UserRow } from './domain/schemas/index.js';
 
 // ---- validators(校验行为,语义错误码)----
 // ★ 五个长度常量跟着规则搬到了 validator(§4.2)。**仍从这里转出**:不让既有调用方改
 //   import 路径(同样的转发在 `shared` 的 `MAX_SCENE_TEXT` 上也有)。新代码请直接从
 //   `domain/validators/user.validator.js` 引——barrel 上这条转发只是兼容。
 export {
+  MAX_BIO,
+  MAX_BIO_RAW,
   MAX_NICKNAME,
   MAX_NICKNAME_RAW,
   MAX_PASSWORD,
   MIN_NICKNAME,
   MIN_PASSWORD,
   validateCredentials,
+  validateProfileInput,
   validateUserId,
 } from './domain/validators/user.validator.js';
-export type { Credentials } from './domain/validators/user.validator.js';
+export type {
+  Credentials,
+  UserAvatarInput,
+  UserProfileInput,
+} from './domain/validators/user.validator.js';
 
 // ---- 对外 API 契约 / DTO ----
 export type { UserView } from './domain/schemas/index.js';
@@ -114,12 +128,9 @@ export {
   MAX_NAME,
   MAX_NAME_RAW,
   MAX_NOTES,
-  MAX_PHOTO_BYTES,
-  MAX_PHOTO_DATAURL,
   MAX_RELATION,
   MAX_SKIN_TONE,
   PERSONA_RELATIONS,
-  dataUrlToBytes,
   parsePersonaTable,
   parseSeedTable,
   validateAnalyzeInput,
@@ -131,11 +142,15 @@ export {
 export type {
   AnalyzePersonaInput,
   CreatePersonaInput,
-  DecodedPhoto,
   PersonaOwnerQuery,
   PersonaPhotoInput,
   UpdatePersonaInput,
 } from './domain/validators/persona.validator.js';
+
+// ★ 图片 dataURL 的体积/类型上限与解码器:人设照片与账号头像共用(✏️ 2026-10-01 从 persona.validator 搬出);
+//   组装根接读脸端口那处也拿 `dataUrlToBytes`(见 `src/index.ts`)—— 那是跨模块的取用点,别在 barrel 里断掉。
+export { MAX_PHOTO_BYTES, MAX_PHOTO_DATAURL, PHOTO_MIME, dataUrlToBytes } from './domain/validators/photo.validator.js';
+export type { DecodedPhoto } from './domain/validators/photo.validator.js';
 
 // ★ 自建肤色档的三个常量与解析器:测试要拿它们对表(同 `personaRowSchema` 那条的理由)。
 export {
@@ -162,11 +177,13 @@ export type { PersonaPhotoStore } from './domain/ports/persona-photo-store.js';
 export type { PersonaRepository } from './domain/ports/persona-repository.js';
 export type { CustomFeatureRepository } from './domain/ports/custom-feature-repository.js';
 export type { SkinToneRepository } from './domain/ports/skin-tone-repository.js';
+export type { UserAvatarStore } from './domain/ports/user-avatar-store.js';
 // 默认实现的导出只为组合根与测试(同 `JsonUserRepository`);业务代码请依赖上面的端口类型。
 export { JsonCustomFeatureRepository } from './infrastructure/json/custom-feature-repository.js';
 export { JsonPersonaRepository } from './infrastructure/json/persona-repository.js';
 export { JsonSkinToneRepository } from './infrastructure/json/skin-tone-repository.js';
-export { FilePersonaPhotoStore } from './infrastructure/file-system/persona-photo-store.js';
+// ✏️ 2026-10-01:原 `FilePersonaPhotoStore` 泛化成它 —— 人设照片与账号头像各 new 一次。
+export { FilePhotoStore } from './infrastructure/file-system/photo-store.js';
 
 // ---- 用例 ----
 export { AnalyzePersonaFace } from './application/usecases/analyze-persona-face.js';
@@ -177,6 +194,8 @@ export { ListCustomFeatures } from './application/usecases/list-custom-features.
 export { ListPersonas } from './application/usecases/list-personas.js';
 export { ListSkinTones } from './application/usecases/list-skin-tones.js';
 export { ReadPersonaPhoto } from './application/usecases/read-persona-photo.js';
+export { ReadUserAvatar } from './application/usecases/read-user-avatar.js';
+export { UpdateProfile } from './application/usecases/update-profile.js';
 export { RemoveCustomFeature } from './application/usecases/remove-custom-feature.js';
 export { RemovePersona } from './application/usecases/remove-persona.js';
 export { RemoveSkinTone } from './application/usecases/remove-skin-tone.js';

@@ -178,15 +178,19 @@ export function setFaceRef(session: Session, faceRef: ImageRef): Session {
 /**
  * 记一张出好的图。`seq` 由本函数算(数组长度 + 1),**不由调用方传**——
  * 调用方算就会算错(它拿到的是旧会话),而错号的后果是两张图互相覆盖。
+ *
+ * ✏️ 2026-10-01:多了 `stepIds`(这一张代表哪几步)。★ **由服务端给,前端不许自己算**
+ * ——「哪个步骤名算哪个区」那张表只有 `application/step-zones.ts` 有一份。
  */
 export function addRender(
   session: Session,
-  input: { ref: ImageRef; lookDescription: string },
+  input: { ref: ImageRef; lookDescription: string; stepIds: readonly string[] },
 ): { session: Session; record: RenderRecord } {
   const record = new RenderRecord({
     seq: session.renders.length + 1,
     ref: input.ref,
     lookDescription: input.lookDescription,
+    stepIds: [...input.stepIds],
     createdAt: nowIso(),
   });
   return {

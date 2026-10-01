@@ -17,7 +17,16 @@
  * 「**为什么**是这套」(场合/肤质/肤色/天气的推理)是另一件事,由模型在对话里讲。
  */
 import { presetOccasionCn } from '../../shared/index.js';
-import type { BrowShape, Finish, Intensity, LookSpec, ToneKey, ZoneSpec } from '../domain/entities/look-spec.js';
+import { STYLE_READ_ZONES, ZONE_ROLES } from '../domain/entities/look-spec.js';
+import type {
+  BrowShape,
+  Finish,
+  Intensity,
+  LookSpec,
+  ToneKey,
+  ZoneRole,
+  ZoneSpec,
+} from '../domain/entities/look-spec.js';
 import type { StyleRead } from '../domain/entities/style-read.js';
 
 const FINISH_CN: Record<Finish, string> = {
@@ -44,6 +53,25 @@ const BROW_CN: Record<BrowShape, string> = {
   natural: '自然眉',
   soft_arch: '柔和微挑',
   straight: '平直眉',
+};
+
+/**
+ * 区名的**人话**说法。
+ *
+ * ★ 与 `prompt-builder` 的 `ZONE_TOKEN` **刻意不合并**:那边是给模型看的词组
+ *   (「唇部」「提亮」,越短越好),这边是给人看的一句话——两者语域不同,合并只能取其一。
+ *   保证"不漏"的机制同其它几张表:`Record<ZoneRole, …>`,**加一个区两边都编译不过**。
+ */
+const ZONE_CN: Record<ZoneRole, string> = {
+  lip: '唇',
+  cheek: '颊',
+  eyeshadow: '眼影',
+  concealer: '遮瑕',
+  contour: '修容',
+  highlight: '提亮',
+  aegyoSal: '卧蚕',
+  liner: '眼线',
+  lash: '睫毛',
 };
 
 /** 1..5 → 中文浓度。`Record<Intensity, …>` 保证五档都有,漏一档编译不过。 */
@@ -86,22 +114,29 @@ function zoneCn(label: string, zone: ZoneSpec): string {
  */
 export function describeStyleRead(read: StyleRead): string {
   const base = `底妆是${INTENSITY_CN[read.base.coverage]}遮瑕的${FINISH_CN[read.base.finish]},${warmthCn(read.base.warmth)}`;
-  return [
-    base,
-    zoneCn('唇', read.zones.lip),
-    zoneCn('颊', read.zones.cheek),
-    zoneCn('眼影', read.zones.eyeshadow),
-  ].join(';');
+  // ★ 逐个区名从 `STYLE_READ_ZONES` 来,不手抄三遍 —— 读数的闭集要是哪天变了,
+  //   这里跟着变,而不会剩下两个永远不会被讲到的格子(它们是必填的,漏了 TS 会红)。
+  const parts = STYLE_READ_ZONES.map((role) => zoneCn(ZONE_CN[role], read.zones[role]));
+  return [base, ...parts].join(';');
 }
 
-export function describeLook(spec: LookSpec): string {
+/**
+ * @param applied ★ **只讲这几个区**(✏️ 2026-10-01 逐步累积出图)。
+ *   缺省 = 妆面单里填了的区全讲,也就是今天的行为;给了值就只讲那几步画到的地方。
+ *   ⚠️ 与 `prompt-builder` 的 `appliedZones` **是同一个集合的两种说法**,
+ *   同一张图的两处描述必须由**同一个 `applied`** 算出来,否则图与话对不上。
+ */
+export function describeLook(spec: LookSpec, applied?: readonly ZoneRole[]): string {
   const base = `底妆是${INTENSITY_CN[spec.base.coverage]}遮瑕的${FINISH_CN[spec.base.finish]},${warmthCn(spec.base.warmth)}`;
-  const parts = [
-    zoneCn('唇', spec.zones.lip),
-    zoneCn('颊', spec.zones.cheek),
-    zoneCn('眼影', spec.zones.eyeshadow),
-    `眉是${BROW_CN[spec.zones.brow.shape]}、${INTENSITY_CN[spec.zones.brow.intensity]}浓度`,
-  ];
+  const parts = ZONE_ROLES.flatMap((role): string[] => {
+    const zone: ZoneSpec | undefined = spec.zones[role];
+    // 本套配方没这一步 / 这一步还没画到 ⇒ 不讲它。★ 这两条都**不许**退化成空串占位:
+    // 那句描述是"预览"的替代品,多讲一格用户就会以为成片上有它(见文件头)。
+    if (!zone) return [];
+    if (applied !== undefined && !applied.includes(role)) return [];
+    return [zoneCn(ZONE_CN[role], zone)];
+  });
+  parts.push(`眉是${BROW_CN[spec.zones.brow.shape]}、${INTENSITY_CN[spec.zones.brow.intensity]}浓度`);
   // ★ 场合是**自由文本**:预设 id(`interview`)翻成中文名,用户自己的说法
   //   (如「朋友的婚礼」)原样念 —— 不要用 `sceneRuleFor` 的 `label`,那会把原话收进一档。
   return `按「${presetOccasionCn(spec.occasion) ?? spec.occasion}」场合配的这套:${base};${parts.join(';')}。`;

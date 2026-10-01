@@ -32,9 +32,23 @@
  *   这也是它可以放心当缺省的原因——**它没有多花一分钱的能力**。
  */
 import type { Occasion, SkinTone } from '../../../shared/index.js';
-import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../../../makeup/index.js';
-import type { SkinTonePalette, ToneKey } from '../../../makeup/index.js';
-import { STYLE_LIBRARY } from '../../../styling/index.js';
+import {
+  ADDED_ZONE_ROLES,
+  BrowSpec,
+  LookSpec,
+  LookSpecBase,
+  ZONE_ROLES,
+  ZoneSpec,
+} from '../../../makeup/index.js';
+import type {
+  AddedZoneRole,
+  Finish,
+  SkinTonePalette,
+  ToneKey,
+  ZoneRole,
+} from '../../../makeup/index.js';
+import { STYLE_LIBRARY, derivePlan } from '../../../styling/index.js';
+import { requiredZonesOf } from '../../application/step-zones.js';
 // ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
 import { MAX_SCENE_TEXT, SKIN_TONES } from '../../../shared/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
@@ -141,13 +155,44 @@ function styleFor(styleText: string | undefined): string {
 
 /**
  * 从这一档可用的色里挑一个:首选色能用就用它,不能用就取该档的第 `offset` 个。
- * ★ `offset` 只是让三个区**不至于都撞成同一个色**——挑色的标准是**合法**,不是好看。
+ * ★ `offset` 只是让各个区**不至于都撞成同一个色**——挑色的标准是**合法**,不是好看。
  * ⚠️ `allowed === undefined` 表达的是**还不知道肤色**(不是"没有色可用"),
  *   那时原样返回首选色:校验器在肤色未知时本来就不收窄(`validateLookSpec` ③)。
  */
 function toneFor(preferred: ToneKey, allowed: readonly ToneKey[] | undefined, offset: number): ToneKey {
   if (allowed === undefined || allowed.includes(preferred)) return preferred;
   return allowed[offset % allowed.length] ?? preferred;
+}
+
+/**
+ * 每个区的首选色 / 质地 / 浓度。
+ *
+ * ★ **`Record<ZoneRole, …>` 是刻意的**:加一个区就编译不过,而不是那个区在演示里
+ *   静默没有参数(本仓最恨的形状)。
+ * ★ 前三个区的取值**照旧**(lip matte 3 / cheek satin 2 / eyeshadow satin 2)——
+ *   它们与 `test/agent-render.test.ts` 那份 `SAMPLE_LOOK` 同源。新区一律 satin 2,
+ *   眼线 / 睫毛那两个线状的区跟唇一样给 matte 3。挑值的标准是**合法**,不是好看。
+ */
+const ZONE_LOOKS: Record<ZoneRole, { preferred: ToneKey; finish: Finish; intensity: number }> = {
+  lip: { preferred: 'rose', finish: 'matte', intensity: 3 },
+  cheek: { preferred: 'coral', finish: 'satin', intensity: 2 },
+  eyeshadow: { preferred: 'nude', finish: 'satin', intensity: 2 },
+  concealer: { preferred: 'peach', finish: 'satin', intensity: 2 },
+  contour: { preferred: 'brick', finish: 'satin', intensity: 2 },
+  highlight: { preferred: 'nude', finish: 'satin', intensity: 2 },
+  aegyoSal: { preferred: 'peach', finish: 'satin', intensity: 2 },
+  liner: { preferred: 'plum', finish: 'matte', intensity: 3 },
+  lash: { preferred: 'plum', finish: 'matte', intensity: 3 },
+};
+
+/** 一个区的参数。`offset` 取它在 `ZONE_ROLES` 里的下标(见 `toneFor`)。 */
+function zoneOf(role: ZoneRole, allowed: readonly ToneKey[] | undefined): ZoneSpec {
+  const look = ZONE_LOOKS[role];
+  return new ZoneSpec({
+    tone: toneFor(look.preferred, allowed, ZONE_ROLES.indexOf(role)),
+    finish: look.finish,
+    intensity: look.intensity,
+  });
 }
 
 // ── 它要说的话 ───────────────────────────────────────────────────────────────
@@ -202,7 +247,7 @@ export class DemoLlm implements Llm {
    * 会**按肤色收窄色域**(§6 规矩 4)。写死一套色的脚本对 `warm_tan` / `wheat` /
    * `deep_brown` 三档是**整套被拒**的(`rose` / `nude` 不在那三档的色域里),
    * 缺省配置(`AGENT_LLM=mock`)下那就成了"配好了却出不了方案"——假开关的那张脸。
-   * 所以三个区的色要从这一档可用的色里挑。
+   * 所以**每一个区的色**都要从这一档可用的色里挑(`ZONE_LOOKS` + `toneFor`)。
    * ⚠️ **必填、不给缺省**:缺省就退回到"写死一套色",而那正是这里要防的。
    */
   constructor(private readonly palette: SkinTonePalette) {}
@@ -222,7 +267,11 @@ export class DemoLlm implements Llm {
     //      后者会在同一轮的重跑里反复命中,一路空转到 `max_iterations`。
     const switched = styleInOptions(state.lastUserText, styleOptionsOf(request.system));
     if (switched !== undefined && switched !== state.lastStyleId) {
-      const look = this.demoLook(occasionFor(brief, state.lastUserText), skinToneFrom(brief));
+      const look = this.demoLook(
+        occasionFor(brief, state.lastUserText),
+        skinToneFrom(brief),
+        switched,
+      );
       return mockTextAndToolCalls(SWITCH_TEXT, [
         this.call(TOOL_NAMES.proposeLook, { ...look, styleId: switched }),
       ]);
@@ -247,11 +296,15 @@ export class DemoLlm implements Llm {
       if (state.firstUserText && !brief.has('用户原话')) {
         calls.push(this.call(TOOL_NAMES.patchBrief, { sceneText: state.firstUserText }));
       }
-      const look = this.demoLook(occasionFor(brief, state.firstUserText), skinToneFrom(brief));
-      calls.push(
-        // ★ 风格认用户填的那一格(「想要的风格」),认不出就用表里第一条。
-        this.call(TOOL_NAMES.proposeLook, { ...look, styleId: styleFor(brief.get('想要的风格')) }),
+      // ★ 风格认用户填的那一格(「想要的风格」),认不出就用表里第一条。
+      //   ⚠️ **必须先定下它再凑妆面**:妆面单的区集合要按这套配方算(见 `demoLook`)。
+      const styleId = styleFor(brief.get('想要的风格'));
+      const look = this.demoLook(
+        occasionFor(brief, state.firstUserText),
+        skinToneFrom(brief),
+        styleId,
       );
+      calls.push(this.call(TOOL_NAMES.proposeLook, { ...look, styleId }));
       return mockTextAndToolCalls(INTRO_TEXT, calls);
     }
 
@@ -273,26 +326,43 @@ export class DemoLlm implements Llm {
   }
 
   /**
-   * 演示用的那套妆面。
-   * ★ 取值**照抄 `test/agent-render.test.ts` 里那份 `SAMPLE_LOOK`**——那是仓库里唯一一份
-   *   已知合法的样例。新编一个没验过的 spec,第一次 `propose_look` 就会被校验器打回,
-   *   而那时看起来像"演示脚本坏了",不像"这个 spec 是编的"。
-   *   (`test/demo-llm.test.ts` 跑通整条链路,就是这份 spec 能过校验的证据。)
+   * 演示用的那套妆面。**这次要提的那套配方**由 `styleId` 定,区集合必须与它逐区对上。
    *
-   * ★★ **三个区的色不能写死**(理由见构造参数 `palette` 那一段):先试首选色,
-   *   不在这一档的色域里就顺次取该档的第 `i` 个。肤色不知道时**照旧用首选色**
+   * ★★ **区不能写死那三个**(✏️ 2026-10-01):`validateLookSpec` 会拿
+   *   `requiredZonesOf(配方)` 与妆面单比集合,**缺一个区当场打回**。而 21 套配方里
+   *   `coolclean` 有睫毛那一步、`flowers` 连腮红那一步都没有 —— 写死一套必然被
+   *   自己的校验器打回,而那时看起来像"演示脚本坏了",不像"这个 spec 是编的"。
+   *   所以照 `requiredZonesOf` 现算;必填的那三个区照旧恒在(shape 要求)。
+   *
+   * ★ 色不能写死(理由见构造参数 `palette` 那一段):先试首选色,不在这一档的
+   *   色域里就顺次取该档的第 `i` 个。肤色不知道时**照旧用首选色**
    *   ——`validateLookSpec` 那时本来就不收窄。
+   *
+   * ⚠️ `styleId` 必须是**同一轮真的写进 `propose_look` 入参**的那一个,否则这里按
+   *   另一套配方凑的区,会被校验器当成"与所选配方对不上"打回。
    */
-  private demoLook(occasion: string, skinTone: SkinTone | undefined): LookSpec {
+  private demoLook(occasion: string, skinTone: SkinTone | undefined, styleId: string): LookSpec {
     const allowed = skinTone === undefined ? undefined : this.palette.toneKeysFor(skinTone);
+
+    const plan = derivePlan({ styleId });
+    const needed = new Set<ZoneRole>(plan ? requiredZonesOf(plan).map((z) => z.role) : []);
+
+    // ★ 只把**本套配方真需要**的可选区放进 zones(不多填一个键,也不填 `undefined`)
+    //   ——多一个区会被校验器打回,那正是这次要防的。空对象展开等于什么都没加。
+    const optional: Partial<Record<AddedZoneRole, ZoneSpec>> = {};
+    for (const role of ADDED_ZONE_ROLES) {
+      if (needed.has(role)) optional[role] = zoneOf(role, allowed);
+    }
+
     return new LookSpec({
       occasion,
       base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
       zones: {
-        lip: new ZoneSpec({ tone: toneFor('rose', allowed, 0), finish: 'matte', intensity: 3 }),
-        cheek: new ZoneSpec({ tone: toneFor('coral', allowed, 1), finish: 'satin', intensity: 2 }),
-        eyeshadow: new ZoneSpec({ tone: toneFor('nude', allowed, 2), finish: 'satin', intensity: 2 }),
+        lip: zoneOf('lip', allowed),
+        cheek: zoneOf('cheek', allowed),
+        eyeshadow: zoneOf('eyeshadow', allowed),
         brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+        ...optional,
       },
     });
   }

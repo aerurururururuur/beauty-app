@@ -2,11 +2,14 @@
  * modules/user/compose.ts —— 组合根:把持久化与用例装起来,由 src/index.ts 注入 web shell。
  * ✏️ 2026-09-30:人设库落地到本模块,于是多了人设仓库 + 照片字节库 + 六个用例 + 一个**可缺省**的读脸端口;
  * 同日稍后加了**两张账号共用的小库**(自建肤色档 / 自建特征),各一套仓库 + 三个用例。
+ * ✏️ 2026-10-01:「编辑资料」落地 —— 账号多了头像字节库(与人设照片共用 `FilePhotoStore`)与两个用例。
  */
 import path from 'node:path';
 import { RegisterUser } from './application/usecases/register-user.js';
 import { AuthenticateUser } from './application/usecases/authenticate-user.js';
 import { GetUser } from './application/usecases/get-user.js';
+import { UpdateProfile } from './application/usecases/update-profile.js';
+import { ReadUserAvatar } from './application/usecases/read-user-avatar.js';
 import { ListPersonas } from './application/usecases/list-personas.js';
 import { CreatePersona } from './application/usecases/create-persona.js';
 import { UpdatePersona } from './application/usecases/update-persona.js';
@@ -23,12 +26,13 @@ import { JsonUserRepository } from './infrastructure/json/user-repository.js';
 import { JsonPersonaRepository } from './infrastructure/json/persona-repository.js';
 import { JsonSkinToneRepository } from './infrastructure/json/skin-tone-repository.js';
 import { JsonCustomFeatureRepository } from './infrastructure/json/custom-feature-repository.js';
-import { FilePersonaPhotoStore } from './infrastructure/file-system/persona-photo-store.js';
+import { FilePhotoStore } from './infrastructure/file-system/photo-store.js';
 import { ScryptPasswordHasher } from './infrastructure/crypto/scrypt-password-hasher.js';
 import type { PasswordHasher } from './domain/ports/password-hasher.js';
 import type { UserRepository } from './domain/ports/user-repository.js';
 import type { PersonaRepository } from './domain/ports/persona-repository.js';
 import type { PersonaPhotoStore } from './domain/ports/persona-photo-store.js';
+import type { UserAvatarStore } from './domain/ports/user-avatar-store.js';
 import type { SkinToneRepository } from './domain/ports/skin-tone-repository.js';
 import type { CustomFeatureRepository } from './domain/ports/custom-feature-repository.js';
 import type { FaceReader } from './domain/ports/face-reader.js';
@@ -47,9 +51,13 @@ export interface UserModuleOptions {
 export interface UserModuleServices {
   users: UserRepository;
   hasher: PasswordHasher;
+  /** ★ 头像字节(落 `dataDir/users/avatars/`),与人设照片同名不同目录。 */
+  avatars: UserAvatarStore;
   registerUser: RegisterUser;
   authenticateUser: AuthenticateUser;
   getUser: GetUser;
+  updateProfile: UpdateProfile;
+  readUserAvatar: ReadUserAvatar;
 
   // ---- 人设库(落 `dataDir/personas/`:personas.json + seeded.json + tones.json + features.json + photos/)----
   personas: PersonaRepository;
@@ -74,18 +82,23 @@ export interface UserModuleServices {
 }
 
 export function createUserModule(options: UserModuleOptions): UserModuleServices {
-  const users: UserRepository = new JsonUserRepository(path.join(options.dataDir, 'users'));
+  const userDir = path.join(options.dataDir, 'users');
+  const users: UserRepository = new JsonUserRepository(userDir);
   const hasher: PasswordHasher = new ScryptPasswordHasher();
+  const avatars: UserAvatarStore = new FilePhotoStore(path.join(userDir, 'avatars'), '账号头像');
 
   const registerUser = new RegisterUser({ users, hasher });
   const authenticateUser = new AuthenticateUser({ users, hasher });
   const getUser = new GetUser(users);
+  const updateProfile = new UpdateProfile({ users, avatars });
+  const readUserAvatar = new ReadUserAvatar({ users, avatars });
 
   // ★ 人设住**自己的子目录** —— 照片字节绝不许落进 `assets` 的 inputs/results,那两处会被 TTL 清理真删。
   const personaDir = path.join(options.dataDir, 'personas');
   const personas: PersonaRepository = new JsonPersonaRepository(personaDir);
-  const personaPhotos: PersonaPhotoStore = new FilePersonaPhotoStore(
+  const personaPhotos: PersonaPhotoStore = new FilePhotoStore(
     path.join(personaDir, 'photos'),
+    '人设照片',
   );
 
   const listPersonas = new ListPersonas({ personas, users });
@@ -115,9 +128,12 @@ export function createUserModule(options: UserModuleOptions): UserModuleServices
   return {
     users,
     hasher,
+    avatars,
     registerUser,
     authenticateUser,
     getUser,
+    updateProfile,
+    readUserAvatar,
     personas,
     personaPhotos,
     skinTones,

@@ -7,17 +7,18 @@ import { skinToneById } from './kb/skintones'
  * api/personas.js —— 人设库的数据层(2026-09-30 起在服务端,不再是 localStorage)。
  * ★ 照片也存服务端、**没有 TTL**;离开浏览器只有两条路:建档/换照片随 JSON,`/form` 出图时作 multipart `face`。
  * ★ 每个函数都要 `userId`:后端不签发 token,归属不匹配一律 404。
- * ★ 缩图理由从「localStorage 配额」换成「一次 JSON 请求体积」(服务端 1 MiB 字节 / 2 MiB dataURL);
- *   拿不到 canvas 时**原样返回原图**,那种会被 422 掉。★ **不加 mock 分支**(后端不起就打不通)。
+ * ★ 缩图那件事(及它的理由)在 `api/image.js`,本文件只转出 `shrinkPhoto`。
+ * ★ **不加 mock 分支**(后端不起就打不通)。
  */
 
 /** 「补充说明」那一格的字数上限(字)。★ 后端也有一份(`persona.validator.ts` 的 `MAX_NOTES`),改一处要改两处。 */
 export const MAX_NOTES = 200
 
-/** 人设照片送上去之前会缩到这个长边(px)。调大 = 更清晰但请求更大。 */
-const PHOTO_MAX_EDGE = 640
-/** 缩放后的 JPEG 质量。0.82 在「看得出是谁」和「够小」之间。 */
-const PHOTO_QUALITY = 0.82
+/**
+ * 缩图那条转发。✏️ 2026-10-01 实现搬去 `api/image.js`(账号头像也要用它),
+ * **仍从这里转出**:`stores/personas.js` 的 `api.shrinkPhoto` 不改调用点。新代码请直接引 `@/api/image`。
+ */
+export { shrinkPhoto } from './image'
 
 /** 旧版本地数据的两把键。**只用于删除**(2026-09-30 数据搬到服务端),不再读它们。 */
 const LEGACY_PERSONA_KEY = 'tz:personas:'
@@ -58,47 +59,6 @@ export function decoratePersona(p, userId, customTones = []) {
     // ★ 同一个理由:认不出的特征显示**原话**(自己加的那条去掉分组前缀),不许静默丢掉。
     featureNames: (p.features || []).map(featureLabel),
   }
-}
-
-/* --------------------------- 照片缩放 --------------------------- */
-
-/**
- * 把选的照片缩到长边 ≤640 的 JPEG dataURL。**本机处理。**
- * 拿不到 canvas 时**原样返回** —— 宁可被服务端挡回来,也不要静默换成空字符串。
- */
-export async function shrinkPhoto(file) {
-  const dataUrl = await readAsDataUrl(file)
-  if (typeof document === 'undefined') return dataUrl
-  try {
-    const img = await loadImage(dataUrl)
-    const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.width, img.height))
-    if (scale >= 1) return dataUrl
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(img.width * scale)
-    canvas.height = Math.round(img.height * scale)
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-    return canvas.toDataURL('image/jpeg', PHOTO_QUALITY)
-  } catch {
-    return dataUrl
-  }
-}
-
-function readAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('这张照片读不出来，换一张试试'))
-    reader.readAsDataURL(file)
-  })
-}
-
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('图片解码失败'))
-    img.src = src
-  })
 }
 
 /* --------------------------- 读 --------------------------- */

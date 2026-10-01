@@ -8,8 +8,11 @@
  *    改这个文件只影响观感,不影响任何一条真实动线。接真后端时:
  *    把每个函数换成一次 HTTP 调用即可,页面不用改。
  *
- * ★ 唯一一处**真数据**是 `getProfile()`:昵称来自登录后的 `stores/user.js`
- *   (真后端 `POST /users/login` 回的那个),由调用方传进来。其余统计数字是演示值。
+ * ✏️ 2026-10-01:本文件**不再给「我的」页提供任何账号字段**。
+ *   此前 `getProfile()` 里那三格(昵称 / 简介 / 头像)有一半是拿真人数据、一半是编的
+ *   (简介那句「混合偏干皮…」是演示值,却和真昵称并排摆在同一个人名下面)。
+ *   现在昵称 / 简介 / 头像由 `api/users.js` 走 `GET /users/:id` 取(真落盘),
+ *   这里只剩**推出来的桃妆号 + 演示统计 + AI 档案标签**。
  */
 
 /* ------------------------------ 首页 ------------------------------ */
@@ -116,18 +119,15 @@ export function getPosts({ category = 'hot', sort = 'hot' } = {}) {
 /* ------------------------------ 我的 ------------------------------ */
 
 /**
- * 个人主页档案。
- * ★ 只有 `nickname` 是**真的**(登录后的账号名,由页面从 user store 传进来);
- *   其余(桃妆号 / 简介 / 三项统计 / AI 档案标签)都是演示值。
+ * 「我的」页上那几格**不是账号数据**的东西。
+ * ★ 三项统计与 AI 档案标签都是演示值(没有真实的作品库、也没有真的测过妆);
+ *   昵称 / 简介 / 头像不在这里,它们走 `api/users.js` 的 `fetchProfile()`。
  *   `taozhuangId` 由 id 推出来,让页面上那个号码与当前账号对得上、刷新不变。
  */
-export function getProfile({ userId = '', nickname = '' } = {}) {
+export function getProfile({ userId = '' } = {}) {
   const suffix = String(userId).replace(/\W/g, '').slice(-7).toUpperCase() || '0000000'
   return {
-    nickname: nickname || '未登录',
     taozhuangId: `桃妆号 TZ-${suffix}`,
-    avatarUrl: '',
-    bio: '混合偏干皮 · 冷调一白 · 淡颜系日常妆',
     stats: { works: 126, collections: 47, liked: 312, followers: 3412 },
     aiProfile: { tags: [{ label: '冷调一白' }, { label: '椭圆脸' }, { label: '淡颜系' }] },
   }

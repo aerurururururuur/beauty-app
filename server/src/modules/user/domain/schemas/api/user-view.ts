@@ -11,10 +11,24 @@
  */
 import { z } from 'zod';
 
+/** 头像的来源。★ 前端据此决定要不要把 `avatarUrl` 补成绝对地址(见下面那一格)。 */
+export const userAvatarSourceSchema = z.enum(['none', 'stored']);
+
 export const userViewSchema = z
   .object({
     id: z.string(),
     nickname: z.string(),
+    /**
+     * 「我的」页上那一句自我介绍。★ **恒有这一格**(没有就是空串)——
+     * 它给 `<textarea>` 回填用,`undefined` 会让输入框在 Vue 里变成非受控,而那是**静默**的坏法。
+     */
+    bio: z.string(),
+    /**
+     * 给 `<img :src>` 用的地址。`avatarSource` 为 `stored` 时是
+     * **`/users/<id>/avatar`(不含 `/api`)**,由前端补前缀;`none` 时是空串。
+     */
+    avatarUrl: z.string(),
+    avatarSource: userAvatarSourceSchema,
     createdAt: z.string(),
   })
   .strict();

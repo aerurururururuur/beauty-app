@@ -132,7 +132,8 @@ kb（`vue/src/api/kb/{catalog,products,shades}.js`）2026-09-30 并进来了，�
 ## 待办
 
 - **`lookSpecSlots` 的覆盖是稀疏的**：护肤/防晒/妆前/定妆在 `LookSpec` 里没有对应槽位，
-  `zones.cheek` 只有 2 款。这是诚实的边界，不是缺陷——但推荐时该明说，不能硬凑。
+  妆面九区里 `zones.aegyoSal` 一件都没有（YSL 没出卧蚕笔）、`zones.cheek` 只有 1 款。
+  这是诚实的边界，不是缺陷——但推荐时该明说，不能硬凑。
 - **匹配逻辑在模型手里**（2026-09-16 拍板）。代码里只有排除项（不给 `health`、不替模型排序）。
   若发现模型仍在正文里编产品名，第一个该补的是 `recommend_products(ids[])` 工具，
   理由写在 `agent/domain/tools/definitions.ts` 的文件头。

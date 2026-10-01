@@ -77,6 +77,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // 错误码 → HTTP 的唯一映射(业务/框架错误统一出口)。
   app.setErrorHandler(makeErrorHandler(app.log));
 
+  // ★ 没挂上的路由也回**同一个信封**。fastify 缺省那套是 `{ message, error, statusCode }`,
+  //   前端从 `error` 那一格取到的是字符串 `"Not Found"`,于是**界面上显示的就是它**。
+  //   ⚠️ 这条不只服务拼错的 URL:`PRODUCTS_DIR` 指空时 `/products` 两条路由**根本不注册**
+  //   (见下),`/vanity` 那两屏要的第一句人话就在这里。
+  app.setNotFoundHandler((request, reply) => {
+    const path = request.url.split('?')[0];
+    void reply.code(404).send({
+      error: { code: 'HTTP_ERROR', message: `没有这个接口:${request.method} ${path}` },
+    });
+  });
+
   // 前缀只表达「部署在哪个 URL 空间」,不影响控制器里用到的业务路径。
   await app.register(
     async (scoped) => {
@@ -91,6 +102,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         registerUser: deps.user.registerUser,
         authenticateUser: deps.user.authenticateUser,
         getUser: deps.user.getUser,
+        updateProfile: deps.user.updateProfile,
+        readUserAvatar: deps.user.readUserAvatar,
       });
 
       // 人设库(2026-09-30 落地到 user 模块)。★ 不另开 `AppDeps.persona` 键 ——

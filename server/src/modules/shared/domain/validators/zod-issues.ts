@@ -18,9 +18,44 @@
  */
 import type { z } from 'zod';
 
+/** zod 的 type 名 → 中文。表里没有的原样用(宁可露出一个英文词,也不瞎猜)。 */
+const TYPE_NAMES: Record<string, string> = {
+  object: '一个对象',
+  string: '字符串',
+  number: '数字',
+  boolean: '布尔值',
+  array: '一个数组',
+  null: 'null',
+};
+
+function typeName(type: string): string {
+  return TYPE_NAMES[type] ?? type;
+}
+
+/**
+ * 一个 issue → 一句中文。
+ * ★ zod 自带的 `issue.message` 是**英文原文**,而它会一路走到界面上(前端把 message
+ *   原样打在输入框旁边),所以这里按 `code` 逐类翻。翻不出来才回落原文——
+ *   那时 `details.issues` 与日志里仍能看出是哪个码。
+ *   只翻**真会从请求进来**的那两类:形状错(类型不对)与多给字段(`.strict()`)。
+ *   长度那几类(`too_small` / `too_big`)都长在 `schemas/entities/` 上,那是读盘的形状,
+ *   出错时抛的是普通 Error(500),不是给用户看的话。
+ */
+function describeIssue(issue: z.ZodIssue): string {
+  if (issue.code === 'unrecognized_keys') {
+    return `多给了不认识的字段:${issue.keys.join(' / ')}`;
+  }
+  if (issue.code === 'invalid_type') {
+    return issue.received === 'undefined'
+      ? `缺少必填的${typeName(issue.expected)}`
+      : `要${typeName(issue.expected)},收到的是${typeName(issue.received)}`;
+  }
+  return issue.message;
+}
+
 /** 把 zod 错误转成可读中文(行为工具)。 */
 export function zodIssuesMessage(err: z.ZodError): string {
   return err.issues
-    .map((issue) => `${issue.path.join('.') || '请求'}: ${issue.message}`)
+    .map((issue) => `${issue.path.join('.') || '请求'}: ${describeIssue(issue)}`)
     .join('; ');
 }

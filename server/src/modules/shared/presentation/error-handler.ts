@@ -19,6 +19,8 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   NICKNAME_TAKEN: 409,
   // 「用户不存在」与「密码错」共用 401,不外泄账号是否存在,避免昵称枚举。
   INVALID_CREDENTIALS: 401,
+  // 账号在、头像不在:同样是"取的东西不存在"(同 PERSONA_PHOTO_NOT_FOUND)。
+  USER_AVATAR_NOT_FOUND: 404,
   // 衣橱条目的「不存在」与「不属于你」共用 404:同样不外泄"这条存在但不是你的"。
   CABINET_ITEM_NOT_FOUND: 404,
   // 单用户件数上限:JSON 单表是整表读改写,不设上限会越写越慢。
@@ -52,6 +54,23 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   INTERNAL_ERROR: 500,
 };
 
+/**
+ * 框架错误的码 → 中文。★ 这些 message **会原样出现在界面上**(前端把 message 打在输入框旁边),
+ * 而 fastify / @fastify/multipart 给的是英文原文。漏一个码就是漏一句英文,
+ * 所以下面那条 default 比这张表本身更要紧。
+ */
+const FRAMEWORK_MESSAGE_BY_CODE: Record<string, string> = {
+  // 请求体越过路由的 bodyLimit(头像那条是 4 MiB,见 users.route.ts)。
+  FST_ERR_CTP_BODY_TOO_LARGE: '提交的内容太大了,请把图片缩小一些再试',
+  // multipart 的单个文件越过 MAX_UPLOAD_MB(agent 那两条口)。
+  FST_REQ_FILE_TOO_LARGE: '照片太大了,请换一张小一点的',
+  FST_ERR_CTP_EMPTY_JSON_BODY: '请求体是空的',
+  // ★ 别写成「不是合法的 JSON」:JSON / content-type 这些词对用户是天书,同 `user.validator.ts`
+  //   里那条「不把 JSON 字段名念给用户听」。
+  FST_ERR_CTP_INVALID_JSON_BODY: '请求体的格式不对',
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: '不认识这种请求格式',
+};
+
 export type AppLogger = { error(err: unknown): void };
 
 export function makeErrorHandler(log: AppLogger) {
@@ -65,11 +84,14 @@ export function makeErrorHandler(log: AppLogger) {
       return;
     }
 
-    // 框架级错误(如文件超限 413):保留其原状态码与信息。
+    // 框架级错误(如文件超限 413):保留其原状态码,message 换成中文。
     if (err && typeof err === 'object' && 'statusCode' in err) {
-      const framework = err as { statusCode: number; message?: string };
+      const framework = err as { statusCode: number; code?: string };
+      const known = framework.code ? FRAMEWORK_MESSAGE_BY_CODE[framework.code] : undefined;
+      // 认不出来的把原文留在日志里 —— 界面上那几句必须全是中文,排查的线索不该跟着一起丢。
+      if (!known) log.error(err);
       void reply.code(framework.statusCode).send({
-        error: { code: 'HTTP_ERROR', message: framework.message ?? '请求不合法' },
+        error: { code: 'HTTP_ERROR', message: known ?? '请求不合法,请换个方式再试' },
       });
       return;
     }

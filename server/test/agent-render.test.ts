@@ -342,7 +342,7 @@ describe('render_look 三态', () => {
     expect(out.session).toBeUndefined();
     expect(out.pendingConfirmation).toEqual({
       kind: 'render_look',
-      summary: renderConfirmationSummary(),
+      summary: renderConfirmationSummary(1),
     });
     // 给模型的话必须**明确它还不能宣布成功**(否则它会说"图已经出好了")。
     expect(out.content).toContain('不要说你已经出好了');
@@ -427,6 +427,8 @@ describe('render_look 三态', () => {
             seq,
             ref: { storeKey: `results/s1/r${seq}/result.png`, mimeType: 'image/png' },
             lookDescription: 'x',
+            // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+            stepIds: [],
             createdAt: '2026-09-16T00:00:00.000Z',
           }),
       ),
@@ -504,10 +506,10 @@ describe('render_look 三态', () => {
   });
 
   it('确认框那句话**不含任何金额**——未核过价的数字不能替用户做决定', () => {
-    // ⚠️ 这句话现在是**常量**了:2026-09-29 删掉配额之后它不再收参数,也就不再算出任何数字。
+    // ⚠️ 它现在收一个参数(**张数**,✏️ 2026-10-01),报的是**次数**不是金额。
     //   所以这条断言挡的**不是**"某个计算漏了",而是**将来有人往这句话里加一个价**——
     //   §15.3 记着本项目未核任何模型的价格。要让它更有牙齿,得等一个真会算出金额的入口。
-    const summary = renderConfirmationSummary();
+    const summary = renderConfirmationSummary(1);
     expect(summary).toContain('按次计费');
     expect(summary).not.toMatch(/[¥￥$]|\d+\s*元/);
   });
@@ -1180,6 +1182,8 @@ describe('GetRender', () => {
             seq: 1,
             ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
             lookDescription: 'x',
+            // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+            stepIds: [],
             createdAt: 'x',
           }),
         ],
@@ -1205,6 +1209,8 @@ describe('GetRender', () => {
             seq: 1,
             ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
             lookDescription: 'x',
+            // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+            stepIds: [],
             createdAt: 'x',
           }),
         ],
@@ -1249,7 +1255,7 @@ describe('会话视图', () => {
 
     expect(view.pendingRender).toEqual({
       toolUseId: 'c1',
-      summary: renderConfirmationSummary(),
+      summary: renderConfirmationSummary(1),
     });
     expect(view.hasFace).toBe(true);
   });
@@ -1267,7 +1273,7 @@ describe('会话视图', () => {
     const view = toSessionView(session);
 
     expect(view.renderOffer).toEqual({
-      summary: renderConfirmationSummary(),
+      summary: renderConfirmationSummary(1),
       alreadyRendered: false,
     });
     expect('pendingRender' in view).toBe(false);
@@ -1305,6 +1311,8 @@ describe('会话视图', () => {
               seq: 1,
               ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
               lookDescription: describeLook(SAMPLE_LOOK),
+              // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+              stepIds: [],
               createdAt: 'x',
             }),
           ],
@@ -1338,24 +1346,32 @@ describe('会话视图', () => {
               seq: 1,
               ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
               lookDescription: 'x',
+              // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+              stepIds: [],
               createdAt: 'x',
             }),
             new RenderRecord({
               seq: 2,
               ref: { storeKey: 'results/s1/r2/result.png', mimeType: 'image/png' },
               lookDescription: 'x',
+              // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+              stepIds: [],
               createdAt: 'x',
             }),
             new RenderRecord({
               seq: 3,
               ref: { storeKey: 'results/s1/r3/result.png', mimeType: 'image/png' },
               lookDescription: 'x',
+              // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+              stepIds: [],
               createdAt: 'x',
             }),
             new RenderRecord({
               seq: 4,
               ref: { storeKey: 'results/s1/r4/result.png', mimeType: 'image/png' },
               lookDescription: 'x',
+              // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+              stepIds: [],
               createdAt: 'x',
             }),
           ],
@@ -1379,6 +1395,8 @@ describe('会话视图', () => {
           seq: 1,
           ref: { storeKey: 'results/s1/r1/result.png', mimeType: 'image/png' },
           lookDescription: '当时那套',
+          // 空数组 = 那张「整脸」兜底图(没有方案时出的那一张)。
+          stepIds: [],
           createdAt: '2026-09-16T00:00:00.000Z',
         }),
       ],
@@ -1390,6 +1408,7 @@ describe('会话视图', () => {
       seq: 1,
       url: '/agent/sessions/s1/renders/1',
       lookDescription: '当时那套',
+      stepIds: [],
       createdAt: '2026-09-16T00:00:00.000Z',
     });
     expect(view.hasFace).toBe(false);
@@ -1421,12 +1440,16 @@ describe('会话视图', () => {
     ]);
   });
 
-  it('★ 那句话里**只有**费用与时长,**一个字都不提次数**', () => {
+  it('★ 那句话**不提配额**,但必须说清这次要出几张', () => {
     // 从前提"还可以出 N 张(上限 M 张)"是这里报的;配额删掉之后报就变成撒谎了。
-    const summary = renderConfirmationSummary();
+    // ✏️ 2026-10-01:反过来,**这一次**的张数必须说 —— 一张确认单现在会跑 3~7 次引擎。
+    const summary = renderConfirmationSummary(4);
     expect(summary).toContain('按次计费');
     expect(summary).not.toContain('上限');
-    expect(summary).not.toMatch(/还剩|还可以出|\d+ 张/);
+    expect(summary).not.toMatch(/还剩|还可以出/);
+    expect(summary).toContain('4 张');
+    // ★ 一张时不报数(「4 个上妆步骤」那种话在一张的脸上读起来莫名其妙)。
+    expect(renderConfirmationSummary(1)).not.toMatch(/\d+ 张/);
   });
 });
 

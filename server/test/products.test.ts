@@ -17,6 +17,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ZONE_ROLES } from '../src/modules/makeup/index.js';
 import {
   DIMENSION_KEYS,
   JsonProductCatalog,
@@ -561,13 +562,20 @@ describe('★ 真内容的不变量(加载器看不见的那几条)', () => {
   it('★ `lookSpecSlots` 只出现**妆面真的有的**槽位(多一个就是往模型嘴里塞假的)', () => {
     // 派生规则在导入器的 `deriveLookSpecSlots` 里。写错一个字符串(如 `zones.checks`)
     // 不会有任何征兆:槽位只是**永远匹配不上**,推荐时那一笔就静默地少一件产品。
-    const KNOWN = new Set(['base', 'zones.lip', 'zones.cheek', 'zones.eyeshadow', 'zones.brow']);
+    // ⚠️ 期望集合**照 `ZONE_ROLES` 算**,不再手抄一遍 —— 抄的那份会在妆面单扩区时漏掉,
+    //   于是"新开的区没有任何产品认领"这件事没人看得见。
+    //   `zones.brow` 单列:眉只有浓度、没有色/质地,本来就不在 `ZONE_ROLES` 里。
+    const KNOWN = new Set(['base', 'zones.brow', ...ZONE_ROLES.map((role) => `zones.${role}`)]);
     const unknown = products.flatMap((p) =>
       p.derived.lookSpecSlots.filter((s) => !KNOWN.has(s)).map((s) => `${p.id} → ${s}`),
     );
     expect(unknown).toEqual([]);
-    // 反过来也钉一下:真有条目覆盖槽位,别让过滤规则哪天把 `lookSpecSlots` 全清空。
-    expect(products.filter((p) => p.derived.lookSpecSlots.length > 0).length).toBeGreaterThan(0);
+    // ★ 反过来也钉:每个槽位都要**真有产品落在上面**。导入器里那条正则写错一个字
+    //   (`/睫目/`)只会让那几件产品静默变成空槽位,上面那条 `unknown` 永远不红。
+    //   ⚠️ `zones.aegyoSal` 例外 —— YSL 整条产品线里没有卧蚕笔,空着是如实。
+    const covered = new Set(products.flatMap((p) => p.derived.lookSpecSlots));
+    const nobody = [...KNOWN].filter((s) => s !== 'zones.aegyoSal' && !covered.has(s));
+    expect(nobody, '这些槽位没有任何产品覆盖').toEqual([]);
   });
 
   it('★ 补录/系列卡一律 `dimensions: {}`(它们的内容只有目录卡上那几样)', () => {

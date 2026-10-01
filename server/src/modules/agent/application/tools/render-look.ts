@@ -33,6 +33,8 @@ import { addRender, renderReadiness } from '../../domain/entities/session.js';
 import type { Session } from '../../domain/entities/session.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import { RENDER_LOOK } from '../../domain/tools/definitions.js';
+import { renderCountOf, renderPlanOf } from '../step-zones.js';
+import type { PlannedRender } from '../step-zones.js';
 // ★ 这两段 observation 的开头搬去了 domain:离线演示驱动(`infrastructure/llm/demo-llm.ts`)
 //   也要读它们,理由见那个文件。
 import {
@@ -61,17 +63,31 @@ export interface RenderLookDeps {
 }
 
 /**
+ * 单张图的典型耗时(秒)。★ 只用来算"大约还要多久"这类**人话**——
+ * **不要拿它做超时判断**,超时预算是 `confirm-render.ts` 那一份(它更大)。
+ */
+export const SECONDS_PER_IMAGE = 7;
+
+/**
  * ★ **确认框上那句话的唯一来源**——工具与对外视图都用它,
  *   免得"前端弹的话"和"后端以为用户看到的话"是两句。
  *
  * ⚠️ **刻意不报一个具体的金额**:§15.3 明确记着本项目**未核任何模型的价格**。
  *   编一个"约 0.3 元"出来,是拿一个没人验证过的数字去替用户做花钱的决定。
  *   说"按次计费"是准确的;说多少钱现在说不准。
- * ⚠️ **同理刻意不报次数**(2026-09-29):出图没有上限了,报一句"还剩 N 张"
- *   就是在说一件不存在的事。它现在**不带参数**——没有数可传。
+ *
+ * @param imageCount ✏️ 2026-10-01:一次确认现在会出**多张**(每个上妆步一张),
+ *   所以张数与总时长必须写出来 —— 此前只报"一张、约 7 秒",而实际是 3~7 张、
+ *   每张都计费。**这不是"还剩 N 张"那种额度**,是这一次要花的次数。
  */
-export function renderConfirmationSummary(): string {
-  return '要现在生成成片吗?这一步会真的出一张图,大约需要 7 秒,并按次计费。';
+export function renderConfirmationSummary(imageCount: number): string {
+  if (imageCount <= 1) {
+    return `要现在生成成片吗?这一步会真的出一张图,大约需要 ${SECONDS_PER_IMAGE} 秒,并按次计费。`;
+  }
+  return (
+    `要现在生成成片吗?这套妆有 ${imageCount} 个上妆步骤,会依次出 ${imageCount} 张图` +
+    `(每个上妆步一张),每张都按次计费,总共大约 ${imageCount * SECONDS_PER_IMAGE} 秒。`
+  );
 }
 
 export class RenderLookTool implements Tool {
@@ -111,7 +127,7 @@ export class RenderLookTool implements Tool {
     if (context.confirmation === undefined) {
       const pending: PendingConfirmation = {
         kind: 'render_look',
-        summary: renderConfirmationSummary(),
+        summary: renderConfirmationSummary(renderCountOf(session.plan)),
       };
       return {
         // ⚠️ **这一段模型读不到,别指望改它来纠行为。** 有 `pendingConfirmation` 时
@@ -139,51 +155,123 @@ export class RenderLookTool implements Tool {
     return this.render(session, spec);
   }
 
+  /**
+   * ✏️ 2026-10-01:**从"一次引擎调用"改成"一次循环"**——每个上妆步出一张,
+   *   累积的是**提示词里列出的区**(`appliedZones` 逐步变长)。
+   * ⚠️ 每一张都拿**本人原始照片**当输入、各画各的(不是把上一张的产物再喂进去)——
+   *   所以第 N 张不是"第 N-1 张再加工",两者是**并列**的;这条也是 mock 下几张
+   *   逐字节相同的原因。
+   *
+   * 四条顺序不能动:
+   * ① **逐张先落盘再记会话**(理由同旧版:记完却写失败 = 会话里有一张取不到的图);
+   * ② `appliedZones` 只增不减,★ 最后一张的集合 = 妆面单里填的全部区 ⇒
+   *    它的提示词与"一次画完整套"逐字相同(见 `prompt-builder` 的 `coversEveryZone`);
+   * ③ **中途失败留住已经出的那几张**:旧实现 catch 里把整个会话丢掉,
+   *    第 5 张挂掉 = 前 4 张的钱白花、图也取不到;
+   * ④ 中途失败的那条 observation **不许缀 `NO_CONFIRMATION_NOTICE`** ——
+   *    那句话断言"没有弹出过确认框",而这里已经出了图,它是假的。
+   */
   private async render(
     session: Session,
     spec: NonNullable<Session['lookSpec']>,
   ): Promise<ToolOutcome> {
     const faceRef = session.faceRef!;
+    const shots = renderPlanOf(session.plan);
+
+    let faceFilePath: string;
     try {
-      const faceFilePath = await this.deps.artifacts.resolveFace(session.id, faceRef);
-      const engineInput: EngineInput = {
-        face: { filePath: faceFilePath, mimeType: faceRef.mimeType },
-        brief: session.brief,
-        lookSpec: spec,
-      };
-      // ⚠️ `references`(风格参考图)**已决定不传**:那张图只做文本化分析
-      //    (`styleReadNote` 进 `messages[]`),不进引擎。见 `makeup/README.md` 待办。
-      const result = validateEngineResult(await this.deps.engine.generate(engineInput));
-
-      // ★ 先落盘再记会话:反过来的话,记完却写失败,会话里就有一张取不到的图。
-      const seq = session.renders.length + 1;
-      const ref = await this.deps.artifacts.putRender(
-        session.id,
-        seq,
-        result.image.filePath,
-        result.image.mimeType,
-      );
-      const { session: next } = addRender(session, {
-        ref,
-        // ★ 记的是**此刻这份** spec 的说法:用户之后改妆,这张图仍然是当时那套。
-        lookDescription: describeLook(spec),
-      });
-
-      return {
-        content:
-          `${RENDER_DONE_PREFIX}(第 ${seq} 张)。这套妆是:${describeLook(spec)}。` +
-          '请用一两句话把它讲给用户听,并问他这张行不行。',
-        session: next,
-      };
+      faceFilePath = await this.deps.artifacts.resolveFace(session.id, faceRef);
     } catch (err) {
-      // ★ 生图超时 / key 失效 / 审核拦截都走这里(§7.3 第 4 条:不抛穿循环)。
-      //   对用户要说得像人话,对模型要给一个可行动的下一步。
-      const detail = err instanceof AppError ? err.message : '引擎返回了未预期的结果';
-      console.warn(`[agent] render_look 失败:${detail}`);
+      // 一张都还没出,所以这一支照旧可以用统一出口(它带着那句"没有确认框"的提醒)。
+      return failure(
+        `这次没能出图:${reasonOf(err)}。` +
+          '请如实告诉用户这张图没出来(不要假装已经出好),并说明可以稍后再试一次。',
+      );
+    }
+
+    let current = session;
+    const seqs: number[] = [];
+    for (const shot of shots) {
+      try {
+        const engineInput: EngineInput = {
+          face: { filePath: faceFilePath, mimeType: faceRef.mimeType },
+          brief: session.brief,
+          lookSpec: spec,
+          // ★ 只画到这一步为止。整个键缺席 = 一次画完整套(没有方案时那一张)。
+          ...(shot.appliedZones ? { appliedZones: shot.appliedZones } : {}),
+        };
+        // ⚠️ `references`(风格参考图)**已决定不传**:那张图只做文本化分析
+        //    (`styleReadNote` 进 `messages[]`),不进引擎。见 `makeup/README.md` 待办。
+        const result = validateEngineResult(await this.deps.engine.generate(engineInput));
+
+        const seq = current.renders.length + 1;
+        const ref = await this.deps.artifacts.putRender(
+          current.id,
+          seq,
+          result.image.filePath,
+          result.image.mimeType,
+        );
+        current = addRender(current, {
+          ref,
+          stepIds: shot.stepIds,
+          // ★ 记的是**此刻这份** spec 的说法 + 此刻画到哪儿了:用户之后改妆,
+          //   这张图仍然是当时那套、当时那一步的样子。
+          lookDescription: describeLook(spec, shot.appliedZones),
+        }).session;
+        seqs.push(seq);
+      } catch (err) {
+        // ★ 生图超时 / key 失效 / 审核拦截都走这里(§7.3 第 4 条:不抛穿循环)。
+        return this.partial(current, seqs, shot, err);
+      }
+    }
+
+    const last = shots.at(-1);
+    return {
+      content:
+        `${RENDER_DONE_PREFIX}(第 ${seqs.at(-1)} 张,共 ${seqs.length} 张)。` +
+        `这套妆是:${describeLook(spec, last?.appliedZones)}。` +
+        '请用一两句话把它讲给用户听,并问他这张行不行。',
+      session: current,
+    };
+  }
+
+  /**
+   * 出到一半失败。★ **已经出的图照旧留在会话里**——它们的钱已经花掉了,
+   * 把会话丢掉等于让用户既看不到图、也没有任何记录。
+   *
+   * ⚠️ **第一张就挂掉时走 `failure()`**(那时确实一个新东西都没有),
+   *   后面几张挂掉**不缀 `NO_CONFIRMATION_NOTICE`**:确认框是真的弹过、
+   *   用户是真的点过的,那句话会变成假话(见 `render` 的第 ④ 条)。
+   */
+  private partial(
+    session: Session,
+    seqs: readonly number[],
+    shot: PlannedRender,
+    err: unknown,
+  ): ToolOutcome {
+    const detail = reasonOf(err);
+    console.warn(
+      `[agent] render_look 失败(第 ${seqs.length + 1} 张,步骤「${shot.stepName}」):${detail}`,
+    );
+    if (seqs.length === 0) {
       return failure(
         `这次没能出图:${detail}。` +
           '请如实告诉用户这张图没出来(不要假装已经出好),并说明可以稍后再试一次。',
       );
     }
+    return {
+      content:
+        `${RENDER_DONE_PREFIX} ${seqs.length} 张,但**后面还有一步没出成**:` +
+        `第 ${seqs.length + 1} 张(步骤「${shot.stepName}」)失败——${detail}。` +
+        '请如实告诉用户已经出了哪几张、卡在哪一步,不要讲成整套都出好了;' +
+        '已经出的那些图还在,用户稍后可以再点一次确认把剩下的补齐。',
+      isError: true,
+      session,
+    };
   }
+}
+
+/** 引擎/存储抛出来的东西 → 一句能回填给模型的话。 */
+function reasonOf(err: unknown): string {
+  return err instanceof AppError ? err.message : '引擎返回了未预期的结果';
 }

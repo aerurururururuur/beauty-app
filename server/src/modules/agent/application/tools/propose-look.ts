@@ -22,6 +22,9 @@
  *   而用户是拿方案当成片的承诺的(见 `look-description.ts` 文件头,
  *   它正是为这条判了 CSS 预览的死刑)。**一次调用、一个决定、两样产出**,
  *   一致性由结构保证,不需要提示词去嘱咐。
+ *
+ * ✏️ **2026-10-01:改成「先展开方案、再校验妆面单」。** `validateLookSpec` 多收了一个
+ *   `requiredZones`(本套配方该有哪些区),而那个集合只能从方案算出来,见 `../step-zones.ts`。
  */
 import { AppError } from '../../../shared/index.js';
 import { LookSpec as LookSpecEntity, describeLook, validateLookSpec } from '../../../makeup/index.js';
@@ -29,6 +32,7 @@ import type { LookSpec, SkinTonePalette } from '../../../makeup/index.js';
 import { decoratePlan, derivePlan } from '../../../styling/index.js';
 import type { PlanDraft, PlanPersonalized, PlanView, ShadeLookup } from '../../../styling/index.js';
 import { PROPOSE_LOOK } from '../../domain/tools/definitions.js';
+import { requiredZonesOf } from '../step-zones.js';
 import { styleOptionsHint } from '../style-options-description.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
@@ -79,31 +83,6 @@ export class ProposeLookTool implements Tool {
     const brief = context.session.brief;
     const { styleId, look } = splitInput(input);
 
-    let spec: LookSpec;
-    try {
-      spec = validateLookSpec(look, {
-        skinTone: brief.skinTone,
-        palette: this.palette,
-      });
-    } catch (err) {
-      // 校验失败的 message 已经写成"带合法取值清单"的形状(见 look-spec.validator.ts),
-      // 可以**原样**回填给模型——这就是把错误消息当 prompt 写的好处,这里不需要再加工。
-      return { content: noLookNotice(messageOf(err)), isError: true };
-    }
-
-    /**
-     * ★ **这个场合说了算的,是用户填的那个**(表单那条路一次填完,用户按的就是它),
-     *   模型自己的 `occasion` 只是它推出来的。两者不一致时以 `brief` 为准,
-     *   并把妆面单上的 `occasion` **改过来**——否则会出现"用户说的是朋友的婚礼、
-     *   妆面单说聚会"这种两份都对不上的状态,而 `lookDescription` 是照妆面单渲染的、
-     *   给用户看的那一份。
-     *
-     * ★ 两边都是**自由文本**(2026-09-30):用户能说预设表外的场合,所以这里只比字符串,
-     *   **不做任何"收进最近的一档"**——那正是本仓头号 bug 的形状。
-     * 用户没填过时(纯对话那条路)才轮到模型的判断。
-     */
-    const occasion: string = brief.occasion ?? spec.occasion;
-
     /**
      * 特征 id → 策略卡。**未知 id 直接剔掉**(同前端 `featureById` 返回 `null` 的行为):
      * 用户人设里存的 id 可能比后端词表旧,那是正常情况,不该让整份方案失败。
@@ -133,6 +112,35 @@ export class ProposeLookTool implements Tool {
         isError: true,
       };
     }
+
+    let spec: LookSpec;
+    try {
+      // ★ **先有方案、再校验妆面单**:`requiredZonesOf(plan)` 就是「这套配方该有哪些区」,
+      //   妆面单必须与它**集合相等**(见 look-spec.validator.ts 的 ②c)。
+      //   少了 ⇒ 某一步没有图;多了 ⇒ 提示词画出一套方案里没有的妆。
+      spec = validateLookSpec(look, {
+        skinTone: brief.skinTone,
+        palette: this.palette,
+        requiredZones: requiredZonesOf(plan),
+      });
+    } catch (err) {
+      // 校验失败的 message 已经写成"带合法取值清单"的形状(见 look-spec.validator.ts),
+      // 可以**原样**回填给模型——这就是把错误消息当 prompt 写的好处,这里不需要再加工。
+      return { content: noLookNotice(messageOf(err)), isError: true };
+    }
+
+    /**
+     * ★ **这个场合说了算的,是用户填的那个**(表单那条路一次填完,用户按的就是它),
+     *   模型自己的 `occasion` 只是它推出来的。两者不一致时以 `brief` 为准,
+     *   并把妆面单上的 `occasion` **改过来**——否则会出现"用户说的是朋友的婚礼、
+     *   妆面单说聚会"这种两份都对不上的状态,而 `lookDescription` 是照妆面单渲染的、
+     *   给用户看的那一份。
+     *
+     * ★ 两边都是**自由文本**(2026-09-30):用户能说预设表外的场合,所以这里只比字符串,
+     *   **不做任何"收进最近的一档"**——那正是本仓头号 bug 的形状。
+     * 用户没填过时(纯对话那条路)才轮到模型的判断。
+     */
+    const occasion: string = brief.occasion ?? spec.occasion;
 
     // 妆面单上的场合要跟用户说的那个一致(理由见上面 `occasion` 那一段)。
     const consistent =
