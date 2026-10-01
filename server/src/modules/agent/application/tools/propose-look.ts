@@ -31,11 +31,14 @@ import { LookSpec as LookSpecEntity, describeLook, validateLookSpec } from '../.
 import type { LookSpec, SkinTonePalette } from '../../../makeup/index.js';
 import { decoratePlan, derivePlan } from '../../../styling/index.js';
 import type { PlanDraft, PlanPersonalized, PlanView, ShadeLookup } from '../../../styling/index.js';
-import { PROPOSE_LOOK } from '../../domain/tools/definitions.js';
+import { PROPOSE_LOOK, proposeLookWithTones } from '../../domain/tools/definitions.js';
+import { recipeGuidance } from '../recipe-guidance.js';
 import { requiredZonesOf } from '../step-zones.js';
 import { styleOptionsHint } from '../style-options-description.js';
+import type { LlmToolDefinition } from '../../domain/ports/llm.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
+import type { Session } from '../../domain/entities/session.js';
 import { setLookSpec } from '../../domain/entities/session.js';
 
 /**
@@ -78,6 +81,18 @@ export class ProposeLookTool implements Tool {
     private readonly features: FeatureStrategies,
     private readonly shades: ShadeLookup,
   ) {}
+
+  /**
+   * ★ 把 `tone` 的白名单收成**这一档肤色可用的色汇**(§6 规矩 4 的后半句:
+   *   「合法取值空间本身按 skinTone 收窄」)。色域不再是"生成完再检查",
+   *   模型在 schema 里根本选不到出界的那个色,这类打回就不存在了。
+   * ⚠️ 肤色未知、或档位不在词表里(`toneKeysFor` 返回 `undefined`)⇒ 返回 `definition`
+   *   原样(全量色相)。理由同 `run` 里那条:那是"还不知道",不是"不合法"。
+   */
+  definitionFor(session: Session): LlmToolDefinition {
+    const skinTone = session.brief.skinTone;
+    return proposeLookWithTones(skinTone ? this.palette.toneKeysFor(skinTone) : undefined);
+  }
 
   async run(input: unknown, context: ToolContext): Promise<ToolOutcome> {
     const brief = context.session.brief;
@@ -153,6 +168,13 @@ export class ProposeLookTool implements Tool {
         describeLook(consistent),
         '',
         `并记下它的方案:风格「${plan.styleName}」,共 ${plan.meta.stepCount} 步。`,
+        '',
+        // ★ 这一块与 `read_style_recipe` 是**同一个渲染器**:它是"你真记下的那份配方"
+        //   (可能叠了个性化调整)。⚠️ 别因为"它已经读过一遍了"把它删掉——
+        //   模型跳过 `read_style_recipe` 时,这里是它唯一的来源。
+        '这套配方的上妆要点(挑颜色 / 质地 / 浓度照它来):',
+        ...recipeGuidance(plan),
+        '',
         '请把这段描述**讲给用户听**(用你自己的话,但内容要与之一致),并问她要不要调整。',
         '注意:这段描述就是用户在出图前唯一能看到的东西,不要添加它没说的效果承诺。',
       ].join('\n'),

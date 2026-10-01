@@ -96,10 +96,13 @@ export { indexTools } from './domain/tools/tool.js';
 export type { Tool, ToolContext, ToolOutcome, PendingConfirmation } from './domain/tools/tool.js';
 export {
   LIST_PRODUCTS,
+  PROPOSE_LOOK,
   READ_PRODUCT,
+  READ_STYLE_RECIPE,
   RENDER_LOOK,
   TOOL_DEFINITIONS,
   TOOL_NAMES,
+  proposeLookWithTones,
 } from './domain/tools/definitions.js';
 export { createToolRegistry } from './application/tools/registry.js';
 // 工具类**单独导出**是为了能一对一测(测试只从 barrel 取东西,见文件头 ★)。
@@ -108,6 +111,7 @@ export { ListProductsTool } from './application/tools/list-products.js';
 export { PatchBriefTool } from './application/tools/patch-brief.js';
 export { ProposeLookTool } from './application/tools/propose-look.js';
 export { ReadProductTool, renderProductDetail } from './application/tools/read-product.js';
+export { ReadStyleRecipeTool, renderStyleRecipe } from './application/tools/read-style-recipe.js';
 export { RenderLookTool, renderConfirmationSummary } from './application/tools/render-look.js';
 export { MockLlm, mockText, mockTextAndToolCalls, mockToolCall } from './infrastructure/llm/mock-llm.js';
 /**

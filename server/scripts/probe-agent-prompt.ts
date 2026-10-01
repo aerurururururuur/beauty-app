@@ -327,9 +327,10 @@ async function runOnce(
   rep: number,
   llm: Llm,
   tools: ReturnType<typeof createToolRegistry>,
+  palette: SkinTonePalette,
   outDir: string,
 ): Promise<Observation> {
-  const loop = new AgentLoop({ llm, tools });
+  const loop = new AgentLoop({ llm, tools, palette });
   let session: Session = createSession(`probe-${variant}-${rep}`, 'probe-user');
   const result = await loop.run(session, USER_TURN);
   session = result.session;
@@ -474,7 +475,7 @@ async function main(): Promise<void> {
     const swapped = new PromptSwapLlm(llm, swap);
     for (let rep = 1; rep <= argv.reps; rep++) {
       process.stdout.write(`[${name} #${rep}] … `);
-      const obs = await runOnce(name, rep, swapped, tools, outDir);
+      const obs = await runOnce(name, rep, swapped, tools, palette, outDir);
       observations.push(obs);
       const calls = obs.toolCalls.map((c) => `${c.name}${c.isError ? '✗' : '✓'}`).join(',');
       console.log(

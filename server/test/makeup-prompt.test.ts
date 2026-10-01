@@ -32,7 +32,8 @@ import {
   buildPrompt,
   renderLookClauses,
 } from '../src/modules/makeup/index.js';
-import { INTENSITY_MAX, INTENSITY_MIN } from '../src/modules/makeup/index.js';
+import { DEPTHS, INTENSITY_MAX, INTENSITY_MIN, SATURATIONS } from '../src/modules/makeup/index.js';
+import type { Depth, Saturation } from '../src/modules/makeup/index.js';
 import { SKIN_TONES } from '../src/modules/shared/index.js';
 
 /** 一份合法的底稿,各用例在它上面改一处。 */
@@ -40,9 +41,9 @@ const SPEC = new LookSpec({
   occasion: 'interview',
   base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
   zones: {
-    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
   },
 });
@@ -60,12 +61,12 @@ const FULL_SPEC = new LookSpec({
     cheek: SPEC.zones.cheek,
     eyeshadow: SPEC.zones.eyeshadow,
     brow: SPEC.zones.brow,
-    concealer: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
-    contour: new ZoneSpec({ tone: 'brick', finish: 'satin', intensity: 2 }),
-    highlight: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
-    aegyoSal: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
-    liner: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
-    lash: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
+    concealer: new ZoneSpec({ tone: 'peach', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    contour: new ZoneSpec({ tone: 'brick', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    highlight: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    aegyoSal: new ZoneSpec({ tone: 'peach', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    liner: new ZoneSpec({ tone: 'plum', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    lash: new ZoneSpec({ tone: 'plum', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
   },
 });
 
@@ -136,24 +137,28 @@ function hits(text: string, words: readonly string[]): string[] {
 function allClauseBodies(): string[] {
   const bodies: string[] = [];
   for (const tone of TONE_KEYS) {
-    for (const finish of FINISHES) {
-      for (const intensity of [INTENSITY_MIN, 3, INTENSITY_MAX]) {
-        for (const baseFinish of FINISHES) {
-          for (const warmth of [-2, -1, 0, 1, 2]) {
-            // ★ 不再写 `as 1` 断言:构造器收的 row 里浓度就是宽的 `number`
-            //   (`.int()` 是类型声明,`1..5` 的区间在 validator,§4.2),循环变量本来就是这个类型。
-            //   改口径前那句 `as 1` 是把 3 和 5 说成 `1` —— 一个假断言,顺手去掉。
-            const spec = new LookSpec({
-              occasion: SPEC.occasion,
-              base: new LookSpecBase({ coverage: intensity, finish: baseFinish, warmth }),
-              zones: {
-                lip: new ZoneSpec({ tone, finish, intensity }),
-                cheek: new ZoneSpec({ tone, finish, intensity }),
-                eyeshadow: new ZoneSpec({ tone, finish, intensity }),
-                brow: new BrowSpec({ shape: 'natural', intensity }),
-              },
-            });
-            bodies.push(renderLookClauses(spec).join('\n'));
+    for (const depth of DEPTHS) {
+      for (const saturation of SATURATIONS) {
+        for (const finish of FINISHES) {
+          for (const intensity of [INTENSITY_MIN, 3, INTENSITY_MAX]) {
+            for (const baseFinish of FINISHES) {
+              for (const warmth of [-2, -1, 0, 1, 2]) {
+              // ★ 不再写 `as 1` 断言:构造器收的 row 里浓度就是宽的 `number`
+              //   (`.int()` 是类型声明,`1..5` 的区间在 validator,§4.2),循环变量本来就是这个类型。
+              //   改口径前那句 `as 1` 是把 3 和 5 说成 `1` —— 一个假断言,顺手去掉。
+                const spec = new LookSpec({
+                  occasion: SPEC.occasion,
+                  base: new LookSpecBase({ coverage: intensity, finish: baseFinish, warmth }),
+                  zones: {
+                    lip: new ZoneSpec({ tone, depth, saturation, finish, intensity }),
+                    cheek: new ZoneSpec({ tone, depth, saturation, finish, intensity }),
+                    eyeshadow: new ZoneSpec({ tone, depth, saturation, finish, intensity }),
+                    brow: new BrowSpec({ shape: 'natural', intensity }),
+                  },
+                });
+                bodies.push(renderLookClauses(spec).join('\n'));
+              }
+            }
           }
         }
       }
@@ -165,8 +170,10 @@ function allClauseBodies(): string[] {
 describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
   it('★ 穷举全部合法取值组合,一个几何词都不出现', () => {
     const bodies = allClauseBodies();
-    // 7 色 × 3 质地 × 3 浓度 × 3 底妆质地 × 5 冷暖 = 945 组
-    expect(bodies.length).toBe(TONE_KEYS.length * FINISHES.length * 3 * FINISHES.length * 5);
+    // 8 色 × 3 深浅 × 3 饱和 × 3 质地 × 3 浓度 × 3 底妆质地 × 5 冷暖 = 9720 组
+    expect(bodies.length).toBe(
+      TONE_KEYS.length * DEPTHS.length * SATURATIONS.length * FINISHES.length * 3 * FINISHES.length * 5,
+    );
 
     const bad = bodies.filter((b) => hits(b, GEOMETRY_WORDS).length > 0);
     expect(bad, `以下组合产出了几何词:\n${bad.slice(0, 3).join('\n')}`).toEqual([]);
@@ -214,7 +221,10 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
           new LookSpec({
             occasion: SPEC.occasion,
             base: SPEC.base,
-            zones: { ...SPEC.zones, lip: new ZoneSpec({ tone, finish: 'matte', intensity: 3 }) },
+            zones: {
+              ...SPEC.zones,
+              lip: new ZoneSpec({ tone, depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+            },
           }),
         )
           .join('\n')
@@ -222,6 +232,76 @@ describe('renderLookClauses —— 只输出色 / 质地 / 浓度', () => {
       );
     }
     expect(seen.size).toBe(TONE_KEYS.length);
+  });
+
+  /**
+   * ★★ **深浅是"新增取值",不是"改写那三句"** —— 这条测试就是这两件事的分界:
+   *   `medium` 档的产出必须与加 `depth` 之前**逐字相同**(v2 的实测条款还在),
+   *   `light` / `deep` 只是在色相词前面多一个字。
+   */
+  it('★ 深浅只有浅 / 深两个前缀,中档逐字同 v2', () => {
+    const withDepth = (depth: Depth): string =>
+      renderLookClauses(
+        new LookSpec({
+          occasion: SPEC.occasion,
+          base: SPEC.base,
+          zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'rose', depth, saturation: 'medium', finish: 'matte', intensity: 3 }) },
+        }),
+      )[1]!;
+
+    // 中档逐字:就是 v2 那句原话,连标点都没动。
+    expect(withDepth('medium')).toBe('唇部用玫瑰粉、雾面质地、中等浓度。');
+    expect(withDepth('light')).toBe('唇部用浅玫瑰粉、雾面质地、中等浓度。');
+    expect(withDepth('deep')).toBe('唇部用深玫瑰粉、雾面质地、中等浓度。');
+
+    // 三个档位三种产出 —— 没有哪一档是"另一档的别名"。
+    expect(new Set(DEPTHS.map(withDepth)).size).toBe(DEPTHS.length);
+  });
+
+  /**
+   * ★★ 与深浅**同一条分界**:`medium` 档逐字同 v3(也就是同 v2),
+   *   `low` / `high` 只是再往色相词前面叠一层。顺序是「饱和 → 深浅 → 色相」。
+   */
+  it('★ 饱和只有低 / 高两个前缀,中档逐字同 v3', () => {
+    const withSat = (saturation: Saturation): string =>
+      renderLookClauses(
+        new LookSpec({
+          occasion: SPEC.occasion,
+          base: SPEC.base,
+          zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation, finish: 'matte', intensity: 3 }) },
+        }),
+      )[1]!;
+
+    expect(withSat('medium')).toBe('唇部用玫瑰粉、雾面质地、中等浓度。');
+    expect(withSat('low')).toBe('唇部用低饱和玫瑰粉、雾面质地、中等浓度。');
+    expect(withSat('high')).toBe('唇部用高饱和玫瑰粉、雾面质地、中等浓度。');
+
+    expect(new Set(SATURATIONS.map(withSat)).size).toBe(SATURATIONS.length);
+  });
+
+  it('★ 饱和与深浅同时给时,顺序是「低饱和浅玫瑰粉」', () => {
+    const line = renderLookClauses(
+      new LookSpec({
+        occasion: SPEC.occasion,
+        base: SPEC.base,
+        zones: {
+          ...SPEC.zones,
+          lip: new ZoneSpec({ tone: 'rose', depth: 'light', saturation: 'low', finish: 'matte', intensity: 3 }),
+        },
+      }),
+    )[1]!;
+    expect(line).toBe('唇部用低饱和浅玫瑰粉、雾面质地、中等浓度。');
+  });
+
+  it('★ 棕色进了词表,渲染成「棕色」', () => {
+    const line = renderLookClauses(
+      new LookSpec({
+        occasion: SPEC.occasion,
+        base: SPEC.base,
+        zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'brown', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }) },
+      }),
+    )[1]!;
+    expect(line).toBe('唇部用棕色、雾面质地、中等浓度。');
   });
 });
 
@@ -348,7 +428,7 @@ describe('buildPrompt', () => {
   });
 
   it('模板版本是个非空常量 —— 措辞一改它就得 +1,否则历史夹具变成假证据', () => {
-    expect(TEMPLATE_VERSION).toBe('v2');
+    expect(TEMPLATE_VERSION).toBe('v4');
   });
 
   it('场合只作为一句语境,不带 SCENE_RULES 的 direction / tags(那里有「利落」「立体」这类词)', () => {

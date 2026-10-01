@@ -275,9 +275,9 @@ export class FakeVisionClient implements VisionClient {
 export const SAMPLE_STYLE_READ = new StyleRead({
   base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
   zones: {
-    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
   },
 });
 

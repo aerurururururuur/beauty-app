@@ -20,9 +20,11 @@ import { presetOccasionCn } from '../../shared/index.js';
 import { STYLE_READ_ZONES, ZONE_ROLES } from '../domain/entities/look-spec.js';
 import type {
   BrowShape,
+  Depth,
   Finish,
   Intensity,
   LookSpec,
+  Saturation,
   ToneKey,
   ZoneRole,
   ZoneSpec,
@@ -36,7 +38,7 @@ const FINISH_CN: Record<Finish, string> = {
 };
 
 /**
- * ⚠️ 色相的中文名。**与占位词表同寿**——`TONE_KEYS` 一旦按 5 档肤色实测替换,
+ * ⚠️ 色相的中文名。**与占位词表同寿**——`TONE_KEYS` 一旦按 8 档肤色实测替换,
  * 这张表要一起换(`Record<ToneKey, …>` 保证不漏,漏了编译不过)。
  */
 const TONE_CN: Record<ToneKey, string> = {
@@ -47,6 +49,7 @@ const TONE_CN: Record<ToneKey, string> = {
   brick: '砖红',
   nude: '裸色',
   plum: '梅子紫',
+  brown: '棕色',
 };
 
 const BROW_CN: Record<BrowShape, string> = {
@@ -92,14 +95,37 @@ function warmthCn(warmth: number): string {
   return '整体明显偏暖';
 }
 
+/**
+ * ★ 深浅当**前缀**加在色相词上,与 `prompt-builder` 的 `DEPTH_TOKEN` 同一条口径 ——
+ *   这句描述是给用户的"预览替代品",必须和真的进图那句话说的是同一个颜色。
+ *   `medium` 是空串:中档下描述与加 `depth` 之前逐字相同。
+ */
+const DEPTH_CN: Record<Depth, string> = {
+  light: '浅',
+  medium: '',
+  deep: '深',
+};
+
+/**
+ * ★ 饱和。与 `prompt-builder` 的 `SATURATION_TOKEN` 同一套办法、同一句话的顺序:
+ *   饱和 → 深浅 → 色相(「低饱和浅玫瑰粉」)。`medium` 也是空串。
+ *   ⚠️ 两处必须同时改 —— 用户是拿着这句话决定要不要花钱出图的(见文件头)。
+ */
+const SATURATION_CN: Record<Saturation, string> = {
+  low: '低饱和',
+  medium: '',
+  high: '高饱和',
+};
+
 function zoneCn(label: string, zone: ZoneSpec): string {
-  return `${label}是${TONE_CN[zone.tone]}的${FINISH_CN[zone.finish]}、${INTENSITY_CN[zone.intensity]}浓度`;
+  const color = `${SATURATION_CN[zone.saturation]}${DEPTH_CN[zone.depth]}${TONE_CN[zone.tone]}`;
+  return `${label}是${color}的${FINISH_CN[zone.finish]}、${INTENSITY_CN[zone.intensity]}浓度`;
 }
 
 /**
  * 把一份妆面单写成一段中文描述。
  *
- * 输出刻意**只讲色 / 质地 / 浓度**——这正是 `LookSpec` 里安全的那三个维度(§6 规矩 5)。
+ * 输出刻意**只讲色 / 深浅 / 饱和 / 质地 / 浓度**——这正是 `LookSpec` 里安全的那些维度(§6 规矩 5)。
  * 唯一的例外是眉形,因为它本来就是几何字段(§6 点名的欠债)。
  * **不要在这段文案里加入 `LookSpec` 之外的信息**(比如"显得脸小"),那是拿描述
  * 偷偷扩权,而用户会拿它当成对成片的承诺。

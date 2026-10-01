@@ -253,7 +253,14 @@ export class DashScopeLlm implements Llm {
       ...(toWireTools(request.tools) ? { tools: toWireTools(request.tools) } : {}),
       // 缺省 auto:模型自己决定调不调工具。**不要用 'required'**——
       // 那会让纯聊天轮也被逼着调工具,而我们的对话大部分时间是纯聊天。
-      ...(request.tools && request.tools.length > 0 ? { tool_choice: 'auto' } : {}),
+      // ★ `requireTool` 是**点名要某一个**,比 'required' 窄得多(理由见 `LlmRequest`)。
+      ...(request.tools && request.tools.length > 0
+        ? {
+            tool_choice: request.requireTool
+              ? { type: 'function', function: { name: request.requireTool } }
+              : 'auto',
+          }
+        : {}),
       ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
     };
 

@@ -28,9 +28,11 @@ import { createAssetsModule } from '../src/modules/assets/index.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import { buildApp } from '../src/app.js';
 import {
+  DEPTHS,
   FINISHES,
   FACE_PROMPT,
   FaceAnalyzer,
+  SATURATIONS,
   SCENE_PROMPT,
   STYLE_PROMPT,
   SceneAnalyzer,
@@ -168,9 +170,9 @@ describe('三个适配器 —— 越界当场抛错,绝不"就近映射"', () =>
     const style = new StyleAnalyzer(
       new FakeVisionClient(
         '{"base":{"coverage":3,"finish":"satin","warmth":0},' +
-          '"zones":{"lip":{"tone":"血橙色","finish":"matte","intensity":3},' +
-          '"cheek":{"tone":"coral","finish":"satin","intensity":2},' +
-          '"eyeshadow":{"tone":"nude","finish":"satin","intensity":2}}}',
+          '"zones":{"lip":{"tone":"血橙色","depth":"medium","saturation":"medium","finish":"matte","intensity":3},' +
+          '"cheek":{"tone":"coral","depth":"medium","saturation":"medium","finish":"satin","intensity":2},' +
+          '"eyeshadow":{"tone":"nude","depth":"medium","saturation":"medium","finish":"satin","intensity":2}}}',
       ),
     );
     // 报的是**哪一格**越界(不是笼统的"读图失败"),否则排查时不知道该改提示词还是改图。
@@ -186,14 +188,17 @@ describe('三个适配器 —— 越界当场抛错,绝不"就近映射"', () =>
     const style = new StyleAnalyzer(
       new FakeVisionClient(
         '{"base":{"coverage":3,"finish":"satin","warmth":-1},' +
-          '"zones":{"lip":{"tone":"rose","finish":"matte","intensity":3},' +
-          '"cheek":{"tone":"coral","finish":"satin","intensity":2},' +
-          '"eyeshadow":{"tone":"nude","finish":"matte","intensity":2}}}',
+          '"zones":{"lip":{"tone":"rose","depth":"light","saturation":"low","finish":"matte","intensity":3},' +
+          '"cheek":{"tone":"coral","depth":"medium","saturation":"medium","finish":"satin","intensity":2},' +
+          '"eyeshadow":{"tone":"nude","depth":"medium","saturation":"medium","finish":"matte","intensity":2}}}',
       ),
     );
     const read: StyleRead = await style.read({ image: IMG });
     expect(read.base.warmth).toBe(-1);
     expect(read.zones.lip.tone).toBe('rose');
+    // ★ 深浅 / 饱和也要真的落进读数 —— 漏了它们,读图那一轮就会拿到一份没有这两格的参考。
+    expect(read.zones.lip.depth).toBe('light');
+    expect(read.zones.lip.saturation).toBe('low');
   });
 
   it('★ 问出去的时候带上了那张图,提示词就是那个常量', async () => {
@@ -248,9 +253,9 @@ describe('提示词漂移 —— 枚举 token 与元组逐项一致', () => {
     expect(SCENE_PROMPT).not.toContain('"occasion"');
   });
 
-  it('style 列全色号与质地', () => {
+  it('style 列全色相、深浅、饱和与质地', () => {
     expect(listedAfter(STYLE_PROMPT, '之一:').sort()).toEqual(
-      [...TONE_KEYS, ...FINISHES].sort(),
+      [...TONE_KEYS, ...DEPTHS, ...SATURATIONS, ...FINISHES].sort(),
     );
   });
 

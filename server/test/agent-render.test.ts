@@ -24,6 +24,7 @@ import type { ImageRef } from '../src/modules/shared/index.js';
 import { FileSystemArtifactStore } from '../src/modules/assets/index.js';
 import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec, describeLook } from '../src/modules/makeup/index.js';
 import type { Engine, EngineInput, EngineResult } from '../src/modules/makeup/index.js';
+import { realPalette } from './helpers/face-catalog.js';
 import {
   AgentLoop,
   AttachPhoto,
@@ -80,10 +81,10 @@ const SAMPLE_LOOK = new LookSpec({
   occasion: 'interview',
   base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
   zones: {
-    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
+    lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
     // ★ 四个区都要给:`describeLook` 会逐区取 `zone.tone`,漏一个就会在视图那一步炸。
-    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
   },
 });
@@ -520,7 +521,7 @@ describe('render_look 三态', () => {
 describe('循环遇到「等确认」', () => {
   function loopWith(script: ConstructorParameters<typeof MockLlm>[0], tools: readonly Tool[]) {
     const llm = new MockLlm(script);
-    const loop = new AgentLoop({ llm, tools: indexTools(tools) });
+    const loop = new AgentLoop({ llm, tools: indexTools(tools), palette: realPalette() });
     return { llm, loop };
   }
 
@@ -715,7 +716,11 @@ describe('StartSession(归属用户必须存在)', () => {
 describe('ConfirmRender', () => {
   async function setup(script: ConstructorParameters<typeof MockLlm>[0], tools: readonly Tool[]) {
     const store = new InMemorySessionStore();
-    const loop = new AgentLoop({ llm: new MockLlm(script), tools: indexTools(tools) });
+    const loop = new AgentLoop({
+      llm: new MockLlm(script),
+      tools: indexTools(tools),
+      palette: realPalette(),
+    });
     const usecase = new ConfirmRender({ sessions: store, loop });
     return { store, loop, usecase };
   }
@@ -767,6 +772,7 @@ describe('ConfirmRender', () => {
         mockText('图出好了'),
       ]),
       tools: indexTools([tool]),
+      palette: realPalette(),
     });
     const usecase = new ConfirmRender({ sessions: store, loop });
 
@@ -808,6 +814,7 @@ describe('ConfirmRender —— 入口 B(用户点界面上那条消息)', () => 
       // 模型只被用来接最后那句收束语(同入口 A 重放完之后的 1 次调用)。
       llm: new MockLlm([mockText('图出好了,你看看这张行不行。')]),
       tools: indexTools([new RenderLookTool({ engine, artifacts })]),
+      palette: realPalette(),
     });
     return { engine, artifacts, store, usecase: new ConfirmRender({ sessions: store, loop }) };
   }
@@ -1329,7 +1336,7 @@ describe('会话视图', () => {
       new LookSpec({
         occasion: SAMPLE_LOOK.occasion,
         base: SAMPLE_LOOK.base,
-        zones: { ...SAMPLE_LOOK.zones, lip: new ZoneSpec({ tone: 'berry', finish: 'matte', intensity: 3 }) },
+        zones: { ...SAMPLE_LOOK.zones, lip: new ZoneSpec({ tone: 'berry', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }) },
       }),
     );
     expect(toSessionView(changed).renderOffer?.alreadyRendered).toBe(false);

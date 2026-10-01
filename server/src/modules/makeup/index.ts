@@ -18,11 +18,16 @@ export {
   ADDED_ZONE_ROLES,
   BROW_SHAPES,
   BrowSpec,
+  DEPTHS,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
   LookSpec,
   LookSpecBase,
+  // ✏️ 2026-10-01:此前没导出过。`read_style_recipe` 要报"这套配方还要求哪些区",
+  //   而那句话的起点是"哪几格每套都必填"——就是这三个(`brow` 不在 `ZONE_ROLES` 里)。
+  MEASURED_ZONE_ROLES,
+  SATURATIONS,
   TONE_KEYS,
   WARMTH_MAX,
   WARMTH_MIN,
@@ -32,8 +37,10 @@ export {
 export type {
   AddedZoneRole,
   BrowShape,
+  Depth,
   Finish,
   Intensity,
+  Saturation,
   ToneKey,
   ZoneRole,
 } from './domain/entities/look-spec.js';

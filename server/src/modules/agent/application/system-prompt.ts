@@ -21,10 +21,12 @@
  *   (见 `render-state-description.ts`)。**句式、前提、状态,三样缺一样就会被绕过去。**
  */
 import type { Session } from '../domain/entities/session.js';
+import type { SkinTonePalette } from '../../makeup/index.js';
 import { describeBrief } from './brief-description.js';
 import { describeLookState } from './look-state-description.js';
 import { describeRenderState } from './render-state-description.js';
 import { describeStyleOptions } from './style-options-description.js';
+import { describeToneOptions } from './tone-options-description.js';
 
 /**
  * 提示版本号。★ 随每次 LLM 调用记进夹具(同 §5.2 对 `prompt-builder` 模板版本号的要求):
@@ -374,8 +376,55 @@ import { describeStyleOptions } from './style-options-description.js';
  *
  *   ⚠️ 本版改动**尚未经过真实调用** ⇒ `[未验证]`。最小验证:随便说一句「定一套妆」,
  *   看 `propose_look` 的入参 `styleId` 是不是清单里那 21 个之一(不再限 `party` 那一行)。
+ * - `v16` ——(2026-10-01)**「当前状态」里多一行「肤色「…」可用色:…」**(只在肤色已知时印)。
+ *   起因是实测里每次会话**必有一次**打回:`tone` 的 `enum` 给的是全 7 个色,而真正合法的
+ *   只有该肤色那一档的 3~6 个——橄榄皮那档恰好排除 `peach`,模型偏偏选了它。
+ *   ⇒ 白花一个回合。那一行就是 `validateLookSpec` ③ 收窄时用的同一份色汇
+ *   (见 `tone-options-description.ts`)。
+ *
+ *   ⚠️ **实测结果(2026-10-01,`skinTone=olive`,开场那一轮 3 次真调用):这一行不够。**
+ *     打回 2 / 2 / 1 次,其中**色相打回仍有 2 次**,两次都是 `highlight` 用了 `peach`。
+ *     那一行确实发到线上了(echo 端点验过,0 次调用),所以不是接线问题 ——
+ *     模型填参数时看的是**工具 schema 的 `enum`**(那里 7 个色一个不少),不是这段话。
+ *     **光说一遍没用:要么把 `enum` 按肤色收窄,要么认这一个回合。**
+ *   ✏️ **2026-10-01 选了收窄**(提示词这一版一个字没再改):`Tool.definitionFor` +
+ *     `proposeLookWithTones` 把 `propose_look` 的 `tone` 白名单按会话里的肤色换掉。
+ *     **复测(同条件,3 次真调用):色相打回 0 次,每轮只剩 1 次区集打回**
+ *     (`zones 与所选配方的步骤对不上`——那是另一件事,没动)。改动前是 2 / 2 / 1 次。
+ *     ⚠️ 这一行留着**不是**冗余:肤色还没问出来时 `enum` 仍是全量 7 色,
+ *     那时它仍是模型唯一的提示。
+ *   ⚠️ 验证走的是**真 HTTP**(`POST /api/agent/sessions` 带 `skinTone` + 一句开场白),
+ *     **不是 `probe:agent-prompt`** —— 那个脚本的会话 `brief` 是空的(它探的正是
+ *     「肤色偏深」该留空那一档),肤色未知就不收窄,一次色相打回都造不出来。
+ * - `v17` ——(2026-10-01)**本文件一个字没改;变的是 `propose_look` 的契约**:
+ *   区里多一格 `depth`(浅 / 中 / 深),`tone` / `depth` 的 `description` 改成教它
+ *   「什么妆配什么色」。理由与实测证据写在 `definitions.ts` 的 `zoneSchema` 那儿。
+ *   ⚠️ 照 `v15` 的先例(那一版也只动契约):版本号是夹具里**唯一**能标出
+ *   "这轮回复是哪套契约出来的"的东西,不动它就分不清改动前后。
+ *   ⚠️ **尚未经过真实调用** ⇒ `[未验证]`。最小验证:重跑同一次「淡颜清冷妆」,
+ *   看唇 / 颊是不是落在 `depth=light` 上,而不是又一次 `berry`。
+ * - `v18` ——(2026-10-01,同一天)**同上,本文件也是一个字没改**:`propose_look` 的区里
+ *   再添一格 `saturation`(低 / 中 / 高),`tone` 的 `description` 相应改成"这一格只管色系",
+ *   色相词表另加 `brown`(7 → 8,依据是配方自己的色值分布,见 `look-vocabulary.ts`)。
+ *   ⚠️ **换肤色的那份 `enum` 收窄没动**:饱和是"这套妆要多灰",不是"这档肤色能用哪个色"。
+ *   ⚠️ **尚未经过真实调用** ⇒ `[未验证]`。最小验证同 `v17`,多看一格:`saturation=low`
+ *   要能出现在「清冷 / 低饱和」这类诉求上,而默认妆容仍然是 `medium`(渲染时不加字)。
+ * - `v19` ——(2026-10-01,同一天)★ **这一版提示词真的改了**,不像 `v17`/`v18`:
+ *   「你的工作」里加了一条 ——**挑定 `styleId` 后先调 `read_style_recipe` 读配方正文,
+ *   再填妆面单**;免费工具名单里相应多了它。变的是**工具集 6 → 7**(理由与边界写在
+ *   `definitions.ts` 的文件头)。
+ *
+ *   **起因是 `v16` 那行字底下记着的那件事**——「每轮只剩 1 次区集打回
+ *   (`zones 与所选配方的步骤对不上`——那是另一件事,没动)」。当时判断是另一件事,
+ *   现在动了:根因不是模型不听话,而是**配方正文只在 `propose_look` 成功之后才进上下文**,
+ *   它填 `zones` 时手里根本没有"这套配方有哪几步"这条信息。修法与 `v16` 同形
+ *   (**让它做决定的那一刻手里真有东西**),不是再往提示里加一句话。
+ *
+ *   ⚠️ **尚未经过真实调用** ⇒ `[未验证]`。最小验证:重跑一次会话,看它的工具序列里
+ *   `read_style_recipe` 是不是排在 `propose_look` **前面**,以及
+ *   `zones 与所选配方的步骤对不上` 这条打回是不是降到 0(此前是每轮 1 次)。
  */
-export const SYSTEM_PROMPT_VERSION = 'v15';
+export const SYSTEM_PROMPT_VERSION = 'v19';
 
 export interface SystemPromptOptions {
   /**
@@ -389,6 +438,15 @@ export interface SystemPromptOptions {
    *   「没有名为 list_products 的工具」,然后它就自己编产品了。**那正是红线 §13-6 要防的。**
    */
   hasProducts?: boolean;
+  /**
+   * 肤色词表,**用来印「该肤色可用色:…」那一行**(v16)。
+   *
+   * ⚠️ 缺省 = **整行不印**,退回到"让模型猜色、被拒一次"——那是 `v15` 的行为。
+   *   它**不是**安全开关:真正的收窄在 `validateLookSpec`,那边 `palette` 是必填的,
+   *   少传这里不会让非法色过关,只会白花一个回合。所以这一格是可选提示,不是闸门。
+   *   (生产路径只有 `agent-loop` 一条,它必传。)
+   */
+  palette?: SkinTonePalette;
 }
 
 export function buildSystemPrompt(session: Session, options: SystemPromptOptions = {}): string {
@@ -396,8 +454,12 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
   //   它多报一件事——**上一次 `propose_look` 有没有被拒**(v11)。
   const look = describeLookState(session);
   // 免费工具的名单按实际注册的写。★ 多列一个不存在的工具,比少列一个更坏(见 options 的注释)。
-  const freeTools = ['`patch_brief`', '`propose_look`', '`list_cabinet`'];
+  const freeTools = ['`patch_brief`', '`read_style_recipe`', '`propose_look`', '`list_cabinet`'];
   if (options.hasProducts) freeTools.push('`list_products`', '`read_product`');
+  // ★ 肤色未知时不印——那本来就不收窄,`enum` 里的全量色相就是对的。
+  const tone = options.palette
+    ? describeToneOptions(session.brief.skinTone, options.palette)
+    : undefined;
 
   const rules: string[] = [
     '1. **你永远不写图像提示词。** 你的产出只有结构化字段,生图那一步由固定模板负责。',
@@ -485,6 +547,11 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '★ 这次调用还要带一格 `styleId`:**从「当前状态」里「可选风格」那一行列出的清单里挑一个**,',
     '不要自己编。它和这套妆面是**同一件事的两面**——',
     '你提的是一套妆,`styleId` 就是这套妆的配方,两者要是一套,不能各说各的。',
+    // ★ v19:`zones` 那一格此前是**闭着眼睛填**的(配方正文只在 propose_look 成功后才进上下文),
+    //   于是每轮必被打回一次。现在读得到配方了 —— 这一步是那件事的落点。
+    '★★ **挑定 `styleId` 之后,先调 `read_style_recipe` 把那条配方的正文读出来**,再填这张妆面单:',
+    '`zones` 要有哪些区、颜色照什么要点挑,两样都在那份正文里。',
+    '**闭着眼睛填必然少一个区或多一个区**,而多填少填都会被拒绝——白花一个回合。',
     '',
     '## 硬规则(不是建议)',
     ...rules,
@@ -506,6 +573,8 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '',
     '## 当前状态',
     `已知需求:${describeBrief(session.brief)}`,
+    // ★ v16:紧挨着「已知需求」印——「肤色深浅=…」刚说完,这一行就是它的下半句。
+    ...(tone ? [tone] : []),
     // ★ 存在理由见文件头 v15 那段:这份清单与场合无关,但**每轮都要印**——
     //   用户中途换风格(或者第一次提 `propose_look`)时,模型手上得有一份能挑的清单。
     describeStyleOptions(),

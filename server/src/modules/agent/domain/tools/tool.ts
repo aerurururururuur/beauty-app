@@ -78,6 +78,14 @@ export interface ToolOutcome {
 
 export interface Tool {
   readonly definition: LlmToolDefinition;
+  /**
+   * ★ **可选**:这一轮真正发给模型的那份契约,**如果它随会话状态变**。
+   *   不实现 = 就用 `definition`(绝大多数工具都是这样,也应该是这样)。
+   *   ★ 现在只有 `propose_look` 实现:它的 `tone` 白名单要按会话里的肤色收窄
+   *   (§6 规矩 4「合法取值空间本身按 skinTone 收窄」),肤色未知时返回 `definition` 本身。
+   *   ⚠️ **名字仍以 `definition.name` 为准** —— `indexTools` 拿它建索引,不看这个方法。
+   */
+  definitionFor?(session: Session): LlmToolDefinition;
   run(input: unknown, context: ToolContext): Promise<ToolOutcome>;
 }
 

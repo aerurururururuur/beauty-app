@@ -1,5 +1,5 @@
 /**
- * agent/domain/tools/definitions.ts —— 六个工具的**给模型看的契约**。
+ * agent/domain/tools/definitions.ts —— 七个工具的**给模型看的契约**。
  *
  * §7.3 第 3 条:「**工具描述是给模型看的 prompt,是产品的一部分**,
  * 要按文案对待、要有人看、要能改。」所以它们在这里,而不是散在实现文件里当注释。
@@ -37,14 +37,33 @@
  *   ⚠️ **但如果后来发现模型仍在正文里编产品名,第一个该补的就是它。**
  *   把「读过哪些产品」记进会话的是 `read_product` 的副作用(那条路不需要新工具,
  *   见 `entities/session.ts` 的 `ConsultedProduct`)。
+ *
+ * ── ★★ 2026-10-01:工具集从 6 变 7,加的是 `read_style_recipe`。理由与边界 ──────────
+ *
+ * 它破的是「6 个」那个数目,**没有破 `v16` 之后立下的形状**:工具集小的目的是
+ * 「模型不必猜」,而这一次加的正是同一件事。
+ *
+ * - **它补的是一个结构性缺口。** `propose_look` 的 `zones` 要与所选配方的步骤**集合相等**
+ *   (见 `look-spec.validator.ts` ②c),而配方正文此前**只在 `propose_look` 成功之后**
+ *   才进上下文(`recipeGuidance`)。⇒ 模型是**闭着眼睛**填 `zones` 的:
+ *   实测每轮必被打回一次,代价是一次多出来的计费调用。这不是模型不听话,
+ *   是那一格当时**无解**——它有义务填对一件从未读到的东西。
+ * - **它是只读、免费、无副作用**,可重放(`tool.ts` 约束 3)。`render_look` 仍是唯一有成本的那个。
+ * - **它不是"给模型更多资料"那类扩张。** 同 `v16` 的教训:光在提示词里加话不够,
+ *   模型填参数读的是**工具给它的正文**(见 `system-prompt.ts` 的 `v16` 沿革)。
+ *   ⇒ 这次的修法是让它能在**做决定之前**读到那份正文。
+ * - ⚠️ **仍然没有第八个。** `list_products(ids[])` 那类"把提示词能管的事改成代码管"
+ *   的东西照旧不加;要加先回来看这一段,并把理由写在这里。
  */
 
 import { SKIN_TONES, SKIN_TYPES } from '../../../shared/index.js';
 import {
   BROW_SHAPES,
+  DEPTHS,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
+  SATURATIONS,
   TONE_KEYS,
   WARMTH_MAX,
   WARMTH_MIN,
@@ -54,6 +73,7 @@ import type { LlmToolDefinition } from '../ports/llm.js';
 /** 工具名。写成常量而不是散落的字符串字面量,免得注册表和分发器对不上。 */
 export const TOOL_NAMES = {
   patchBrief: 'patch_brief',
+  readStyleRecipe: 'read_style_recipe',
   proposeLook: 'propose_look',
   listCabinet: 'list_cabinet',
   renderLook: 'render_look',
@@ -67,15 +87,43 @@ const intensitySchema = {
   maximum: INTENSITY_MAX,
 } as const;
 
-/** 一个「色 + 质地 + 浓度」区的 JSON Schema(三个区位共用)。 */
+/**
+ * 一个「色 + 深浅 + 饱和 + 质地 + 浓度」区的 JSON Schema(九个区位共用)。
+ *
+ * ⚠️ **`tone` / `depth` / `saturation` 的 `description` 是这两版真正的修法**,不是说明书——
+ *   实测(2026-10-01)里模型把「淡颜清冷妆」配成莓果红 + 明显浓度,而这条配方
+ *   自己写着「低饱和」「避免任何高饱和点缀」。色汇里当时**没有"浅"、也没有"灰"这个说法**,
+ *   它只能从色相族里挑一个,挑中的就是最像红的那个。
+ *   ⇒ 这三句要写的是**怎么在这一格里选**(什么妆用什么值),不是字段叫什么意思。
+ *
+ * ⚠️ **但不许在这里举具体色名**:`tone` 的合法集**按肤色变**(见 `proposeLookWithTones`),
+ *   写「可以选 peach」在橄榄皮那档就是"报了一个校验器会拒的值"——`v16` 记的正是这个坑。
+ *   所以 `tone` 那句只给判据,具体能选哪些由 `enum` 自己说。
+ */
 const zoneSchema = {
   type: 'object',
   properties: {
-    tone: { type: 'string', enum: [...TONE_KEYS], description: '色相' },
+    tone: {
+      type: 'string',
+      enum: [...TONE_KEYS],
+      description: '色相(哪个色系)。多浅由 depth 说、多灰多艳由 saturation 说,这一格只挑色系',
+    },
+    depth: {
+      type: 'string',
+      enum: [...DEPTHS],
+      description:
+        '深浅:这个颜色本身多浅多深(不是涂了多少,那是 intensity)。清透 / 低饱和的妆用 light',
+    },
+    saturation: {
+      type: 'string',
+      enum: [...SATURATIONS],
+      description:
+        '饱和:这个颜色多灰 / 多艳(灰调、藕色、雾感是低;鲜亮是高)。清透 / 清冷 / 低饱和的妆用 low',
+    },
     finish: { type: 'string', enum: [...FINISHES], description: '质地' },
     intensity: { ...intensitySchema, description: '浓度' },
   },
-  required: ['tone', 'finish', 'intensity'],
+  required: ['tone', 'depth', 'saturation', 'finish', 'intensity'],
   additionalProperties: false,
 } as const;
 
@@ -127,6 +175,41 @@ export const PATCH_BRIEF: LlmToolDefinition = {
 };
 
 /**
+ * `read_style_recipe` —— 读一条风格配方的**正文**。**免费、只读、无副作用**。
+ *
+ * ★ **它存在的原因是 `zones` 那一格此前无解**(见文件头 2026-10-01 那段):
+ *   模型必须先知道「这套配方有哪几步」才填得对区,而配方正文此前只在
+ *   `propose_look` **成功之后**才进上下文 —— 于是它每轮必被打回一次。
+ *
+ * ⚠️ **描述里那句"填之前先读"不能省。** 模型不会主动去读一个"可有可无"的工具;
+ *   它读到的是这句义务。同 `v16` 的教训:光靠提示词里的嘱咐不够,得让它在
+ *   **做决定的那一刻**手里真有那份东西。
+ */
+export const READ_STYLE_RECIPE: LlmToolDefinition = {
+  name: TOOL_NAMES.readStyleRecipe,
+  description: [
+    '读一条风格配方的正文:它有哪些上妆步骤、每一步的要点、用到哪些色号(带色值),',
+    '以及**这套配方要求妆面单里出现哪些区**。',
+    '★★ **挑定 `styleId` 之后、填 `propose_look` 之前,先调它一次。**',
+    '`zones` 要与这里的步骤一一对上(多填一个区、少填一个区都会被拒绝),',
+    '颜色 / 质地 / 浓度也照这里的上妆要点挑——**光看配方名看不出它是低饱和还是鲜亮**。',
+    '`styleId` 原样取自「当前状态」里「可选风格」那一行,不要自己编。',
+    '这个操作免费,不需要用户确认。',
+  ].join(''),
+  inputSchema: {
+    type: 'object',
+    properties: {
+      styleId: {
+        type: 'string',
+        description: '风格配方 id,取自「当前状态」里「可选风格」那一行列出的清单。',
+      },
+    },
+    required: ['styleId'],
+    additionalProperties: false,
+  },
+};
+
+/**
  * `propose_look` —— 产出/修改妆面单。**免费**,agent 的主要产出物。
  *
  * ★ 描述里必须说清「**只有这些字段**」以及「读不懂的诉求要明说不支持」。
@@ -161,8 +244,10 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
     '这套妆面表达不了——遇到时要用文字向用户说明做不到,不要硬塞进这几个字段。',
     '★ `styleId` **只从「当前状态」里「可选风格」那一行列出的清单里挑**,不要自己编。',
     '它和这套妆面是**同一件事的两面**:用户按那套配方去理解你说了什么,所以两者要配得上。',
+    '★★ **填这张单子之前先调 `read_style_recipe`,把那条配方的正文读出来。**',
+    '`zones` 要填哪几个区、颜色照什么要点挑——两样都在那份正文里写着,',
+    '闭着眼睛填**必然**少一个区或多一个区(多填少填都会被拒绝,白花一个回合)。',
     '★ `zones` 只填**那套配方里真有对应步骤**的部位(配方里有眼线那一步才填 `liner`)。',
-    '多填或少填都会被拒绝,并且会告诉你差哪一步 / 多哪个区,照着改再调一次就行。',
     '调用后你会拿到这段妆面的中文描述,把它讲给用户听,并问清楚要不要调整。',
     '这个操作免费,不需要用户确认。',
   ].join(''),
@@ -184,7 +269,8 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
       styleId: {
         type: 'string',
         description:
-          '风格配方 id。**从「当前状态」里那一行列出的清单里挑一个**,不要自己编。',
+          '风格配方 id。**从「当前状态」里那一行列出的清单里挑一个**,不要自己编。' +
+          '挑定之后先调 `read_style_recipe` 读它的正文,再照那份正文填这张妆面单。',
       },
       base: {
         type: 'object',
@@ -233,6 +319,50 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
     additionalProperties: false,
   },
 };
+
+/** 只为收窄时能把 `inputSchema.properties.zones.properties` 这一层窄化读出来。 */
+interface ZonesLayer {
+  properties: {
+    zones: { properties: Record<string, { properties?: Record<string, unknown> }> };
+  };
+}
+
+/**
+ * `PROPOSE_LOOK`,只是把每个「色 + 深浅 + 饱和 + 质地 + 浓度」区的 `tone` 白名单换成给的那一份。
+ *
+ * ★ 入参就是**该肤色可用的色汇**(`SkinTonePalette.toneKeysFor`)。
+ *   **不给 / 给空 = 原样返回**:那时该用全量 8 色(肤色还没问出来的那一档)。
+ * ⚠️ **必须整份重建,不能就地改 `enum`**:那九个区是 `{ ...zoneSchema }` 浅拷贝,
+ *   它们的 `properties` 是**同一个对象**——就地改一处会连带改掉另外八个和 `zoneSchema` 自己。
+ */
+export function proposeLookWithTones(tones?: readonly string[]): LlmToolDefinition {
+  if (!tones || tones.length === 0) return PROPOSE_LOOK;
+  const { zones } = (PROPOSE_LOOK.inputSchema as unknown as ZonesLayer).properties;
+  const properties = Object.fromEntries(
+    Object.entries(zones.properties).map(([role, zone]) => {
+      const tone = zone.properties?.tone;
+      // `brow` 没有 `tone` 那一格(眉形 + 浓度),按原样留着。
+      if (!tone) return [role, zone];
+      return [
+        role,
+        {
+          ...zone,
+          properties: { ...zone.properties, tone: { ...(tone as object), enum: [...tones] } },
+        },
+      ];
+    }),
+  );
+  return {
+    ...PROPOSE_LOOK,
+    inputSchema: {
+      ...PROPOSE_LOOK.inputSchema,
+      properties: {
+        ...(PROPOSE_LOOK.inputSchema.properties as Record<string, unknown>),
+        zones: { ...zones, properties },
+      },
+    },
+  };
+}
 
 /**
  * `list_cabinet` —— 读用户**自己已经有的**化妆品。**免费**。
@@ -407,6 +537,9 @@ export const RENDER_LOOK: LlmToolDefinition = {
  */
 export const TOOL_DEFINITIONS: readonly LlmToolDefinition[] = [
   PATCH_BRIEF,
+  // ★ `read_style_recipe` 紧挨在 `propose_look` **前面**:它是那一步的前置功课
+  //   (填 `zones` 之前先读配方),排在别处会让它看起来是个可选的信息源。
+  READ_STYLE_RECIPE,
   PROPOSE_LOOK,
   LIST_CABINET,
   LIST_PRODUCTS,

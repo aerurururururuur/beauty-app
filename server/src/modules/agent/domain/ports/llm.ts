@@ -81,6 +81,17 @@ export interface LlmRequest {
   messages: Message[];
   /** 不传 = 本轮不给工具(纯文本轮)。 */
   tools?: LlmToolDefinition[];
+  /**
+   * ★ **点名**这一轮必须调用哪一个工具(不传 = 模型自己决定)。
+   *
+   * 只有一处用得上:开场那一轮逼它把妆面记下来。实测它会只调 `patch_brief`,
+   * 然后在正文里把妆面讲完(`system-prompt.ts` 文件头 v11),会话里什么都没落下。
+   *
+   * ⚠️ 与「随便调一个工具」那种 `required` **不是一回事**,别拿它替代后者:
+   *   那档会让纯聊天轮也被逼着调工具,而对话大部分时间是纯聊天。
+   * ⚠️ 认不得这条的实现**必须无视它**(离线那两支就是),不许假装照做。
+   */
+  requireTool?: string;
   /** 输出上限。★ 线上有的实现把它当**必填**,所以 adapter 必须有一个兜底值。 */
   maxTokens?: number;
   timeoutMs?: number;

@@ -42,7 +42,9 @@ import {
 } from '../../../makeup/index.js';
 import type {
   AddedZoneRole,
+  Depth,
   Finish,
+  Saturation,
   SkinTonePalette,
   ToneKey,
   ZoneRole,
@@ -185,11 +187,22 @@ const ZONE_LOOKS: Record<ZoneRole, { preferred: ToneKey; finish: Finish; intensi
   lash: { preferred: 'plum', finish: 'matte', intensity: 3 },
 };
 
+/**
+ * 演示一律用中档深浅。★ 这一档在 `prompt-builder` / `look-description` 里**不加字**,
+ *   所以离线演示的产出不会因为 `ZoneSpec` 多了一格而变样。挑值的标准是**合法**,不是好看。
+ */
+const DEMO_DEPTH: Depth = 'medium';
+
+/** 演示一律用中档饱和。理由同 `DEMO_DEPTH`:`medium` 在渲染时同样不加字。 */
+const DEMO_SATURATION: Saturation = 'medium';
+
 /** 一个区的参数。`offset` 取它在 `ZONE_ROLES` 里的下标(见 `toneFor`)。 */
 function zoneOf(role: ZoneRole, allowed: readonly ToneKey[] | undefined): ZoneSpec {
   const look = ZONE_LOOKS[role];
   return new ZoneSpec({
     tone: toneFor(look.preferred, allowed, ZONE_ROLES.indexOf(role)),
+    depth: DEMO_DEPTH,
+    saturation: DEMO_SATURATION,
     finish: look.finish,
     intensity: look.intensity,
   });

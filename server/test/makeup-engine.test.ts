@@ -25,9 +25,9 @@ const SPEC = new LookSpec({
   occasion: 'daily',
   base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
   zones: {
-    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
   },
 });
@@ -192,7 +192,7 @@ describe('提示词只随"会影响措辞"的东西变', () => {
     const other = new LookSpec({
       occasion: SPEC.occasion,
       base: SPEC.base,
-      zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'berry', finish: 'matte', intensity: 5 }) },
+      zones: { ...SPEC.zones, lip: new ZoneSpec({ tone: 'berry', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 5 }) },
     });
     expect(promptOf({ lookSpec: other })).not.toBe(promptOf());
   });
@@ -214,7 +214,7 @@ describe('ImageEngine', () => {
     expect(res.image.mimeType).toBe('image/png');
     expect(readFileSync(res.image.filePath)).toEqual(imageBytes);
     expect(path.dirname(res.image.filePath)).toBe(path.join(dir, 'out'));
-    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v2' });
+    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v4' });
     // style 复用 describeLook:确定性、与 LookSpec 一一对应。
     expect(String((res.look as { style: string }).style)).toContain('玫瑰粉');
   });

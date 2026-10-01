@@ -16,9 +16,11 @@
  */
 import { TONE_KEYS } from '../../../shared/index.js';
 import {
+  DEPTHS,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
+  SATURATIONS,
   WARMTH_MAX,
   WARMTH_MIN,
 } from '../../domain/entities/look-spec.js';
@@ -40,13 +42,15 @@ export const STYLE_PROMPT = [
   '{',
   `  "base": {"coverage": <${I}>, "finish": "<质地>", "warmth": <${W}>},`,
   '  "zones": {',
-  `    "lip":       {"tone": "<色>", "finish": "<质地>", "intensity": <${I}>},`,
-  `    "cheek":     {"tone": "<色>", "finish": "<质地>", "intensity": <${I}>},`,
-  `    "eyeshadow": {"tone": "<色>", "finish": "<质地>", "intensity": <${I}>}`,
+  `    "lip":       {"tone": "<色>", "depth": "<深浅>", "saturation": "<饱和>", "finish": "<质地>", "intensity": <${I}>},`,
+  `    "cheek":     {"tone": "<色>", "depth": "<深浅>", "saturation": "<饱和>", "finish": "<质地>", "intensity": <${I}>},`,
+  `    "eyeshadow": {"tone": "<色>", "depth": "<深浅>", "saturation": "<饱和>", "finish": "<质地>", "intensity": <${I}>}`,
   '  }',
   '}',
   '',
   `「色」**只能**是这 ${TONE_KEYS.length} 个之一:${TONE_KEYS.join(' / ')}`,
+  `「深浅」**只能**是这 ${DEPTHS.length} 个之一:${DEPTHS.join(' / ')}`,
+  `「饱和」**只能**是这 ${SATURATIONS.length} 个之一:${SATURATIONS.join(' / ')}`,
   `「质地」**只能**是这 ${FINISHES.length} 个之一:${FINISHES.join(' / ')}`,
   'warmth 负数偏冷、正数偏暖、0 中性。',
   '',

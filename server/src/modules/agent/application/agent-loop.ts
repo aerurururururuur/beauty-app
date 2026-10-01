@@ -57,6 +57,7 @@ import {
   toolResults,
   toolUsesOf,
 } from '../domain/entities/message.js';
+import type { SkinTonePalette } from '../../makeup/index.js';
 import type { Llm, LlmResponse } from '../domain/ports/llm.js';
 import type { PendingConfirmation, Tool, ToolOutcome } from '../domain/tools/tool.js';
 import { buildSystemPrompt } from './system-prompt.js';
@@ -132,6 +133,9 @@ export interface AgentLoopOptions {
   llm: Llm;
   /** 工具注册表。★ 它同时就是**白名单**——查不到的名字一律拒绝(安全底线)。 */
   tools: ReadonlyMap<string, Tool>;
+  /** 肤色词表。★ **必传** —— 它只用来在系统提示里印「该肤色可用色」那一行(v16),
+   *  但那是每次会话白花一个回合的原因,少传就退回"让模型猜"。同 `ProposeLookTool` 那一格的理由。 */
+  palette: SkinTonePalette;
   maxIterations?: number;
   turnTimeoutMs?: number;
   maxTokens?: number;
@@ -195,11 +199,15 @@ export class AgentLoop {
     const maxIterations = this.opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     const deadline =
       this.now() + (options.turnTimeoutMs ?? this.opts.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS);
-    const definitions = [...this.opts.tools.values()].map((t) => t.definition);
     const events: AgentEvent[] = [];
 
     // 之后所有变更都以「返回新 Session」折叠,不就地改。
     let current = session;
+
+
+    // ★ 「这一轮是不是这次会话的开场」——历史里还没有 assistant 说过话。
+    //   只看**进来的**那份会话:后面折叠出来的不算(重放确认那一轮尤其不是开场)。
+    const isOpeningTurn = !session.messages.some((m) => m.role === 'assistant');
 
     // ── ⓞ ★ 先把「欠着 tool_result 的那一轮」了结(见文件头 ⑦ 第 3 条)─────────
     //   这一步**不能省**:上一轮停在等待确认时,那条 `tool_use` 还欠着结果,
@@ -227,6 +235,39 @@ export class AgentLoop {
         return this.close(current, events, 'timeout', iteration);
       }
 
+      // ★ 开场那一轮**点名**要妆面:它的全部意义就是把妆面记进会话,而实测里
+      //   模型会只调 `patch_brief`、然后在正文里把妆面讲完(见 `system-prompt.ts` v11)
+      //   ——那一步没落进会话,后面整条出图链就都没有依据。
+      //   ⚠️ 落了就松手,别挡住它接着说话;出了开场那一轮也照旧不点名。
+      const wantsLook =
+        isOpeningTurn && !current.lookSpec && this.opts.tools.has(TOOL_NAMES.proposeLook);
+      /**
+       * ✏️ 2026-10-01:**点名分两段,先读配方、再填妆面单。**
+       *
+       * ⚠️ **不这样分,`read_style_recipe` 在开场那一轮就形同虚设。** `requireTool` 是
+       *   `tool_choice: {function: …}` —— 点名谁,模型**这一轮就只能调那一个**。
+       *   于是"先读配方再填 `zones`"这件事在最需要它的那一轮(开场)根本做不到,
+       *   而开场那一轮正是每轮必被区集打回的那一次。
+       *   ⇒ 把第一段点名给 `read_style_recipe`,它一答过就换回 `propose_look`。
+       *
+       * ★ 判据是「**历史里出现过那一调没有**」。开场那一轮的历史里不可能有(有 assistant
+       *   就不叫开场了),所以它真正管的是**同一次运行内**第一段点名答过没有 —— 一答过
+       *   就换成 `propose_look`,读失败(比如它编了个 id)也一样:那之后该由模型自己决定
+       *   要不要再读,而不是被钉在读取上出不去。
+       * ⚠️ 注册表里没有 `read_style_recipe` 时整段退回旧行为(同下面那条"没有 `propose_look` 就不点名")。
+       */
+      const readRecipeFirst =
+        wantsLook &&
+        this.opts.tools.has(TOOL_NAMES.readStyleRecipe) &&
+        !current.messages.some((m) =>
+          toolUsesOf(m).some((c) => c.name === TOOL_NAMES.readStyleRecipe),
+        );
+      const requireTool = !wantsLook
+        ? undefined
+        : readRecipeFirst
+          ? TOOL_NAMES.readStyleRecipe
+          : TOOL_NAMES.proposeLook;
+
       // ── ① 调 LLM ──
       let response: LlmResponse;
       try {
@@ -235,9 +276,14 @@ export class AgentLoop {
           //   "哪些工具真的存在"的唯一出处(理由见 `SystemPromptOptions` 的注释)。
           system: buildSystemPrompt(current, {
             hasProducts: this.opts.tools.has(TOOL_NAMES.listProducts),
+            palette: this.opts.palette,
           }),
           messages: current.messages,
-          tools: definitions,
+          // ★ 工具契约**按当前会话现算**(每次迭代都算,不能提到循环外):
+          //   `propose_look` 的 `tone` 白名单要按会话里的肤色收窄,而那一格可能是
+          //   上一迭代的 `patch_brief` 才填上的。没实现 `definitionFor` 的工具用它自己的契约。
+          tools: [...this.opts.tools.values()].map((t) => t.definitionFor?.(current) ?? t.definition),
+          ...(requireTool !== undefined ? { requireTool } : {}),
           maxTokens: this.opts.maxTokens ?? DEFAULT_MAX_TOKENS,
         });
       } catch (err) {
@@ -321,6 +367,9 @@ export class AgentLoop {
     for (const call of calls) {
       events.push({ type: 'tool_start', toolUseId: call.id, name: call.name });
       const outcome = await this.runToolSafely(call, current, confirmation);
+      // ★ 工具成功与否**只有事件里那个布尔**,被拒的理由一个字都不进日志
+      //   (`tool_result` 的内容只回填给模型)。诊断时就只能靠猜。
+      if (outcome.isError) console.warn(`[agent] 工具 ${call.name} 被拒:${outcome.content}`);
       if (outcome.session) current = outcome.session;
       events.push({
         type: 'tool_end',

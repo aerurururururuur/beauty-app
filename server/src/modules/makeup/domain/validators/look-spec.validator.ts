@@ -10,8 +10,12 @@
  * ★ **本文件是两个入口,不是两个规则集**(2026-09-29 加第二个):
  *   `validateLookSpec`(妆面单,来自 `propose_look` 入参)与
  *   `validateStyleRead`(风格图读数,来自视觉模型,见 `entities/style-read.ts`)。
- *   两者逐条规则相同,共用下面那批 `read*` 助手 —— 分家就得把 `TONE_KEYS` / `FINISHES` /
- *   区间写成第二份,而它们不会一起改(§4.1 的同一条道理,只是从类型换成了规则)。
+ *   两者逐条规则相同,共用下面那批 `read*` 助手 —— 分家就得把 `TONE_KEYS` / `DEPTHS` /
+ *   `SATURATIONS` / `FINISHES` / 区间写成第二份,而它们不会一起改(§4.1 的同一条道理,
+ *   只是从类型换成了规则)。
+ *
+ * ⚠️ `depth` / `saturation` 只查白名单,**不按肤色收窄**(③只查 `tone`):
+ *   深浅与饱和是"这套妆要多浅多灰",与"这档肤色能用哪个色相"是两个问题。
  *
  * ✏️ **2026-10-01:妆面单多了六个可选区,于是多了一条「与配方的区集合相等」的检查**
  *   (②c,入参 `requiredZones`)。它**不在**上面那三件事里 —— 它既不是形状也不是取值,
@@ -35,11 +39,13 @@ import {
   ADDED_ZONE_ROLES,
   BROW_SHAPES,
   BrowSpec,
+  DEPTHS,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
   LookSpec,
   LookSpecBase,
+  SATURATIONS,
   TONE_KEYS,
   WARMTH_MAX,
   WARMTH_MIN,
@@ -124,25 +130,40 @@ function readWarmth(reading: Reading, at: string, value: number): number | undef
  * ★ **「没填」是合法的,不打分**:该不该有它由 ②c 对着配方判,那里能说出"哪一步"。
  *   这里只把**填了但填错**的说出来(`readZone` 已经有那块逻辑)。
  */
+/** 一个「色 + 深浅 + 饱和 + 质地 + 浓度」区的**原始**入参形状(五个字段各有各的白名单)。 */
+interface ZoneRaw {
+  tone: string;
+  depth: string;
+  saturation: string;
+  finish: string;
+  intensity: number;
+}
+
 function readOptionalZone(
   reading: Reading,
   role: ZoneRole,
-  raw: { tone: string; finish: string; intensity: number } | undefined,
+  raw: ZoneRaw | undefined,
 ): ZoneSpec | undefined {
   return raw === undefined ? undefined : readZone(reading, `zones.${role}`, raw);
 }
 
-/** 一个「色 + 质地 + 浓度」区:三项全对才算读到。 */
-function readZone(
-  reading: Reading,
-  at: string,
-  raw: { tone: string; finish: string; intensity: number },
-): ZoneSpec | undefined {
+/** 一个区:五项全对才算读到。 */
+function readZone(reading: Reading, at: string, raw: ZoneRaw): ZoneSpec | undefined {
   const tone = readEnum(reading, `${at}.tone`, raw.tone, TONE_KEYS);
+  const depth = readEnum(reading, `${at}.depth`, raw.depth, DEPTHS);
+  const saturation = readEnum(reading, `${at}.saturation`, raw.saturation, SATURATIONS);
   const finish = readEnum(reading, `${at}.finish`, raw.finish, FINISHES);
   const intensity = readIntensity(reading, `${at}.intensity`, raw.intensity);
-  if (tone === undefined || finish === undefined || intensity === undefined) return undefined;
-  return new ZoneSpec({ tone, finish, intensity });
+  if (
+    tone === undefined ||
+    depth === undefined ||
+    saturation === undefined ||
+    finish === undefined ||
+    intensity === undefined
+  ) {
+    return undefined;
+  }
+  return new ZoneSpec({ tone, depth, saturation, finish, intensity });
 }
 
 /**

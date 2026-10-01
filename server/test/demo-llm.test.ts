@@ -127,6 +127,7 @@ function setup() {
       //   色块没颜色是它在生产里最可能的坏法,拿空串替身就把它盖掉了。
       shades: { hexOf: realHexOf },
     }),
+    palette: realPalette(),
   });
   const renderTool = new RenderLookTool({ engine, artifacts });
 
@@ -685,9 +686,9 @@ function interviewLook(): LookSpec {
     occasion: 'interview',
     base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
     zones: {
-      lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-      cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-      eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+      lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+      cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+      eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
       brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
     },
   });

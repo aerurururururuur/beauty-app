@@ -48,7 +48,15 @@ import {
   MEASURED_ZONE_ROLES,
   ZONE_ROLES,
 } from '../../domain/entities/look-spec.js';
-import type { Finish, Intensity, LookSpec, ToneKey, ZoneRole } from '../../domain/entities/look-spec.js';
+import type {
+  Depth,
+  Finish,
+  Intensity,
+  LookSpec,
+  Saturation,
+  ToneKey,
+  ZoneRole,
+} from '../../domain/entities/look-spec.js';
 
 /**
  * ★ 模板版本号,**随每次引擎调用记进夹具**(§5.2 / §5.4)。
@@ -60,8 +68,15 @@ import type { Finish, Intensity, LookSpec, ToneKey, ZoneRole } from '../../domai
  *   「未列出的部位保持素颜」那句)。**实测过的那五句一个字没动、顺序也没动**
  *   (见 `MEASURED_ZONE_ROLES`),但整份产出的措辞确实变了,所以版本必须 +
  *   否则 v1 那批历史夹具会被当成"就是这次的产出"。
+ *
+ * ✏️ **v2 → v3(2026-10-01)**:区多了 `depth`(深浅),色相词带上「浅 / 深」前缀。
+ *   **`medium` 档的产出与 v2 逐字相同** —— 那一档下本版不是新证据。
+ *
+ * ✏️ **v3 → v4(2026-10-01,同一天第二次)**:区又多了 `saturation`(饱和),
+ *   色相词前面再叠一层「低饱和 / 高饱和」。同样 **`medium` 档产出与 v3 逐字相同**。
+ *   色相词表同时加了 `brown`(7 → 8,见 `shared/domain/entities/look-vocabulary.ts`)。
  */
-export const TEMPLATE_VERSION = 'v2';
+export const TEMPLATE_VERSION = 'v4';
 
 // ── 词表 ────────────────────────────────────────────────────────────────────
 //
@@ -87,6 +102,34 @@ const TONE_TOKEN: Record<ToneKey, string> = {
   brick: '砖红',
   nude: '裸色',
   plum: '梅子紫',
+  brown: '棕色',
+};
+
+/**
+ * 深浅。作为**前缀**加在色相词上(「浅玫瑰粉」),不是一个独立短句 ——
+ * 图像模型是把颜色当一个词读的,拆成两句它未必肯把那两句话连起来。
+ *
+ * ★ `medium` **刻意是空串**:中档下渲染结果与 v2 逐字相同,那三句实测条款
+ *   (`MEASURED_ZONE_ROLES`)只在浅 / 深两个新取值上才变。§4.4 已实测:
+ *   色 / 质地 / 浓度写得再细都不花身份,所以这个前缀不是新的风险面。
+ */
+const DEPTH_TOKEN: Record<Depth, string> = {
+  light: '浅',
+  medium: '',
+  deep: '深',
+};
+
+/**
+ * 饱和。与深浅**同一套办法**:也当前缀,`medium` 也渲染成空串。
+ *
+ * ★ 顺序是「饱和 → 深浅 → 色相」(「低饱和浅玫瑰粉」):饱和度修饰的是整个颜色,
+ *   放在最外面读起来才对;「浅低饱和玫瑰粉」是倒的。
+ * ⚠️ 这一格补的是「清冷」那个说得出口的缺口 —— 深浅只给了明度,给不了"灰"。
+ */
+const SATURATION_TOKEN: Record<Saturation, string> = {
+  low: '低饱和',
+  medium: '',
+  high: '高饱和',
 };
 
 /**
@@ -197,13 +240,16 @@ export function renderLookClauses(spec: LookSpec, applied?: readonly ZoneRole[])
     const z = zones[role];
     if (!z) return [];
     if (applied !== undefined && !applied.includes(role)) return [];
-    return [`${ZONE_TOKEN[role]}用${TONE_TOKEN[z.tone]}、${FINISH_TOKEN[z.finish]}质地、${INTENSITY_TOKEN[z.intensity]}浓度。`];
+    const color = `${SATURATION_TOKEN[z.saturation]}${DEPTH_TOKEN[z.depth]}${TONE_TOKEN[z.tone]}`;
+    return [`${ZONE_TOKEN[role]}用${color}、${FINISH_TOKEN[z.finish]}质地、${INTENSITY_TOKEN[z.intensity]}浓度。`];
   };
 
   return [
     // ★ 底妆**不受 `applied` 管**:它是底子,每一张累积图都带着它。
     `底妆:${INTENSITY_TOKEN[base.coverage]}遮瑕的${FINISH_TOKEN[base.finish]}质地,${warmthToken(base.warmth)}。`,
     // ── 实测过的那三句:★ **顺序与措辞一个字不许改**(§4.4.3 run 4)──
+    //    ✏️ 2026-10-01:色相词前面多了深浅前缀(见 `DEPTH_TOKEN`)。顺序没动、
+    //    模板没动,`medium` 档逐字同 v2;浅 / 深是新增取值,不是改写这三句。
     ...MEASURED_ZONE_ROLES.flatMap(clause),
     // 只有浓度,没有形状(见函数头 ★)。
     `眉部:${INTENSITY_TOKEN[zones.brow.intensity]}浓度,色调自然。`,

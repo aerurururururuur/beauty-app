@@ -171,6 +171,7 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
   const loop = new AgentLoop({
     llm,
     tools,
+    palette: options.palette,
     ...(options.maxIterations !== undefined ? { maxIterations: options.maxIterations } : {}),
     ...(options.turnTimeoutMs !== undefined ? { turnTimeoutMs: options.turnTimeoutMs } : {}),
     ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),

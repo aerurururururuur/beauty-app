@@ -25,8 +25,10 @@ import {
   mockTextAndToolCalls,
   mockToolCall,
   patchBrief,
+  setLookSpec,
   textMessage,
 } from '../src/modules/agent/index.js';
+import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../src/modules/makeup/index.js';
 import type {
   AgentLoopOptions,
   Llm,
@@ -38,6 +40,7 @@ import type {
   ToolContext,
   ToolOutcome,
 } from '../src/modules/agent/index.js';
+import { realPalette } from './helpers/face-catalog.js';
 
 // ── 测试替身 ─────────────────────────────────────────────────────────────────
 
@@ -79,7 +82,7 @@ function loopWith(
   extra: Partial<AgentLoopOptions> = {},
 ) {
   const llm = new MockLlm(script);
-  const loop = new AgentLoop({ llm, tools: indexTools(tools), ...extra });
+  const loop = new AgentLoop({ llm, tools: indexTools(tools), palette: realPalette(), ...extra });
   return { llm, loop };
 }
 
@@ -363,6 +366,7 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
     const loop = new AgentLoop({
       llm,
       tools: indexTools([tool]),
+      palette: realPalette(),
       turnTimeoutMs: 1000,
       now: () => times[Math.min(i++, times.length - 1)] ?? 0,
     });
@@ -376,7 +380,7 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
   it('LLM 连不上时优雅收束,并说清下一步是「稍后再发一次」', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const llm = new ThrowingLlm();
-    const loop = new AgentLoop({ llm, tools: new Map() });
+    const loop = new AgentLoop({ llm, tools: new Map(), palette: realPalette() });
 
     const result = await loop.run(SESSION(), '在吗');
 
@@ -430,5 +434,216 @@ describe('会话写入', () => {
     const next = appendMessages(session, [textMessage('user', 'hi')]);
     expect(session.messages).toHaveLength(0);
     expect(next.messages).toHaveLength(1);
+  });
+});
+
+// ── 工具契约按会话现算(A2) ─────────────────────────────────────────────────
+
+/**
+ * ★ `Tool.definitionFor` 是**可选**的,不实现就用 `definition`(绝大多数工具如此)。
+ *   `propose_look` 实现了它:`tone` 的白名单要按会话里的肤色收窄(§6 规矩 4)。
+ *
+ *   ⚠️ 这一组测的是**接线**(循环到底把哪一份契约发出去了)——
+ *   没有它的话,`definitionFor` 可以是死代码而所有单测照绿,而那就是本仓
+ *   反复点名的假开关:配置写了、代码跑了、200、日志干净,只有结果是错的。
+ */
+describe('工具契约按会话现算', () => {
+  /** 契约随会话变的那种工具(`propose_look` 是唯一一个真的,这里拿假的测接线)。 */
+  class TwoFaceTool implements Tool {
+    readonly definition = stubDefinition('two_face');
+
+    async run(_input: unknown, ctx: ToolContext): Promise<ToolOutcome> {
+      return { content: '已记下', session: patchBrief(ctx.session, { skinTone: 'olive' }) };
+    }
+
+    definitionFor(session: Session): LlmToolDefinition {
+      return { ...this.definition, description: `肤色:${session.brief.skinTone ?? '未知'}` };
+    }
+  }
+
+  const descOf = (llm: MockLlm, i: number): string | undefined =>
+    llm.requests[i]?.tools?.find((t) => t.name === 'two_face')?.description;
+
+  it('发出去的是 `definitionFor(会话)` 那一份,不是构造时那份 `definition`', async () => {
+    const tool = new TwoFaceTool();
+    const { llm, loop } = loopWith([mockText('好')], [tool]);
+
+    await loop.run(SESSION(), '你好');
+
+    expect(descOf(llm, 0)).toBe('肤色:未知');
+  });
+
+  it('★ 同一轮的**下一次迭代**要重算:上一迭代刚记下的肤色,这一迭代就该生效', async () => {
+    // ⚠️ 这正是开场那一轮的形状:模型先调 `patch_brief` 记肤色,同轮再调 `propose_look`。
+    //   契约若提到循环外算一次,这里第二次请求发的还是全量色相 —— 色相照旧被打回。
+    const tool = new TwoFaceTool();
+    const { llm, loop } = loopWith(
+      [mockToolCall('c1', 'two_face', {}), mockText('好')],
+      [tool],
+    );
+
+    const result = await loop.run(SESSION(), '橄榄皮,给我来个妆');
+
+    expect(llm.requests).toHaveLength(2);
+    expect(descOf(llm, 0)).toBe('肤色:未知');
+    expect(descOf(llm, 1)).toBe('肤色:olive');
+    // 肤色真的落进了会话(不是只在提示里变了)。
+    expect(result.session.brief.skinTone).toBe('olive');
+  });
+});
+
+// ── 开场那一轮点名要妆面 ─────────────────────────────────────────────────────
+
+/**
+ * ★ 背景:真模型(`qwen-plus`)在开场那一轮实测会**只调 `patch_brief`**,
+ *   然后在正文里把整套妆面讲完,`lookSpec` 一直空着(`system-prompt.ts` 文件头 v11)。
+ *   后果不是"少了一段话":会话里没有妆面 ⇒ `/result` 只能摆「回『开始设计』重走一遍」。
+ *
+ *   所以循环在这一轮**点名**要 `propose_look`,把"它自己决定调不调"这件事拿掉。
+ *   ⚠️ 这条**只有在真 adapter 把 `requireTool` 翻译成线上参数时才成立** ——
+ *   翻译那一头在 `dashscope-llm.ts`(单测打不到,**改它必须照 `out/` 那套 echo 法子看一眼实际发出的 body**)。
+ */
+describe('开场那一轮点名要妆面', () => {
+  /**
+   * 一份最小合法妆面单。`zones` 里 **`lip` / `cheek` / `eyeshadow` / `brow` 四个必填**
+   * (另外六个区可选,见 `look-spec.ts` 的 `zonesSchema`)。
+   * ⚠️ 少给不会当场炸:`LookSpec` 的构造函数**不校验**,要等 `describeLook` 拼系统提示时才
+   *   在 `spec.zones.brow.shape` 上抛 —— 那时症状是整轮变成「LLM 调用失败」,看着像网络问题。
+   *   所以这里靠 `npm run typecheck:test` 兜(它才看得见缺字段,`npm run typecheck` 看不见)。
+   */
+  const LOOK = new LookSpec({
+    occasion: 'party',
+    base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
+    zones: {
+      lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+      cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+      eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+      brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
+    },
+  });
+
+  /** 一个真的会写 `lookSpec` 的 `propose_look` 替身。 */
+  const proposeLook = () =>
+    new RecordingTool('propose_look', (_input, ctx) => ({
+      content: '已记下这套妆面',
+      session: setLookSpec(ctx.session, LOOK, undefined),
+    }));
+
+  it('开场 + 妆面为空 → 点名 propose_look;它落了就松手,不挡住后面说话', async () => {
+    const { llm, loop } = loopWith(
+      [mockToolCall('c1', 'propose_look', {}), mockText('按这个来')],
+      [proposeLook()],
+    );
+
+    const result = await loop.run(SESSION(), '按我填的需求给我定一套妆。');
+
+    expect(result.stopReason).toBe('end_turn');
+    expect(result.session.lookSpec).toBeDefined();
+    // 第一次点名,第二次松手 —— 否则模型再没有机会用正文收尾,只能一轮轮调工具到触顶。
+    expect(llm.requests.map((r) => r.requireTool)).toEqual(['propose_look', undefined]);
+  });
+
+  it('★ 妆面被拒的那几轮**继续点名** —— 否则它又会退回"正文里讲一遍"', async () => {
+    let seen = 0;
+    const refusesOnce = new RecordingTool('propose_look', (_input, ctx) =>
+      seen++ === 0
+        ? { content: '妆面单不合法:…', isError: true }
+        : { content: '已记下', session: setLookSpec(ctx.session, LOOK, undefined) },
+    );
+    const { llm, loop } = loopWith(
+      [mockToolCall('c1', 'propose_look', {}), mockToolCall('c2', 'propose_look', {}), mockText('好')],
+      [refusesOnce],
+    );
+
+    const result = await loop.run(SESSION(), '定一套妆');
+
+    expect(result.session.lookSpec).toBeDefined();
+    expect(llm.requests.map((r) => r.requireTool)).toEqual([
+      'propose_look',
+      'propose_look',
+      undefined,
+    ]);
+  });
+
+  /**
+   * ★★ 2026-10-01:点名**分两段** —— 先 `read_style_recipe` 读配方,答过了再点名 `propose_look`。
+   *
+   * 不这样分,新加的那个工具在开场那一轮**形同虚设**:`requireTool` 是
+   * `tool_choice: {function: …}`,点名谁模型这一轮就只能调那一个。而开场那一轮
+   * 恰恰是每轮必被「区集与配方对不上」打回的那一次 —— 修不到它,就等于没修。
+   */
+  describe('开场先读配方(2026-10-01)', () => {
+    /** 不改会话的 `read_style_recipe` 替身。 */
+    const readRecipe = (outcome: ToolOutcome = { content: '配方正文' }) =>
+      new RecordingTool('read_style_recipe', () => outcome);
+
+    it('★ 第一段点名 read_style_recipe,它答过之后换回 propose_look', async () => {
+      const { llm, loop } = loopWith(
+        [
+          mockToolCall('r1', 'read_style_recipe', { styleId: 'vital' }),
+          mockToolCall('c1', 'propose_look', {}),
+          mockText('按这个来'),
+        ],
+        [readRecipe(), proposeLook()],
+      );
+
+      const result = await loop.run(SESSION(), '按我填的需求给我定一套妆。');
+
+      expect(result.session.lookSpec).toBeDefined(); // 两段都真的走完了
+      expect(llm.requests.map((r) => r.requireTool)).toEqual([
+        'read_style_recipe',
+        'propose_look',
+        undefined, // 妆面落了就松手,不挡住它用正文收尾
+      ]);
+    });
+
+    it('★ 读配方那一步失败(它编了个 id)也照样换回 propose_look —— 不许把它钉在读取上出不去', async () => {
+      const { llm, loop } = loopWith(
+        [
+          mockToolCall('r1', 'read_style_recipe', { styleId: '没这条' }),
+          mockToolCall('c1', 'propose_look', {}),
+          mockText('好'),
+        ],
+        [readRecipe({ content: '没有这一条配方。', isError: true }), proposeLook()],
+      );
+
+      const result = await loop.run(SESSION(), '定一套妆');
+
+      expect(result.session.lookSpec).toBeDefined();
+      expect(llm.requests.map((r) => r.requireTool)).toEqual([
+        'read_style_recipe',
+        'propose_look',
+        undefined,
+      ]);
+    });
+  });
+
+  it('不是开场(历史里已经有人说过话) → 一个字都不点名', async () => {
+    const { llm, loop } = loopWith([mockText('嗯')], [proposeLook()]);
+    const talked = appendMessages(SESSION(), [textMessage('assistant', '你好')]);
+
+    await loop.run(talked, '换个风格');
+
+    expect(llm.requests).toHaveLength(1);
+    expect(llm.requests[0]?.requireTool).toBeUndefined();
+  });
+
+  it('开场但妆面已经在会话里 → 不点名(比如只补一句话)', async () => {
+    const { llm, loop } = loopWith([mockText('好的')], [proposeLook()]);
+    const withLook = setLookSpec(SESSION(), LOOK, undefined);
+
+    await loop.run(withLook, '嗯');
+
+    expect(llm.requests).toHaveLength(1);
+    expect(llm.requests[0]?.requireTool).toBeUndefined();
+  });
+
+  it('注册表里没有 propose_look → 不点名(点名一个不存在的工具只会白烧一轮)', async () => {
+    const { llm, loop } = loopWith([mockText('好')], []);
+
+    await loop.run(SESSION(), '定一套妆');
+
+    expect(llm.requests).toHaveLength(1);
+    expect(llm.requests[0]?.requireTool).toBeUndefined();
   });
 });

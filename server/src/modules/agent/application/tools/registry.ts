@@ -22,6 +22,7 @@ import { ListProductsTool } from './list-products.js';
 import { PatchBriefTool } from './patch-brief.js';
 import { ProposeLookTool } from './propose-look.js';
 import { ReadProductTool } from './read-product.js';
+import { ReadStyleRecipeTool } from './read-style-recipe.js';
 import { RenderLookTool } from './render-look.js';
 
 export interface ToolDeps {
@@ -65,12 +66,14 @@ export interface ToolDeps {
 
 /**
  * 装配本轮注册的全部工具。
- * ★ **没配产品库时是 4 个,配了是 6 个**——这个数目随部署变,是设计的一部分
- *   (见 `ToolDeps.products` 与 `definitions.ts` 里"为什么从 4 变 6"那段)。
+ * ★ **没配产品库时是 5 个,配了是 7 个**——这个数目随部署变,是设计的一部分
+ *   (见 `ToolDeps.products` 与 `definitions.ts` 里"为什么从 4 变 6、又从 6 变 7"那两段)。
  */
 export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
   return indexTools([
     new PatchBriefTool(),
+    // ★ 排在 `propose_look` 前面:它是那一步的前置功课(填 `zones` 前先读配方)。
+    new ReadStyleRecipeTool(deps.shades),
     new ProposeLookTool(deps.palette, deps.features, deps.shades),
     new ListCabinetTool(deps.cosmetics),
     ...(deps.products

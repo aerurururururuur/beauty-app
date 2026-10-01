@@ -28,14 +28,33 @@
 import type { Occasion } from './brief.js';
 
 /**
- * ⚠️ **PLACEHOLDER** —— 低饱和色相族,取值待定。
+ * ⚠️ **PLACEHOLDER** —— 色相族,取值待定。
  * 原注释见 `makeup/domain/entities/look-spec.ts` 与 `validators/look-spec.validator.ts`:
  * §15.1 说 `LookSpec` 的枚举取值「一个都没定」,这里给最小词表**只为让类型能编译**;
  * 接线前必须按实测结果替换,并按 §6 规矩 4 **按肤色收窄合法取值空间**。
  * 收窄表的**内容**现在在 `face-catalog/skin-tones.json` 的 `toneKeys` 里(同样是占位),
- * 但**取值必须是下面这七个之一**。
+ * 但**取值必须是下面这几个之一**。
+ *
+ * ✏️ **2026-10-01 加了 `brown`(7 → 8)。** 依据是拿配方自己的色值量的分布:
+ *   130 个色号里 **66 个是棕系**(H 20~40、S 35~45%),而词表里**没有棕**——
+ *   它们被硬塞进 `coral`(珊瑚橘)/ `brick`(砖红)。实测症状:模型给「淡颜清冷妆」配
+ *   「珊瑚橘眼影」,而那条配方的眼妆自己写着「大地色系」、色号 `#c9a184` 就是浅棕。
+ *   蓝 / 绿 / 黄**刻意不加**:配方里一个都没有(唯一的金色是音乐节创意妆的眼线),
+ *   加进去等于给模型一份产品库兑现不了的菜单。
+ *
+ * ⚠️ 往这里加一个色,`skin-tones.json` 的 `toneKeys` **必须同时**至少让一档能用它,
+ *   否则 `face-catalog` 的启动校验会以「死色」拒掉(那条校验是对的,别绕)。
  */
-export const TONE_KEYS = ['rose', 'coral', 'peach', 'berry', 'brick', 'nude', 'plum'] as const;
+export const TONE_KEYS = [
+  'rose',
+  'coral',
+  'peach',
+  'berry',
+  'brick',
+  'nude',
+  'plum',
+  'brown',
+] as const;
 export type ToneKey = (typeof TONE_KEYS)[number];
 
 /**

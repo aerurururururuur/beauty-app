@@ -36,10 +36,12 @@ const intensitySchema = z.number().int();
 
 // ── 三个子形状:每个都是「宽 row + 品牌过的形状」两份 ──────────────────────
 
-/** 一个「色 + 质地 + 浓度」区。 */
+/** 一个「色 + 深浅 + 饱和 + 质地 + 浓度」区。 */
 const zoneRowSchema = z
   .object({
     tone: z.string(),
+    depth: z.string(),
+    saturation: z.string(),
     finish: z.string(),
     intensity: intensitySchema,
   })

@@ -70,6 +70,35 @@ export const WARMTH_MAX = 2;
 export const FINISHES = ['satin', 'matte', 'glossy'] as const;
 export type Finish = (typeof FINISHES)[number];
 
+/**
+ * ★ 深浅(2026-10-01 新增)。**"这个颜色本身多浅/多深",不是"涂了多少"**——
+ *   后者是 `intensity`。没有它,模型只能用 "莓果红" 这一个词说清一个该用浅红的位置。
+ *
+ * ★ **为什么不把深浅并进 `TONE_KEYS`**(变成「浅玫瑰粉」这种复合 key):
+ *   按肤色收窄的那张表(`skin-tones.json` 的 `toneKeys`)会长成 21 项,
+ *   而"哪档肤色能用哪个色"与"这套妆要多浅"是两个问题。分开之后那张表一个字不用改。
+ *
+ * ⚠️ **`medium` 渲染成空串**(见 `prompt-builder` 的 `DEPTH_TOKEN`):这样 v2 那三句
+ *   实测条款在 `medium` 下**逐字不变**,深浅只是给模型多两个可选词。
+ */
+export const DEPTHS = ['light', 'medium', 'deep'] as const;
+export type Depth = (typeof DEPTHS)[number];
+
+/**
+ * ★ 饱和(2026-10-01 新增,与 `DEPTHS` 同一次)。**"这个颜色多灰/多艳"**——
+ *   深浅管明度,它管饱和度,两者是独立的两格(浅而艳 / 浅而灰是两种妆)。
+ *
+ * ★ 它补的是那个**说得出口的缺口**:「清冷」= 低饱和 + 冷,而原有的三格
+ *   (`tone` 色相 / `intensity` 浓度 / `depth` 深浅)**没有一格格得住它**——
+ *   `rose`(玫瑰粉)再浅也还是"干净的粉",不等于「灰粉 / 藕粉」。
+ *
+ * ⚠️ `medium` 与 `depth` 一样**渲染成空串**(见 `prompt-builder` 的 `SATURATION_TOKEN`):
+ *   两格都是中档时产出与 v2 逐字相同。
+ * ⚠️ **不按肤色收窄** —— 同 `depth`:饱和是"这套妆要多灰",不是"这档肤色能用哪个色"。
+ */
+export const SATURATIONS = ['low', 'medium', 'high'] as const;
+export type Saturation = (typeof SATURATIONS)[number];
+
 // `TONE_KEYS` / `ToneKey` 已迁至 `shared/domain/entities/look-vocabulary.ts`(见文件头 import 处)。
 // ⚠️ 它们仍是 **PLACEHOLDER**:§15.1 说枚举取值「一个都没定」,这里是让类型能编译的最小词表。
 //    按肤色收窄的那张表现在在 `face-catalog/skin-tones.json` 的 `toneKeys` 里,同样占位。
@@ -158,7 +187,7 @@ export interface LookSpecBase extends LookSpecBaseShape {
   readonly finish: Finish;
 }
 
-/** 单区位的妆面:色 / 质地 / 浓度。 */
+/** 单区位的妆面:色 / 深浅 / 饱和 / 质地 / 浓度。 */
 export class ZoneSpec {
   constructor(row: ZoneRow) {
     Object.assign(this, row);
@@ -166,6 +195,8 @@ export class ZoneSpec {
 }
 export interface ZoneSpec extends ZoneSpecShape {
   readonly tone: ToneKey;
+  readonly depth: Depth;
+  readonly saturation: Saturation;
   readonly finish: Finish;
   readonly intensity: Intensity;
 }

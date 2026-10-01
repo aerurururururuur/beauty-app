@@ -15,7 +15,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADDED_ZONE_ROLES,
+  BROW_SHAPES,
   BrowSpec,
+  DEPTHS,
+  SATURATIONS,
   FINISHES,
   INTENSITY_MAX,
   INTENSITY_MIN,
@@ -30,7 +33,7 @@ import type { AddedZoneRole, SkinTonePalette, ZoneRole } from '../src/modules/ma
 import { derivePlan } from '../src/modules/styling/index.js';
 // ★ 深一层 import:`step-zones` 是 agent 模块内部的实现(不是对外 API),
 //   但它的对照表是这批测试要钉的对象之一(见 `zonesFor`)。
-import { requiredZonesOf } from '../src/modules/agent/application/step-zones.js';
+import { requiredZonesOf, targetOfStepName } from '../src/modules/agent/application/step-zones.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
 import { realHexOf } from './helpers/product-content.js';
 import {
@@ -40,6 +43,7 @@ import {
   SKIN_TONES,
   SKIN_TYPES,
 } from '../src/modules/shared/index.js';
+import type { SkinTone } from '../src/modules/shared/index.js';
 import {
   LIST_PRODUCTS,
   ListCabinetTool,
@@ -47,9 +51,12 @@ import {
   Message,
   PatchBriefTool,
   ProposeLookTool,
+  PROPOSE_LOOK,
   READ_PRODUCT,
+  READ_STYLE_RECIPE,
   RENDER_LOOK,
   ReadProductTool,
+  ReadStyleRecipeTool,
   RenderRecord,
   Session,
   STYLE_OPTIONS_HEAD,
@@ -65,10 +72,12 @@ import {
   describeLookState,
   describeRenderState,
   describeStyleOptions,
+  proposeLookWithTones,
 } from '../src/modules/agent/index.js';
 import type {
   CabinetItemSnapshot,
   CosmeticReader,
+  LlmToolDefinition,
   ProductDetailSnapshot,
   ProductLibrary,
   ProductLibraryOverview,
@@ -89,9 +98,9 @@ const SAMPLE_LOOK = new LookSpec({
   occasion: 'interview',
   base: new LookSpecBase({ coverage: 3, finish: 'satin', warmth: 0 }),
   zones: {
-    lip: new ZoneSpec({ tone: 'rose', finish: 'matte', intensity: 3 }),
-    cheek: new ZoneSpec({ tone: 'coral', finish: 'satin', intensity: 2 }),
-    eyeshadow: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
+    lip: new ZoneSpec({ tone: 'rose', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+    cheek: new ZoneSpec({ tone: 'coral', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+    eyeshadow: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
     brow: new BrowSpec({ shape: 'natural', intensity: 2 }),
   },
 });
@@ -102,12 +111,12 @@ const SAMPLE_LOOK = new LookSpec({
  *   静默少一个区(于是"手写的那份形状漏了一个区"这条再也没人查)。
  */
 const ADDED_ZONE_LOOK: Record<AddedZoneRole, ZoneSpec> = {
-  concealer: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
-  contour: new ZoneSpec({ tone: 'brick', finish: 'satin', intensity: 2 }),
-  highlight: new ZoneSpec({ tone: 'nude', finish: 'satin', intensity: 2 }),
-  aegyoSal: new ZoneSpec({ tone: 'peach', finish: 'satin', intensity: 2 }),
-  liner: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
-  lash: new ZoneSpec({ tone: 'plum', finish: 'matte', intensity: 3 }),
+  concealer: new ZoneSpec({ tone: 'peach', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+  contour: new ZoneSpec({ tone: 'brick', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+  highlight: new ZoneSpec({ tone: 'nude', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+  aegyoSal: new ZoneSpec({ tone: 'peach', depth: 'medium', saturation: 'medium', finish: 'satin', intensity: 2 }),
+  liner: new ZoneSpec({ tone: 'plum', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
+  lash: new ZoneSpec({ tone: 'plum', depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 }),
 };
 
 /**
@@ -144,7 +153,10 @@ function withLip(tone: string): Record<string, unknown> {
   return {
     ...lookFor(PLAIN_STYLE),
     styleId: PLAIN_STYLE,
-    zones: { ...zonesFor(PLAIN_STYLE), lip: { tone, finish: 'matte', intensity: 3 } },
+    zones: {
+      ...zonesFor(PLAIN_STYLE),
+      lip: { tone, depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 },
+    },
   };
 }
 
@@ -168,6 +180,8 @@ interface JsonSchema {
   required?: string[];
   additionalProperties?: boolean;
   enum?: unknown[];
+  /** 只在钉住"这句 description 该怎么写"时才断言(见 `tone` 那条)。 */
+  description?: string;
 }
 
 /**
@@ -286,9 +300,11 @@ async function run(tool: { run(i: unknown, c: { session: Session }): Promise<Too
 describe('工具契约', () => {
   it('★ 工具全集就这几个,名字与常量一致(加工具必挂——这正是它存在的意义)', () => {
     // 2026-09-16 从 4 变 6:接入产品库加了 list_products / read_product。
-    // 这次破例的边界写在 `definitions.ts` 的文件头,别让它悄悄扩大。
+    // 2026-10-01 从 6 变 7:加了 read_style_recipe(`propose_look` 填 zones 前先读配方)。
+    // 两次破例的边界都写在 `definitions.ts` 的文件头,别让它悄悄扩大。
     expect(TOOL_DEFINITIONS.map((d) => d.name)).toEqual([
       TOOL_NAMES.patchBrief,
+      TOOL_NAMES.readStyleRecipe,
       TOOL_NAMES.proposeLook,
       TOOL_NAMES.listCabinet,
       TOOL_NAMES.listProducts,
@@ -312,6 +328,7 @@ describe('工具契约', () => {
     const without = createToolRegistry(base);
     expect([...without.keys()]).toEqual([
       TOOL_NAMES.patchBrief,
+      TOOL_NAMES.readStyleRecipe,
       TOOL_NAMES.proposeLook,
       TOOL_NAMES.listCabinet,
       TOOL_NAMES.renderLook,
@@ -328,6 +345,8 @@ describe('工具契约', () => {
     const zones = props.properties?.zones?.properties ?? {};
 
     expect(zones.lip?.properties?.tone?.enum).toEqual([...TONE_KEYS]);
+    expect(zones.lip?.properties?.depth?.enum).toEqual([...DEPTHS]);
+    expect(zones.lip?.properties?.saturation?.enum).toEqual([...SATURATIONS]);
     expect(zones.lip?.properties?.finish?.enum).toEqual([...FINISHES]);
     expect(zones.lip?.properties?.intensity).toMatchObject({
       minimum: INTENSITY_MIN,
@@ -340,6 +359,26 @@ describe('工具契约', () => {
     expect((briefProps.properties?.skinType as JsonSchema).enum).toEqual([...SKIN_TYPES]);
     // patch_brief 的面里**没有 weather**(§7.2:天气不是问出来的)。
     expect(Object.keys(briefProps.properties ?? {})).not.toContain('weather');
+  });
+
+  /**
+   * ★★ `tone` 的合法集**按肤色变**(`proposeLookWithTones`),所以那句 `description`
+   *   里**一个具体色名都不许出现** —— 举了 `peach`,橄榄皮那一档就是个
+   *   "schema 报了一个校验器会拒的值"的假菜单(`v16` 记的正是这个坑,白花一个回合)。
+   *   ★ 判据(挑饱和度最低的)可以说,能选哪些由 `enum` 自己说。
+   */
+  it('★ `tone` 的 description 里不许出现具体色名(合法集按肤色变)', () => {
+    const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
+    const lip = (propose.inputSchema as JsonSchema).properties?.zones?.properties?.lip;
+    const desc = lip?.properties?.tone?.description ?? '';
+
+    for (const tone of TONE_KEYS) {
+      expect(desc, `tone 的 description 里出现了色名「${tone}」`).not.toContain(tone);
+    }
+    // 反过来:`depth` / `saturation` 的合法集与肤色无关,提它们的取值是安全的、
+    // 也是这两版真正要说的。
+    expect(lip?.properties?.depth?.description).toContain('light');
+    expect(lip?.properties?.saturation?.description).toContain('low');
   });
 
   it('★★ 两个 `occasion` 都不再是枚举 —— 这条钉的是"没人把它改回去"', () => {
@@ -379,6 +418,104 @@ describe('工具契约', () => {
         }),
       ).not.toThrow();
     }
+  });
+});
+
+// ── A2:`propose_look` 的 `tone` 白名单按肤色收窄 ─────────────────────────────
+
+/**
+ * ★★ 起因是 v16 那次实测:提示词里印了「该肤色可用色」那一行**也不够**——
+ *   同一档(橄榄皮)开场那一轮三次真调用,色相仍被打回 2 次,两次都是 `highlight`
+ *   填了 `peach`。模型填参数时读的是**工具 schema 的 `enum`**(那里 7 个色一个不少),
+ *   不是那段话。所以把 `enum` 本身按肤色收窄(§6 规矩 4 的后半句:
+ *   「合法取值空间本身按 skinTone 收窄,而不是生成完再检查」)—— 选都选不了,就没得打回。
+ */
+describe('propose_look 的 tone 白名单按肤色收窄', () => {
+  const p = realPalette();
+
+  /** 一份契约里某个区的 `tone` 白名单。 */
+  const tonesOf = (def: LlmToolDefinition, role: string): unknown =>
+    (def.inputSchema as JsonSchema).properties?.zones?.properties?.[role]?.properties?.tone?.enum;
+
+  /** 带 `tone` 那一格的区:`brow`(眉形 + 浓度)不在其中,六个可选区都在。 */
+  const TONED_ROLES = [
+    'lip',
+    'cheek',
+    'eyeshadow',
+    'concealer',
+    'contour',
+    'highlight',
+    'aegyoSal',
+    'liner',
+    'lash',
+  ];
+
+  it('已知肤色 → 每个区的 tone 白名单就是那一档的色汇', () => {
+    const olive = p.toneKeysFor('olive')!;
+    const def = proposeLookWithTones(olive);
+
+    for (const role of TONED_ROLES) expect(tonesOf(def, role)).toEqual([...olive]);
+    // 橄榄皮那档恰好不含 peach —— 实测里被打回两次的就是它。
+    expect(tonesOf(def, 'highlight')).not.toContain('peach');
+  });
+
+  it('`brow` 没有 tone 那一格,不被波及', () => {
+    const def = proposeLookWithTones(p.toneKeysFor('olive')!) as LlmToolDefinition;
+    const brow = (def.inputSchema as JsonSchema).properties?.zones?.properties?.brow;
+    expect(tonesOf(def, 'brow')).toBeUndefined();
+    expect(brow?.properties?.shape?.enum).toEqual([...BROW_SHAPES]);
+  });
+
+  it('★ 只动 tone:同区的 depth / saturation / finish / intensity 与 `zones.required` 原样', () => {
+    const def = proposeLookWithTones(p.toneKeysFor('olive')!) as LlmToolDefinition;
+    const zones = (def.inputSchema as JsonSchema).properties?.zones;
+    // ★ depth / saturation **都不按肤色收窄**(一个管明度、一个管饱和,都不是"肤色的合法性")
+    //   —— 收窄时不许被连带改掉。
+    expect(zones?.properties?.lip?.properties?.depth?.enum).toEqual([...DEPTHS]);
+    expect(zones?.properties?.lip?.properties?.saturation?.enum).toEqual([...SATURATIONS]);
+    expect(zones?.properties?.lip?.properties?.finish?.enum).toEqual([...FINISHES]);
+    expect(zones?.properties?.lip?.properties?.intensity).toMatchObject({
+      minimum: INTENSITY_MIN,
+      maximum: INTENSITY_MAX,
+    });
+    expect(zones?.required).toEqual(['lip', 'cheek', 'eyeshadow', 'brow']);
+  });
+
+  /**
+   * ★★ 这条防的是实现方式:那九个区是 `{ ...zoneSchema }` 的**浅拷贝**,
+   *   它们的 `properties` 是**同一个对象**——就地改一处会连带改掉另外八个
+   *   以及模块级的 `zoneSchema` 自己(于是收窄过一次之后,`patch_brief` 那类
+   *   与肤色无关的工具、乃至下一个会话,看到的都是上一档的色汇)。
+   */
+  it('★★ 产出的是新的一份,原 `PROPOSE_LOOK` 一个字不变', () => {
+    proposeLookWithTones(p.toneKeysFor('olive')!);
+
+    expect(tonesOf(PROPOSE_LOOK, 'lip')).toEqual([...TONE_KEYS]);
+    expect(tonesOf(PROPOSE_LOOK, 'highlight')).toEqual([...TONE_KEYS]);
+    // 再收窄一次到**另一档**,前一份也不能被改到。
+    const light = proposeLookWithTones(p.toneKeysFor('cool_porcelain')!) as LlmToolDefinition;
+    proposeLookWithTones(p.toneKeysFor('deep_brown')!);
+    expect(tonesOf(light, 'lip')).toEqual([...p.toneKeysFor('cool_porcelain')!]);
+  });
+
+  it('肤色未知 / 档位不在词表 → 原样全量色相("还不知道",不是"不合法")', () => {
+    for (const tones of [undefined, [] as string[], p.toneKeysFor('没这一档')]) {
+      expect(tonesOf(proposeLookWithTones(tones), 'lip')).toEqual([...TONE_KEYS]);
+    }
+  });
+
+  // ★ 与 v16 那一行同一条判据:取的是**词表**那一份。两档必须收出不同的结果,
+  //   否则"抄了一张写死的色表"也能让上面几条全绿。
+  it('★★ `definitionFor` 读的是**会话里**这份肤色,且逐档不同', () => {
+    const tool = new ProposeLookTool(p, realFeatures(), { hexOf: realHexOf });
+    const of = (skinTone: SkinTone) =>
+      tonesOf(tool.definitionFor(session({ brief: { skinTone } })), 'lip');
+
+    expect(of('olive')).toEqual([...p.toneKeysFor('olive')!]);
+    expect(of('cool_porcelain')).toEqual([...p.toneKeysFor('cool_porcelain')!]);
+    expect(of('olive')).not.toEqual(of('cool_porcelain'));
+    // 还没问出肤色 ⇒ 不收窄,还是全量色相(与 `run` 里那条判据同一个出口)。
+    expect(tonesOf(tool.definitionFor(session()), 'lip')).toEqual([...TONE_KEYS]);
   });
 });
 
@@ -478,6 +615,77 @@ describe('propose_look', () => {
     expect(out.content).toContain(describeLook(SAMPLE_LOOK));
     // 必须提醒模型"这就是用户唯一能看到的东西",不能加戏。
     expect(out.content).toContain('唯一能看到');
+  });
+
+  /**
+   * ★★ 深浅要真的说到用户眼前 —— `describeLook` 那段文字**是"预览"的替代品**
+   *   (见 `look-description.ts` 文件头),它少说一个"浅",用户就是对着一个更浓的
+   *   颜色决定要不要花钱出图。★ 与 `prompt-builder` 那份是同一套口径,
+   *   少了它就会出现"话里是浅玫瑰、图里是玫瑰"。
+   */
+  it('★ 深浅进得了那句人话(它就是用户的"预览")', () => {
+    const light = new LookSpec({
+      ...SAMPLE_LOOK,
+      zones: {
+        ...SAMPLE_LOOK.zones,
+        lip: new ZoneSpec({ tone: 'rose', depth: 'light', saturation: 'medium', finish: 'satin', intensity: 2 }),
+      },
+    });
+
+    expect(describeLook(light)).toContain('唇是浅玫瑰粉的');
+    // 中档不加字 —— 加 `depth` 之前的说法逐字不变(这份样例的唇色正是中档)。
+    expect(describeLook(SAMPLE_LOOK)).toContain('唇是玫瑰粉的');
+  });
+
+  /**
+   * ★★ 同一条口径,补的那一格是**饱和**。它是「清冷 / 低饱和」这个诉求唯一说得出口的地方
+   *   —— 深浅只给明度,给不了"灰"。少了它,用户读到的预览就是"玫瑰粉",
+   *   而图里画的是"低饱和玫瑰粉"。
+   */
+  it('★ 饱和也进得了那句人话,顺序是「低饱和」在前', () => {
+    const greyish = new LookSpec({
+      ...SAMPLE_LOOK,
+      zones: {
+        ...SAMPLE_LOOK.zones,
+        lip: new ZoneSpec({ tone: 'rose', depth: 'light', saturation: 'low', finish: 'satin', intensity: 2 }),
+      },
+    });
+
+    expect(describeLook(greyish)).toContain('唇是低饱和浅玫瑰粉的');
+  });
+
+  /**
+   * ★★ 起因是 2026-10-01 的一次实测投诉:用户要「淡颜清冷妆」,拿到的是
+   *   **莓果红唇、缎光、明显浓度**。模型挑的配方其实是对的(`coolclean` 就叫淡颜清冷妆),
+   *   但配方正文**从没进过它的上下文** —— 提示里只有 `coolclean(淡颜清冷妆)` 这一串,
+   *   而那条配方自己写着「低饱和腮红」「大地色系」「避免任何高饱和点缀」。
+   *   ⇒ 成功回执里把这些原句和色号补上。
+   *
+   * ⚠️ 断言从 `derivePlan` 现取,不手抄配方原文 —— 抄一遍就等于把内容存了第二份,
+   *   配方改了这里会继续绿(而生产已经变了)。
+   */
+  it('★★ 成功回执带上这套配方的上妆要点(原句 + 色号 + 色值);护肤 / 定妆不列', async () => {
+    const out = await run(tool, lookInput('coolclean'), session());
+    const plan = derivePlan({ styleId: 'coolclean' })!;
+    /** 会有妆面落点的步骤 = 该列的那些;护肤 / 妆前 / 防晒 / 定妆 与不认得的步骤名都不列。 */
+    const listed = plan.steps.filter((s) => {
+      const t = targetOfStepName(s.name);
+      return t !== undefined && t !== 'none';
+    });
+
+    for (const s of listed) {
+      expect(out.content, `「${s.name}」那一步的原文没给模型`).toContain(s.desc);
+    }
+    for (const s of plan.steps.filter((s) => !listed.includes(s))) {
+      expect(out.content, `「${s.name}」不上色,列进去只白占 token`).not.toContain(s.desc);
+    }
+
+    // 用户那一套翻车的原句与配方指定的唇色号 —— 这两样正是"光看配方名看不出来"的东西。
+    expect(out.content).toContain('避免任何高饱和点缀');
+    const lip = listed.find((s) => s.name === '唇妆')!;
+    expect(out.content).toContain(lip.products[0]!.code);
+    // ★ 色值也要带上:色号名看不出「淡」,`#c99a86` 看得出。
+    expect(out.content).toContain(realHexOf(lip.products[0]!.pid, lip.products[0]!.code));
   });
 
   it('形状不对时把合法取值清单一起回给模型(报错就是 prompt)', async () => {
@@ -704,6 +912,116 @@ describe('read_product', () => {
     const s2 = (await run(tool, { id: 'a' }, s1)).session!;
 
     expect(s2.consultedProducts.map((p) => p.id)).toEqual(['b', 'a']);
+  });
+});
+
+// ── read_style_recipe ───────────────────────────────────────────────────────
+
+/**
+ * ★★ 这个工具存在的唯一理由是「**把配方正文挪到做决定之前**」。
+ *
+ * 起因:`propose_look` 的 `zones` 要与所选配方的步骤**集合相等**(`look-spec.validator.ts` ②c),
+ * 而配方正文此前**只在 `propose_look` 成功之后**才进上下文 —— 模型是闭着眼睛填那一格的,
+ * 实测每轮必被打回一次,代价是一次多出来的计费调用。同 `v16` 的教训:光加提示词不够,
+ * 得让它**做决定的那一刻手里真有东西**。
+ */
+describe('read_style_recipe', () => {
+  const tool = new ReadStyleRecipeTool({ hexOf: realHexOf });
+
+  /**
+   * ★ 从**印出来的正文**里取回那一行区名单。
+   *   ⚠️ 刻意**不调 `requiredZonesOf`** —— 那正是被测对象;用它去构造期望值,
+   *   这条断言就变成自证(渲染里少印一个区也照样绿)。
+   */
+  function zonesPrintedIn(content: string): string[] {
+    const keys = /必须\*\*恰好\*\*是这些键:([^。]+)。/.exec(content)?.[1];
+    return keys === undefined ? [] : keys.split('、').filter(Boolean);
+  }
+
+  it('★ 步骤原文 + 色号 + 色值都要给到 —— 这些此前只在 propose_look 成功后才进上下文', async () => {
+    const out = await run(tool, { styleId: 'coolclean' }, session());
+    const plan = derivePlan({ styleId: 'coolclean' })!;
+    /** 会有妆面落点的步骤 = 该列的那些(护肤 / 妆前 / 防晒 / 定妆不列,理由同 recipeGuidance)。 */
+    const listed = plan.steps.filter((s) => {
+      const t = targetOfStepName(s.name);
+      return t !== undefined && t !== 'none';
+    });
+
+    expect(out.isError).toBeUndefined();
+    for (const s of listed) expect(out.content, `「${s.name}」那一步的原文没给`).toContain(s.desc);
+    // 用户那套翻车的原句:光看配方名(`coolclean(淡颜清冷妆)`)看不出它是低饱和。
+    expect(out.content).toContain('避免任何高饱和点缀');
+    const lip = listed.find((s) => s.name === '唇妆')!;
+    expect(out.content).toContain(realHexOf(lip.products[0]!.pid, lip.products[0]!.code));
+  });
+
+  it('★★ 印出来的区名单就是校验器认的那一套:照它填能过,少填一个就被打回', async () => {
+    // ★ 这条是"这份正文真的有用"的证明。印出来的东西与 `validateLookSpec` ②c 判的
+    //   若不是同一套,模型**照着读也会被打回**——而那时它没有任何办法知道哪里不对。
+    let checkedExtras = 0;
+
+    for (const styleId of SAMPLED_STYLES) {
+      const content = (await run(tool, { styleId }, session())).content;
+      const printed = zonesPrintedIn(content);
+      expect(printed.length, `${styleId}: 正文里没印出区名单`).toBeGreaterThanOrEqual(4);
+
+      // ① 前四格每套都必填 —— 它们必须在名单里,而且排在最前面。
+      expect(printed.slice(0, 4)).toEqual(['lip', 'cheek', 'eyeshadow', 'brow']);
+
+      // ② 按**印出来的那份**填 ⇒ 过(这正是模型照着读会做出的那个动作)。
+      const zones: Record<string, unknown> = { ...SAMPLE_LOOK.zones };
+      for (const role of printed) {
+        if (role in SAMPLE_LOOK.zones) continue;
+        zones[role as AddedZoneRole] = ADDED_ZONE_LOOK[role as AddedZoneRole];
+      }
+      const required = requiredZonesOf(derivePlan({ styleId })!);
+      expect(() =>
+        validateLookSpec(
+          { ...lookFor(styleId), zones },
+          { palette, requiredZones: required },
+        ),
+        `${styleId}: 照正文印的区填,却被校验打回了`,
+      ).not.toThrow();
+
+      // ③ 少印了一个也少填一个 ⇒ 必须被打回,否则这条测试自己就是个假开关。
+      const extra = printed.find((r) => ADDED_ZONE_ROLES.includes(r as AddedZoneRole));
+      if (!extra) continue;
+      checkedExtras += 1;
+      const short = { ...zones };
+      delete short[extra];
+      expect(() =>
+        validateLookSpec({ ...lookFor(styleId), zones: short }, { palette, requiredZones: required }),
+      ).toThrowError(new RegExp(extra));
+    }
+
+    // 没有一条配方带可选区的话,③ 那一半根本没跑过(那是静默失效,不是通过)。
+    expect(checkedExtras).toBeGreaterThan(0);
+  });
+
+  it('只读 —— 不改会话、不用确认,返回里根本不带 session', async () => {
+    const out = await run(tool, { styleId: PLAIN_STYLE }, session());
+    expect(out.session).toBeUndefined();
+    expect(out.isError).toBeUndefined();
+  });
+
+  it('不认得的 styleId / 没给 → isError 且列出**整份**清单(不是只报"没有")', async () => {
+    for (const input of [{ styleId: 'no-such-style' }, {}, { styleId: '   ' }]) {
+      const out = await run(tool, input, session());
+      expect(out.isError).toBe(true);
+      expect(out.content).toContain('可选风格');
+      expect(out.content).toContain('commute'); // 清单里真有这一条
+    }
+  });
+
+  it('★★ 三处文案都要有那句"填妆面单之前先读配方" —— 模型不会主动去读一个"可有可无"的工具', () => {
+    // ★ 三处是**独立的文案**,只改一处另外两处会把它拉回旧行为(与出图那句同理)。
+    const prompt = buildSystemPrompt(session());
+    expect(prompt).toContain('先调 `read_style_recipe`');
+
+    const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
+    expect(propose.description).toContain('read_style_recipe');
+
+    expect(READ_STYLE_RECIPE.description).toContain('填 `propose_look` 之前');
   });
 });
 
@@ -1177,6 +1495,50 @@ describe('系统提示', () => {
     it('免费工具名单按实际注册的写(有产品库才列那两个)', () => {
       expect(buildSystemPrompt(session(), { hasProducts: true })).toContain('`list_products`');
       expect(buildSystemPrompt(session())).not.toContain('`list_products`');
+    });
+  });
+
+  /**
+   * ★★ v16:肤色已知时必须把**该档的**色汇印出来。
+   *   起因是实测里每次会话必有一次打回:`propose_look` 的 `tone` `enum` 给的是全 7 个色,
+   *   而真正合法的只有该档的 3~6 个(橄榄皮那档恰好排除 `peach`)。
+   *   ⚠️ 断言用的是 `palette` 查出来的那一份,**不是写死的色名**——写死就等于把
+   *   词表抄了第二份,词表换版时这条测试会继续绿(而生产已经变了)。
+   */
+  describe('肤色可用色那一行(v16)', () => {
+    const olive = { toneKeysFor: () => ['rose', 'coral', 'brick'] as const, labelOf: () => '橄榄皮' };
+
+    it('肤色已知 → 印出该档的色汇', () => {
+      const s = session({ brief: { skinTone: 'olive' } });
+      const prompt = buildSystemPrompt(s, { palette: olive });
+      expect(prompt).toContain('肤色「橄榄皮」可用色:rose / coral / brick');
+    });
+
+    it('肤色还不知道 → 整行不印(那时本来就不收窄,`enum` 里的全量色就是对的)', () => {
+      const prompt = buildSystemPrompt(session(), { palette: olive });
+      expect(prompt).not.toContain('可用色:');
+    });
+
+    // ★ 不传 `palette` = 退回 v15 的行为(让模型猜、被拒一次)。**不是安全开关**:
+    //   真正的收窄在 `validateLookSpec`,那边 `palette` 是必填的。
+    it('没给 palette → 整行不印,且不抛', () => {
+      const s = session({ brief: { skinTone: 'olive' } });
+      expect(buildSystemPrompt(s)).not.toContain('可用色:');
+    });
+
+    // ★ 这一条防的是"有人图省事把色表抄进提示词里":抄了的话两档会印出同一串,
+    //   而生产里 `validateLookSpec` 用的是词表那一份 —— 提示说的和校验认的就分家了。
+    it('印的是**词表**那一份,不是写死的:两个档印出的色汇不同,且各自等于 toneKeysFor', () => {
+      const p = realPalette();
+      const of = (skinTone: SkinTone): string =>
+        buildSystemPrompt(session({ brief: { skinTone } }), { palette: p });
+
+      const light = of('cool_porcelain');
+      const deep = of('deep_brown');
+
+      expect(light).toContain(`可用色:${p.toneKeysFor('cool_porcelain')!.join(' / ')}`);
+      expect(deep).toContain(`可用色:${p.toneKeysFor('deep_brown')!.join(' / ')}`);
+      expect(light).not.toBe(deep);
     });
   });
 });

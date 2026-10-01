@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-30.1",
-  "note": "肤色档位词表。这是 roadmap 红线 §13-3 那张表的现行版本:档数由 5 档改为 8 档(2026-09-29,owner 拍板)。原红线依据是 ICCC V 2026 肤色偏差审计(DOI 10.1145/3810417.3810425),它的实质要求是「不许默认浅肤色审美」——那条要求没有放宽,而是变成了 isDefault 那一档不得是最浅档的启动校验。order 是浅到深,不许重复。toneKeys 是该档可用的色域(§6 规矩 4),内容是占位、无实测依据,接线前必须用实测结果替换。",
+  "version": "2026-10-01.1",
+  "note": "肤色档位词表。这是 roadmap 红线 §13-3 那张表的现行版本:档数由 5 档改为 8 档(2026-09-29,owner 拍板)。原红线依据是 ICCC V 2026 肤色偏差审计(DOI 10.1145/3810417.3810425),它的实质要求是「不许默认浅肤色审美」——那条要求没有放宽,而是变成了 isDefault 那一档不得是最浅档的启动校验。order 是浅到深,不许重复。toneKeys 是该档可用的色域(§6 规矩 4),内容是占位、无实测依据,接线前必须用实测结果替换。2026-10-01:八档全部加上 brown(色相加了这一族,见 shared/domain/entities/look-vocabulary.ts)。",
   "disclaimer": "照片难免有色差,AI 给的是建议档,请按素颜自然光下的真实肤色确认。",
   "tones": [
     {
@@ -13,7 +13,8 @@
         "rose",
         "coral",
         "peach",
-        "nude"
+        "nude",
+        "brown"
       ]
     },
     {
@@ -26,7 +27,8 @@
         "rose",
         "coral",
         "peach",
-        "nude"
+        "nude",
+        "brown"
       ]
     },
     {
@@ -40,7 +42,8 @@
         "coral",
         "peach",
         "nude",
-        "berry"
+        "berry",
+        "brown"
       ]
     },
     {
@@ -54,7 +57,8 @@
         "coral",
         "peach",
         "nude",
-        "berry"
+        "berry",
+        "brown"
       ]
     },
     {
@@ -69,7 +73,8 @@
         "berry",
         "brick",
         "nude",
-        "plum"
+        "plum",
+        "brown"
       ]
     },
     {
@@ -82,7 +87,8 @@
         "berry",
         "brick",
         "plum",
-        "coral"
+        "coral",
+        "brown"
       ]
     },
     {
@@ -95,7 +101,8 @@
         "berry",
         "brick",
         "plum",
-        "coral"
+        "coral",
+        "brown"
       ]
     },
     {
@@ -107,7 +114,8 @@
       "toneKeys": [
         "berry",
         "brick",
-        "plum"
+        "plum",
+        "brown"
       ]
     }
   ]

@@ -66,7 +66,7 @@ interface Raw {
  *   制造坏点(挪 `isDefault`、撞 `order`、抽掉一个色),不能另起一套假 id;
  *   另起一套的话,每条反例都会先被对账那条拦住,测到的就不是它自己那条规则了。
  *
- * ★ 七个色也要**分完**("每个色至少有一档能用"),否则基准样本自己就带死色。
+ * ★ 全部色相也要**分完**("每个色至少有一档能用"),否则基准样本自己就带死色。
  *
  * ⚠️ **只有档位 id 有这条约束。** 特征类的 id / 取值 id 是**随手编的**
  *   (校验器不对它们与代码对账,只查重复),真词表那六个类叫什么、31 条取值叫什么,
@@ -84,10 +84,10 @@ function validRaw(): Raw {
         { id: 'warm_ivory', label: '黄一白·暖调', order: 3, isDefault: false, toneKeys: all.slice(4, 5) },
         { id: 'warm_beige', label: '黄二白·暖调', order: 4, isDefault: false, toneKeys: all.slice(5, 6) },
         { id: 'olive', label: '橄榄皮·橄榄调', order: 5, isDefault: false, toneKeys: all.slice(6, 7) },
-        // 后三档是补位:七个色已被上面分完,它们只需要非空(内容好坏不是本文件的事)。
+        // 后三档是补位:全部色相已被上面分完,它们只需要非空(内容好坏不是本文件的事)。
         { id: 'warm_tan', label: '黄黑皮·暖调', order: 6, isDefault: false, toneKeys: all.slice(0, 1) },
         { id: 'wheat', label: '小麦色·暖调', order: 7, isDefault: false, toneKeys: all.slice(0, 2) },
-        { id: 'deep_brown', label: '深棕皮·中性偏暖', order: 8, isDefault: false, toneKeys: all.slice(4, 7) },
+        { id: 'deep_brown', label: '深棕皮·中性偏暖', order: 8, isDefault: false, toneKeys: all.slice(4, 8) },
       ],
     },
     features: {
