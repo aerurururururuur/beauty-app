@@ -126,7 +126,7 @@ npm run qwen:makeup -- --image ./me.jpg --ref ./look.png --n 3 --seed 42 --size 
 > 所以「**LLM 不写 prompt、模板只输出色/质地/浓度**」这条设计约束的实测依据在这里。
 
 > ⚠️ **这份文件与服务路径无关,别把它当成服务用的那份。**
-> 服务路径(`MAKEUP_ENGINE=image`)的措辞唯一来源是
+> 服务路径的措辞唯一来源是
 > `src/modules/makeup/infrastructure/engine/prompt-builder.ts`,它按 `LookSpec` 现拼,
 > **不读这个文件**。两者会漂 —— 改任一处都该看一眼另一处。
 > ★ 而且 `prompt-builder` 的输出**是本项目自己重新渲染的、尚未实测过**那一版

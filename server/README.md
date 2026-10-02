@@ -37,7 +37,8 @@ cp .env.example .env
 npm run dev
 ```
 
-服务起在 `http://127.0.0.1:3000`。`.env` 不改也能跑，缺省配置全部离线。确认它活着：
+服务起在 `http://127.0.0.1:3000`。**`.env` 里必须填上 `DASHSCOPE_API_KEY`**——
+对话模型与出图引擎现在只接真的，没有离线档（本地纯跑 `npm test` 不需要它）。确认它活着：
 
 ```bash
 curl -s http://127.0.0.1:3000/api/health
@@ -60,23 +61,23 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 
 ⚠️ 华北2（北京）和新加坡的 Key 不通用。在一个区建的 Key 拿到另一个区的端点上会返回 401。
 
-### 2. 打开要用它的开关
+### 2. 还有一个开关：读图分析
 
-只填 key、不改开关，等于什么都没发生。三个开关各自决定这份 key 被谁用：
+对话与出图**不再是开关**——填了 key 就一律走真的。只剩 `VISION_ANALYZER`：
 
 | 想做什么 | 改这一行 | 计费 |
 | --- | --- | --- |
-| 让**对话**用真实模型 | `AGENT_LLM=real` | 按 **token** |
-| 让**出图**真的生成 | `MAKEUP_ENGINE=image` | 按 **次** |
 | 让**读图分析**真的读 | `VISION_ANALYZER=real` | 按 **token** |
 
-三个都改就是全真。只改一部分也完全正常，比如只想试真实对话、图仍走离线骨架。
+缺省 `off`（分析没有安全的假货——一个编出来的肤色会一路流进妆面单和提示词，见 `config.ts`）。
+只有你显式打开它，才会用到这份 key 的第二处消费。
 
 ### 3. 怎么保证不误花
 
-缺省值一律选不产生账单的那个：`AGENT_LLM` 与 `MAKEUP_ENGINE` 缺省 `mock`，
-`VISION_ANALYZER` 缺省 **`off`**（比 `mock` 更彻底——分析没有安全的假货，见 `config.ts`）。
-只有你显式改了开关，才会用到 key 和钱。
+★ **2026-10-02：`AGENT_LLM` / `MAKEUP_ENGINE` / `WEATHER_PROVIDER` 三个开关连同各自的
+假实现（`DemoLlm` / `MockEngine` / `MockWeatherProvider`）一起删了**——它们现在只在
+`test/helpers/` 里当测试替身，生产代码再也拿不到。代价是**服务不再有离线档**：
+没配 `DASHSCOPE_API_KEY` 就起不来。
 
 **会花钱的入口有三个，全都要用户当场点一下**：
 ① 出图（`POST /agent/sessions/:id/render`，按次）；② 会话里读图（`…/analyses`，按 token）；
@@ -94,58 +95,37 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
 **启动就失败**，不会静默回落：
 
 ```
-AGENT_LLM=real 但没有拿到 DASHSCOPE_API_KEY。请在 .env 里填上…
-MAKEUP_ENGINE=image 但没有拿到 DASHSCOPE_API_KEY。请在 .env 里填上…
+没有拿到 DASHSCOPE_API_KEY —— 出图引擎与对话模型都起不来。请在 .env 里填上(见 .env.example)。
 ```
 
 这是故意的。配置错了却还能启动，是最容易拖到演示当天才炸的一类问题。
-要临时回到离线，把开关改回 `mock` 就行，不用删 key。
 
-开关**取值**写错走的是同一条路：`AGENT_LLM=dashscope`（旧值）或者拼错一个字母，服务同样
-**启动即失败**，报错会列出这一项的全部合法取值。以前不是这样——以前它悄悄回落成 `mock`，
-于是"以为自己开着真模型、对面其实是那段脚本"。
+开关**取值**写错走的是同一条路：`VISION_ANALYZER=on` 或者拼错一个字母，服务同样
+**启动即失败**，报错会列出这一项的全部合法取值。以前不是这样——以前它悄悄回落，
+于是"以为自己开着真读图、对面其实什么都没发生"。
 
 想换端点改 `DASHSCOPE_API_HOST`，想换对话模型改 `AGENT_MODEL`，实测候选见 `npm run probe:tools -- --list`。
 
 key 不会进 `ServerConfig` 对象，所以任何一次 `app.log.info(config)` 式的调试都打不出它。
 `test/agent-llm.test.ts` 钉着这一点。
 
-## 三种运行形态
+## 运行形态
 
-| 形态 | `.env` 要改的 | 花钱 | 说明 |
-| --- | --- | --- | --- |
-| **离线演示**，缺省 | 无 | 否 | 全流程能走通：方案（步骤 / 色号 / 个性化）、出图确认框、成片都有；**成片不是真渲染** |
-| **真对话 + 假图** | `AGENT_LLM=real` + key | 按 token | 妆面是真的，图还是原图 |
-| **全真** | 上面再加 `MAKEUP_ENGINE=image` | token + 按次 | 出真图，见下 |
+★ **2026-10-02 起只有一种**：对话走 `DashScopeLlm`、出图走 `ImageEngine`，都要 `DASHSCOPE_API_KEY`。
+曾经有过"离线演示"那一档（缺省 `AGENT_LLM=mock` + `MAKEUP_ENGINE=mock`），连假实现一起删了——
+假件搬进 `test/helpers/` 当测试替身，生产代码再也拿不到它们。
+`VISION_ANALYZER`（读图，缺省 `off`）是唯一剩下的开关。
 
-★ **`MAKEUP_ENGINE=image` 需要一份妆面单 `LookSpec`，而全项目只有 `propose_look` 产出它。**
-✏️ 2026-09-29：此前这里写的是「表单路径 `POST /api/jobs` 在这个形态下不可用」——
-`jobs` 已删，上传页那条路当时也**空着**（新前端还没接上）。
-✏️ **2026-09-30：下面这句话那天才真的成立。** 桃妆的 `/form` 提交走的就是本仓的 agent 会话链
-（`POST /agent/sessions` 带初始 brief → 传照片 → 发一句话），所以**表单提交同样能出真图**，
-它和对话页现在是同一条路。真正会明确报错（而不是瞎编一套妆）的，只有绕过 agent 直接调引擎。
+★ **出图需要一份妆面单 `LookSpec`，而全项目只有 `propose_look` 产出它。**
+桃妆的 `/form` 提交走的就是本仓的 agent 会话链（`POST /agent/sessions` 带初始 brief → 传照片 → 发一句话），
+所以**表单提交同样能出真图**，它和对话页是同一条路。真正会明确报错（而不是瞎编一套妆）的，只有绕过 agent 直接调引擎。
 
-★ **同一天起，本仓还多产出一件东西：那份「方案」。** `propose_look` 成功时服务端**同时**
-存下 `lookSpec`（用来出图）与 `plan`（步骤 / 色号 / 产品 / 个性化，由 `modules/styling` 展开），
-前端 `/result` 渲染的就是后者。★ 这样做的理由只有一条：**两次调用就会有两个决定**，
-而用户会拿方案当成对成片的承诺——一次调用、一个决定、两样产出，一致性由结构保证。
+★ **`propose_look` 成功时服务端同时存下两样东西**：`lookSpec`（用来出图）与
+`plan`（步骤 / 色号 / 产品 / 个性化，由 `modules/styling` 展开），前端 `/result` 渲染的是后者。
+理由只有一条：**两次调用就会有两个决定**，而用户会拿方案当成对成片的承诺——
+一次调用、一个决定、两样产出，一致性由结构保证。
 见 `src/modules/styling/README.md` 与 `agent/README.md` 的 `propose_look` 那一节。
 
-★ **`AGENT_LLM=mock` 是一段脚本，不是模型。** 它读会话状态决定下一步——定下妆面了没有、
-有照片了没有、上次出图成没成——所以同一个进程里开个新会话就能从头再演一遍。
-它存在的理由很具体：空的 mock 永远走不到确认出图那一步，于是这条全项目唯一花钱的链路，
-在最安全的缺省配置下一次都跑不起来，而它恰恰是最需要能离线复现的那条。
-
-别拿它判断妆面质量，也别拿它当「模型会怎么回话」的证据。它除了一张写死在代码里的场合关键词表，
-不解析任何语义，也写不出 `brief` 里那几项结构化字段，只会把用户的话原样塞进 `sceneText`。
-那件事只有 `AGENT_LLM=real` 能给出。
-
-★ **它挑配方的方式是「当前场合的候选池里取第一条」**，不比较、不权衡。
-所以缺省配置下连走几遍会看到**同一套妆**——那是脚本，不是模型的判断。
-（这一条是 2026-09-30 加的：`propose_look` 多了个必填 `styleId`，脚本总得给一个。）
-
-起服务时会打一行日志说明当前是不是离线配置（`[agent] offline config: …`），
-免得现场分不清对面是真模型还是那段脚本。
 
 ## 常用命令
 
@@ -197,7 +177,7 @@ chcp 65001 > $null
 比它更外面还有一道路由 `bodyLimit`。两个都要改才动得了这个上限——
 **只改一个的坏法是 413 而不是那句人话的 422**。
 
-**现场断网演示前**把 `WEATHER_PROVIDER` 改成 `mock`。天气是唯一一项缺省就实拉的配置，
-实拉免费，但断网时它会让 `/api/weather` 回 502。
+天气一律实拉（open-meteo，免费、无 key）。断网时 `/api/weather` 回 502，
+前端**整块不带 `weather` 提交**——那是诚实的空，不是缺件（✏️ 2026-10-02：`WEATHER_PROVIDER=mock` 那一档已删）。
 
 **改了 `.env` 要重启服务**。`loadDotEnvIfPresent()` 只在启动时读一次，不是热加载。
