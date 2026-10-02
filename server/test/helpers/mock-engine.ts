@@ -1,16 +1,16 @@
 /**
- * infrastructure/engine/mock-engine.ts —— Engine 的 mock 实现。
- * 骨架不做真实像素级上妆:把本人照片原样作为成品,同时返回结构化 look
- * (palette + zones,图片归一化坐标),前端据此做 CSS 叠加预览。
+ * test/helpers/mock-engine.ts —— Engine 的测试替身(**生产代码拿不到它**)。
+ * 不做像素级上妆:把本人照片原样作为成品,同时返回结构化 look
+ * (palette + zones,图片归一化坐标)。
  * 风格按「场合 label」选,再按 brief.skinTone 调色——体现 roadmap 的
  * 「按真实肤色走、不默认浅肤色审美」。坐标几何沿用自拍正面照约定。
  *
  * ★ 真实引擎(参数化上妆 / 第三方图像 API)只需实现 domain/ports/engine.ts 的 2 个成员。
  */
-import type { SkinTone } from '../../../shared/index.js';
-import { MakeupZone } from '../../domain/entities/look.js';
-import type { Look } from '../../domain/entities/look.js';
-import type { Engine, EngineInput, EngineResult } from '../../domain/ports/engine.js';
+import type { SkinTone } from '../../src/modules/shared/index.js';
+import { MakeupZone } from '../../src/modules/makeup/domain/entities/look.js';
+import type { Look } from '../../src/modules/makeup/domain/entities/look.js';
+import type { Engine, EngineInput, EngineResult } from '../../src/modules/makeup/domain/ports/engine.js';
 
 type RGB = [number, number, number];
 

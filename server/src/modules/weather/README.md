@@ -17,9 +17,8 @@
 | `application/usecases/get-weather.ts` | `GetWeather`：**上游错误 → 业务错误码的唯一翻译点** |
 | `application/weather-view.ts` | `WeatherResult` → `WeatherView`（只展开有值的字段） |
 | `infrastructure/open-meteo/` | 实拉适配器 + `wmo.ts`（WMO 码 → 中文简述） |
-| `infrastructure/weather-provider/mock-weather-provider.ts` | 离线示意兜底（不联网、不失败） |
 | `presentation/weather.controller.ts` + `presentation/routes/weather.route.ts` | `GET /api/weather` |
-| `index.ts` / `compose.ts` | public barrel / `createWeatherModule({ kind })` |
+| `index.ts` / `compose.ts` | public barrel / `createWeatherModule({ provider })`（实现由组装根注入） |
 
 ## 端点
 
@@ -43,14 +42,15 @@
 ★ **没有"手填天气"的回落路**（曾经有过，已删）：前端 `clearWeather()` 清空后**整块省掉**
 `brief.weather`，照样能提交 —— 拉不到就是不带天气，比留着一份对不上城市的值更诚实（红线 §8-4）。
 
-## 开关与接线
+## 接线
 
-- `WEATHER_PROVIDER=live`（缺省，实拉）| `mock`（离线示意，演示断网前切）。
-  ★ `source` 字段报的是**上游名**（实拉时为 `open-meteo`），不是开关取值 —— **UI 要据此标注**，
-  `mock` 时标「离线示意」，别当实况展示。
-  ✏️ 2026-09-30：桃妆（`vue/`）**不标来源**，于是换了一条等价的路 —— `source: 'mock'` 那一份
-  **既不摆也不送**（`vue/src/api/design.js` 的 `briefWeatherOf` 整块返回 `null`）。⇒ 上面那条
-  「据此标注」在桃妆**不适用**，但它背后的东西（别把示意当实况）原样成立，只是由"标注"改成"不用"。
+- ★ **2026-10-02：`WEATHER_PROVIDER` 开关删了**，`OpenMeteoWeatherProvider` 由组装根注入
+  （`createWeatherModule({ provider })`）。曾经的 `mock`（离线示意）只剩 `test/helpers/` 里的测试替身。
+  代价是断网时 `/api/weather` 一律 502 —— 前端**整块不带 `weather` 提交**，那是诚实的空。
+- `source` 字段报的是**上游名**（实拉时 `open-meteo`），不是开关取值。
+  ✏️ 2026-09-30：桃妆（`vue/`）**不标来源**，`source: 'mock'` 那一份**既不摆也不送**
+  （`vue/src/api/design.js` 的 `briefWeatherOf` 整块返回 `null`）。它背后的东西（别把示意当实况）
+  仍然成立，只是由"标注"改成"不用"。
 - `web shell` 在 `src/app.ts` 挂 `/api/weather`；`brief.weather` 由**前端**调本端点后填进
   `POST /agent/sessions` 的 `brief`（会话建立时随 brief 一起进会话）——
   ✏️ 2026-09-29:此前这里写的是 `POST /api/jobs` 的 `meta`，那个模块连同它的表单流水线一起删了。
@@ -67,9 +67,9 @@
       422 / 404 / 502 一律**整个不带 `weather` 提交**，不阻塞提交。
       ★ **前端没有「手动预设」可回落**——预设 chips 已按本模块第 2 条的同一口径删掉（roadmap §8）：
       既然不编造天气冒充实时，就不该再让人手挑一个假天气混进 `brief`。断网时 `brief` 里没有天气，
-      那是诚实的空，不是缺件；要让演示看到天气就走 `WEATHER_PROVIDER=mock`（UI 会标「离线示意」）。
+      那是诚实的空，不是缺件。
 - [x] **桃妆接入**（2026-09-30）：`/form` 上「查天气」（手填城市）与「用当前位置」（`lat/lon`），
-      取四格填 `brief.weather`；拉不到、或 `source:'mock'` 时**整块不带 `weather` 提交**（见上文那条 ✏️）。
+      取四格填 `brief.weather`；拉不到（或将来出现非实况来源）时**整块不带 `weather` 提交**（见上文那条 ✏️）。
       调用点只有 `vue/src/api/weather.js` 与 `vue/src/pages/FormView.vue`，**前端没有 mock 分支**。
 - [ ] 按日期取非当日天气（`WeatherQuery.date` 已预留，当前只取当日实况）。
 - [ ] 上游异常可观测性（目前只进 502 的 `details.reason`，无指标；竞赛规模够用）。

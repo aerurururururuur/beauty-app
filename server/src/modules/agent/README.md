@@ -32,8 +32,7 @@
 | `application/usecases/` | `StartSession` / `GetSession` / `SendMessage` / `AttachPhoto` / `ConfirmRender` / `GetRender` / `PurgeExpiredSessions` / `AttachImage` / `AnalyzeImage` |
 | `application/agent-view.ts` | 会话 → 对外视图（★ 不透出 `messages[]`，理由见文件头；★ 透出 `pendingRender`，让刷新页面后确认框还在；★ `analysisOffer.cases[].notice` = 上面那张表里同一句话**提前**印一遍） |
 | `infrastructure/llm/dashscope-llm.ts` | 阿里云百炼适配器（**实测夹具**为形状依据，不是读文档来的） |
-| `infrastructure/llm/mock-llm.ts` | 脚本化假 LLM：**单测**的驱动源（按脚本顺序回话）——`AGENT_LLM=mock` 现在**不用它**，见下一行 |
-| `infrastructure/llm/demo-llm.ts` | ★ `AGENT_LLM=mock` 实际用的那个：**按请求状态求值的离线演示脚本**（见下） |
+| `infrastructure/llm/` | 只有 `dashscope-llm.ts`。假 LLM（`mock-llm.ts` / `demo-llm.ts`）已搬 `test/helpers/`，见下 |
 | `infrastructure/memory/session-store.ts` | 内存会话存储（重启即丢，见待办） |
 | `presentation/multipart.ts` | 两条上传路由共用的 multipart 解析。**差别只在字段名上**：`…/photo` 认 `face` + `userId`，`…/images` 认 `file` + `kind` + `userId`（✏️ 泛化前写死成前者）。⚠️ **文件必须在循环里读干净**——留到循环外再读，**大于 16 KB 的文件会永远挂住**（文件头有实测阈值） |
 | `compose.ts` / `index.ts` | `createAgentModule({…})` / public barrel |
@@ -320,38 +319,22 @@
   所以 `makeup` 的 `Engine` 端口是为此而留的。
 - 被依赖：`src/index.ts`（组装）、`src/app.ts`（挂路由）。
 
-## 开关与接线
+## 接线与配置
 
-- `AGENT_LLM=mock`（**缺省**，离线、不出账单）| `real`（真实模型，按 token 计费）。
-  ★ 缺省是 `mock` 而不是实拉，与 `WEATHER_PROVIDER` 缺省 `live` 相反，理由是**花钱**：
-  缺省值必须是"不会意外产生账单"的那个。现场演示要用真模型就显式写 `AGENT_LLM=real`。
-  ★ **`mock` 走的是 `DemoLlm`——一段脚本化演示，不是"回一句演示模式"。**
-  它读请求里的状态（定下妆面没有 / 有照片没有 / 上次出图成没成）决定下一步，
-  于是能演完「需求 → 妆面 → 照片 → 确认出图」整条链，**包括确认框那一段**。
-  改掉这一点上的旧行为是有具体原因的：原来的空脚本**永远走不到 `awaiting_confirmation`**
-  （回复里没有 `tool_use`），于是全项目唯一花钱的那条链路，在缺省配置下**一次都跑不起来**。
-  ⚠️ 它**不是模型**：除了一张明写在代码里的场合关键词表，它不解析任何语义，
-  所以**不能拿它判断妆面质量**，也不能拿它当"模型会怎么回话"的证据。
-  ⚠️ 它也写不出 `brief` 的结构化字段，只能把用户那句话原样塞进 `sceneText`——
-  mock 下 `brief` 看着"薄"是**脚本的局限，不是 bug**。
-  ★ 它挑配方的方式是**当前场合候选池里的第一条**，不比较、不权衡——
-  所以缺省配置下连走几遍会看到**同一套妆**。（`propose_look` 09-30 起必填 `styleId`，脚本总得给一个。）
-  ★ **出图那件事的结局只对"它当时提的那一套妆"有效**：换风格会在历史里留下一条**更新**的
-  `propose_look`，判据是**下标先后**（不是时间戳）。不看这个先后，换完风格会收到一句
-  指向上**一套**妆的「那这次先不出图」，而旁边正摆着一个出图按钮——这是 09-30 实测抓到的真 bug。
-  ★ **被拒之后不再提议**：用户点了「先不出图」，它接一句"我们接着调"，**再聊一句也不会
-  又弹一个确认框**——那条线以「脚本演完了」收尾。**宁可明说演完了，也不重复提议**：
-  重复提议会让用户点完拒绝立刻又看到一个确认框，而那和没有确认框一样糟。
-  `MockLlm`（按脚本顺序回话）**没有删**，它是单测的驱动源，测试直接 `new` 它。
-  整条链路的自动化证据在 `test/demo-llm.test.ts`。
+- ★ **2026-10-02：`AGENT_LLM` 开关删了**，LLM 由组装根造好注入（`createAgentModule({ llm })`）。
+  曾经的 `mock` 那一档走的是 `DemoLlm`——一段**按请求状态求值**的离线脚本；它连 `MockLlm`
+  一起搬进了 `test/helpers/`，只给 `test/demo-llm.test.ts` 当替身，生产代码拿不到。
+  为什么删：那个开关的静默回落的坏法正是本仓头号 bug（"以为自己开着真模型、对面是脚本"）。
+  ★ 它当年的理由值得留着：空脚本**永远走不到 `awaiting_confirmation`**（回复里没有 `tool_use`），
+  于是全项目唯一花钱的那条链路，在缺省配置下**一次都跑不起来**——这也是那条测试还在跑的原因。
 - `AGENT_MODEL`（缺省 `qwen-flash`，实测 847ms 跑完整两轮工具调用）/ `AGENT_BASE_URL`（一般不用改）。
 - `AGENT_SESSION_TTL_HOURS`（缺省 24）：§10 `[I8]` 的会话寿命，到期**真删**照片与成品图。
   ★ 它不是调优参数，它同时是"用户本人的照片在服务端最多留多久"这个承诺，
   **改大它等于改隐私条款**。要让清理更勤是改 `src/index.ts` 的 `PURGE_INTERVAL_MS`，不是改这一项。
-- `DASHSCOPE_API_KEY` 为 `real` 时必填，**缺 key 启动即失败**，不留到第一次对话才炸。
+- `DASHSCOPE_API_KEY` **必填**（对话与出图都要它），**缺 key 启动即失败**，不留到第一次对话才炸。
   ★ key 不进 `ServerConfig`（见 `config.ts` 里 `readDashScopeApiKey` 的注释）——那个对象会被传进
   `buildApp` 并挂在 `app` 上，任何一次调试式日志都会把它打出来。
-  ★ 它**同时也是出图的 key**：`AGENT_LLM=real` 与 `MAKEUP_ENGINE=image` 走同一个 key、同一个域名开关。
+  ★ 它**同时也是出图的 key**：对话与出图走同一个 key、同一个域名开关。
 
 ## 照片与产物落在哪
 
@@ -370,9 +353,9 @@
 不删的话，`[I8]` 那句"照片与产物被真实删除"就是**假的**：会话那份删了，副本永远留着。
 
 ⚠️ **但那一下删除必须带边界**，否则会删掉用户的照片——**这不是假想的**：
-`MockEngine` 返回的 `result.image` **就是 `input.face`**（它不出图，只把输入当输出），
-而那个路径在 `inputs/<sid>/face/` 下。所以只有落在引擎输出目录里的源文件才删，
-别的一律不动。边界与那道"前缀相近不算"的规矩都有测试
+引擎端口只承诺"回一个路径"，**没承诺那个路径是自己写的**：照片自己就落在
+`inputs/<sid>/face/` 下，而测试替身更是直接把输入当输出。所以只有落在引擎输出目录里的
+源文件才删，别的一律不动。边界与那道"前缀相近不算"的规矩都有测试
 （`★★ 源文件不在引擎输出目录里 → 一个字节都不许动它`）。
 
 ★ **全项目只有 agent 这一条出图路径**，所以中间产物的清理没有第二个入口要顾。

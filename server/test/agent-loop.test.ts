@@ -15,19 +15,21 @@ import {
   AgentLoop,
   DEFAULT_MAX_ITERATIONS,
   LlmUnavailableError,
-  MockLlm,
   TextBlock,
   ToolUseBlock,
   appendMessages,
   createSession,
   indexTools,
-  mockText,
-  mockTextAndToolCalls,
-  mockToolCall,
   patchBrief,
   setLookSpec,
   textMessage,
 } from '../src/modules/agent/index.js';
+import {
+  MockLlm,
+  mockText,
+  mockTextAndToolCalls,
+  mockToolCall,
+} from './helpers/mock-llm.js';
 import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../src/modules/makeup/index.js';
 import type {
   AgentLoopOptions,

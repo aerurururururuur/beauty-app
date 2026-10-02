@@ -2,7 +2,7 @@
  * infrastructure/engine/image-engine.ts —— `Engine` 端口的**真实**实现。
  *
  * ★ **类名刻意不带厂商**:`ImageEngine` 是"真的去画一张图"的那个实现,
- *   与 `MockEngine`(骨架)按**行为**区分,而不是按供应商区分。
+ *   按**行为**命名,而不是按供应商区分。
  *   接第二家图像 API 时,那里的差异应当沉到 `qwen-request.ts` 同类的位置去,
  *   而不是让本类长出第二个厂商分支。
  *
@@ -126,7 +126,7 @@ export class ImageEngine implements Engine {
     // `spec` 必然存在 —— 缺了的话 `buildGenerateRequest` 已经抛过(见那里的注释)。
     // 这里再取一次只为拿到 describeLook 的输入;不要改成非空断言以外的写法。
     const look: Look = {
-      // ★ 与 `MockEngine`('mock')**同一套命名**:按做法,不按厂商。
+      // ★ 按做法命名,不按厂商。
       //   这条不是洁癖:`look.engine` 与本类的 `name`(`image:<model>`,它会进
       //   `JobResult.engine`)是**同一件事的两种说法**,不一致时排查的人得先猜哪个算数。
       //   厂商信息在 `look.model` 与配置里已经写明了,不靠这个字段重复第二遍。

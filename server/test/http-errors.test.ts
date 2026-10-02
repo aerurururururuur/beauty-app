@@ -28,6 +28,8 @@ import { loadConfig } from '../src/modules/shared/infrastructure/config.js';
 import { buildApp } from '../src/app.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
+import { MockLlm } from './helpers/mock-llm.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -48,7 +50,6 @@ async function makeApp(): Promise<FastifyInstance> {
   dirs.push(dir);
   const config = loadConfig({
     DATA_DIR: dir,
-    WEATHER_PROVIDER: 'mock',
     PRODUCTS_DIR: path.join(dir, 'no-products'),
   });
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
@@ -57,12 +58,11 @@ async function makeApp(): Promise<FastifyInstance> {
   return buildApp({
     config,
     user: createUserModule({ dataDir: config.dataDir }),
-    weather: createWeatherModule({ kind: config.weatherProvider }),
+    weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
     products: createProductsModule({ contentDir: config.productsDir }),
     agent: createAgentModule({
-      kind: 'mock',
-      real: { apiKey: '', baseUrl: '', model: '' },
+      llm: new MockLlm(),
       cosmetics: { listByUser: async () => [] },
       userExists,
       engine: stubEngine,

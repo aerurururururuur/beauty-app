@@ -1,10 +1,7 @@
 /**
  * modules/agent/compose.ts —— 组合根。
- * 按 `kind` 分发 LLM 实现,再把工具注册表、harness 与两个用例装起来。
- * 业务层 / 控制器都不感知具体是哪一家模型。
- *
- * 形状照 `weather/compose.ts`(`kind` union 在本模块**独立声明**,
- * 免得业务模块反向依赖组装层的配置类型;两处要一起改)。
+ * LLM **由调用方造好注入**,再把工具注册表、harness 与两个用例装起来。
+ * 业务层 / 控制器都不感知具体是哪一家模型(`DemoLlm` 那种假件只剩测试用,见 `test/helpers/`)。
  */
 import type { Analyzers, Engine, SkinTonePalette } from '../makeup/index.js';
 import type { ShadeLookup } from '../styling/index.js';
@@ -30,38 +27,14 @@ import {
   DEFAULT_SESSION_TTL_HOURS,
   PurgeExpiredSessions,
 } from './application/usecases/purge-expired-sessions.js';
-import { DashScopeLlm } from './infrastructure/llm/dashscope-llm.js';
-import { DemoLlm } from './infrastructure/llm/demo-llm.js';
 import { InMemorySessionStore } from './infrastructure/memory/session-store.js';
 
-/**
- * LLM 开关。与 `shared/infrastructure/config.ts` 的 `agentLlm` 同形(那边读 `AGENT_LLM`)。
- *
- * ⚠️ **刻意没有 `off`**:对话 agent 没有 LLM 就什么也做不了,硬接一个 off 分支
- * 只会得到又一个假开关——同 `src/index.ts` 里对 `MAKEUP_ENGINE` 那段注释的理由。
- * 离线要兜底就用 `mock`,它至少还能回话。
- *
- * ★ **`mock` 现在是"脚本化演示"(`DemoLlm`),不是"空脚本 + 一句演示模式"。**
- *   改这一个取值的原因很具体:空脚本**永远走不到 `awaiting_confirmation`**
- *   (它的回复里没有 `tool_use`),于是「确认出图」这条全项目唯一花钱的链路,
- *   在**安全的缺省配置下一次都跑不起来**——而它恰恰是最需要能离线复现的那条。
- *   它是脚本、不是模型,这一点写在 `demo-llm.ts` 的文件头与 README 里。
- *
- * ⚠️ **也刻意没有第二个供应商分支。** `llm.ts` 端口已经把形状留好了(§7.3 第 8 条),
- * 但**现在写一个没人调用的空适配器,是一段没有实测支撑、也没人会发现的代码**——
- * 等真要换时再写,那时才有验证它的场合。
- */
-export type AgentLlmKind = 'mock' | 'real';
-
 export interface AgentModuleOptions {
-  kind: AgentLlmKind;
-  /** 仅 `kind='real'` 用。缺 key 时**启动即失败**,不留到第一次对话才炸。 */
-  real: {
-    apiKey: string;
-    baseUrl: string;
-    model: string;
-    timeoutMs?: number;
-  };
+  /**
+   * 对话模型。★ **由组合根造好注入**(`src/index.ts` 的 `DashScopeLlm`,缺 key 时那边启动即失败)。
+   * 本模块不再按开关分发,所以也没有"离线演示脚本"这一档了。
+   */
+  llm: Llm;
   /** 读用户衣橱。★ 由**组装根**把 cabinet 的 `listByUser` 包一层传进来(§7.1)。 */
   cosmetics: CosmeticReader;
   /**
@@ -156,7 +129,7 @@ export interface AgentModuleServices {
 }
 
 export function createAgentModule(options: AgentModuleOptions): AgentModuleServices {
-  const llm: Llm = buildLlm(options);
+  const llm: Llm = options.llm;
   const sessionTtlHours = options.sessionTtlHours ?? DEFAULT_SESSION_TTL_HOURS;
 
   const sessions: SessionStore = new InMemorySessionStore();
@@ -217,29 +190,4 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
         }
       : {}),
   };
-}
-
-function buildLlm(options: AgentModuleOptions): Llm {
-  // ★ `mock` ⇒ 脚本化演示(见上面 `AgentLlmKind` 的注释)。
-  //   ⚠️ `MockLlm` **没有删**:它是单测的驱动源(按脚本顺序回话),测试直接 new 它;
-  //     而 `DemoLlm` 按**请求状态**求值,所以同一个进程里开新会话能重演一遍,不用重启。
-  // ★ 它要 `palette`:演示脚本得挑出**这个用户肤色下合法**的色,否则表单那条路配深肤色
-  //   人设时会整套被 `validateLookSpec` 拒掉(理由见 `DemoLlm` 的构造参数)。
-  if (options.kind === 'mock') return new DemoLlm(options.palette);
-
-  const { apiKey, baseUrl, model, timeoutMs } = options.real;
-  if (!apiKey) {
-    // ★ 启动即失败,不留到运行时。理由同 §5.4 对 `.env.example` 那段过期注释的处置:
-    //   **配置错了却"能启动",是最容易拖到演示当天才炸的一类问题。**
-    throw new Error(
-      'AGENT_LLM=real 但没有拿到 DASHSCOPE_API_KEY。' +
-        '请在 .env 里填上(见 .env.example 的 LLM 一节),或把 AGENT_LLM 设为 mock 走离线兜底。',
-    );
-  }
-  return new DashScopeLlm({
-    apiKey,
-    baseUrl,
-    model,
-    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-  });
 }

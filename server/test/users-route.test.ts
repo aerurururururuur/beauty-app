@@ -27,6 +27,8 @@ import { buildApp } from '../src/app.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
 import type { UserModuleServices } from '../src/modules/user/index.js';
+import { MockLlm } from './helpers/mock-llm.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -58,7 +60,6 @@ async function makeFixture(): Promise<Fixture> {
   const dir = tempDir();
   const config = loadConfig({
     DATA_DIR: dir,
-    WEATHER_PROVIDER: 'mock',
     PRODUCTS_DIR: path.join(dir, 'no-products'),
   });
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
@@ -67,8 +68,7 @@ async function makeFixture(): Promise<Fixture> {
   const user = createUserModule({ dataDir: config.dataDir });
 
   const agent = createAgentModule({
-    kind: 'mock',
-    real: { apiKey: '', baseUrl: '', model: '' },
+    llm: new MockLlm(),
     cosmetics: { listByUser: async () => [] },
     userExists,
     engine: stubEngine,
@@ -81,7 +81,7 @@ async function makeFixture(): Promise<Fixture> {
   const app = await buildApp({
     config,
     user,
-    weather: createWeatherModule({ kind: config.weatherProvider }),
+    weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
     products: createProductsModule({ contentDir: config.productsDir }),
     agent,

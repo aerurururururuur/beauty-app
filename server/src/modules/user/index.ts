@@ -208,7 +208,7 @@ export type { PersonasDeps } from './presentation/personas.controller.js';
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { PasswordHasher } from './domain/ports/password-hasher.js';
 export type { UserRepository } from './domain/ports/user-repository.js';
-// 默认实现的导出只为组合根与测试(同 makeup 导 MockEngine);业务代码请依赖上面的端口类型。
+// 默认实现的导出只为组合根与测试(同 makeup 导 ImageEngine);业务代码请依赖上面的端口类型。
 export { JsonUserRepository } from './infrastructure/json/user-repository.js';
 export { ScryptPasswordHasher } from './infrastructure/crypto/scrypt-password-hasher.js';
 

@@ -3,9 +3,9 @@
  * 依赖 shared,`EngineInput` 的输入图一律用 shared 的 `ResolvedImage`,**不依赖别的模块**。
  * 业务「引擎输出校验」也归本模块(贴近 look/引擎契约)。
  */
-// ★ `MakeupZone` 虽然也是名义类,但**只导类型**:构造点只有 `MockEngine` 一处
-//   (`validateEngineResult` 不构造它 —— 那边面对的是 `unknown`,只查形状)。
-//   当值导出等于把"随手造一个叠加区"开给全仓。
+// ★ `MakeupZone` 虽然也是名义类,但**只导类型**:生产代码里一个构造点都没有
+//   (`validateEngineResult` 不构造它 —— 那边面对的是 `unknown`,只查形状;
+//   `ImageEngine` 也不产它)。当值导出等于把"随手造一个叠加区"开给全仓。
 export type { Look, MakeupZone } from './domain/entities/look.js';
 export type { Engine, EngineInput, EngineResult } from './domain/ports/engine.js';
 export { validateEngineResult } from './domain/validators/engine-output.validator.js';
@@ -77,8 +77,7 @@ export { STYLE_PROMPT, StyleAnalyzer } from './infrastructure/vision/style-analy
 // ★ 把 LookSpec 讲成人话——砍掉 CSS 预览后它是「预览」的替代品(设计文档 §7.4.2)。
 export { describeLook, describeStyleRead } from './application/look-description.js';
 
-// ---- 引擎实现(两个,**按行为区分,不按厂商区分**:骨架 / 真出图)----
-export { MockEngine } from './infrastructure/engine/mock-engine.js';
+// ---- 引擎实现(真出图)----
 export { ImageEngine } from './infrastructure/engine/image-engine.js';
 export type { ImageEngineOptions } from './infrastructure/engine/image-engine.js';
 
@@ -100,7 +99,6 @@ export type { GenerateRequest, QwenRequestOptions } from './infrastructure/engin
 
 export { createMakeupModule } from './compose.js';
 export type {
-  MakeupEngineKind,
   MakeupModuleOptions,
   MakeupModuleServices,
   VisionAnalyzerKind,

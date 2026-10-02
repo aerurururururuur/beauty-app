@@ -69,7 +69,7 @@ export type {
 // ---- ports(本模块持契约;实现见 infrastructure)----
 export type { CosmeticRepository } from './domain/ports/cosmetic-repository.js';
 export type { UserDirectory } from './domain/ports/user-directory.js';
-// 默认实现的导出只为组合根与测试(同 makeup 导 MockEngine);业务代码请依赖上面的端口类型。
+// 默认实现的导出只为组合根与测试(同 makeup 导 ImageEngine);业务代码请依赖上面的端口类型。
 export { JsonCosmeticRepository } from './infrastructure/json/cosmetic-repository.js';
 
 // ---- 用例 ----

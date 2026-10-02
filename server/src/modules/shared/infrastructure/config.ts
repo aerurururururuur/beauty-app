@@ -6,52 +6,20 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * 天气源开关。与 `weather/compose.ts` 的 WeatherProviderKind 同形(那边独立声明,
- * 免得业务模块反向依赖组装层);两处要一起改。
+ * ★ **2026-10-02:演示模式的三个开关连同假实现一起删了** ——
+ *   `MAKEUP_ENGINE` / `AGENT_LLM` / `WEATHER_PROVIDER` 都不再看环境变量:
+ *   引擎一律 `ImageEngine`、对话一律 `DashScopeLlm`、天气一律 open-meteo。
+ *   三个假件(`MockEngine` / `DemoLlm` / `MockWeatherProvider`)搬去了 `test/helpers/`,
+ *   只给测试当替身,生产代码里再也拿不到它们。
+ *   ⇒ 代价是**服务不再有离线档**:没配 `DASHSCOPE_API_KEY` 就**启动即失败**
+ *     (见 `src/index.ts` 开头那道检查)。
  */
-export type WeatherProviderKind = 'mock' | 'live';
-
-/**
- * 上妆引擎开关。与 `makeup/compose.ts` 的同名 union 同形,两处要一起改。
- *
- * ★ **刻意没有 `off`。** 这一条从 `server/README.md` 到 `src/index.ts` 已经写过三遍:
- *   流水线没有引擎就出不了成品,**接一个 off 分支只会得到又一个假开关**。
- *
- * ★ **2026-09-29:`replay` 取值连同 record/replay 夹具整条链删掉了。**
- *   它从没兑现过(`__fixtures__/` 一直是空的,一份夹具都没录),
- *   而一个没兑现的取值留在枚举里,读起来就像"离线验收这条路已经通了"。
- *
- * ★ **两个取值一律按「行为」命名,不按厂商**(2026-09-17 改)。
- *   改之前是 `mock | qwen` —— `mock` 是按行为,`qwen` 却是按厂商,
- *   一套枚举里混了两种命名法。而类名那边本来是对的(`MockEngine` / `ImageEngine`),
- *   所以这一处是**配置层单方面把厂商名焊进了枚举**,读者会以为"真实出图"这件事本身就叫 qwen。
- *   现在 `image` 与类名逐一对齐,**再接第二家生图 API 时不必动这个枚举**。
- *
- * ⚠️ **旧名 `qwen` 刻意不做兼容**(2026-09-17 定):它和任何拼错的值一样,
- *   **启动即失败**,并把合法取值连说明一起打进报错(见 `asKind`)。
- *   ★ 2026-09-18 之前这里是"回落 `mock` 再打一声 `warn`"。改成抛错,是因为那声警告
- *   拦不住:`MAKEUP_ENGINE=qwen` 的 `.env` 会照常启动,而出图那一步悄悄把原图交回来
- *   ——正是本项目反复点名的"假开关",只不过是带着一行日志的假开关。
- */
-export type MakeupEngineKind = 'mock' | 'image';
-
-/**
- * 对话 agent 的 LLM 开关。与 `agent/compose.ts` 的同名 union 同形,两处要一起改。
- *
- * ★ **刻意没有 `off`**:对话 agent 没有 LLM 就什么也做不了——这跟 `weather` 那种
- *   "接不上就降级为空列表"的增强项不同。离线要兜底就用 `mock`。
- *
- * ★ **缺省是 `mock`**,与 `weatherProvider` 缺省 `live` 的选择相反,理由是**花钱**:
- *   天气实拉是免费公开接口,模型调用按 token 计费。**缺省值必须是"不会意外产生账单"的那个**,
- *   要用真实模型就显式写 `AGENT_LLM=real`。
- */
-export type AgentLlmKind = 'mock' | 'real';
 
 /**
  * 读图分析开关(`face` / `scene` / `style`)。与 `makeup/compose.ts` 的同名 union
  * 同形,两处要一起改。
  *
- * ★ **这个开关可以有 `off`,与 `MakeupEngineKind` 的「刻意没有 off」不矛盾:**
+ * ★ **这个开关可以有 `off`,与引擎/模型那种「刻意没有 off」不矛盾:**
  *   没有引擎就出不了成品;而**分析今天本来就等于没有**,`off` 说的正是当下的真实状态。
  *   代价是一条纪律:**`off` 时入口一条都不出现**——不许"收了图但什么都不发生",
  *   那就是标准的假开关。
@@ -69,8 +37,6 @@ export interface ServerConfig {
   /** 数据目录(会话记录 + 输入/产物文件都在这下面)的绝对路径。 */
   dataDir: string;
   maxUploadMb: number;
-  /** 上妆引擎:mock(骨架,缺省)| image(真实生图,计费)。 */
-  makeupEngine: MakeupEngineKind;
   /** 生图模型名。缺省 `qwen-image-edit-plus`(§4.4 的四次实测全部基于它)。 */
   makeupModel: string;
   /** 生图模型端点基址(与对话模型共用 DASHSCOPE_API_HOST,但可单独覆盖)。 */
@@ -83,10 +49,6 @@ export interface ServerConfig {
   visionModel: string;
   /** 视觉模型的兼容模式基址。拼法与 `agentBaseUrl` 相同(见那里的注释)。 */
   visionBaseUrl: string;
-  /** 天气源:live(无 key 实拉,缺省)| mock(离线示意兜底)。 */
-  weatherProvider: WeatherProviderKind;
-  /** 对话 agent 的模型来源:mock(离线兜底,缺省)| real(真实模型,按 token 计费)。 */
-  agentLlm: AgentLlmKind;
   /** 对话模型名。实测可用的候选见 `scripts/probe-tool-calling.ts`。 */
   agentModel: string;
   /** 对话模型端点基址。默认由 DASHSCOPE_API_HOST 拼出兼容模式路径。 */
@@ -152,21 +114,6 @@ interface KindChoice<T extends string> {
   note: string;
 }
 
-const MAKEUP_ENGINE_CHOICES: readonly KindChoice<MakeupEngineKind>[] = [
-  { value: 'mock', note: '骨架,把输入照片原样当成品返回' },
-  { value: 'image', note: '真实出图,按次计费' },
-];
-
-const WEATHER_PROVIDER_CHOICES: readonly KindChoice<WeatherProviderKind>[] = [
-  { value: 'mock', note: '离线示意' },
-  { value: 'live', note: '无 key 实拉' },
-];
-
-const AGENT_LLM_CHOICES: readonly KindChoice<AgentLlmKind>[] = [
-  { value: 'mock', note: '离线演示脚本,不是模型' },
-  { value: 'real', note: '真实模型,按 token 计费' },
-];
-
 const VISION_ANALYZER_CHOICES: readonly KindChoice<VisionAnalyzerKind>[] = [
   { value: 'off', note: '不注册分析入口(缺省)' },
   { value: 'real', note: '真实读图,按 token 计费' },
@@ -221,9 +168,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     logLevel: env.LOG_LEVEL ?? 'info',
     dataDir: path.resolve(env.DATA_DIR ?? './data'),
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 25),
-    // 引擎缺省**仍是 mock**:它不联网、不出账单,是"不会意外花钱"的那一个
-    // (与 AGENT_LLM 缺省 mock 同一条理由)。
-    makeupEngine: asKind('MAKEUP_ENGINE', env.MAKEUP_ENGINE, 'mock', MAKEUP_ENGINE_CHOICES),
     // 四次实测(§4.4)全部基于 -plus;`-max` / `-2.0-pro` 值不值得换,本文没有对比数据(§14.1)。
     makeupModel: env.QWEN_IMAGE_MODEL ?? 'qwen-image-edit-plus',
     // 与对话模型共用一个域名开关(一个 key 打通两层,§7.5),但允许单独覆盖。
@@ -231,7 +175,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // 引擎的中间产物放 dataDir 下:**它现在没有任何地方清理**(见 makeup/README 的待办,
     // 属 §10 [I8] 那条"会话 TTL 到期照片与产物被真实删除"的同一笔债)。
     makeupOutDir: path.join(env.DATA_DIR ?? './data', 'engine-out'),
-    // 分析缺省 off:今天的真实状态就是"没有这个能力"(与两个 mock 缺省同一条理由)。
+    // 分析缺省 off:今天的真实状态就是"没有这个能力"。
     // ✏️ 2026-09-30:它现在管**两族**入口——agent 的 `/images` `/analyses`,
     //    加上 user 的 `POST /personas/analyze`(读脸)。两边同一条纪律:
     //    `off` ⇒ 路由**根本不注册**,且 `canAnalyzeFace: false`。
@@ -241,10 +185,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     visionModel: env.QWEN_VISION_MODEL ?? 'qwen-vl-max',
     // 与 agentBaseUrl 同一个拼法(同 key、同域名开关);它没有单独的开盖变量,理由见 .env.example。
     visionBaseUrl: `${env.DASHSCOPE_API_HOST ?? 'https://dashscope.aliyuncs.com'}/compatible-mode/v1`,
-    // 天气唯一「实拉」的源:缺省就接通,离线演示再用 WEATHER_PROVIDER=mock 关掉。
-    weatherProvider: asKind('WEATHER_PROVIDER', env.WEATHER_PROVIDER, 'live', WEATHER_PROVIDER_CHOICES),
-    // 对话模型缺省 mock:不联网、不出账单(理由见 AgentLlmKind 的注释)。
-    agentLlm: asKind('AGENT_LLM', env.AGENT_LLM, 'mock', AGENT_LLM_CHOICES),
     // qwen-flash 实测 847ms 能跑完整两轮工具调用,是这三项里最快的一档。
     agentModel: env.AGENT_MODEL ?? 'qwen-flash',
     // 复用 DASHSCOPE_API_HOST(与生图脚本同一个域名开关),只是接上兼容模式路径;

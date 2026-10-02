@@ -7,13 +7,13 @@ import { AppError, ErrorCode } from '../src/modules/shared/index.js';
 import {
   CityNotFoundError,
   GetWeather,
-  MockWeatherProvider,
   OpenMeteoWeatherProvider,
   WeatherUpstreamError,
   conditionFromWmoCode,
   validateWeatherQuery,
 } from '../src/modules/weather/index.js';
 import { FakeWeatherProvider } from './helpers/fakes.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

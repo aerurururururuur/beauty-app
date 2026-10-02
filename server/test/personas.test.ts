@@ -31,6 +31,8 @@ import {
   PERSONA_SEED_VERSION,
 } from '../src/modules/user/index.js';
 import { FakeFaceReader } from './helpers/fakes.js';
+import { MockLlm } from './helpers/mock-llm.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -66,7 +68,6 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
   const dir = tempDir();
   const config = loadConfig({
     DATA_DIR: dir,
-    WEATHER_PROVIDER: 'mock',
     // 指到不存在的目录 = 这个部署没有产品库(合法形态,见 products/compose.ts)。
     PRODUCTS_DIR: path.join(dir, 'no-products'),
   });
@@ -79,8 +80,7 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
   });
 
   const agent = createAgentModule({
-    kind: 'mock',
-    real: { apiKey: '', baseUrl: '', model: '' },
+    llm: new MockLlm(),
     cosmetics: { listByUser: async () => [] },
     userExists,
     engine: stubEngine,
@@ -96,7 +96,7 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
   const app = await buildApp({
     config,
     user,
-    weather: createWeatherModule({ kind: config.weatherProvider }),
+    weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
     // 真 compose(与 `src/index.ts` 同一条路)——这条测试验的正是装配层的事。
     products: createProductsModule({ contentDir: config.productsDir }),
@@ -683,7 +683,6 @@ describe('落盘:重启后还在,而且读得回来', () => {
     // 「重启」:同一个 dataDir,另起一套 compose。
     const config = loadConfig({
       DATA_DIR: dir,
-      WEATHER_PROVIDER: 'mock',
       PRODUCTS_DIR: path.join(dir, 'no-products'),
     });
     expect(config.dataDir).toBe(dir);

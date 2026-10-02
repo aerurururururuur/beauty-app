@@ -1,22 +1,16 @@
 /**
- * infrastructure/llm/mock-llm.ts —— 脚本化的假 LLM。
+ * test/helpers/mock-llm.ts —— 脚本化的假 LLM(**测试专用**;生产代码拿不到它)。
  *
- * 两个用途,都很重要:
+ * 用途(§11)「`agent-loop` 用 **mock LLM 返回脚本化的响应序列**驱动状态机」。
+ * §11 把那句话称为「**这一层唯一真正的风险控制**」——LLM 行为不可测,
+ * 但**循环的骨架可测**:把不确定性关在 `llm.ts` 端口里面,外面全是确定的。
+ * `mockToolCall` / `mockText` 两个构造器就是为了让脚本读起来像一段对话。
  *
- * 1. **测试**(§11)「`agent-loop` 用 **mock LLM 返回脚本化的响应序列**驱动状态机」。
- *    §11 把那句话称为「**这一层唯一真正的风险控制**」——LLM 行为不可测,
- *    但**循环的骨架可测**:把不确定性关在 `llm.ts` 端口里面,外面全是确定的。
- *    `mockToolCall` / `mockText` 两个构造器就是为了让脚本读起来像一段对话。
- *
- * 2. **离线兜底**:`AGENT_LLM=mock` 时服务仍能起来并回话,不联网、不花钱。
- *    同 `WEATHER_PROVIDER=mock` / `MAKEUP_ENGINE=mock` 的用法
- *    (红线 §13-1:演示现场第一约束是稳)。
- *
- * ⚠️ **它不会假装自己是真的。** 脚本用完后回的话术明确说"演示模式",
+ * ⚠️ **它不会假装自己是真的。** 脚本用完后回的话术明说"没有接真实模型",
  * 不编造妆面建议——一个会瞎编的 mock 比一个空列表更糟。
  */
-import { TextBlock, ToolUseBlock } from '../../domain/entities/message.js';
-import type { Llm, LlmRequest, LlmResponse } from '../../domain/ports/llm.js';
+import { TextBlock, ToolUseBlock } from '../../src/modules/agent/domain/entities/message.js';
+import type { Llm, LlmRequest, LlmResponse } from '../../src/modules/agent/domain/ports/llm.js';
 
 /** 构造一个纯文字回复。 */
 export function mockText(text: string): LlmResponse {
@@ -45,7 +39,7 @@ export function mockTextAndToolCalls(
 
 /** 脚本用完时的兜底话术。**不编内容**。 */
 const EXHAUSTED_TEXT =
-  '当前是演示模式(没有接真实模型),我只能回到这里。接上模型后我就能真正帮你定妆了。';
+  '当前没有接真实模型,我只能回到这里。接上模型后我就能真正帮你定妆了。';
 
 export class MockLlm implements Llm {
   readonly name = 'mock';

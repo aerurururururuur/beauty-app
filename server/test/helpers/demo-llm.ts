@@ -1,37 +1,26 @@
 /**
- * infrastructure/llm/demo-llm.ts —— ★ 离线演示驱动:`AGENT_LLM=mock` 时服务端回的就是它。
+ * test/helpers/demo-llm.ts —— ★ 测试替身:**按请求状态求值**的脚本化 LLM。
+ * 只有 `test/demo-llm.test.ts` 用(以及那几条不碰对话的路由测试需要个占位时用 `MockLlm`)。
  *
- * ── 它为什么存在 ─────────────────────────────────────────────────────────────
+ * ── 它和 `MockLlm` 的分工 ───────────────────────────────────────────────────
  *
- * `MockLlm` 是**按脚本顺序**回话的,而 `compose.ts` 给它的是**空脚本**:脚本一用完就回一句
- * 「当前是演示模式」。这个设计对单测是对的,但它带来一个后果——**离线时永远走不到
- * `awaiting_confirmation`**(模型的回复里没有 `tool_use`,循环根本不会提议出图),
- * 于是"确认出图"这条全项目唯一花钱的链路,在安全的缺省配置下**一次都跑不起来**。
+ * `MockLlm` 按**脚本顺序**回话,写法直白但要人预先排好每一步。
+ * 本文件不取位置,而是**读请求里的状态**决定下一步 —— 写的理由只有一个:
  *
- * 本文件填的就是这个坑:它不按顺序取脚本,而是**读请求里的状态**决定下一步,
- * 于是每一次开新会话都能从头演一遍,不用重启进程。
- *
- * ── ★ 为什么不写成"一份 FIFO 脚本"(`new MockLlm(DEMO_SCRIPT)`)────────────────
- *
- * 因为确认出图**那条路会消费一次 LLM 调用、却不增加 assistant 消息条数**:
- * 用户点确认后,`agent-loop.ts` 先把欠着的那一轮重放掉(这一步只追加一条 user 消息),
- * 然后才回头调模型。**任何按位置取脚本的写法,都会恰好在用户点下"确认"那一刻错位**——
- * 而那正是这个演示唯一必须对的地方。按状态求值的决策表**没有位置可以对错**。
+ * ★ 确认出图**那条路会消费一次 LLM 调用、却不增加 assistant 消息条数**:
+ *   用户点确认后,`agent-loop.ts` 先把欠着的那一轮重放掉(只追加一条 user 消息),
+ *   然后才回头调模型。**任何按位置取脚本的写法,都会恰好在点下"确认"那一刻错位。**
+ *   按状态求值的决策表没有位置可以对错。
  *
  * ── 它是什么、不是什么 ───────────────────────────────────────────────────────
  *
- * ★ **它是一段脚本,不是模型。** 它理解不了用户的话:除了下面那张**明写在代码里的场合关键词表**
- *   (那也只是把用户自己的词对到一个封闭枚举上),它不解析任何语义。
- *   所以**不能拿它判断妆面质量**,也不能拿它当"LLM 会怎么回话"的证据——
- *   那件事只有 `AGENT_LLM=real` 才能给出。
- *   同 `MockEngine`(缺省引擎,不调任何外部接口、把输入照片原样当成品返回)的地位:能跑通形状、
- *   不产生账单、文档里写明它不是真的。
+ * ★ **它是一段脚本,不是模型。** 它理解不了用户的话:除了下面那张**明写在代码里的场合关键词表**,
+ *   它不解析任何语义。所以**不能拿它判断妆面质量**,也不能拿它当"LLM 会怎么回话"的证据。
  *
  * ⚠️ **它一条硬规则都不违反**:出图仍然走**工具 + 服务端确认回合**那道闸门,
  *   它只是"提议"出图,点不点是用户的事(见 `agent-loop.ts` 文件头 ⑦)。
- *   这也是它可以放心当缺省的原因——**它没有多花一分钱的能力**。
  */
-import type { Occasion, SkinTone } from '../../../shared/index.js';
+import type { Occasion, SkinTone } from '../../src/modules/shared/index.js';
 import {
   ADDED_ZONE_ROLES,
   BrowSpec,
@@ -39,7 +28,7 @@ import {
   LookSpecBase,
   ZONE_ROLES,
   ZoneSpec,
-} from '../../../makeup/index.js';
+} from '../../src/modules/makeup/index.js';
 import type {
   AddedZoneRole,
   Depth,
@@ -48,20 +37,20 @@ import type {
   SkinTonePalette,
   ToneKey,
   ZoneRole,
-} from '../../../makeup/index.js';
-import { STYLE_LIBRARY, derivePlan } from '../../../styling/index.js';
-import { requiredZonesOf } from '../../application/step-zones.js';
+} from '../../src/modules/makeup/index.js';
+import { STYLE_LIBRARY, derivePlan } from '../../src/modules/styling/index.js';
+import { requiredZonesOf } from '../../src/modules/agent/application/step-zones.js';
 // ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
-import { MAX_SCENE_TEXT, SKIN_TONES } from '../../../shared/index.js';
-import { TOOL_NAMES } from '../../domain/tools/definitions.js';
-import { PHOTO_ATTACHED_NOTE } from '../../domain/tools/observations.js';
+import { MAX_SCENE_TEXT, SKIN_TONES } from '../../src/modules/shared/index.js';
+import { TOOL_NAMES } from '../../src/modules/agent/domain/tools/definitions.js';
+import { PHOTO_ATTACHED_NOTE } from '../../src/modules/agent/domain/tools/observations.js';
 import {
   RENDER_DECLINED_PREFIX,
   RENDER_DONE_PREFIX,
-} from '../../domain/tools/observations.js';
-import type { Message, ToolResultBlock } from '../../domain/entities/message.js';
-import { ToolUseBlock, textOf, toolUsesOf } from '../../domain/entities/message.js';
-import type { Llm, LlmRequest, LlmResponse } from '../../domain/ports/llm.js';
+} from '../../src/modules/agent/domain/tools/observations.js';
+import type { Message, ToolResultBlock } from '../../src/modules/agent/domain/entities/message.js';
+import { ToolUseBlock, textOf, toolUsesOf } from '../../src/modules/agent/domain/entities/message.js';
+import type { Llm, LlmRequest, LlmResponse } from '../../src/modules/agent/domain/ports/llm.js';
 import { mockText, mockTextAndToolCalls } from './mock-llm.js';
 
 /**
@@ -265,10 +254,7 @@ const SCRIPT_END_TEXT =
   '接上真实模型之后,我可以接着按你说的一点点调。)';
 
 export class DemoLlm implements Llm {
-  /**
-   * ★ `name` 是给日志看的:`server/src/index.ts` 起服务时会打出实际用的哪个实现,
-   * 免得现场分不清对面是真模型还是这段脚本。
-   */
+  /** ★ `name` 是给日志看的:免得现场分不清对面是真模型还是这段脚本。 */
   readonly name = 'demo';
 
   /**
@@ -277,7 +263,7 @@ export class DemoLlm implements Llm {
    * **它为什么必须有**:表单那条路会把人设上的肤色带进 `brief`,而 `propose_look`
    * 会**按肤色收窄色域**(§6 规矩 4)。写死一套色的脚本对 `warm_tan` / `wheat` /
    * `deep_brown` 三档是**整套被拒**的(`rose` / `nude` 不在那三档的色域里),
-   * 缺省配置(`AGENT_LLM=mock`)下那就成了"配好了却出不了方案"——假开关的那张脸。
+   * 那就成了"配好了却出不了方案"——假开关的那张脸。
    * 所以**每一个区的色**都要从这一档可用的色里挑(`ZONE_LOOKS` + `toneFor`)。
    * ⚠️ **必填、不给缺省**:缺省就退回到"写死一套色",而那正是这里要防的。
    */

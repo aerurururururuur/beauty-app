@@ -3,9 +3,9 @@
  * 呼应 roadmap「按真实肤色走、不默认浅肤色审美」。
  */
 import { describe, expect, it } from 'vitest';
-import { MockEngine } from '../src/modules/makeup/index.js';
 import type { EngineInput, EngineResult } from '../src/modules/makeup/index.js';
 import { realVocabulary } from './helpers/face-catalog.js';
+import { MockEngine } from './helpers/mock-engine.js';
 
 const eng = new MockEngine();
 /** 仓库里那份真词表。★ 缺省档到底该是哪一档,**只有词表说了算**。 */

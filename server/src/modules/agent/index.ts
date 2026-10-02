@@ -8,16 +8,15 @@
  * 导出分成三段,分界是"谁会用到":
  *   ① **HTTP 层**——用例、视图、路由(对外服务);
  *   ② **组装根**——端口类型、模块装配函数;
- *   ③ **测试接缝**——harness、会话工厂、mock LLM。
+ *   ③ **测试接缝**——harness、会话工厂、工具类。
  *
- * ★ 为什么连 ③ 也导出(本可以选择不导出):§11 把「用 mock LLM 脚本驱动
- * `agent-loop` 状态机」称为**这一层唯一真正的风险控制**,而测试按仓库惯例
+ * ★ 为什么连 ③ 也导出(本可以选择不导出):测试按仓库惯例
  * 只从 barrel 取东西(`test/*.ts` 一律 `from '../src/modules/xxx/index.js'`)。
  * 要么开这个口子,要么为了"干净"把最有价值的那组测试挡在门外——
- * **后者是拿可测性换整洁,不划算。** 先例:`makeup` 导出 `MockEngine` 也是这个理由。
+ * **后者是拿可测性换整洁,不划算。**
  */
 export { createAgentModule } from './compose.js';
-export type { AgentLlmKind, AgentModuleOptions, AgentModuleServices } from './compose.js';
+export type { AgentModuleOptions, AgentModuleServices } from './compose.js';
 
 // ---- ② 组装根要用的端口类型(注入 cabinet / assets / user 的实现时只认这些)----
 export type { CosmeticReader, CabinetAttribute, CabinetItemSnapshot } from './domain/ports/cosmetic-reader.js';
@@ -118,16 +117,9 @@ export { ProposeLookTool } from './application/tools/propose-look.js';
 export { ReadProductTool, renderProductDetail } from './application/tools/read-product.js';
 export { ReadStyleRecipeTool, renderStyleRecipe } from './application/tools/read-style-recipe.js';
 export { RenderLookTool, renderConfirmationSummary } from './application/tools/render-look.js';
-export { MockLlm, mockText, mockTextAndToolCalls, mockToolCall } from './infrastructure/llm/mock-llm.js';
-/**
- * ★ `AGENT_LLM=mock` 时服务端实际用的那个实现(脚本化演示,不是模型)。
- * 导出它是为了让 `test/demo-llm.test.ts` 能**用真的那一个**跑整条链路——
- * 测试里另起一个同形状的假货,就测不出"装配起来的那条到底通不通"。
- */
-export { DemoLlm } from './infrastructure/llm/demo-llm.js';
 /**
  * ★ 几段回给模型的 observation 的开头。
- * 导出理由同 `MockLlm`:测试要钉住它们(`test/demo-llm.test.ts`),
+ * 导出理由:测试要钉住它们(`test/demo-llm.test.ts`),
  * 而它们**不能**被抄第二份——演示驱动正是靠比对这几个前缀判断"出成了还是被拒了"。
  */
 export {

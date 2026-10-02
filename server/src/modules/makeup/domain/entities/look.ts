@@ -7,7 +7,7 @@
  * `AgentSessionView` 里**没有** `look` 这一格(它只给 `lookSpec?` 与 `lookDescription?`)。
  * 所以三个引擎往里面写什么,今天都不影响用户看到的任何东西。
  *
- * 为什么留着:`MockEngine` 会放一份 `zones` / `palette`——那是「本人照片 + CSS 叠加」预览的原料,
+ * 为什么留着:测试替身会放一份 `zones` / `palette`——那是「本人照片 + CSS 叠加」预览的原料,
  * 而结果页那种预览在 2026-09-29 随 `jobs` 一起没了。**前端设计那一轮要拿回去的话,
  * 得先把 `look` 透出到会话视图**(不是只改这里)。真引擎(`ImageEngine`)本来就不产 `zones`。
  */

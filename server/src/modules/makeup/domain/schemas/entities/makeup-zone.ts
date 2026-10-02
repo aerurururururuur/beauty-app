@@ -4,7 +4,7 @@
  * ★ `Look` 本身是 `Record<string, unknown>`(**引擎私有**、形状由各引擎自定,见
  *   `entities/look.ts`),所以**没有**一份 `Look` 的 schema —— 这里只给
  *   `look.zones[]` 里那**一个已知成员**的形状,因为它是代码里真在造的那个
- *   (`MockEngine` 造它,`engine-output.validator` 按字段验它)。
+ *   (测试替身造它,`engine-output.validator` 按字段验它)。
  *
  * ★ 与 `contracts/look-spec.ts` 同规矩:这里只答结构,数值界与色值/坐标的合法性
  *   **不在 schema 里** —— 坐标 0..1、rgb 0..255、blur 非负、opacity 0..1 是

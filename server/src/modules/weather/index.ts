@@ -1,7 +1,7 @@
 /**
  * modules/weather —— 天气模块(public barrel)。
- * 当日天气:live(无 key 实拉)/ mock(离线示意)二选一,由 config.weatherProvider 分发。
- * 对外只暴露端口与 GetWeather 用例;换源只改 compose.ts。
+ * 当日天气:实拉 open-meteo(无 key)。实现由组装根注入(`createWeatherModule({ provider })`)。
+ * 对外只暴露端口与 GetWeather 用例;换源只改组装根那一行。
  */
 export type {
   WeatherProvider,
@@ -24,9 +24,8 @@ export type { WeatherView } from './domain/schemas/index.js';
 // ---- 用例 ----
 export { GetWeather } from './application/usecases/get-weather.js';
 
-// ---- 默认实现的导出只为组合根与测试(同 makeup 导 MockEngine);业务代码请依赖上面的端口类型 ----
+// ---- 默认实现的导出只为组合根;业务代码请依赖上面的端口类型 ----
 export { OpenMeteoWeatherProvider } from './infrastructure/open-meteo/open-meteo-weather-provider.js';
-export { MockWeatherProvider } from './infrastructure/weather-provider/mock-weather-provider.js';
 export { conditionFromWmoCode } from './infrastructure/open-meteo/wmo.js';
 
 // ---- presentation(HTTP 路由挂载)----
@@ -38,5 +37,4 @@ export { createWeatherModule } from './compose.js';
 export type {
   WeatherModuleOptions,
   WeatherModuleServices,
-  WeatherProviderKind,
 } from './compose.js';

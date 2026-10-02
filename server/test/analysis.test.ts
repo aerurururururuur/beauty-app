@@ -65,6 +65,9 @@ import { createProductsModule } from '../src/modules/products/index.js';
 import { createUserModule } from '../src/modules/user/index.js';
 import { createWeatherModule } from '../src/modules/weather/index.js';
 import { FakeAnalyzers, FakeVisionClient } from './helpers/fakes.js';
+import { MockLlm } from './helpers/mock-llm.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
+import { MockEngine } from './helpers/mock-engine.js';
 
 /** 一张"图"。★ 只验路径的流转,内容随便 —— 这一层谁都不读图。 */
 const IMG = { filePath: '/tmp/x/face.png', mimeType: 'image/png' };
@@ -496,16 +499,17 @@ describe('AttachImage —— 收图免费,而且不给模型递话', () => {
 // ── ④ 组合与路由:`off` 必须是"入口不存在" ───────────────────────────────────
 
 describe('createMakeupModule 的读图开关', () => {
-  it('off(缺省)⇒ 整个 analyzers 键不出现', () => {
-    const made = createMakeupModule({ outputDir: '.', model: 'm' });
+  it('off(缺省)⇒ 整个 analyzers 键不出现;引擎是注进来的那一个', () => {
+    const engine = new MockEngine();
+    const made = createMakeupModule({ engine });
     expect('analyzers' in made).toBe(false);
+    expect(made.engine).toBe(engine);
   });
 
   it('★ real 但没拿到 key ⇒ **启动即失败**(不留到用户点下去那一刻)', () => {
     expect(() =>
       createMakeupModule({
-        outputDir: '.',
-        model: 'm',
+        engine: new MockEngine(),
         analyzerKind: 'real',
         vision: { apiKey: '', baseUrl: 'https://x/v1', model: 'qwen-vl-max' },
       }),
@@ -514,8 +518,7 @@ describe('createMakeupModule 的读图开关', () => {
 
   it('real ⇒ 三个 case 齐了(少一个编译不过,见 Analyzers 那个 mapped type)', () => {
     const made = createMakeupModule({
-      outputDir: '.',
-      model: 'm',
+      engine: new MockEngine(),
       analyzerKind: 'real',
       vision: { apiKey: 'k', baseUrl: 'https://x/v1', model: 'qwen-vl-max' },
     });
@@ -540,7 +543,6 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
   const dir = tempDir();
   const config = loadConfig({
     DATA_DIR: dir,
-    WEATHER_PROVIDER: 'mock',
     // 指到不存在的目录 = 这个部署没有产品库(合法形态,见 products/compose.ts)。
     PRODUCTS_DIR: path.join(dir, 'no-products'),
   });
@@ -549,8 +551,7 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
   const analyzers: Analyzers | undefined = withAnalysis ? new FakeAnalyzers() : undefined;
 
   const agent = createAgentModule({
-    kind: 'mock',
-    real: { apiKey: '', baseUrl: '', model: '' },
+    llm: new MockLlm(),
     cosmetics: { listByUser: async () => [] },
     userExists,
     engine: stubEngine,
@@ -568,7 +569,7 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
   return buildApp({
     config,
     user: createUserModule({ dataDir: config.dataDir }),
-    weather: createWeatherModule({ kind: config.weatherProvider }),
+    weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
     // ★ 走真 compose(与 `src/index.ts` 同一条路),不是塞一个空壳 —— 这条测试
     //   要验的正是**装配层**的事,拿手搓的替身就把要验的那一层换掉了。

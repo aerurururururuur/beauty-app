@@ -21,14 +21,15 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FileSystemArtifactStore } from '../src/modules/assets/index.js';
-import { BrowSpec, LookSpec, LookSpecBase, MockEngine, ZoneSpec } from '../src/modules/makeup/index.js';
+import { BrowSpec, LookSpec, LookSpecBase, ZoneSpec } from '../src/modules/makeup/index.js';
 import type { EngineInput, EngineResult } from '../src/modules/makeup/index.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
+import { DemoLlm } from './helpers/demo-llm.js';
+import { MockEngine } from './helpers/mock-engine.js';
 import {
   AgentLoop,
   AttachPhoto,
   ConfirmRender,
-  DemoLlm,
   InMemorySessionStore,
   PHOTO_ATTACHED_NOTE,
   RENDER_DECLINED_PREFIX,

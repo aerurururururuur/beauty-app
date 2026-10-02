@@ -33,7 +33,6 @@ import {
   GetRender,
   InMemorySessionStore,
   Message,
-  MockLlm,
   NO_CONFIRMATION_NOTICE,
   PurgeExpiredSessions,
   RenderLookTool,
@@ -48,9 +47,6 @@ import {
   createSession,
   danglingToolUses,
   indexTools,
-  mockText,
-  mockTextAndToolCalls,
-  mockToolCall,
   patchBrief,
   renderConfirmationSummary,
   renderReadiness,
@@ -70,6 +66,12 @@ import type {
   ToolOutcome,
   UserDirectory,
 } from '../src/modules/agent/index.js';
+import {
+  MockLlm,
+  mockText,
+  mockTextAndToolCalls,
+  mockToolCall,
+} from './helpers/mock-llm.js';
 
 // ── 测试替身 ─────────────────────────────────────────────────────────────────
 

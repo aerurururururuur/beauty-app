@@ -26,6 +26,8 @@ import { buildApp } from '../src/app.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
 import { REAL_PRODUCTS_DIR } from './helpers/product-content.js';
+import { MockLlm } from './helpers/mock-llm.js';
+import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -54,15 +56,13 @@ async function makeApp(productsDir: string): Promise<FastifyInstance> {
   const dir = tempDir();
   const config = loadConfig({
     DATA_DIR: dir,
-    WEATHER_PROVIDER: 'mock',
     PRODUCTS_DIR: productsDir,
   });
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
   const userExists = async (): Promise<boolean> => true;
 
   const agent = createAgentModule({
-    kind: 'mock',
-    real: { apiKey: '', baseUrl: '', model: '' },
+    llm: new MockLlm(),
     cosmetics: { listByUser: async () => [] },
     userExists,
     engine: stubEngine,
@@ -76,7 +76,7 @@ async function makeApp(productsDir: string): Promise<FastifyInstance> {
   return buildApp({
     config,
     user: createUserModule({ dataDir: config.dataDir }),
-    weather: createWeatherModule({ kind: config.weatherProvider }),
+    weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
     // ★ 与 `src/index.ts` 同一条路:真 compose,不是手搓的空壳。
     products: createProductsModule({ contentDir: config.productsDir }),

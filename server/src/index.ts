@@ -2,7 +2,7 @@
  * src/index.ts —— 组装根(唯一认识所有实现的文件)。
  * 读配置 → 逐模块 createXxxModule → 装配 web shell → 启动/优雅停机。
  * 模块内部的实现选择被组合根隔离;依赖只经各模块 public barrel。
- * 换真实引擎/模型时,在对应模块 compose 里按 config.* 开关分发即可。
+ * **实现由这里造好注入**(引擎 / 模型 / 天气源),模块内部没有开关。
  */
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -14,14 +14,14 @@ import {
   readDashScopeApiKey,
 } from './modules/shared/infrastructure/config.js';
 import { createAssetsModule } from './modules/assets/index.js';
-import { createMakeupModule } from './modules/makeup/index.js';
+import { ImageEngine, createMakeupModule } from './modules/makeup/index.js';
 import { createUserModule, dataUrlToBytes } from './modules/user/index.js';
 import type { FaceReader } from './modules/user/index.js';
-import { createWeatherModule } from './modules/weather/index.js';
+import { OpenMeteoWeatherProvider, createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
 import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
 import { createFaceCatalogModule } from './modules/face-catalog/index.js';
-import { createAgentModule } from './modules/agent/index.js';
+import { DashScopeLlm, createAgentModule } from './modules/agent/index.js';
 import type {
   CosmeticReader,
   FeatureStrategies,
@@ -46,34 +46,34 @@ async function main(): Promise<void> {
   const config = loadConfig();
 
   // —— 各模块组合 ——
-  // ★ MAKEUP_ENGINE **2026-09-16 起真的接通了**(在 makeup/compose.ts 里按 kind 分发):
-  //    mock(缺省,骨架)/ image(真出图,计费)。
-  //    **仍然没有 off** —— 没有引擎就出不了成品,硬接一个 off 分支只会得到
-  //    又一个假开关,而那正是本仓反复要修掉的东西。
   // ★ 场景理解**没有**模块也没有开关(2026-09-10 删):妆容方向是 shared/domain/scene-rules.ts
   //   里的纯查表函数。它没有可换的实现,所以不该有开关。
   const { artifactStore } = createAssetsModule({ dataDir: config.dataDir });
-  // 上妆引擎 + 读图分析。★ `MAKEUP_ENGINE=image` 需要**妆面单(LookSpec)**,
-  //   而只有对话 agent 会产出它——所以缺省 mock 是唯一能让"没配 key 也起得来服务"
-  //   的取值,不只是省钱。
-  // ★ `VISION_ANALYZER=real` 时这里一并装出三个读图适配器(同一个 key、同一个域名,
-  //   只多一个模型名);`off`(缺省)时返回 `undefined`,**下面那条口整个键不出现**
-  //   ⇒ 两条路由不注册。「关掉」= 入口不存在,不是"注册了但什么都不发生"。
-  const { engine, analyzers } = createMakeupModule({
-    kind: config.makeupEngine,
-    outputDir: config.makeupOutDir,
+  // ★ 出图引擎与对话模型**都要这个 key**,所以在最前面一次性要死:
+  //   没有它服务起不来(演示模式已删,没有"骨架引擎/离线脚本"那一档了)。
+  //   key 不进 ServerConfig(见 config.ts 里 readDashScopeApiKey 的注释)。
+  const apiKey = readDashScopeApiKey();
+  if (!apiKey) {
+    throw new Error(
+      '没有拿到 DASHSCOPE_API_KEY —— 出图引擎与对话模型都起不来。' +
+        '请在 .env 里填上(见 .env.example)。本地跑 `npm test` 不需要它。',
+    );
+  }
+  // 上妆引擎:真出图,**按次计费**。
+  const engine = new ImageEngine({
+    apiKey,
+    apiHost: config.makeupApiHost,
     model: config.makeupModel,
-    qwen: {
-      // key 不进 ServerConfig(见 config.ts 里 readDashScopeApiKey 的注释)。
-      apiKey: readDashScopeApiKey(),
-      apiHost: config.makeupApiHost,
-    },
-    // ⚠️ 这两项**无条件传**:`off` 时 `buildAnalyzers` 直接返回 `undefined`,
-    //   连 `vision` 都不看。所以这里不需要再写一遍"配了才传"的写法。
-    //   (`readDashScopeApiKey` 没配 key 时返回空串而不是抛错,理由同上面那个包。)
+    outputDir: config.makeupOutDir,
+  });
+  // ★ `VISION_ANALYZER=real` 时装出三个读图适配器(同一个 key、同一个域名,
+  //   只多一个模型名);`off`(缺省)时 `analyzers` 整个键不出现
+  //   ⇒ 两条路由不注册。「关掉」= 入口不存在,不是"注册了但什么都不发生"。
+  const { analyzers } = createMakeupModule({
+    engine,
     analyzerKind: config.visionAnalyzer,
     vision: {
-      apiKey: readDashScopeApiKey(),
+      apiKey,
       baseUrl: config.visionBaseUrl,
       model: config.visionModel,
     },
@@ -174,8 +174,8 @@ async function main(): Promise<void> {
     ...(faceReader ? { faceReader } : {}),
   });
 
-  // 当日天气:缺省 live 实拉,WEATHER_PROVIDER=mock 切离线示意。
-  const weather = createWeatherModule({ kind: config.weatherProvider });
+  // 当日天气:实拉 open-meteo(免费公开接口,无 key)。离线示意那一档已删。
+  const weather = createWeatherModule({ provider: new OpenMeteoWeatherProvider() });
 
   /**
    * ★ 「这个 userId 存在吗」——**一个闭包,两个模块用**。
@@ -338,20 +338,19 @@ async function main(): Promise<void> {
   });
 
   const agent = createAgentModule({
-    kind: config.agentLlm,
-    real: {
-      // key 不进 ServerConfig(见 config.ts 里 readDashScopeApiKey 的注释)。
-      apiKey: readDashScopeApiKey(),
+    // 对话模型:真模型,**按 token 计费**。key 就是上面那一份(同一个 key 打通两层,§7.5)。
+    llm: new DashScopeLlm({
+      apiKey,
       baseUrl: config.agentBaseUrl,
       model: config.agentModel,
-    },
+    }),
     cosmetics,
     // ★ **同一个 `userExists`**,与 cabinet 用的是上面那一个闭包(见它的注释)。
     //   挡的是"给一个不存在的用户开会话"——理由在
     //   `agent/domain/ports/user-directory.ts` 的文件头。
     userExists,
-    // ★ **同一个引擎实例**,不是新造的:它和上面对 `createMakeupModule` 的调用共用
-    //   同一份配置,于是"`MAKEUP_ENGINE` 换一个值,出图跟着变"。
+    // ★ **同一个引擎实例**,不是新造的 —— 上面 `createMakeupModule` 收的是它,
+    //   这里 agent 出图用的也是它,两处共用一份配置。
     engine,
     artifacts: sessionArtifacts,
     palette,
@@ -375,30 +374,6 @@ async function main(): Promise<void> {
 
   // —— web shell ——
   const app = await buildApp({ config, user, weather, cabinet, products, agent });
-
-  /**
-   * ★ **启动时把「对面是真的还是假的」打出来。**
-   *
-   * 这一段不是为了日志好看:`AGENT_LLM=mock` 走的是**脚本化演示**
-   * (`modules/agent/infrastructure/llm/demo-llm.ts`)——它会照常提议出图、
-   * 照常弹确认框、照常回一句「图已经出好了」,**从界面上完全分不出来**。
-   * 引擎同理:`MAKEUP_ENGINE=mock` 把输入照片原样当成品交回来,
-   * 那一步看着像"出图成功了",其实什么都没发生。
-   *
-   * 两个 `mock` 都是**有意的缺省兜底**(离线、不花钱),这句话也不是警告;
-   * 它只是不让任何人**误以为自己在看真效果**——而那正是本文档反复说的
-   * 「一个会瞎编的假后端比一个承认自己是假的假后端糟得多」。
-   */
-  const fakes: string[] = [];
-  if (config.agentLlm === 'mock') {
-    fakes.push('AGENT_LLM=mock (scripted demo, no model, offline)');
-  }
-  if (config.makeupEngine === 'mock') {
-    fakes.push('MAKEUP_ENGINE=mock (engine returns the input photo as-is)');
-  }
-  if (fakes.length > 0) {
-    app.log.info(`[agent] offline config: ${fakes.join('; ')} - see server/README.md`);
-  }
 
   /**
    * ★ **读图能力这一行。** 同上面那段:分析是"用户点一下才会去读图"的,
