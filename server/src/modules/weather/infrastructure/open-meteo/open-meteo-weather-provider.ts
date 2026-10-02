@@ -15,17 +15,14 @@ const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 
 /**
- * 上游超时(毫秒)。**每个 URL 各算一次** —— 城市名→坐标、坐标→实况是两次独立请求,
- * 所以一次 `/api/weather` 的最坏耗时是这个数的**两倍**。
- *
- * ★ 2026-09-18 由 5000 提到 12000:实测本机 forecast 那一步**冷启动到过 10.3s**
- *   (热的时候只要 651ms)。旧值会把第一次「拉取实时」直接判成 502,而这条路上
- *   **没有重试**(`getJson` 单发),用户只能自己再点一次。
- * ⚠️ 上限由 `vue/src/api/index.js` 那个 30s 的客户端超时定死:这里改到 15s,
- *   两倍就正好撞上它,用户看到的会变成 axios 的 "timeout of 30000ms exceeded",
- *   而不是下面这条能看懂的错误。
+ * **每次尝试**的上游超时(毫秒)。每个 URL 各算一次,一次 `/api/weather` 最坏 = 2 步 × 2 次尝试。
+ * ★ 2026-10-01 由 12000 降到 6000,同日给 `getJson` 加了一次重试:冷启动那次尝试反正会被
+ *   放弃(第一次点击的 11.7s / 502 就是被旧超时掐掉的那一次),早点放弃、把它交给重试 ——
+ *   紧接的重试只要 1.8s,因为失败的那一发已经把上游捂热了。
+ * ⚠️ 上限被 `vue/src/api/index.js` 的 30s 客户端超时定死:2 步 × 2 次 × 6s = 24s,
+ *   调到 8s 就正好撞上它,用户看到的会变成 axios 的 "timeout of 30000ms exceeded"。
  */
-export const DEFAULT_TIMEOUT_MS = 12000;
+export const DEFAULT_TIMEOUT_MS = 6000;
 
 interface GeocodeResponse {
   results?: Array<{
@@ -120,17 +117,14 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
     return url;
   }
 
-  /** 统一的取数口:超时 / 非 2xx / 非 JSON 全归 WeatherUpstreamError,调用方只管一种失败。 */
+  /**
+   * 统一的取数口:超时 / 非 2xx / 非 JSON 全归 WeatherUpstreamError,调用方只管一种失败。
+   * ★ **只对「fetch 抛错」重试一次**(超时 / 断网):那一发多半只是撞上上游冷启动,
+   *   而它已经把上游捂热了。非 2xx 与坏 JSON **不重试** —— 上游在回答,再问一遍
+   *   只是把 404 拖成两倍延迟。第二次的结果才是结果,包括第二次也失败时抛的那个错。
+   */
   private async getJson<T>(url: URL): Promise<T> {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(this.timeoutMs) });
-    } catch (err) {
-      throw new WeatherUpstreamError(
-        `请求 open-meteo 失败:${err instanceof Error ? err.message : String(err)}`,
-        err,
-      );
-    }
+    const res = await this.fetchOnce(url).catch(() => this.fetchOnce(url));
     if (!res.ok) {
       throw new WeatherUpstreamError(`open-meteo 返回 ${res.status}`);
     }
@@ -138,6 +132,18 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
       return (await res.json()) as T;
     } catch (err) {
       throw new WeatherUpstreamError('open-meteo 返回体不是合法 JSON', err);
+    }
+  }
+
+  /** 单发。超时 / 断网一律归 WeatherUpstreamError。 */
+  private async fetchOnce(url: URL): Promise<Response> {
+    try {
+      return await fetch(url, { signal: AbortSignal.timeout(this.timeoutMs) });
+    } catch (err) {
+      throw new WeatherUpstreamError(
+        `请求 open-meteo 失败:${err instanceof Error ? err.message : String(err)}`,
+        err,
+      );
     }
   }
 }

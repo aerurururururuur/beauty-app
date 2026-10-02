@@ -200,4 +200,39 @@ describe('OpenMeteoWeatherProvider(打桩 fetch)', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ daily: {} })));
     await expect(provider.fetch({ lat: 1, lon: 2 })).rejects.toBeInstanceOf(WeatherUpstreamError);
   });
+
+  it('实况那一步超时 → 自动重试一次,不把用户打成 502', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(geo)) // ① 城市 → 坐标
+      .mockRejectedValueOnce(new Error('冷启动超时')) // ② 实况,第一次
+      .mockResolvedValueOnce(jsonResponse(forecast)); // ② 实况,重试
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await new OpenMeteoWeatherProvider(1000).fetch({ city: '北京' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(res.weather).toEqual({ condition: '晴', temperatureC: 29, humidityPct: 18, uvIndex: 6 });
+    expect(res.place).toBe('北京 · 中国');
+  });
+
+  it('两次都失败才抛 —— 重试有上限', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('网络断了'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(new OpenMeteoWeatherProvider(1000).fetch({ lat: 1, lon: 2 })).rejects.toBeInstanceOf(
+      WeatherUpstreamError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('非 2xx 不重试 —— 上游在回答,重问只是把 404 拖成两倍延迟', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 500));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(new OpenMeteoWeatherProvider(1000).fetch({ lat: 1, lon: 2 })).rejects.toBeInstanceOf(
+      WeatherUpstreamError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

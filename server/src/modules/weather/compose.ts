@@ -17,7 +17,7 @@ export type WeatherProviderKind = 'mock' | 'live';
 export interface WeatherModuleOptions {
   /** 天气源开关(来自 config.weatherProvider)。 */
   kind: WeatherProviderKind;
-  /** 上游超时(毫秒);仅 live 用,缺省 12s(每个上游各算一次,见 `DEFAULT_TIMEOUT_MS`)。 */
+  /** 每次尝试的上游超时(毫秒);仅 live 用,缺省 6s,超时/断网自动重试一次(见 `DEFAULT_TIMEOUT_MS`)。 */
   timeoutMs?: number;
 }
 
