@@ -22,6 +22,10 @@
             persona.featureNames.length ? ` · ${persona.featureNames.join('、')}` : ' · 未标面部特征'
           }}
         </div>
+        <!-- ★ 占位图出不了图,而那次失败只报在服务端日志里(见 `personaPlaceholder`) —— 话摆这儿 -->
+        <div v-if="personaPlaceholder" class="persona-bar__warn">
+          这张脸只有示例占位图，出不了成片。请到人设库给它换一张真实照片。
+        </div>
       </div>
       <RouterLink class="persona-bar__switch" :to="{ path: '/personas', query: personaQuery }">换一份</RouterLink>
     </div>
@@ -203,6 +207,13 @@ watch(
 )
 
 const personaQuery = computed(() => ({ scene: sceneId.value, pick: '1' }))
+
+/**
+ * 这张脸是不是**只有示例占位图**:后端种子表那两张 SVG 是唯一的 `'static'` 来源。
+ * ★ 必须在这儿说 —— 出图引擎不收 SVG,而那次失败**只写在服务端日志里**(`/render` 照样回 200),
+ *   用户点了「确认生成」既没图也没话。这一屏是他唯一还来得及换照片的地方。
+ */
+const personaPlaceholder = computed(() => persona.value?.photoSource === 'static')
 
 onMounted(async () => {
   // ★★ **必须 `await`。** 人设现在从服务端拉(`stores/personas.js` 的 `load` 是异步的),

@@ -128,7 +128,7 @@
               <Icon name="palette" :size="40" color="var(--color-peach)" />
             </div>
             <p class="bag-empty__title">化妆包还空着</p>
-            <p class="bag-empty__sub">把你手上的 YSL 收进来,AI 只用你会用的东西给你配色</p>
+            <p class="bag-empty__sub">把你手上的产品收进来,AI 只用你会用的东西给你配色</p>
           </div>
         </div>
 
