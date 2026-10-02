@@ -1,5 +1,4 @@
 import api from './index'
-import { useMock } from './use-mock'
 
 /**
  * 化妆包(用户自己的化妆品清单)HTTP 调用。
@@ -25,19 +24,16 @@ import { useMock } from './use-mock'
 
 /** 列表:CosmeticItemView[](后端用 { items } 包一层,取里层数组)。 */
 export async function listCosmetics({ userId }) {
-  if (useMock()) return (await import('./mock')).mockListCosmetics({ userId })
   const res = await api.get('/cabinet/items', { params: { userId } })
   return res?.items || []
 }
 
 /** 新增:回 CosmeticItemView(含后端生成的 id)。 */
 export async function addCosmetic({ userId, name, attributes = [] }) {
-  if (useMock()) return (await import('./mock')).mockAddCosmetic({ userId, name, attributes })
   return api.post('/cabinet/items', { userId, name, attributes })
 }
 
 /** 删除:204 无响应体。userId 走查询串(DELETE 带 body 会被不少代理丢掉)。 */
 export async function removeCosmetic({ id, userId }) {
-  if (useMock()) return (await import('./mock')).mockRemoveCosmetic({ id, userId })
   await api.delete(`/cabinet/items/${encodeURIComponent(id)}`, { params: { userId } })
 }

@@ -6,8 +6,8 @@
 # build context 都是**仓库根**,不是各子目录 —— 两个 Dockerfile 里都写了原因
 # (前端构建要读后端源码里的 scene-rules.ts,见 vue/Dockerfile 文件头)。
 #
-# 缺省起来是**离线形态**:不挂 server/.env 时,两个服务都走 .env.example 里那套
-# 不产生账单的缺省(mock 引擎 + mock 对话)。要全真,把 server/.env 备好即可。
+# ★ 必须先备好 server/.env 里的 DASHSCOPE_API_KEY —— 2026-10-02 起没有离线档,
+#   缺 key 后端**起不来**(对话与出图都只接真的)。
 
 services:
   server:
@@ -65,9 +65,8 @@ services:
       context: .
       dockerfile: vue/Dockerfile
       # VITE_* 是 build 期烘焙的,这里是唯一能设它们的地方 ——
-      # 起容器时再给 -e VITE_USE_MOCK=false 完全无效。理由见 vue/Dockerfile。
+      # 起容器时再给 -e 完全无效。理由见 vue/Dockerfile。
       args:
-        VITE_USE_MOCK: "false"
         VITE_API_BASE: "/api"
     image: olyhks-vue
 

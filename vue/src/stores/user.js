@@ -15,13 +15,22 @@ import { useDesignStore } from '@/stores/design'
  */
 const STORAGE_KEY = 'beauty-app.user'
 
+/** 演示模式留在本机的两把键(演示模式已删)。每次进页面清一次。 */
+const MOCK_KEYS = ['beauty-app.mock-cabinet', 'beauty-app.mock-profile']
+
 function readStored() {
   try {
+    for (const k of MOCK_KEYS) localStorage.removeItem(k)
     const raw = localStorage.getItem(STORAGE_KEY)
     const saved = raw ? JSON.parse(raw) : null
     // ★ 只认这两个字段:id 用于请求,昵称用于回显。多出来的键一律丢弃。
     //   历史版本/手改过的 localStorage 里可能塞着别的东西,不能原样信。
     if (saved && typeof saved.id === 'string' && typeof saved.nickname === 'string') {
+      // 演示模式编的 id(`mock-user-…`)在真后端查无此人 ⇒ 当作没登录,逼一次重新登录。
+      if (saved.id.startsWith('mock-user-')) {
+        localStorage.removeItem(STORAGE_KEY)
+        return null
+      }
       return { id: saved.id, nickname: saved.nickname }
     }
   } catch {

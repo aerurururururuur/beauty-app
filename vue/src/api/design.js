@@ -413,7 +413,7 @@ function textOfField(field) {
  *
  * ★ **必须逐格挑,不能原样塞**:服务端 `startSessionSchema` 里的 `weatherShape` 是 `.strict()`,
  *   多带 `source` / `place` 任何一个键,打回的是**整份 brief**(422),不是那一格。
- * ★ `source === 'mock'`(服务端标的「离线示意」)整块返回 `null`。★ **判据只此一处**:
+ * ★ 非实况来源(`source` 不是上游名)整块返回 `null`。★ **判据只此一处**:
  *   `/form` 拿同一个函数决定**摆不摆**——不标来源就没法把一份编出来的天气诚实摆成实况。
  */
 export function briefWeatherOf(view) {

@@ -144,7 +144,7 @@ import { useFilePick } from '@/composables/useFilePick'
  *
  * ★ 这一屏的数据两档混在一起,别读串:
  *   · **账号资料(昵称 / 简介 / 头像)是真的** —— 来自 `GET /users/:id`,改一次落一次盘,
- *     换台机器登录还在(演示模式下由 `api/mock.js` 存 localStorage,复刻同一件事)。
+ *     换台机器登录还在(证明它真的存在账号下)。
  *   · 桃妆号是按 id 推出来的、三项统计与 AI 档案标签是 `api/home.js` 里的**演示值**——
  *     别照着这里的数字写任何真实统计。
  *

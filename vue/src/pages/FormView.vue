@@ -154,7 +154,7 @@ import { useDesignStore } from '@/stores/design'
  *
  * ✏️ 2026-09-30:本页可以拉当日天气(手填城市 / 用当前位置,后端 `GET /weather`),随 `brief` 交给 agent。
  *   它是**可选**的:拉不到照样提交,失败只落在天气那一块,**不写 `design.error`**。
- *   ★ 服务端标 `source:'mock'` 的那份「离线示意」**既不摆也不进 brief**(判据见 `api/design.js` 的 `briefWeatherOf`)。
+ *   ★ 非实况来源的天气**既不摆也不进 brief**(判据见 `api/design.js` 的 `briefWeatherOf`)。
  *
  * ★ 图片预览走 `URL.createObjectURL`,用完**必须 revoke**——否则每选一张图就漏一份内存,
  *   而且 blob URL 会把文件一直钉在内存里直到刷新。这条生命周期收在 `useObjectUrls` 里,
@@ -270,7 +270,7 @@ async function lookup(params, note) {
   weatherNote.value = note
   try {
     weather.value = await fetchWeather(params)
-    // mock 那份由 `briefWeatherOf` 挡住(既不上屏也不进 brief),这里只补一句人话。
+    // 非实况那份由 `briefWeatherOf` 挡住(既不上屏也不进 brief),这里只补一句人话。
     weatherNote.value = briefWeatherOf(weather.value)
       ? ''
       : '这次没取到实时天气，可以在描述里自己写一句'

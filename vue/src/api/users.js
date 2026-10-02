@@ -1,5 +1,4 @@
 import api, { API_BASE } from './index'
-import { useMock } from './use-mock'
 
 /**
  * 账号 HTTP 调用(后端 user 模块)。
@@ -29,19 +28,17 @@ export const MAX_BIO = 60
 
 /**
  * 头像进 `<img :src>` 的地址(没有头像时是空串)。
- * ★ 真后端给的是 `/users/<id>/avatar`(**不含 `/api`**):裸路径会被 Vite 当成 SPA 路由、
- *   回 index.html ⇒ 破图且**不报错**,所以前缀必须在这里补。演示模式给的是 dataURL,原样用。
+ * ★ 后端给的是 `/users/<id>/avatar`(**不含 `/api`**):裸路径会被 Vite 当成 SPA 路由、
+ *   回 index.html ⇒ 破图且**不报错**,所以前缀必须在这里补。
  */
 export function avatarSrc(profile) {
   if (!profile || profile.avatarSource !== 'stored') return ''
-  const url = profile.avatarUrl || ''
-  return url.startsWith('data:') ? url : `${API_BASE}${url}`
+  return `${API_BASE}${profile.avatarUrl || ''}`
 }
 
 /** 注册:桃妆 ID 与密码同提交。 */
 export async function registerUser({ taozhuangId, password }) {
   const nickname = String(taozhuangId ?? '').trim()
-  if (useMock()) return (await import('./mock')).mockLoginUser({ nickname })
   return api.post('/users', { nickname, password })
 }
 
@@ -51,13 +48,11 @@ export async function registerUser({ taozhuangId, password }) {
  */
 export async function loginUser({ taozhuangId, password }) {
   const nickname = String(taozhuangId ?? '').trim()
-  if (useMock()) return (await import('./mock')).mockLoginUser({ nickname })
   return api.post('/users/login', { nickname, password })
 }
 
 /** 回读档案。★ 只读 `id` —— 昵称以后端那份为准,本机存的那份只是"上次是谁"的线索。 */
 export async function fetchProfile({ userId } = {}) {
-  if (useMock()) return (await import('./mock')).mockReadProfile({ userId })
   return api.get(`/users/${encodeURIComponent(userId)}`)
 }
 
@@ -69,6 +64,5 @@ export async function updateProfile({ userId, bio, avatar } = {}) {
   const body = {}
   if (bio !== undefined) body.bio = bio
   if (avatar !== undefined) body.avatar = avatar
-  if (useMock()) return (await import('./mock')).mockUpdateProfile({ userId, ...body })
   return api.patch(`/users/${encodeURIComponent(userId)}`, body)
 }

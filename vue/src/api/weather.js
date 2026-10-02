@@ -5,8 +5,8 @@ import api from './index'
  * `?city=北京` 或 `?lat=39.9&lon=116.4`,回 `WeatherView{ source, place?, condition?, temperatureC?, humidityPct?, uvIndex? }`。
  * 桃妆只在 `/form` 拉它,取四格填 `brief.weather`(挑选与处置在 `api/design.js` 的 `briefWeatherOf`)。
  *
- * ★ **刻意不给 mock 分支**(同 `agent.js` / `personas.js`):编一份天气出来正是本仓头号 bug 类型;
- *   离线路是**服务端**那条 `WEATHER_PROVIDER=mock`,而且它会在 `source` 上自报家门。
+ * ★ **不给假实现**(前端全目录无 mock 分支):编一份天气出来正是本仓头号 bug 类型。
+ *   拉不到就**整块不带 `weather` 提交**。
  */
 
 /** 城市名上限(字)。与后端 `weather-query.validator.ts` 的 `MAX_CITY` 同值,改一处要改两处。 */

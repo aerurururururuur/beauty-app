@@ -8,7 +8,7 @@ import { skinToneById } from './kb/skintones'
  * ★ 照片也存服务端、**没有 TTL**;离开浏览器只有两条路:建档/换照片随 JSON,`/form` 出图时作 multipart `face`。
  * ★ 每个函数都要 `userId`:后端不签发 token,归属不匹配一律 404。
  * ★ 缩图那件事(及它的理由)在 `api/image.js`,本文件只转出 `shrinkPhoto`。
- * ★ **不加 mock 分支**(后端不起就打不通)。
+ * ★ **不加假实现**(后端不起就打不通)。
  */
 
 /** 「补充说明」那一格的字数上限(字)。★ 后端也有一份(`persona.validator.ts` 的 `MAX_NOTES`),改一处要改两处。 */
