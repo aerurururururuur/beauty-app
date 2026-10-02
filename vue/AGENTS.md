@@ -86,8 +86,8 @@
 
 > 改完了，但下面这些我**没有也无法**验证，麻烦你在本地走一遍：
 > 1. `cd vue && npm run dev`，实开一次；`npm run build` 不等于 dev 过（§6.4）；
-> 2. 走 `/create` → 选场景 → 人设库选一张脸 → 填信息 → `/result`，**重点看换风格时
->    步骤的数量与顺序有没有跟着变**（那一屏的步数来自数据，不是写死的）；
+> 2. 走 `/create` → 选场景 → 人设库选一张脸 → 填信息 → `/result`，**重点看步骤是模型按你填的
+>    需求现写的**（那一屏整套都来自后端这次会话，不是写死的模板），且页面上**没有**风格 chips；
 > 3. `/vanity` → 收一个色号 → 刷新，看它还在不在（这条走 `/cabinet/items`，mock 模式下是本机假的）。
 > 我改了 `api/vanity.js`、`stores/vanity.js`、`VanityView.vue` 三个文件；
 > `api/cabinet.js` 我没动——如果提交后 404，就是那里。
@@ -135,7 +135,7 @@
 
 | 档 | 谁 | `VITE_USE_MOCK=false` 会变吗 | 数据在哪 |
 | --- | --- | --- | --- |
-| **A. 真后端** | 账号（登录/注册/**资料：简介 + 头像**）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图 / 换风格）、`/form` 上的**今日天气**、**产品库**（数字美妆台的目录 / 色号 / 产品性质） | 会（账号与化妆包）／**与它无关**（agent、人设库、天气与产品库，见下） | `api/users.js` 那 5 条 · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 · `api/weather.js` 那 1 条 · `api/products.js` 那 2 条 |
+| **A. 真后端** | 账号（登录/注册/**资料：简介 + 头像**）、**我的化妆包**、**人设库**（含两个自建小库）、**开始设计那条链的会话**（方案 / 出图）、`/form` 上的**今日天气**、**产品库**（数字美妆台的目录 / 色号 / 产品性质） | 会（账号与化妆包）／**与它无关**（agent、人设库、天气与产品库，见下） | `api/users.js` 那 5 条 · `/cabinet/items` ×3 · `api/personas.js` 那 10 条 · `api/agent.js` 那 8 条 · `api/weather.js` 那 1 条 · `api/products.js` 那 2 条 |
 | **B. 本地推导** | 设计链的**输入侧**（场景卡 / 表单定义） | ❌ **不会** | `api/design.js` · `api/kb/*` |
 | **C. 策展演示内容** | 首页轮播/推荐/贴士/热点、灵感广场、`/mine` 的统计数字 | ❌ **不会** | `api/home.js` |
 
@@ -168,8 +168,10 @@
   上了服务端（`styling/application/decorate-plan.ts` + `styling/domain/ports/shade-lookup.ts`），
   **方案的每一步自带 `hex`**（空串 = 没色块），前端只负责渲染，`kb/shades.js` 退役。
   ⇒ 这意味着**前端不再持有任何色值**：想改某个色号的颜色，改 `products/overlay/<库>/` 里的内容。
-  ⇒ 代价是实在的：**「换风格」从毫秒级本地计算变成一次 agent 回合（最长 90 秒，§6.3 的
-  `AGENT_TIMEOUT_MS`）**，而「生成」是真的要等。
+  ✏️ **2026-10-02：步骤改由模型自己写**（21 条配方降为**参考**，`read_style_recipe` 只给模型当范例）。
+  于是 `plan.styleOptions` 与 `family` 一起下线，`/result` 上那排「换一个妆容风格」chips 与
+  「换一版」按钮**整块删了**——想改风格走对话（"眼妆再淡一点"）。
+  ⇒ 代价是实在的：**「生成」是真的要等**（最长 90 秒，§6.3 的 `AGENT_TIMEOUT_MS`）。
 - ★ **这条链也不受 `VITE_USE_MOCK` 管**——但原因与 B 档不同：`api/agent.js` 是全仓
   **唯一刻意不给 mock 分支**的 api 模块（这条链在浏览器里复刻不了，§9「其他」那张表钉着）。
   所以 `VITE_USE_MOCK=true`（缺省）下它照样打真后端；后端那边配 `AGENT_LLM=mock` 时
@@ -705,7 +707,7 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
 | `DELETE /cabinet/items/:id?userId=` | — | **204** 无响应体 | ✅ |
 | `POST /agent/sessions` | `{ userId, ...brief 平铺 }` | **201** `AgentSessionView` | ✅ `/form` 提交第一步 |
 | `GET /agent/sessions/:id?userId=` | — | **200** `AgentSessionView` | ✅ 刷新 `/result`（`loadSession`） |
-| `POST /agent/sessions/:id/messages` | `{ userId, text }` | **200** `AgentTurnView` | ✅ 开场白 / 换风格 / 换一版 |
+| `POST /agent/sessions/:id/messages` | `{ userId, text }` | **200** `AgentTurnView` | ✅ **只有开场白那一次**（`submit`；✏️ 2026-10-02 起 `/result` 上没有输入框） |
 | `POST /agent/sessions/:id/photo` | multipart：`face` + `userId` | **200** `AgentSessionView` | ✅ `/form` 提交第二步（**只这一次，见 §8-3**） |
 | `POST /agent/sessions/:id/render` | `{ userId }` | **200** `AgentTurnView` ★ **会花钱** | ✅ 「确认生成」 |
 | `GET /agent/sessions/:id/renders/:seq?userId=` | — | 图片字节流 | ✅ `<img>` 的 src（`renderImageHref`） |
@@ -762,14 +764,18 @@ dev server 默认只放行 `vue/`），而 `@scene-rules` 指向 `../server/`。
   sessionId, userId, brief,          // brief 是**回显**：前端填的那几格在这里读回来
   hasFace,                           // 有没有照片；false ⇒ 出不了图，服务端不会给 renderOffer
   lookDescription,                   // 「这套妆是什么」的**唯一**说法，由服务端 describeLook 生成
-  plan,                              // ★ 方案：steps / palette / personalized / styleOptions（后端产出）
+  plan,                              // ★ 方案：steps / palette / products / personalized（后端产出）
   pendingRender,                     // 模型提的、等用户点头（**与 renderOffer 互斥**）
   renderOffer,                       // 界面按状态自己摆的那个入口（`alreadyRendered` 决定按钮文案）
   renders: [{ seq, url, lookDescription, stepIds }],
   stepRenders,                       // ★ `{ 步骤 id: seq }` —— 每个上妆步对到「到这一步为止」那张图
 }
+// ✏️ 2026-10-02：**`plan` 的形状变了**——`steps[]` 只剩 `{ id, name, desc, tips }`（**不再带 products**），
+//   色号只住在**计划级**的 `plan.products`（=「推荐产品」，每项 `{ pid, code, name, hex }`，`hex` 可为空串）；
+//   `plan.meta` 只剩 `{ stepCount }`（`minutes` / `level` 随配方下线：模型现编的数字就是假数字）。
+//   ⇒ 页面别再去每一步里找产品（`ResultView.vue` 读 `plan.products`，`snapshotDesign` 也只搬计划级那份）。
 // ✏️ 2026-10-01：**一次确认出 3~7 张**（每个上妆步一张，逐步累积；最后一张 = 完整妆面 = 成片）。
-//   `stepIds` 是**数组**：同一个区在一套配方里出现两次时（两次遮瑕）只出一张，那几步共用它。
+//   `stepIds` 是**数组**：同一个区在这套妆里出现两次时（两次遮瑕）只出一张，那几步共用它。
 // ★ **`stepRenders` 由服务端算**（`agent-view.ts` 的 `stepRendersOf`，取最后一轮，不落库）——
 //   前端**不许**自己由步骤名推部位：「步骤名 → 区」那张表全仓只有服务端一份。
 // ★ 护肤 / 妆前 / 防晒 / 定妆**永远不在里面**：那几步没有图 ⇒ `/result` 取不到就**整块不摆**，
@@ -1131,15 +1137,17 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
      ⚠️ 缺省是 `off`，那时那两条路由**根本没注册**（404），所以**一张都不该发**——发了就是把整次提交栽掉；
    - 跳过去之后 URL 是 **`/result?session=<一串 id>`**（不是旧那三个参数）；
    - **后端不起时**：提交后停在本页、给一句人话的错——**不许**默默跳到一个空方案的结果页。
-5. `/result` 上该有：方案（步骤 / 色板 / 个性化卡）+ **一个出图确认框**，
+5. `/result` 上该有：方案（步骤 / 色板 / **推荐产品** / 个性化卡）+ **一个出图确认框**，
    而且**没有任何标着「占位」的块**（§8-4）。
+   ★ 色板与推荐产品**都在计划级**（侧栏那排色号 chips + 底下那份产品清单，两处同源 `plan.products`）；
+   ⚠️ 两者**为空时整块不渲染**——摆一个只有标题的空壳，用户会以为颜色/产品丢了。
    ★ 还要有**读图那一块**（`VISION_ANALYZER=real` 才有，`off` 时连壳都不该有）：
    只列**真有图**的那几格，缺图那格整行不出现（摆了就是点下去必 422）；
    点一下**才**真读（会花钱）；「用户自己填过了」那格置灰并写出后端给的理由。
-6. ★ **顶部「换一个妆容风格」点另一个** → 步骤列表整列重建。
-   ⚠️ **它现在要等一次 agent 回合**（旧版本是本地毫秒级，见 §1）——
-   这**不是** bug，是"方案改由后端产出"的直接代价；期间按钮该是禁用状态
-   （`generating`，点两下会跑两轮）。
+6. ★ **这一步是"看它不在"**：✏️ 2026-10-02 起页面上**没有**那排「换一个妆容风格」chips、
+   也**没有**「换一版」按钮（`plan.styleOptions` 已随配方绑定一起下线，见 §1）。
+   ⚠️ 真在页面上还能点到，说明你开的是旧的 `dist`/旧标签页——`npm run dev` 重来。
+   ★ 顺带看 hero 里那格：**只有「N 个步骤」**，没有「约 N 分钟」「进阶」这类凭空来的数字（§8-4）。
 7. **刷新 `/result`** → 还是同一次会话（地址栏那个 `?session=` 就是全部状态）。
    ★ 这条是 §3 第 6 条那个「走 query、可深链」的现场验证。
 8. 步骤导航：滚动时**反向高亮**跟着走；点某一项**滚到那一步**（且不被路由的 `scrollBehavior` 抢掉）。
@@ -1271,7 +1279,7 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 | 改色号 / 加产品 / 改产品性质 | **改 `products/overlay/<库>/`**（`products/overlay/ysl-property/`），然后**重跑导入器**——生成物一个都不许手改。**任何地方都不许另写一份 hex**；前端一行产品数据都没有了（§6.2、§7.2） |
 | 改人设库 | 前端在 `api/personas.js`（HTTP + `decoratePersona`）与 `stores/personas.js`；**数据和种子都在后端**（`server/src/modules/user/**`，种子的 `PERSONA_SEED_VERSION` 也在那边）。★ 改 `skinTone` / `features` 的取值口径要**同时**动 `server/test/persona-vocabulary.test.ts` 对的那几张表——那正是它的用处。★ 改照片上限要动 `persona.validator.ts` 的 `MAX_PHOTO_BYTES` **和**路由的 `bodyLimit`（两个都要，见那段注释） |
 | 动 `vite.config.js` | **必须 `npm run dev`**（alias / `fs.allow` 只在 dev 暴露问题） |
-| 改设计链（场景 / 表单 / 方案 / 换风格） | 前端的**输入侧**在 `api/design.js`（`SCENES` / `SCENE_FORMS` / `toBrief`）；**方案本身在后端** `server/src/modules/styling` + `agent` 的 `propose_look`——改配方要动后者，前端改不了（§1）。★ **色值也在那边**：`styling/application/decorate-plan.ts` + `shade-lookup.ts`，数据源是产品库 |
+| 改设计链（场景 / 表单 / 方案） | 前端的**输入侧**在 `api/design.js`（`SCENES` / `SCENE_FORMS` / `toBrief`）；**方案本身在后端** `server/src/modules/styling` + `agent` 的 `propose_look`——✏️ 2026-10-02 起**步骤由模型自己写**（21 条配方只当参考），前端改不了（§1）。★ **色值也在那边**：`styling/application/decorate-plan.ts` + `shade-lookup.ts`，数据源是产品库 |
 | 动 `agent` 那条链的**出图**部分 | ★ 先读 `server/src/modules/agent/README.md` 的确认回合那一节：**出图只有两个入口，都要用户点头**。前端这边唯一的调用点是 `stores/design.js` 的 `confirmRender()`，而它必须靠 `generating` 禁用按钮（连点 = 连扣费） |
 | 加组件 | 放 `components/`，props/emit/slot 契约更新进 §5.1；**不 import store / api** |
 | 加一条 composable | 先过 §3 第 7 条的判据（**重复**或**红线集中**，不是「整齐」）；放 `composables/`，一个文件一个导出；**别被 `components/` 引到**——那会毁掉纯展示那条线 |
@@ -1419,3 +1427,16 @@ npm run typecheck
     不做 `label→name` 那类改名——改名表是这次要杀的"第二套词汇"，架一张回来就是自相矛盾；
     ② **信息面板成了第二个异步点**：详情走 `GET /products/:id`，`stores/vanity.js` 有
     `detailLoading` / `detailError`，`VanityView` 面板三态渲染。计划里写的是"仍同步"。
+19. ★ **2026-10-02：步骤改由模型自己写（21 条配方降为参考）之后删掉的那一批，别照旧印象加回来**：
+    （a）`stores/design.js` 的 `styleOptions` / `setStyle` / `regenerate`——配方不再是"一份可选清单"，
+    `plan.styleOptions` 与 `family` 一起从 `PlanView` 下线。★ **`runTurn` 是同一天跟着它们一起死的**：
+    它此前只有这两个调用点，而 `/result` 上**没有任何输入框**。`api/agent.js` 的 `sendAgentMessage`
+    照旧留着（`submit` 还在用它发开场白）。
+    （b）`ResultView.vue`：整块 `.style-switch`（那排「换一个妆容风格」chips）与 `onRegenerate` /
+    `applyStyle`；每步的 `step-block__products`（**产品上移到计划级**）；hero 里 `minutes` / `level` 两格
+    （模型现编的"约 30 分钟"就是假数字，§8-4）。
+    （c）CSS：`.style-switch*`、`.style-chip*`（含 `--active`）、`.step-block__products`、
+    `.product-line__step` 全部变成零消费者；`.product-line` 的网格少一列（`36px 1fr 80px`）。
+    （d）`snapshotDesign` 不再搬 `minutes` / `level` / 每步的 `products`——快照里色号只住在**计划级** `products`。
+    ★ 判据仍是 §11-16 那条（**一段永远不会执行的形状 = 假开关**）。
+    ⚠️ **别把「换一版」当成"顺手接一下"的机会**（同 §11-6 那份名单）——想改风格走对话（§1）。

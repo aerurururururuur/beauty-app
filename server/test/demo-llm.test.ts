@@ -422,8 +422,8 @@ describe('observation 标记', () => {
  *   (它是工具自己那一格,`lookSpecSchema` 是 `.strict()` 的),落不到 `lookSpec` 上。
  *   要验的恰恰是"脚本挑的配料是哪一个",那就只有这一处看得到。
  *
- * ⚠️ **取最后一次而不是第一次**:换风格那一轮之后历史里有两条,而当前那份方案
- *   来自**后**提的那一条(会话那次是"重跑一遍",不是"再记一份")。
+ * ⚠️ **取最后一次而不是第一次**:先提一条、又被拒之后改提的那一轮,历史里有两条,
+ *   而当前那份方案来自**后**提的那一条(会话那次是"重跑一遍",不是"再记一份")。
  */
 function proposeInputOf(session: Session): Record<string, unknown> {
   const calls = session.messages
@@ -438,19 +438,11 @@ function proposeInputOf(session: Session): Record<string, unknown> {
 }
 
 /**
- * `/result` 那条切换条发给 agent 的原话 —— **逐字照抄** `vue/src/stores/design.js` 的 `setStyle`。
- * ★ 别自己写一句"换成 X":演示脚本认的就是括号里那个 id,句子一改它就认不出来。
- */
-function switchTextOf(styleId: string): string {
-  const style = styleById(styleId);
-  if (!style) throw new Error(`测试里写了一个不存在的风格 id:${styleId}`);
-  return `换成「${style.name}」(${style.id}) 这个风格，重新给我一套。`;
-}
-
-/**
  * 用户**没填风格**时脚本会挑的那一条(`demo-llm.ts` 的 `styleFor`:认不出就取全表第一条)。
  * ★ 写成一个具名常量而不是到处抄字面量:这条规则一改,下面几组测试的**前提**要一起改,
- *   而抄了五遍的 `'natural'` 改起来一定会漏一处 —— 那一处就是"看起来还绿着的假绿"。
+ *   而抄了几遍的 `'natural'` 改起来一定会漏一处 —— 那一处就是"看起来还绿着的假绿"。
+ * ✏️ 2026-10-02:它此前还兼任"换风格那条切换条"那条组的对照物;切换条删了
+ *   (配方降为参考,步骤由模型自己写),它现在只剩"表单没写风格时的缺省"这一个用途。
  */
 const DEFAULT_STYLE_ID = STYLE_LIBRARY[0]?.id ?? '';
 
@@ -568,95 +560,15 @@ describe('★ 表单那条路:需求一次填完(demo 脚本照着 brief 演)', 
   });
 });
 
-// ── ⑤ ★ 换风格:`/result` 那条切换条点下去,脚本要真的重配一套 ──────────────────
+// ── ⑤ ★ 表单里说了要什么风格,脚本就配那一条 ─────────────────────────────────
+//
+// ✏️ 2026-10-02:这里此前是「换风格:照 `/result` 那条切换条点的那一个重配一套」。
+//   那排 chips 与它背后的分支**整块删了**(配方降为参考,步骤由模型自己写,
+//   想换风格走对话)。留下的这一条与切换条无关:它测的是**表单**那一格 `styleText`。
 
-/**
- * 表单那条路走到"确认框已经弹出来"。
- * ★ 用**表单**那条路(而不是 ① 那组的关键词路)是为了让 `brief` 一次填好 ——
- *   换风格认的是系统提示里那一行**可选风格清单**,而那行与场合无关(2026-09-30 起),
- *   所以这里用哪条路其实都行;保留表单路是因为它同时覆盖了"表单填的场合"
- *   与"结果页那条切换条"的衔接。
- */
-async function upToPendingWith(occasion: string) {
-  const h = setup();
-  const session = await h.startSession.execute(USER, { occasion });
-  const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
-  await h.attachPhoto.execute(session.id, USER, upload());
-  const pending = await h.sendMessage.execute(session.id, USER, '行,就按你说的');
-  return { h, sessionId: session.id, first, pending };
-}
-
-describe('★ 换风格:照用户点的那一个重配一套', () => {
-  it('★ 需求刚填完就换 → 新提的 `propose_look` 就是点的那一个,方案跟着换', async () => {
-    const h = setup();
-    const session = await h.startSession.execute(USER, { occasion: 'party' });
-    const first = await h.sendMessage.execute(session.id, USER, FORM_OPENING);
-    // 前提:脚本缺省挑的和下面点的那一条**不是同一条**(否则"换了"无从谈起)。
-    expect(proposeInputOf(first.session).styleId).toBe(DEFAULT_STYLE_ID);
-    expect(DEFAULT_STYLE_ID).not.toBe('wolf');
-
-    await h.attachPhoto.execute(session.id, USER, upload());
-    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf('wolf'));
-
-    // ★ 多出来的那一条 `propose_look` 就是证据:没有它,脚本会落到 ⑤,
-    //   用户点的是「换成 X」,收到的却是一个出图确认框(而方案一格没变)。
-    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(2);
-    expect(proposeInputOf(turn.session).styleId).toBe('wolf');
-    // 用户看得到的那一格也要跟着换 —— `/result` 整屏的方案都照它重建。
-    expect(turn.session.plan?.styleId).toBe('wolf');
-    expect(turn.session.plan?.styleName).toBe(styleById('wolf')?.name);
-    expect(hasToolError(turn.session)).toBe(false);
-  });
-
-  it('★★ 桌面上正摆着确认框时换风格 → 先按"不出图"了结欠账,**照旧**重配一套', async () => {
-    // 这一条才是真现场:用户看到的那个确认框在服务端是一条**欠着的** `render_look`,
-    // 下一句话进来时会先按 `declined` 重放掉。而"刚被拒"那条分支(②)正好在这一刻成立
-    // ——少了 ⓪ 的优先判断,用户点了风格却只收到一句「行,那这次先不出图」。
-    const { h, sessionId } = await upToPendingWith('party');
-
-    const turn = await h.sendMessage.execute(sessionId, USER, switchTextOf('princess'));
-
-    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(2);
-    expect(proposeInputOf(turn.session).styleId).toBe('princess');
-    expect(turn.session.plan?.styleId).toBe('princess');
-    expect(hasToolError(turn.session)).toBe(false);
-    // ★ 旧那一条已经被"不出图"了结掉了(它拿到了结果,不再是悬挂状态)——
-    //   下半句是重点:了结**不等于**这次的结局。重配完之后脚本照 ⑤ 重新问一次,
-    //   所以最后悬挂的那条是**为新方案提的那条**,而不是旧那条留着不走。
-    expect(danglingToolUses(turn.session.messages)).toHaveLength(1);
-    expect(danglingToolUses(turn.session.messages)[0]?.name).toBe(TOOL_NAMES.renderLook);
-    expect(turn.stopReason).toBe('awaiting_confirmation');
-    // ★★ 话里不能再指"刚才那套":用户屏幕上已经是新那套了。
-    //   (原来这里会收到「行,那这次先不出图。我们接着调——你觉得刚才那套哪里想改?」——
-    //   `readState` 把"上一套妆被拒"当成"这一套的结局"了。)
-    expect(lastAssistantText(turn.session)).not.toContain('刚才那套');
-    expect(lastAssistantText(turn.session)).toContain('成片');
-  });
-
-  it('★ 点的还是**当前**这一个 → 不重配(判据是"与上次提的不同",不是"句子里有风格 id")', async () => {
-    // ★ 这条防的是空转:若 ⓪ 只看"这句话里提到了池子里的 id",那么它在**同一轮的重跑里
-    //   会反复命中**(重跑时最后一句用户话没变),一路空转到 `max_iterations` ——
-    //   而 `max_iterations` 在界面上就是"转了很久最后什么都没变"。
-    //   这里的期望是**没花样**:方案不动(还是那一条 `propose_look`),
-    //   脚本照 ⑤ 摆出那个出图确认框(用户点了个已经选中的风格,问他要不要出图并不算错)。
-    const h = setup();
-    const session = await h.startSession.execute(USER, { occasion: 'party' });
-    await h.sendMessage.execute(session.id, USER, FORM_OPENING);
-    await h.attachPhoto.execute(session.id, USER, upload());
-
-    const turn = await h.sendMessage.execute(session.id, USER, switchTextOf(DEFAULT_STYLE_ID));
-
-    expect(callsOf(turn.session, TOOL_NAMES.proposeLook)).toBe(1);
-    expect(proposeInputOf(turn.session).styleId).toBe(DEFAULT_STYLE_ID);
-    expect(turn.session.plan?.styleId).toBe(DEFAULT_STYLE_ID);
-    expect(turn.stopReason).toBe('awaiting_confirmation');
-  });
-
+describe('★ 表单里说了要什么风格,脚本就配那一条', () => {
   /**
-   * ★ **用户在表单里说了要什么风格,脚本就配那一条。**
-   *
-   * `styleText` 这一格是 2026-09-30 新加的(此前风格只能由算法按场合给 4 条),
-   * 而脚本认它的方式与上面那张场合关键词表同一条口径:**名字逐字出现**就用它 ——
+   * ★ **名字逐字出现**就用它 —— 与上面那张场合关键词表同一条口径:
    * 查表,不假装理解语义。
    *
    * ⚠️ 下面用的是 `pure`(纯欲妆):它**不在** `DEFAULT_STYLE_ID` 那个 family 里,

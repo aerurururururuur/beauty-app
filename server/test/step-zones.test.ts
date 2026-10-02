@@ -13,7 +13,11 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_ROLES } from '../src/modules/makeup/index.js';
 import { STYLE_LIBRARY, derivePlan, styleById } from '../src/modules/styling/index.js';
+import { composePlan } from '../src/modules/styling/index.js';
 import {
+  MAX_RENDER_SHOTS,
+  STEP_VOCABULARY,
+  checkStepNames,
   renderCountOf,
   renderPlanOf,
   requiredZonesOf,
@@ -56,6 +60,60 @@ describe('targetOfStepName —— 步骤名 → 位置', () => {
     expect(targetOfStepName('面部提亮')).toBe('highlight');
     expect(targetOfStepName('局部提亮')).toBe('highlight');
     expect(targetOfStepName('烟熏眼妆')).toBe('eyeshadow');
+  });
+});
+
+/**
+ * ✏️ 2026-10-02 新增。步骤改由**模型自己写**之后,这张表第一次成了**入参的判据**:
+ * `propose_look` 拿 `checkStepNames` 挡表外的名字(认不出来 = 那一步没有图,
+ * 却是一个干净的 200),而词表是给模型看的唯一依据。两边漂开就会出现
+ * "提示里让你用这个词、工具又说认不出来"——模型照做也被拒。
+ */
+describe('STEP_VOCABULARY / checkStepNames —— 给模型看的词表与那道闸', () => {
+  it('★ 词表里每一个名字都认得出来 —— 否则模型照它写反而被打回', () => {
+    // ★ 词表是**手写**的一张单,`targetOfStepName` 是**正则**:这两者只能靠这条断言绑在一起。
+    const unknown = STEP_VOCABULARY.filter((name) => targetOfStepName(name) === undefined);
+    expect(unknown, `词表里这些名字没有落进任何一条规则:\n${unknown.join('\n')}`).toEqual([]);
+  });
+
+  it('★ 每个区都至少有一个规范名(加了区却没加词 = 那个区提示里根本没提)', () => {
+    for (const role of ZONE_ROLES) {
+      const names = STEP_VOCABULARY.filter((name) => targetOfStepName(name) === role);
+      expect(names, `区 ${role} 在词表里一个规范名都没有`).not.toEqual([]);
+    }
+  });
+
+  it('`checkStepNames` 只报认不出来的那些,顺序即传入顺序', () => {
+    expect(checkStepNames(['底妆', '打光', '唇妆'])).toEqual(['打光']);
+    expect(checkStepNames(STEP_VOCABULARY)).toEqual([]);
+    // ★ 变体照旧通过(判据是正则,词表只是**建议**):不接受变体的话,
+    //   「烟熏眼妆」这种写法会被打回,而那正是我们要模型做的事。
+    expect(checkStepNames(['烟熏眼妆', '彩色睫毛', '面部提亮'])).toEqual([]);
+  });
+});
+
+describe('MAX_RENDER_SHOTS —— 一次确认最多几张', () => {
+  it('★ = 区数 + 底妆那一张(`base` 那一张要算进去)', () => {
+    expect(MAX_RENDER_SHOTS).toBe(ZONE_ROLES.length + 1);
+  });
+
+  it('★★ 它是**结构上的天花板**:每个区各一步 + 一步底妆,正好用满这个数', () => {
+    // 步骤由模型自己写之后,步数不再被配方钉死 —— `propose_look` 那条成本闸
+    // 因此第一次有了真的受力面。这条钉住"那个数不是随手写的":
+    // 用满它需要一个**恰好**装满 9 个区的方案,而再想多也写不出来。
+    const perZone = ZONE_ROLES.map((role) => STEP_VOCABULARY.find((n) => targetOfStepName(n) === role)!);
+    const plan = composePlan({
+      styleName: '满配',
+      steps: [{ name: '底妆', desc: '打底' }, ...perZone.map((name) => ({ name, desc: '上妆' }))],
+    });
+
+    expect(renderCountOf(plan)).toBe(MAX_RENDER_SHOTS);
+  });
+
+  it('★ 21 套配方全都在闸下面(`renderCountOf` 从来碰不到它)', () => {
+    for (const { styleId, plan } of PLANS) {
+      expect(renderCountOf(plan), `${styleId} 超了`).toBeLessThanOrEqual(MAX_RENDER_SHOTS);
+    }
   });
 });
 

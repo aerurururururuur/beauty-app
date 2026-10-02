@@ -54,7 +54,6 @@ import { requiredZonesOf } from '../../application/step-zones.js';
 // ★ §4.2 后这上限属**业务规则**,值在 `shared` 的 validator,不在本模块的 schemas 里。
 import { MAX_SCENE_TEXT, SKIN_TONES } from '../../../shared/index.js';
 import { TOOL_NAMES } from '../../domain/tools/definitions.js';
-import { STYLE_OPTIONS_HEAD } from '../../application/style-options-description.js';
 import { PHOTO_ATTACHED_NOTE } from '../../domain/tools/observations.js';
 import {
   RENDER_DECLINED_PREFIX,
@@ -156,6 +155,30 @@ function styleFor(styleText: string | undefined): string {
 }
 
 /**
+ * 一条配方 → `propose_look` 的那几格(`styleName` / `steps` / `products`)。
+ *
+ * ★ **演示的正是「配方式是参考、步骤由模型写」这一版**:步骤与推荐产品从配方里取,
+ *   但**形状与真模型给的完全一样** —— 步骤里没有产品、色号只住在 `products` 里。
+ *   形状不对,演示就演不出那条真链路(而假后端说的话也是产品说的话)。
+ *
+ * ⚠️ 步骤名与区集合必须**同一来源**(`derivePlan`),否则 `demoLook` 按这条路凑的区
+ *   会被 `validateLookSpec` 当成"与自己的步骤对不上"打回 —— 而那时看起来像脚本坏了。
+ */
+function proposeInputOf(styleId: string): Record<string, unknown> {
+  const plan = derivePlan({ styleId });
+  // 到不了:调用方给的 id 出自 `STYLE_LIBRARY`。真空了要出声,别让工具去报"id 不存在"。
+  if (!plan) throw new Error(`演示脚本:没有「${styleId}」这条配方。`);
+  return {
+    styleId,
+    styleName: plan.styleName,
+    summary: plan.summary,
+    keywords: plan.keywords,
+    steps: plan.steps.map((step) => ({ name: step.name, desc: step.desc })),
+    products: plan.products.map((p) => ({ name: p.name, pid: p.pid, code: p.code })),
+  };
+}
+
+/**
  * 从这一档可用的色里挑一个:首选色能用就用它,不能用就取该档的第 `offset` 个。
  * ★ `offset` 只是让各个区**不至于都撞成同一个色**——挑色的标准是**合法**,不是好看。
  * ⚠️ `allowed === undefined` 表达的是**还不知道肤色**(不是"没有色可用"),
@@ -232,11 +255,6 @@ const ASK_PHOTO_TEXT =
 const PROPOSE_RENDER_TEXT = '妆面定下来了。要我出一张成片看看吗?';
 const AFTER_RENDER_TEXT = '图出来了,你看这张行不行?有想调的地方告诉我。';
 const AFTER_DECLINE_TEXT = '行,那这次先不出图。我们接着调——你觉得刚才那套哪里想改?';
-/**
- * 换风格那一支的话。★ 同样**不描述那套妆长什么样**(见上面那一段),
- * 也不提确认框:那个框由界面自己摆,`v7` 起模型一律不许转述。
- */
-const SWITCH_TEXT = '行,照这个风格重新配了一套。';
 
 /**
  * 脚本演完之后的话。★ **它明说自己是脚本**——继续演下去就得现编,
@@ -272,23 +290,9 @@ export class DemoLlm implements Llm {
     const state = readState(request.messages);
     const brief = readBriefLine(request.system);
 
-    // ⓪ ★ 用户在换风格(结果页那条切换条把 id 写在括号里)→ 照他点的那个人重配一套。
-    //   没有这一支,换风格会落到 ② :用户点的是「换成 X」,脚本答的却是
-    //   「行,那这次先不出图」——而结果页那条切换条**在缺省配置下就是个死按钮**
-    //   (方案确实换了才行,见 `/result` 那一屏)。
-    //   ⚠️ 判据是"点的那个人与**上次提的**不同"(不是"这句话里提到过风格"):
-    //      后者会在同一轮的重跑里反复命中,一路空转到 `max_iterations`。
-    const switched = styleInOptions(state.lastUserText, styleOptionsOf(request.system));
-    if (switched !== undefined && switched !== state.lastStyleId) {
-      const look = this.demoLook(
-        occasionFor(brief, state.lastUserText),
-        skinToneFrom(brief),
-        switched,
-      );
-      return mockTextAndToolCalls(SWITCH_TEXT, [
-        this.call(TOOL_NAMES.proposeLook, { ...look, styleId: switched }),
-      ]);
-    }
+    // ⓪ ✏️ **2026-10-02:换风格那一支删掉了**(结果页那排 chips 与「换一版」一起没了)。
+    //   改版后换风格走对话("眼妆再淡一点"),而这段脚本理解不了那种话 ——
+    //   它落到 ⑥ 如实说演完了,比硬凑一句强。
 
     // ① 刚刚出完图 → 讲一句、问行不行。★ 不再提议第二次(脚本只演一遍,见 ⑥)。
     if (state.justRanTools && state.lastRender === 'done') return mockText(AFTER_RENDER_TEXT);
@@ -317,7 +321,7 @@ export class DemoLlm implements Llm {
         skinToneFrom(brief),
         styleId,
       );
-      calls.push(this.call(TOOL_NAMES.proposeLook, { ...look, styleId }));
+      calls.push(this.call(TOOL_NAMES.proposeLook, { ...look, ...proposeInputOf(styleId) }));
       return mockTextAndToolCalls(INTRO_TEXT, calls);
     }
 
@@ -408,10 +412,6 @@ interface DemoState {
   lastRender: RenderOutcome | null;
   /** 用户说的第一句话(原样,已按 schema 上限截断)。 */
   firstUserText: string;
-  /** 用户说的最后一句话(同上)。★ 换风格那一支认的是它,不是第一句。 */
-  lastUserText: string;
-  /** 最后一次 `propose_look` 提的那个配方 id(提过才有)。 */
-  lastStyleId: string | undefined;
 }
 
 /**
@@ -489,53 +489,7 @@ function readState(messages: readonly Message[]): DemoState {
       firstText === PHOTO_ATTACHED_NOTE || firstText === ''
         ? ''
         : firstText.slice(0, MAX_SCENE_TEXT),
-    // ★ 不排除那张照片的提示语:它认不出任何风格 id,对 ⓪ 是无害的,
-    //   而它**只可能**出现在第一句上(见上面的注释),最后一句轮不到它。
-    lastUserText: (userTexts[userTexts.length - 1] ?? '').slice(0, MAX_SCENE_TEXT),
-    lastStyleId: lastPropose === undefined ? undefined : styleIdOf(lastPropose),
   };
-}
-
-/**
- * 从「当前状态」那一行**可选风格**里读回全部配方 id。
- *
- * ★ **为什么是读提示词**:这个脚本手上只有 `messages` 与 `system`(同 `readBriefLine`
- *   的理由)。而那一行**本来就是印给模型看的那份清单**(`style-options-description.ts`
- *   是它唯一的出处),照它读不会多出一个真相。
- *
- * ⚠️ 认行靠的是 `STYLE_OPTIONS_HEAD` 那几个字(**import 来的,不是抄的第二份**)——
- *   改那边的文案,这里跟着改一处即可。
- */
-function styleOptionsOf(system: string | undefined): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const line of (system ?? '').split('\n')) {
-    if (!line.startsWith(STYLE_OPTIONS_HEAD)) continue;
-    for (const [, id] of line.matchAll(/([a-z0-9-]+)\([^()]*\)/g)) {
-      if (id !== undefined) ids.add(id);
-    }
-  }
-  return ids;
-}
-
-/**
- * 用户这句话里点名了清单里的哪个风格。
- *
- * ★ 认的是 `/result` 那条切换条的原话(`换成「名字」(id) 这个风格…`),
- *   而 id 就写在括号里——**不去理解语义**,同本文件开头那段:它是一段脚本。
- */
-function styleInOptions(text: string, ids: ReadonlySet<string>): string | undefined {
-  for (const id of ids) {
-    if (text.includes(`(${id})`)) return id;
-  }
-  return undefined;
-}
-
-/** 一次 `propose_look` 调用里提的那个配方 id。`input` 是 `unknown`(见 message schema)。 */
-function styleIdOf(call: ToolUseBlock): string | undefined {
-  const input: unknown = call.input;
-  if (typeof input !== 'object' || input === null) return undefined;
-  const value = (input as Record<string, unknown>)['styleId'];
-  return typeof value === 'string' ? value : undefined;
 }
 
 /** 用户那句话里能认出来的场合;认不出来就是日常。 */

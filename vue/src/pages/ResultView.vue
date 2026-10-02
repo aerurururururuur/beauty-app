@@ -28,7 +28,7 @@
       </div>
 
       <div class="result-hero__info">
-        <span class="result-hero__scene">{{ sceneName }} · {{ plan.family }}</span>
+        <span class="result-hero__scene">{{ sceneName }}</span>
         <h1 class="result-hero__title">{{ plan.styleName }}</h1>
         <!-- ★ 这段是「这套妆是什么」的唯一说法（服务端 describeLook 生成），原样展示 -->
         <p class="result-hero__summary">{{ lookDescription }}</p>
@@ -37,34 +37,47 @@
           <span v-for="k in plan.keywords" :key="k" class="kw-chip">{{ k }}</span>
         </div>
 
-        <div class="result-hero__palette-label">本方案用到的色号</div>
-        <div class="result-hero__palette">
-          <span v-for="p in plan.palette" :key="p.code" class="palette-chip" :title="p.name || ''">
+        <!--
+          ★ 色板：**为空时整块不渲染**（摆一个只有标题的空壳，用户会以为颜色丢了）。
+          ⚠️ 一块可能是**模型直接给的颜色**（没有色号，`code` 是空串），所以
+          两处都不能只认 `p.code`：`:key` 会撞、第二行会重复显示同一句。
+        -->
+        <div v-if="palette.length" class="result-hero__palette-label">本方案用到的颜色</div>
+        <div v-if="palette.length" class="result-hero__palette">
+          <span v-for="p in palette" :key="p.code || p.name" class="palette-chip" :title="p.name || ''">
             <span class="palette-chip__dot" :style="{ background: p.hex }"></span>
             <span class="palette-chip__code">{{ p.code || p.name }}</span>
-            <span v-if="p.name" class="palette-chip__from">{{ p.name }}</span>
+            <span v-if="p.code && p.name" class="palette-chip__from">{{ p.name }}</span>
+          </span>
+        </div>
+
+        <!--
+          ★ **推荐产品**：色号的唯一出处 —— 步骤文本只说工具与用法，不绑具体 SKU。
+          ⚠️ 产品为空时整块不渲染（同色板那条：空壳会让人以为产品丢了）。
+        -->
+        <div v-if="products.length" class="result-hero__products">
+          <span class="result-hero__products-label">推荐产品</span>
+          <span v-for="p in products" :key="`${p.pid}-${p.code || ''}`" class="step-product">
+            <span v-if="p.hex" class="step-product__dot" :style="{ background: p.hex }"></span>
+            <span class="step-product__name">{{ p.name }}</span>
+            <span v-if="p.code" class="step-product__code">{{ p.code }}</span>
           </span>
         </div>
 
         <div class="result-hero__meta">
           <span class="meta-cell"><em>{{ plan.meta.stepCount }}</em>个步骤</span>
-          <span class="meta-cell"><em>{{ plan.meta.minutes }}</em>分钟</span>
-          <span class="meta-cell"><em>{{ plan.meta.level }}</em></span>
         </div>
 
         <div class="result-hero__actions">
           <button class="btn btn--primary" :disabled="saved" @click="onSave">
             {{ saved ? '已记下这一版' : '保存妆容' }}
           </button>
-          <button class="btn btn--soft" :disabled="design.generating" @click="onRegenerate">
-            换一版
-          </button>
           <RouterLink class="btn btn--soft" to="/vanity">去美妆台看产品</RouterLink>
         </div>
       </div>
     </section>
 
-    <!-- 换风格 / 换一版 / 出图 / 读图失败时后端给的那句人话，原样展示（§7.3） -->
+    <!-- 出图 / 读图失败时后端给的那句人话，原样展示（§7.3） -->
     <ErrorNote :text="design.error" />
 
     <!--
@@ -100,33 +113,10 @@
       <p v-if="design.analysisNotice" class="analysis__notice">{{ design.analysisNotice }}</p>
     </section>
 
-    <section class="style-switch">
-      <div class="style-switch__head">
-        <span class="style-switch__title">换一个妆容风格</span>
-        <span class="style-switch__note">
-          不同风格的步骤数量与顺序本来就不同；换一次要重新让 agent 配一套，它要想几秒
-        </span>
-      </div>
-      <div class="style-switch__list">
-        <button
-          v-for="o in design.styleOptions"
-          :key="o.id"
-          class="style-chip"
-          :class="{ 'style-chip--active': o.id === plan.styleId }"
-          :title="o.summary || ''"
-          :disabled="design.generating"
-          @click="o.id !== plan.styleId && applyStyle(o.id)"
-        >
-          <span class="style-chip__name">{{ o.name }}</span>
-          <span class="style-chip__meta">{{ o.family }} · {{ o.stepCount }} 步</span>
-        </button>
-      </div>
-    </section>
-
     <nav class="step-rail" aria-label="妆容步骤导航">
       <div class="step-rail__head">
         <span class="step-rail__title">化妆步骤 · 共 {{ steps.length }} 步</span>
-        <span class="step-rail__note">步骤与顺序由本次妆容风格决定，会随风格变化</span>
+        <span class="step-rail__note">步骤与顺序由模型按你的需求这次定，不是一套固定模板</span>
       </div>
       <div class="step-rail__list">
         <a
@@ -178,15 +168,6 @@
               <Icon name="check" :size="14" /><span>{{ t }}</span>
             </li>
           </ul>
-
-          <div v-if="(s.products || []).length" class="step-block__products">
-            <span class="step-block__label">用到</span>
-            <span v-for="p in s.products" :key="`${p.name}-${p.code || ''}`" class="step-product">
-              <span v-if="p.hex" class="step-product__dot" :style="{ background: p.hex }"></span>
-              <span class="step-product__name">{{ p.name }}</span>
-              <span v-if="p.code" class="step-product__code">{{ p.code }}</span>
-            </span>
-          </div>
         </div>
       </section>
     </div>
@@ -212,20 +193,16 @@
       </div>
     </section>
 
+    <!-- ★ 色号只住在计划级的推荐产品里（步骤文本不绑 SKU），所以这里直接读 `plan.products` -->
     <section class="product-summary">
-      <h2 class="product-summary__title">全部用到的产品</h2>
+      <h2 class="product-summary__title">推荐产品</h2>
       <ul class="product-summary__list">
-        <li
-          v-for="line in productLines"
-          :key="`${line.no}-${line.item.name}-${line.item.code || ''}`"
-          class="product-line"
-        >
-          <span class="product-line__no">{{ stepNo(line.no - 1) }}</span>
-          <span class="product-line__step">{{ line.stepName }}</span>
-          <span class="product-line__name">{{ line.item.name }}</span>
-          <span class="product-line__code">{{ line.item.code || '—' }}</span>
+        <li v-for="(p, i) in products" :key="`${p.pid}-${p.code || ''}`" class="product-line">
+          <span class="product-line__no">{{ stepNo(i) }}</span>
+          <span class="product-line__name">{{ p.name }}</span>
+          <span class="product-line__code">{{ p.code || '—' }}</span>
         </li>
-        <li v-if="!productLines.length" class="product-line">本次方案未指定产品</li>
+        <li v-if="!products.length" class="product-line">本次方案未指定产品</li>
       </ul>
     </section>
   </main>
@@ -258,8 +235,13 @@ import { useDesignStore } from '@/stores/design'
  *   不出现任何写死的步骤名或步数,也不再有本地推导。
  *
  * ★ 状态全在地址栏里:`?session=<id>`,刷新后靠 `design.loadSession()` 从服务端
- *   把同一次会话拉回来(§3 第 6 条)。**不再有 `?scene=&style=&persona=`** ——
- *   换风格现在是"再让 agent 配一套",不是改本地参数。
+ *   把同一次会话拉回来(§3 第 6 条)。**不再有 `?scene=&style=&persona=`**。
+ *
+ * ★ 2026-10-02:**步骤由模型自己写**,配方只当参考(见 `plan.steps`)。所以这一屏
+ *   **没有**「换一个妆容风格」那排 chips、也**没有**「换一版」按钮——
+ *   想改妆面就回会话里说一句("眼妆再淡一点"),那是一次 agent 回合(最长 90 秒)。
+ *   ⚠️ 同理 `plan.meta` **只剩 `stepCount`**:`minutes` / `level` 随配方一起下线了,
+ *   模型现编的"约 30 分钟"是凭空来的数字(§8-4)。
  *
  * ★★ **这一格是真的成片。** 上一版这里是两个标着「占位」的块,因为那时算得出
  *   步骤与色号、算不出一张脸。现在出图那条链接回来了(会花钱,见 `api/agent.js`),
@@ -305,12 +287,14 @@ const personalized = computed(() => plan.value?.personalized || [])
 /** 步骤导航：滚动时反向高亮、点击平滑跳过去（观察器的生命周期见 useStepRail）。 */
 const { activeId: activeStepId, els: stepEls, jumpTo: jumpToStep } = useStepRail(plan, steps)
 
-/** 底部产品清单：把每一步用到的产品摊平，并记住它属于第几步。 */
-const productLines = computed(() =>
-  steps.value.flatMap((s, i) =>
-    (s.products || []).map((p) => ({ stepName: s.name, no: i + 1, item: p }))
-  )
-)
+/**
+ * 色板与推荐产品**都在计划级**（服务端产出，见 `plan-view.ts`）。
+ * ★ 步骤文本只说工具与用法，**不绑 SKU**；色号只住在 `products`（推荐产品）里。
+ * ★ `palette[].hex` 一定非空（空色值那一条服务端就丢了）；`products[].hex` 可以是空串
+ *   ——那支产品仍然真的推荐给你，只是没色块可画。
+ */
+const palette = computed(() => plan.value?.palette || [])
+const products = computed(() => plan.value?.products || [])
 
 /* ------------------------------ 出图 ------------------------------ */
 
@@ -377,24 +361,7 @@ onMounted(async () => {
   activeStepId.value = steps.value[0]?.id || ''
 })
 
-/* --------------------------- 三个动作 --------------------------- */
-
-/**
- * 换风格：把「换成哪个」说给 agent，由它重新配一套。
- *
- * ⚠️ **代价是一次 agent 回合（最长 90 秒）**，不再是毫秒级本地重算——
- *   这是「方案由后端产出」的直接后果。地址栏不用改：`?session=` 没变，
- *   变的是那次会话的内容。
- */
-function applyStyle(styleId) {
-  design.setStyle({ userId: user.id, styleId })
-  window.scrollTo({ top: 0, behavior: 'auto' })
-}
-
-function onRegenerate() {
-  design.regenerate({ userId: user.id })
-  window.scrollTo({ top: 0, behavior: 'auto' })
-}
+/* --------------------------- 两个动作 --------------------------- */
 
 function onRender() {
   design.confirmRender({ userId: user.id })

@@ -1,7 +1,10 @@
 /**
  * agent/application/style-options-description.ts —— 把「可选风格有哪些」讲给模型。
  *
- * ★ 它是给 `propose_look` 那个必填入参 `styleId` 配的一句状态:没有它,模型手上
+ * ✏️ 2026-10-02:`styleId` 从**必填**降为**可选参考**(步骤由模型自己写),这份清单
+ *   照旧每轮都印 —— 它是模型挑颜色时唯一的依据,不填也只是"完全自己写"。
+ *
+ * ★ 它是给 `propose_look` 那个入参 `styleId` 配的一句状态:没有它,模型手上
  *   就只有一个要填的 id 字符串。这层信息 JSON Schema 表达不了(`enum` 能表达
  *   "取值限定在这几个里",但表达不了"这几条各自是什么风格",见 `definitions.ts`
  *   里 `styleId` 那一段),所以清单只能印在给模型看的话里。
@@ -22,8 +25,9 @@
 import { STYLE_LIBRARY } from '../../styling/index.js';
 
 /**
- * 那句清单的**开头几个字**。★ `demo-llm.ts` 靠它从系统提示里认回这一行
- * (它只有 `messages` 与 `system`,见那边的 `styleOptionsOf`),所以改文案要一起改。
+ * 那句清单的**开头几个字**。
+ * ⚠️ 系统提示与 `propose_look` 的 `styleId` 那一格都是**按这个名字去找它**,
+ * 改文案要一起改(`test/agent-tools.test.ts` 的「风格清单」那组钉着这件事)。
  */
 export const STYLE_OPTIONS_HEAD = '可选风格';
 

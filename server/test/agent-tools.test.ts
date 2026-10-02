@@ -30,12 +30,12 @@ import {
   validateLookSpec,
 } from '../src/modules/makeup/index.js';
 import type { AddedZoneRole, SkinTonePalette, ZoneRole } from '../src/modules/makeup/index.js';
-import { derivePlan } from '../src/modules/styling/index.js';
+import { MAX_PALETTE, derivePlan } from '../src/modules/styling/index.js';
 // ★ 深一层 import:`step-zones` 是 agent 模块内部的实现(不是对外 API),
 //   但它的对照表是这批测试要钉的对象之一(见 `zonesFor`)。
 import { requiredZonesOf, targetOfStepName } from '../src/modules/agent/application/step-zones.js';
 import { realFeatures, realPalette } from './helpers/face-catalog.js';
-import { realHexOf } from './helpers/product-content.js';
+import { realHexOf, realShades } from './helpers/product-content.js';
 import {
   MAX_OCCASION,
   MAX_SCENE_TEXT,
@@ -73,6 +73,7 @@ import {
   describeRenderState,
   describeStyleOptions,
   proposeLookWithTones,
+  stepVocabularyHint,
 } from '../src/modules/agent/index.js';
 import type {
   CabinetItemSnapshot,
@@ -81,6 +82,8 @@ import type {
   ProductDetailSnapshot,
   ProductLibrary,
   ProductLibraryOverview,
+  ShadeCatalog,
+  ShadeOffer,
   ToolOutcome,
 } from '../src/modules/agent/index.js';
 
@@ -138,21 +141,37 @@ function zonesFor(styleId: string): LookSpec['zones'] {
   return { ...SAMPLE_LOOK.zones, ...optional };
 }
 
-/** 一份妆面单(**不含 `styleId`**——`lookSpecSchema` 是 `.strict()` 的,多一格整份被打回)。 */
+/** 一份妆面单(**不含 `styleId` / `steps` / `products`** —— `lookSpecSchema` 是 `.strict()`,多一格整份被打回)。 */
 function lookFor(styleId: string): Record<string, unknown> {
   return { occasion: SAMPLE_LOOK.occasion, base: SAMPLE_LOOK.base, zones: zonesFor(styleId) };
 }
 
-/** 调 `propose_look` 时发出去的那份入参:妆面单 **+ 它的配方 id**。 */
+/**
+ * 调 `propose_look` 时发出去的那份入参:妆面单 + **模型自己写的步骤** + 参考的那条配方。
+ *
+ * ★ ✏️ 2026-10-02:`steps` 现在是**必填**,而它此前正是配方展开出来的东西 ——
+ *   所以这里照 `derivePlan` 把配方的步骤抄一遍当"模型写的步骤"(`demo-llm.ts`
+ *   的 `proposeInputOf` 同形)。⚠️ 它意味着一件事:**本文件里绝大多数用例
+ *   用的仍是一条配方的步骤**,于是"步骤由模型自撰"这件事本身要看
+ *   「记下的步骤是模型自己写的那几步」那一条。
+ */
 function lookInput(styleId: string): Record<string, unknown> {
-  return { ...lookFor(styleId), styleId };
+  const plan = derivePlan({ styleId })!;
+  return {
+    ...lookFor(styleId),
+    styleId,
+    styleName: plan.styleName,
+    summary: plan.summary,
+    keywords: plan.keywords,
+    steps: plan.steps.map((s) => ({ name: s.name, desc: s.desc })),
+    products: plan.products.map((p) => ({ name: p.name, pid: p.pid, code: p.code })),
+  };
 }
 
 /** 同一份,只把唇色换成另一个 —— 色域那几条用例就是靠它把一份合法妆面改坏的。 */
 function withLip(tone: string): Record<string, unknown> {
   return {
-    ...lookFor(PLAIN_STYLE),
-    styleId: PLAIN_STYLE,
+    ...lookInput(PLAIN_STYLE),
     zones: {
       ...zonesFor(PLAIN_STYLE),
       lip: { tone, depth: 'medium', saturation: 'medium', finish: 'matte', intensity: 3 },
@@ -288,6 +307,20 @@ const SAMPLE_DETAIL: ProductDetailSnapshot = {
 const fakeLibrary = (): FakeProductLibrary =>
   new FakeProductLibrary({ '42-rouge': SAMPLE_DETAIL });
 
+/**
+ * 与上面那个假库**配对**的色号词表(色号 → 色值那两半)。
+ * ★ 两个必须**自洽**:`shadesOf` 说有的那个 code,`fakeHexOf` 就得查得出色值 ——
+ *   漂开的话用例会以"工具报错"的形状红,看不出是假件自己不对。
+ * ⚠️ 只用在**边界那几条**(查得到 / 查不到);别处的色值一律用仓库里那份真库
+ *   (`realHexOf`),理由见 `realHexOf` 的文件头。
+ */
+const FAKE_SHADES: Record<string, ShadeOffer[]> = {
+  '42-rouge': [{ code: '01', name: '正红', hex: '#b03a3a' }],
+};
+const fakeShadeCatalog = (): ShadeCatalog => ({ shadesOf: (pid) => FAKE_SHADES[pid] ?? [] });
+const fakeHexOf = (pid: string, code: string): string =>
+  FAKE_SHADES[pid]?.find((s) => s.code === code)?.hex ?? '';
+
 const session = (over: Partial<Session> = {}): Session =>
   new Session({ ...createSession('s1', 'u1'), ...over });
 
@@ -334,9 +367,18 @@ describe('工具契约', () => {
       TOOL_NAMES.renderLook,
     ]);
 
-    const withProducts = createToolRegistry({ ...base, products: fakeLibrary() });
+    const withProducts = createToolRegistry({
+      ...base,
+      products: fakeLibrary(),
+      shadeCatalog: realShades(),
+    });
     expect([...withProducts.keys()]).toContain(TOOL_NAMES.listProducts);
     expect([...withProducts.keys()]).toContain(TOOL_NAMES.readProduct);
+
+    // ★ 2026-10-02:那两个是**一对**,只给一半不算配了产品库 ——
+    //   半配的部署里"读得成产品、印不出色号"是没有意义的中间态(见 `registry.ts` 的判据)。
+    const half = createToolRegistry({ ...base, products: fakeLibrary() });
+    expect([...half.keys()]).toEqual([...without.keys()]);
   });
 
   it('枚举与上下界**没有一个手抄**,全部与实体常量同源', () => {
@@ -618,6 +660,279 @@ describe('propose_look', () => {
   });
 
   /**
+   * ★★ **本组最要紧的一条**:配方降级为参考,步骤是模型自己写的那几步。
+   *
+   * 起因是用户的诉求:「妆容不能定死啊,这个只能说作为参考,要给模型自己发挥的空间」。
+   * 判据只有一条:**记进会话的那几步是入参里那几步**,而不是 `derivePlan` 展开的配方原文。
+   * ⚠️ 这两者在 `lookInput` 里长得**一模一样**(它照配方抄了一份当"模型写的"),
+   *   所以这里刻意**换掉每一步的 `desc`** —— 不换的话,即使实现退回"按 styleId 展开配方",
+   *   这条测试也照样绿(那正是它要防的东西)。
+   */
+  it('★★ 记下的是模型自己写的那几步,不是配方原文(配方只是参考)', async () => {
+    const input = lookInput(PLAIN_STYLE);
+    const mine = (input['steps'] as { name: string; desc: string }[]).map((s, i) => ({
+      name: s.name,
+      desc: `我自己写的第 ${i + 1} 步:用刷子扫开`,
+    }));
+
+    const out = await run(tool, { ...input, steps: mine, styleName: '清透通勤妆' }, session());
+
+    expect(out.isError).toBeUndefined();
+    expect(out.session?.plan?.steps.map((s) => s.desc)).toEqual(mine.map((s) => s.desc));
+    expect(out.session?.plan?.styleName).toBe('清透通勤妆');
+    // ★ 反面:配方原文一个字都不该进来。少了这一条,"换掉 desc"也可能只是巧合对上。
+    const recipe = derivePlan({ styleId: PLAIN_STYLE })!;
+    for (const s of recipe.steps) expect(out.session?.plan?.steps.map((x) => x.desc)).not.toContain(s.desc);
+    // 它仍然是"参考了哪条配方",只是不再决定步骤长什么样。
+    expect(out.session?.plan?.styleId).toBe(PLAIN_STYLE);
+  });
+
+  /**
+   * ★★ 步骤名是**硬校验**:认不出来的那一步不会出图,而那是一个干净的 200 ——
+   *   用户看到的是"讲了一套妆,出的图里没有这一步"(本仓最恨的形状)。
+   *   所以打回,并且**必须把词表带上**,否则模型只能换一个猜。
+   */
+  it('★★ 步骤名认不出来 ⇒ 打回,附词表,且会话一个字没写', async () => {
+    const input = lookInput(PLAIN_STYLE);
+    const steps = [...(input['steps'] as { name: string; desc: string }[]), { name: '打光', desc: '扫一层' }];
+
+    const out = await run(tool, { ...input, steps }, session());
+
+    expect(out.isError).toBe(true);
+    expect(out.content).toContain('打光'); // 是哪一步不对
+    expect(out.content).toContain(stepVocabularyHint()); // ★ 唯一能改对的东西
+    expect(out.session).toBeUndefined();
+    expect(out.content).toMatch(/^★ 这次\*\*没有记下任何妆面/);
+  });
+
+  /** 同一个道理:一个出图步都没有时,`renderPlanOf` 会静默回落到「整脸」兜底那一张。 */
+  it('★★ 一个出图步都没有 ⇒ 打回(不许静默落进「整脸」兜底那张)', async () => {
+    const steps = [
+      { name: '护肤', desc: '先保湿' },
+      { name: '定妆', desc: '压一层散粉定妆' },
+    ];
+
+    const out = await run(tool, { ...lookInput(PLAIN_STYLE), steps }, session());
+
+    expect(out.isError).toBe(true);
+    expect(out.content).toContain('出不了图');
+    expect(out.session).toBeUndefined();
+  });
+
+  it('★ 缺 `styleName` / `steps` 写不成形状 ⇒ 打回,并说清那一格该长什么样', async () => {
+    const input = lookInput(PLAIN_STYLE);
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ ...input, styleName: '   ' }, 'styleName'],
+      [{ ...input, steps: [] }, 'steps'],
+      [{ ...input, steps: [{ name: '唇妆' }] }, 'steps'], // 少了 desc
+    ];
+
+    for (const [bad, field] of cases) {
+      const out = await run(tool, bad, session());
+      expect(out.isError, `${field} 那一格没被打回`).toBe(true);
+      expect(out.content).toContain(field);
+      expect(out.session).toBeUndefined();
+    }
+  });
+
+  /**
+   * ★★ 推荐产品的 `(pid, code)` 在库里查不到 ⇒ **整条丢掉,不打回**。
+   *
+   * ✏️ 2026-10-02(用户拍板):「色号可以自己推理,产品库里有的可以推荐,没有的就算了,
+   *   不要硬推荐」。此前是打回整份,等于让一份**顺手给的建议**把妆面也一起作废。
+   *   ⚠️ 但**丢掉不等于静默**:丢的那几条要回填进回执,否则模型会在正文里照旧推荐,
+   *   而 `/result` 上一条都没有 —— "讲给用户的"与"界面上的"不是一套。
+   *
+   * ⚠️ 只在**配了产品库 + 色号词表**时才判:两个都没配的部署里一个色值都查不到,
+   *   那是部署形态不是模型写错了(同 `compose.ts` 里 `shades` 与 `products` 那段分辨)。
+   *   这一条下面还有一条反向用例钉着这件事 —— 少了它,"全都丢掉"会悄悄变成那个部署的常态。
+   */
+  describe('推荐产品的色号校验(只在配了产品库时)', () => {
+    const withCatalog = new ProposeLookTool(
+      palette,
+      realFeatures(),
+      { hexOf: fakeHexOf },
+      fakeLibrary(),
+      fakeShadeCatalog(),
+    );
+
+    it('★★ 色号对不上 ⇒ 丢掉那一条,方案照记,回执里说明白了', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [
+        { name: '某细管口红', pid: '42-rouge', code: '01' }, // 真有
+        { name: '某细管口红', pid: '42-rouge', code: '99' }, // 色号编的
+      ];
+
+      const out = await run(withCatalog, { ...input, products }, session());
+
+      // ★ 没打回:妆面与方案都记下了,这正是这次改动的全部意义。
+      expect(out.isError).toBeUndefined();
+      expect(out.session?.plan?.products.map((p) => p.code)).toEqual(['01']);
+      // ★ 而且要说出来,不然它在正文里照样推荐 99。
+      expect(out.content).toContain('99');
+      expect(out.content).toMatch(/已从方案里略去/);
+    });
+
+    it('★★ 库里没有这个 pid ⇒ 丢掉(不是打回):编出来的产品进不了方案,但方案还在', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [{ name: '编出来的口红', pid: 'no-such-product' }];
+
+      const out = await run(withCatalog, { ...input, products }, session());
+
+      expect(out.isError).toBeUndefined();
+      expect(out.session?.plan?.products).toEqual([]);
+      expect(out.session?.lookSpec).toBeDefined(); // ★ 妆面没被连坐
+      expect(out.content).toContain('no-such-product');
+    });
+
+    it('★ 产品全被丢掉时不留一个空壳色板(色板由留下的产品推出来)', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [{ name: '编出来的口红', pid: 'no-such-product' }];
+
+      const out = await run(withCatalog, { ...input, products }, session());
+
+      expect(out.session?.plan?.palette).toEqual([]);
+    });
+
+    it('查得到的那一对照旧通过,色值补进方案里', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [{ name: '某细管口红', pid: '42-rouge', code: '01' }];
+
+      const out = await run(withCatalog, { ...input, products }, session());
+
+      expect(out.isError).toBeUndefined();
+      expect(out.session?.plan?.products).toEqual([
+        { name: '某细管口红', pid: '42-rouge', code: '01', hex: '#b03a3a' },
+      ]);
+      // ★ 色板由推荐产品推出来(`buildPalette`),不是模型另给的一份。
+      expect(out.session?.plan?.palette).toEqual([{ code: '01', name: '某细管口红', hex: '#b03a3a' }]);
+      // 回执里也要有:这一份是"我记下了什么"的收据。
+      expect(out.content).toContain('#b03a3a');
+    });
+
+    /** 反向:没有产品库时**不判** —— 那是部署形态,不是模型写错。 */
+    it('★ 没配产品库 ⇒ 同一份 `(pid, code)` 原样通过(无从查不等于写错了)', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [{ name: '某细管口红', pid: '42-rouge', code: '99' }];
+
+      const out = await run(tool, { ...input, products }, session());
+
+      expect(out.isError).toBeUndefined();
+      expect(out.session?.plan?.products.map((p) => p.code)).toEqual(['99']);
+    });
+  });
+
+  /**
+   * ★★ **模型可以直接给颜色**(`palette`)。起因是用户那句「色号可以自己推理……不要硬推荐」——
+   *   一共 163 个色号不可能覆盖它想表达的颜色,于是色板不能只有"从产品库推"这一个出处。
+   *
+   * 口径是**两者填其一,不混**:给了 `palette` 就照它摆,没给才由 `products` 推
+   *   (`compose-plan.ts` 文件头)。混起来的话"这份色板是谁定的"就说不清了。
+   * ⚠️ 与推荐产品**刻意不同**:产品查不到是**丢掉**(那是建议,没有否决权),
+   *   色板写错是**打回**(色板少一块界面上看不出来,而这是它自己写错的,一个回合能改对)。
+   */
+  describe('模型自给的色板(`palette`)', () => {
+    it('★★ 给了就照它摆 —— 有推荐产品也不去推了(两者不混)', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const paletteInput = [
+        { name: '复古红', hex: '#b03a3a', code: '01' },
+        // ★ 没有色号的那条:模型自己推的颜色多半对不上任何一个 SKU,`code` 省掉。
+        { name: '蜜桃色', hex: '#f0a58c' },
+      ];
+
+      const out = await run(tool, { ...input, palette: paletteInput }, session());
+
+      expect(out.isError).toBeUndefined();
+      // ★ 照模型给的摆:没有色号的那条 `code` 补成空串(形状与推出来那份共用一个类型)。
+      expect(out.session?.plan?.palette).toEqual([
+        { code: '01', name: '复古红', hex: '#b03a3a' },
+        { code: '', name: '蜜桃色', hex: '#f0a58c' },
+      ]);
+      // 推荐产品照旧记着 —— 色板换了出处,产品清单不受影响。
+      expect(out.session?.plan?.products.length).toBeGreaterThan(0);
+    });
+
+    /**
+     * ★ 反过来说:**没给**才轮得到产品推。⚠️ 空数组与"没给"同义(模型把"没有"
+     *   写成 `[]` 是常态),少了这一条,`paletteOf` 只要改回 `undefined` 就没人发现。
+     */
+    it('★ 不给 / 给空数组 ⇒ 照旧由推荐产品推', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const products = [{ name: '某细管口红', pid: '42-rouge', code: '01' }];
+      const withCatalog = new ProposeLookTool(
+        palette,
+        realFeatures(),
+        { hexOf: fakeHexOf },
+        fakeLibrary(),
+        fakeShadeCatalog(),
+      );
+
+      for (const paletteField of [undefined, []]) {
+        const out = await run(
+          withCatalog,
+          { ...input, products, ...(paletteField === undefined ? {} : { palette: paletteField }) },
+          session(),
+        );
+        expect(out.isError).toBeUndefined();
+        expect(out.session?.plan?.palette).toEqual([{ code: '01', name: '某细管口红', hex: '#b03a3a' }]);
+      }
+    });
+
+    /**
+     * ★★ `hex` 不是色值 ⇒ **打回**。色板少一块界面上看不出来(色点直接 `background: #xx`),
+     *   而写坏了是模型自己一个回合能改对的事 —— 与推荐产品那条"丢掉"是**两回事**。
+     */
+    it('★★ `hex` 写不成色值 ⇒ 打回,附合法形状,会话一个字没写', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const cases: Array<[unknown, string]> = [
+        [{ name: '复古红', hex: 'b03a3a' }, 'b03a3a'], // 少 `#`
+        [{ name: '复古红', hex: '#b03a3' }, '#b03a3'], // 五位
+        [{ name: '复古红', hex: '红' }, '红'],
+      ];
+
+      for (const [bad, echo] of cases) {
+        const out = await run(tool, { ...input, palette: [bad] }, session());
+        expect(out.isError, `${JSON.stringify(bad)} 没被打回`).toBe(true);
+        expect(out.content).toContain(echo);
+        expect(out.content).toContain('六位十六进制'); // ★ 唯一能改对的东西
+        expect(out.session).toBeUndefined();
+      }
+    });
+
+    it('★ 超过 `MAX_PALETTE` 条 ⇒ 打回,并说清上限(不静默截断)', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const many = Array.from({ length: MAX_PALETTE + 1 }, (_, i) => ({
+        name: `颜色${i}`,
+        hex: '#b03a3a',
+      }));
+
+      const out = await run(tool, { ...input, palette: many }, session());
+
+      expect(out.isError).toBe(true);
+      expect(out.content).toContain(String(MAX_PALETTE));
+      expect(out.session).toBeUndefined();
+    });
+
+    it('★ 写不成形状(`name` 空 / 不是数组 / 不是对象)⇒ 打回,并说清那一格该长什么样', async () => {
+      const input = lookInput(PLAIN_STYLE);
+      const cases: unknown[] = [
+        [{ hex: '#b03a3a' }], // 少了 name
+        [{ name: '  ', hex: '#b03a3a' }], // name 是空白
+        [{ name: '复古红' }], // 少了 hex
+        ['#b03a3a'], // 不是对象
+        '#b03a3a', // 不是数组
+      ];
+
+      for (const bad of cases) {
+        const out = await run(tool, { ...input, palette: bad }, session());
+        expect(out.isError, `${JSON.stringify(bad)} 没被打回`).toBe(true);
+        expect(out.content).toContain('palette');
+        expect(out.session).toBeUndefined();
+      }
+    });
+  });
+
+  /**
    * ★★ 深浅要真的说到用户眼前 —— `describeLook` 那段文字**是"预览"的替代品**
    *   (见 `look-description.ts` 文件头),它少说一个"浅",用户就是对着一个更浓的
    *   颜色决定要不要花钱出图。★ 与 `prompt-builder` 那份是同一套口径,
@@ -664,28 +979,20 @@ describe('propose_look', () => {
    * ⚠️ 断言从 `derivePlan` 现取,不手抄配方原文 —— 抄一遍就等于把内容存了第二份,
    *   配方改了这里会继续绿(而生产已经变了)。
    */
-  it('★★ 成功回执带上这套配方的上妆要点(原句 + 色号 + 色值);护肤 / 定妆不列', async () => {
+  it('★★ 成功回执把**记下的那几步与推荐产品**印回去(色号 + 色值)', async () => {
     const out = await run(tool, lookInput('coolclean'), session());
     const plan = derivePlan({ styleId: 'coolclean' })!;
-    /** 会有妆面落点的步骤 = 该列的那些;护肤 / 妆前 / 防晒 / 定妆 与不认得的步骤名都不列。 */
-    const listed = plan.steps.filter((s) => {
-      const t = targetOfStepName(s.name);
-      return t !== undefined && t !== 'none';
-    });
 
-    for (const s of listed) {
-      expect(out.content, `「${s.name}」那一步的原文没给模型`).toContain(s.desc);
-    }
-    for (const s of plan.steps.filter((s) => !listed.includes(s))) {
-      expect(out.content, `「${s.name}」不上色,列进去只白占 token`).not.toContain(s.desc);
-    }
+    // ★ 这一份是**从会话里读回来的**(`planGuidance` 与 `read_style_recipe` 共用同一个渲染器):
+    //   印出来才看得见 `(区)` 与色值这两样由服务端补上的东西。
+    for (const s of plan.steps) expect(out.content, `「${s.name}」那一步没印回来`).toContain(s.desc);
 
     // 用户那一套翻车的原句与配方指定的唇色号 —— 这两样正是"光看配方名看不出来"的东西。
     expect(out.content).toContain('避免任何高饱和点缀');
-    const lip = listed.find((s) => s.name === '唇妆')!;
-    expect(out.content).toContain(lip.products[0]!.code);
+    const withCode = plan.products.find((p) => p.code !== '')!;
+    expect(out.content).toContain(`${withCode.pid}/${withCode.code}`);
     // ★ 色值也要带上:色号名看不出「淡」,`#c99a86` 看得出。
-    expect(out.content).toContain(realHexOf(lip.products[0]!.pid, lip.products[0]!.code));
+    expect(out.content).toContain(realHexOf(withCode.pid, withCode.code));
   });
 
   it('形状不对时把合法取值清单一起回给模型(报错就是 prompt)', async () => {
@@ -705,8 +1012,11 @@ describe('propose_look', () => {
     // 与形状错误同一条规矩(见下一条):开头就得说清"这次什么都没记下"。
     expect(out.content).toMatch(/^★ 这次\*\*没有记下任何妆面/);
     // ★ 清单是**唯一**能让它改对的东西 —— 少了它,模型只能换一个猜。
-    expect(out.content).toContain('可选风格');
+    //   ✏️ 2026-10-02:`styleId` 降为可选,这句错误自己把清单列全了(不再指向"那一行"),
+    //   所以断言换成"清单真的在里面",而不是只报一句"没有这条"。
+    expect(out.content).toContain('no-such-style');
     expect(out.content).toContain('commute');
+    expect(out.content).toContain('natural');
     expect(out.session).toBeUndefined(); // 失败就是不写会话
   });
 
@@ -848,7 +1158,7 @@ describe('list_products', () => {
 describe('read_product', () => {
   it('六维度全文按标签渲染出来', async () => {
     const lib = fakeLibrary();
-    const out = await run(new ReadProductTool(lib), { id: '42-rouge' }, session());
+    const out = await run(new ReadProductTool(lib, fakeShadeCatalog()), { id: '42-rouge' }, session());
 
     expect(lib.asked).toEqual(['42-rouge']);
     expect(out.content).toContain('【质地/妆效】哑光,显色度高。');
@@ -857,12 +1167,12 @@ describe('read_product', () => {
   });
 
   it('★ 口径必须提醒:那段"用户反馈"出自品牌资料,不是我们采的口碑(§13-6)', async () => {
-    const out = await run(new ReadProductTool(fakeLibrary()), { id: '42-rouge' }, session());
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), { id: '42-rouge' }, session());
     expect(out.content).toContain('品牌资料');
   });
 
   it('不存在的 id → isError,并指一条回去的路(不是抛错)', async () => {
-    const out = await run(new ReadProductTool(fakeLibrary()), { id: '不存在' }, session());
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), { id: '不存在' }, session());
 
     expect(out.isError).toBe(true);
     expect(out.content).toContain('不存在');
@@ -870,12 +1180,31 @@ describe('read_product', () => {
   });
 
   it('没给 id → isError,不抛错', async () => {
-    const out = await run(new ReadProductTool(fakeLibrary()), {}, session());
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), {}, session());
     expect(out.isError).toBe(true);
   });
 
+  it('★ 色号表要印出来 —— 模型推荐时填的 `code` 只能从它这里挑', async () => {
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), { id: '42-rouge' }, session());
+
+    expect(out.content).toContain('【色号】共 1 个');
+    expect(out.content).toContain('01'); // code
+    expect(out.content).toContain('正红'); // 名
+    expect(out.content).toContain('#b03a3a'); // 色值
+    expect(out.content).toContain('`42-rouge`'); // 连同 pid 一起给,模型才拼得出一对
+  });
+
+  it('★ 这件产品没有色号 → 明说"只填 pid",不留一段空白', async () => {
+    // ⚠️ "整件推荐"是**合法**形态(`products[].code` 空串,见 `propose-look.ts`),
+    //   所以这里要说的是怎么填,不是"这件别推荐"。
+    const out = await run(new ReadProductTool(fakeLibrary(), { shadesOf: () => [] }), { id: '42-rouge' }, session());
+
+    expect(out.content).toContain('没有色号');
+    expect(out.content).toContain('不要填 `code`');
+  });
+
   it('★ 读到了就记进会话(红线 §13-6 那个「品牌参考」角标靠它)', async () => {
-    const out = await run(new ReadProductTool(fakeLibrary()), { id: '42-rouge' }, session());
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), { id: '42-rouge' }, session());
 
     expect(out.session?.consultedProducts).toEqual([
       { id: '42-rouge', name: '某细管口红', categoryLabel: '唇部彩妆' },
@@ -883,7 +1212,7 @@ describe('read_product', () => {
   });
 
   it('读不到就不记 —— 没进模型眼睛的东西不该被标成"品牌参考"', async () => {
-    const out = await run(new ReadProductTool(fakeLibrary()), { id: '不存在' }, session());
+    const out = await run(new ReadProductTool(fakeLibrary(), fakeShadeCatalog()), { id: '不存在' }, session());
     expect(out.session).toBeUndefined();
   });
 
@@ -891,7 +1220,7 @@ describe('read_product', () => {
     // `tool.ts` 约束 3 在本模块**唯一实际的受力点**。用户确认出图后那一轮会整轮重跑,
     // read_product 会被再调一次;不防重入就会出现重复条目,或者一次多余的会话写入。
     const lib = fakeLibrary();
-    const tool = new ReadProductTool(lib);
+    const tool = new ReadProductTool(lib, fakeShadeCatalog());
     const first = await run(tool, { id: '42-rouge' }, session());
     const afterFirst = first.session!;
 
@@ -907,7 +1236,7 @@ describe('read_product', () => {
       a: { ...SAMPLE_DETAIL, id: 'a', name: '甲' },
       b: { ...SAMPLE_DETAIL, id: 'b', name: '乙' },
     });
-    const tool = new ReadProductTool(lib);
+    const tool = new ReadProductTool(lib, fakeShadeCatalog());
     const s1 = (await run(tool, { id: 'b' }, session())).session!;
     const s2 = (await run(tool, { id: 'a' }, s1)).session!;
 
@@ -934,25 +1263,30 @@ describe('read_style_recipe', () => {
    *   这条断言就变成自证(渲染里少印一个区也照样绿)。
    */
   function zonesPrintedIn(content: string): string[] {
-    const keys = /必须\*\*恰好\*\*是这些键:([^。]+)。/.exec(content)?.[1];
+    const keys = /这套参考落在这些区上:([^。]+)。/.exec(content)?.[1];
     return keys === undefined ? [] : keys.split('、').filter(Boolean);
   }
 
   it('★ 步骤原文 + 色号 + 色值都要给到 —— 这些此前只在 propose_look 成功后才进上下文', async () => {
     const out = await run(tool, { styleId: 'coolclean' }, session());
     const plan = derivePlan({ styleId: 'coolclean' })!;
-    /** 会有妆面落点的步骤 = 该列的那些(护肤 / 妆前 / 防晒 / 定妆不列,理由同 recipeGuidance)。 */
-    const listed = plan.steps.filter((s) => {
-      const t = targetOfStepName(s.name);
-      return t !== undefined && t !== 'none';
-    });
 
     expect(out.isError).toBeUndefined();
-    for (const s of listed) expect(out.content, `「${s.name}」那一步的原文没给`).toContain(s.desc);
+    // ✏️ 2026-10-02:**逐步列全**(含护肤 / 定妆)—— 它给的是"这条参考整条长什么样",
+    //   哪几步要写进 `steps` 由模型自己定(它才是那份入参的作者)。
+    for (const s of plan.steps) expect(out.content, `「${s.name}」那一步的原文没给`).toContain(s.desc);
+    // 认得出区的步骤要缀 `(区)`:模型填 `zones` 时,那张对照表就是它。
+    for (const s of plan.steps) {
+      const t = targetOfStepName(s.name);
+      if (t !== undefined && t !== 'none') expect(out.content).toContain(`· ${s.name}(${t}):`);
+    }
     // 用户那套翻车的原句:光看配方名(`coolclean(淡颜清冷妆)`)看不出它是低饱和。
     expect(out.content).toContain('避免任何高饱和点缀');
-    const lip = listed.find((s) => s.name === '唇妆')!;
-    expect(out.content).toContain(realHexOf(lip.products[0]!.pid, lip.products[0]!.code));
+
+    // ★ 色号与色值都在:这一份正文是模型**最省事的真色号来源**(不必先读产品库)。
+    const withCode = plan.products.find((p) => p.code !== '')!;
+    expect(out.content).toContain(`${withCode.pid}/${withCode.code}`);
+    expect(out.content).toContain(realHexOf(withCode.pid, withCode.code));
   });
 
   it('★★ 印出来的区名单就是校验器认的那一套:照它填能过,少填一个就被打回', async () => {
@@ -1013,7 +1347,7 @@ describe('read_style_recipe', () => {
     }
   });
 
-  it('★★ 三处文案都要有那句"填妆面单之前先读配方" —— 模型不会主动去读一个"可有可无"的工具', () => {
+  it('★★ 三处文案都要把模型推向"先读参考、但别照抄" —— 一个"可有可无"的工具它不会主动去读', () => {
     // ★ 三处是**独立的文案**,只改一处另外两处会把它拉回旧行为(与出图那句同理)。
     const prompt = buildSystemPrompt(session());
     expect(prompt).toContain('先调 `read_style_recipe`');
@@ -1021,7 +1355,9 @@ describe('read_style_recipe', () => {
     const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
     expect(propose.description).toContain('read_style_recipe');
 
-    expect(READ_STYLE_RECIPE.description).toContain('填 `propose_look` 之前');
+    // ★ v20 起这第三处要说的**不是"照它填"而是"它只是参考"**:
+    //   步骤改由模型自己写,读这条配方读的是**挑颜色的那条线**。
+    expect(READ_STYLE_RECIPE.description).toContain('参考,不是模板');
   });
 });
 
@@ -1359,17 +1695,21 @@ describe('系统提示', () => {
   describe('风格清单(v15)', () => {
     it('★★ 那两句指令指的名字,就是**真印出来的那一行**的名字', () => {
       // 2026-09-30:这一行从「风格池」(随场合变)改成了「可选风格」(全表 21 条)。
-      // ⚠️ 系统提示那句指令、`propose_look` 的工具描述、渲染器抬头是**三份字符串**,
-      //   前两份是**按名字去找那一行**的。名字对不上,模型就会去找一个**不存在的段落**,
-      //   然后凭记忆编一个 id —— 那是本仓头号 bug「假开关」的形状:
-      //   界面正常、日志干净、校验也过了(不存在的 id 只有到 `propose_look` 才被打回)。
+      // ⚠️ 系统提示那句指令、`propose_look` 里 `styleId` 那一格的 description、
+      //   渲染器抬头是**三份字符串**,前两份是**按名字去找那一行**的。名字对不上,
+      //   模型就会去找一个**不存在的段落**,然后凭记忆编一个 id ——
+      //   那是本仓头号 bug「假开关」的形状:界面正常、日志干净、校验也过了
+      //   (不存在的 id 只有到 `propose_look` 才被打回)。
       const prompt = buildSystemPrompt(session());
       expect(prompt).toContain(describeStyleOptions());
 
       const propose = TOOL_DEFINITIONS.find((d) => d.name === TOOL_NAMES.proposeLook)!;
+      // ✏️ 2026-10-02:指路那句从**工具描述**挪到了**填 `styleId` 那一格上** ——
+      //   模型填那一格时读的是它,离得越近越不容易走空。
+      const styleId = (propose.inputSchema as JsonSchema).properties?.styleId;
       for (const [where, text] of [
         ['系统提示', prompt],
-        ['工具描述', propose.description ?? ''],
+        ['styleId 那一格', styleId?.description ?? ''],
       ] as const) {
         expect(text, `${where}里没指向那一行的名字`).toContain(STYLE_OPTIONS_HEAD);
       }

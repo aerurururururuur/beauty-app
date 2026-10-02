@@ -1046,15 +1046,6 @@ img.shade-panel__preview {
   margin-top: 2px;
 }
 
-.step-block__products {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
-}
-
 .step-block__label {
   margin-right: 4px;
   font-size: 12px;
@@ -1114,7 +1105,7 @@ img.shade-panel__preview {
 
 .product-line {
   display: grid;
-  grid-template-columns: 36px 96px 1fr 80px;
+  grid-template-columns: 36px 1fr 80px;
   align-items: center;
   gap: var(--space-3);
   padding: 10px 0;
@@ -1126,15 +1117,6 @@ img.shade-panel__preview {
   font-size: 11px;
   font-weight: 700;
   color: var(--color-text-disabled);
-}
-
-.product-line__step {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--color-card);
-  color: var(--color-text-sub);
-  font-size: 12px;
-  text-align: center;
 }
 
 .product-line__name {
@@ -1387,79 +1369,24 @@ img.shade-panel__preview {
   opacity: 1;
 }
 
-/* ---------- 结果页：风格切换 ---------- */
-.style-switch {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-}
-
-.style-switch__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.style-switch__title {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.style-switch__note {
+/* ---------- 结果页：色板 / 推荐产品 ---------- */
+.result-hero__palette-label {
+  margin-top: var(--space-1);
   font-size: 12px;
   color: var(--color-text-disabled);
 }
 
-.style-switch__list {
+/* 推荐产品：★ **色号的唯一出处**——步骤文本只说工具与用法，不绑 SKU。
+   ⚠️ 整块在产品为空时不渲染（摆一个只有标题的空壳 = 让人以为产品丢了）。 */
+.result-hero__products {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.style-chip {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 16px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--color-card);
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.18s var(--ease);
-}
-
-.style-chip:hover {
-  background: var(--color-pink-soft);
-}
-
-.style-chip__name {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.style-chip__meta {
-  font-size: 11px;
-  color: var(--color-text-disabled);
-}
-
-.style-chip--active {
-  background: var(--color-pink-soft);
-}
-
-.style-chip--active .style-chip__name,
-.style-chip--active .style-chip__meta {
-  color: var(--color-rose);
-}
-
-.result-hero__palette-label {
-  margin-top: var(--space-1);
+.result-hero__products-label {
+  margin-right: 4px;
   font-size: 12px;
   color: var(--color-text-disabled);
 }
@@ -2235,6 +2162,14 @@ img.shade-panel__preview {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ★ 示例占位图不能出图 —— 引擎不收 SVG,而那次失败只报在服务端日志里。 */
+.persona-bar__warn {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-danger);
 }
 
 .persona-bar__switch {

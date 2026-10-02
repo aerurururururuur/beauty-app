@@ -22,7 +22,12 @@ import { createCabinetModule } from './modules/cabinet/index.js';
 import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
 import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { createAgentModule } from './modules/agent/index.js';
-import type { CosmeticReader, FeatureStrategies, ProductLibrary } from './modules/agent/index.js';
+import type {
+  CosmeticReader,
+  FeatureStrategies,
+  ProductLibrary,
+  ShadeCatalog,
+} from './modules/agent/index.js';
 import type { SkinTonePalette } from './modules/makeup/index.js';
 import type { ShadeLookup } from './modules/styling/index.js';
 import { AppError, ErrorCode } from './modules/shared/index.js';
@@ -283,6 +288,22 @@ async function main(): Promise<void> {
       catalog?.find(pid)?.shades?.shades.find((s) => s.code === code)?.hex ?? '',
   };
 
+  /**
+   * `ProductCatalog` → `agent` 的 `ShadeCatalog`(同一条缝的另一半)。
+   *
+   * ★ **与上面的 `shades` 不是一回事,别合并**:那个回答「这一对 `(pid, code)` 是什么颜色」,
+   *   这个回答「这个 pid **有哪些**色号」。后者是模型自己写「推荐产品」时的词表——
+   *   `read_product` 印它,`propose_look` 拿它打回编出来的色号。
+   */
+  const shadeCatalog: ShadeCatalog = {
+    shadesOf: (pid) =>
+      (catalog?.find(pid)?.shades?.shades ?? []).map((s) => ({
+        code: s.code,
+        name: s.name,
+        hex: s.hex,
+      })),
+  };
+
   // 对话 agent。「用户上传的信息」喂给它的现在有**四样**:
   //   ① 结构化需求 `brief`——由 `patch_brief` 工具直接写进会话,不经过端口;
   //   ② 衣橱——★ 走的正是下面这个**包一层**的注入(§7.1 零 import 那条规矩);
@@ -342,7 +363,9 @@ async function main(): Promise<void> {
     shades,
     // ★ 没配产品库时**整个键不出现在 options 里**(不是给一个 `undefined`)——
     //   语义上就是"这个部署没有产品库",agent 那边照此不注册那两个工具。
-    ...(productLibrary ? { products: productLibrary } : {}),
+    // ★ 色号词表**跟着产品库走**(同一个 `catalog` 包出来的两半,见上面那个闭包):
+    //   产品库在它就在,产品库不在它就是"一律空",两处判据同一件事。
+    ...(productLibrary ? { products: productLibrary, shadeCatalog } : {}),
     // ★ 同上:`VISION_ANALYZER=off` 时**整个键不出现** ⇒ agent 不暴露收图与分析
     //   那两条口(`/images` / `/analyses` 不注册)。**同一个 `analyzers` 实例**
     //   与上面 `createMakeupModule` 那次调用共用,不是新造一份。

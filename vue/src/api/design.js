@@ -557,12 +557,14 @@ export function snapshotDesign({ sceneId = '', sceneName = '', plan = null } = {
   return {
     sceneId,
     sceneName,
+    // ★ `styleId` 可选(模型完全自己写时没有),别给它兜一个默认值 —— 快照要如实。
     styleId: plan.styleId,
     styleName: plan.styleName,
+    // ⚠️ `meta` 只剩 `stepCount`:`minutes` / `level` 随配方一起下线了(凭空来的数字,§8-4)。
     stepCount: plan.meta.stepCount,
-    minutes: plan.meta.minutes,
-    level: plan.meta.level,
     palette: plan.palette,
-    steps: plan.steps.map((s) => ({ name: s.name, products: s.products })),
+    // ★ 色号只住在**计划级**的推荐产品里;每一步只剩名字与那句用法。
+    products: plan.products,
+    steps: plan.steps.map((s) => ({ name: s.name, desc: s.desc })),
   }
 }

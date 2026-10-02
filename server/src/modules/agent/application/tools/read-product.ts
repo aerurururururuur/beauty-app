@@ -17,6 +17,7 @@
 import { READ_PRODUCT } from '../../domain/tools/definitions.js';
 import type { Tool, ToolContext, ToolOutcome } from '../../domain/tools/tool.js';
 import type { ProductDetailSnapshot, ProductLibrary } from '../../domain/ports/product-library.js';
+import type { ShadeCatalog, ShadeOffer } from '../../domain/ports/shade-catalog.js';
 import { addConsultedProduct, ConsultedProduct } from '../../domain/entities/session.js';
 
 /** 从入参里取 id。★ 入参是 `unknown`(注册表按名字分发,不保证形状),得自己挡。 */
@@ -28,8 +29,15 @@ function readId(input: unknown): string | undefined {
   return id === '' ? undefined : id;
 }
 
-/** 一条产品的六维度全文,渲染成给模型读的文本。 */
-export function renderProductDetail(detail: ProductDetailSnapshot): string {
+/**
+ * 一条产品的六维度全文,渲染成给模型读的文本。
+ * ★ `shades` 是它**能推荐哪些色号**的完整词表 —— `propose_look` 的 `products[].code`
+ *   只能填这上面的,所以这一段是模型写推荐时的唯一依据(`renderProductDetail` 导出给测试)。
+ */
+export function renderProductDetail(
+  detail: ProductDetailSnapshot,
+  shades: readonly ShadeOffer[],
+): string {
   const lines: string[] = [`${detail.name}(${detail.categoryLabel})`];
   if (detail.series) lines.push(`所属系列:${detail.series}`);
   if (detail.lookSpecSlots.length > 0) {
@@ -46,6 +54,17 @@ export function renderProductDetail(detail: ProductDetailSnapshot): string {
   }
 
   lines.push('');
+  // ★ 色号表:模型要推荐色号,就得有**真色号**可挑;`code` 是它填进 `products` 的那一格。
+  if (shades.length > 0) {
+    lines.push(`【色号】共 ${shades.length} 个。推荐时用 \`${detail.id}\` + 这里的 code:`);
+    for (const s of shades) lines.push(`· ${s.code} ${s.name} ${s.hex}`);
+  } else {
+    lines.push(
+      `【色号】这件产品没有色号。要推荐它就**只填 \`pid\`**(\`${detail.id}\`)、不要填 \`code\`。`,
+    );
+  }
+
+  lines.push('');
   lines.push(
     '★ 转述「社交平台用户反馈摘要」时请说明它出自**品牌资料**,不要讲成真实用户评价或中立测评。',
   );
@@ -55,7 +74,15 @@ export function renderProductDetail(detail: ProductDetailSnapshot): string {
 export class ReadProductTool implements Tool {
   readonly definition = READ_PRODUCT;
 
-  constructor(private readonly products: ProductLibrary) {}
+  /**
+   * `shades` 与 `products` **成对注入**(同一份产品库的两个视图,组装根一处给出)。
+   * ★ 它必填而不是可选:少了它这件产品的色号表就不印,而模型手上没有真色号
+   *   就只能编一个 —— 那正是 `propose_look` 那道 `(pid, code)` 校验要挡的东西。
+   */
+  constructor(
+    private readonly products: ProductLibrary,
+    private readonly shades: ShadeCatalog,
+  ) {}
 
   async run(input: unknown, context: ToolContext): Promise<ToolOutcome> {
     const id = readId(input);
@@ -77,7 +104,7 @@ export class ReadProductTool implements Tool {
       };
     }
 
-    const content = renderProductDetail(detail);
+    const content = renderProductDetail(detail, this.shades.shadesOf(detail.id));
 
     // ★ 记账(红线 §13-6 那个角标靠它)。按 id 去重;重复读时 `addConsultedProduct`
     //   返回**同一个对象**,于是这里不返回 `session` —— 满足 `tool.ts` 的

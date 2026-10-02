@@ -18,6 +18,7 @@
 import path from 'node:path';
 import { loadCatalogIfPresent } from '../../src/modules/products/index.js';
 import type { ProductCatalog } from '../../src/modules/products/index.js';
+import type { ShadeCatalog } from '../../src/modules/agent/index.js';
 
 /** 仓库根。本文件在 `server/test/helpers/`,上溯三层到 `olyhks/`。 */
 export const REPO_ROOT = path.join(import.meta.dirname, '..', '..', '..');
@@ -59,4 +60,20 @@ export function realCatalog(): ProductCatalog {
  */
 export function realHexOf(pid: string, code: string): string {
   return realCatalog().find(pid)?.shades?.shades.find((s) => s.code === code)?.hex ?? '';
+}
+
+/**
+ * `src/index.ts` 里那个 `shadeCatalog` 闭包在测试里的版本 —— 同一条缝的另一半
+ * (「这个 pid **有哪些**色号」,与上面那个「这一对是什么颜色」不是一回事)。
+ * ★ 判据与生产逐字相同:未知 pid / 没配库一律空数组。
+ */
+export function realShades(): ShadeCatalog {
+  return {
+    shadesOf: (pid) =>
+      (realCatalog().find(pid)?.shades?.shades ?? []).map((s) => ({
+        code: s.code,
+        name: s.name,
+        hex: s.hex,
+      })),
+  };
 }

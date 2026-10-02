@@ -25,6 +25,7 @@ import type { SkinTonePalette } from '../../makeup/index.js';
 import { describeBrief } from './brief-description.js';
 import { describeLookState } from './look-state-description.js';
 import { describeRenderState } from './render-state-description.js';
+import { describeStepVocabulary } from './step-vocabulary-description.js';
 import { describeStyleOptions } from './style-options-description.js';
 import { describeToneOptions } from './tone-options-description.js';
 
@@ -423,8 +424,25 @@ import { describeToneOptions } from './tone-options-description.js';
  *   ⚠️ **尚未经过真实调用** ⇒ `[未验证]`。最小验证:重跑一次会话,看它的工具序列里
  *   `read_style_recipe` 是不是排在 `propose_look` **前面**,以及
  *   `zones 与所选配方的步骤对不上` 这条打回是不是降到 0(此前是每轮 1 次)。
+ * - `v20` ——(2026-10-02)★ **步骤改由模型自己写,配方降为参考。**
+ *   此前 `propose_look` 只收一个必填的 `styleId`,服务端拿它**逐字展开一条硬编码配方**
+ *   ——于是这套妆的上限就是那 21 条:步骤文本、区的集合全被配方钉死,
+ *   模型只能在既定骨架上挑颜色。现在 `steps` 由模型写(**只说手法与工具类别,不绑 SKU**),
+ *   色号只住在新的 `products` 里,`styleId` 降为**可选参考**。
+ *
+ *   ★ 配套两条硬校验(都在 `propose-look.ts`):**步骤名认不出来 ⇒ 打回**
+ *   (否则那一步没有图,却仍然是干净的 200 —— 本仓最恨的形状);
+ *   **推荐产品的 `(pid, code)` 查不到色值 ⇒ 整条丢掉**(同一天稍后按用户拍的改的:
+ *   「色号可以自己推理,库里有的才推荐,没有的就算了,不要硬推荐」——推荐只是顺手的建议,
+ *   不该有把整份方案连妆面一起作废的权力;丢掉的几条回填给模型,免得它照旧在正文里推荐)。
+ *   ★ 同一天再稍后:**色板也不必从产品来了** —— `propose_look` 多收一个可选的 `palette`
+ *   (颜色名 + `hex`),填了它顶部色板就照那份摆;`hex` 不是色值 / 超过 8 条**打回**
+ *   (那两样是模型自己写错的,静默截掉就是色板少一块而界面上看不出来)。
+ *   区集那条规则**没变**,只是判据从"所选配方的步骤"换成了"你自己写的那几步"。
+ *   ⚠️ **尚未经过真实调用** ⇒ `[未验证]`。最小验证:一句「定一套妆」,看 `propose_look`
+ *   的入参里 `steps` 是不是它自己写的、`products` 里的 `pid/code` 是不是真查得到色值。
  */
-export const SYSTEM_PROMPT_VERSION = 'v19';
+export const SYSTEM_PROMPT_VERSION = 'v20';
 
 export interface SystemPromptOptions {
   /**
@@ -538,20 +556,23 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     '你是「场合美妆」的化妆顾问,通过对话帮用户定一套适合她的妆容。',
     '',
     '## 你的工作',
-    '把用户模糊的说法,收敛成一份**结构化的妆面**——只用颜色、质地、浓度这三样描述,',
-    '用 `propose_look` 工具记下来,然后用文字讲给她听。',
-    // ★ v15:妆面单上还多一格 `styleId`(见文件头 v15 那段)。
-    //   ⚠️ 「那一行」指的就是 `## 当前状态` 里 `describeStyleOptions()` 印出来的那一行。
-    //   它的抬头是 `style-options-description.ts` 的 `STYLE_OPTIONS_HEAD`——
-    //   这里写死了「可选风格」四个字,改那边要一起改(`demo-llm.ts` 也是照这个抬头认行的)。
-    '★ 这次调用还要带一格 `styleId`:**从「当前状态」里「可选风格」那一行列出的清单里挑一个**,',
-    '不要自己编。它和这套妆面是**同一件事的两面**——',
-    '你提的是一套妆,`styleId` 就是这套妆的配方,两者要是一套,不能各说各的。',
-    // ★ v19:`zones` 那一格此前是**闭着眼睛填**的(配方正文只在 propose_look 成功后才进上下文),
-    //   于是每轮必被打回一次。现在读得到配方了 —— 这一步是那件事的落点。
-    '★★ **挑定 `styleId` 之后,先调 `read_style_recipe` 把那条配方的正文读出来**,再填这张妆面单:',
-    '`zones` 要有哪些区、颜色照什么要点挑,两样都在那份正文里。',
-    '**闭着眼睛填必然少一个区或多一个区**,而多填少填都会被拒绝——白花一个回合。',
+    '把用户模糊的说法,收敛成一套**妆造**:一份妆面(只用颜色、质地、浓度描述)、',
+    '一套**上妆步骤**、一份**推荐产品**。三样一起用 `propose_look` 记下来,然后用文字讲给她听。',
+    // ★ v20:步骤改由模型自己写(见文件头 v20 那段)。
+    '★★ **步骤要你自己写,按她的具体情况来**——肤质、场合、她说过的要紧处。',
+    '★ **写步骤之前先调 `read_style_recipe` 挑一条配方当参考**(免费):挑颜色的那条线照它,',
+    '**步骤文本别照抄**(照抄等于所有用户拿到的都是同一套妆)。',
+    '★ 步骤里**只写手法与工具类别**(「用眼线笔贴着睫毛根部画一条细线」),',
+    '**不写品牌、产品名、色号**——要推荐的产品和色号全部放进 `products`。',
+    '★ **这套妆用了哪几个颜色,可以直接写进 `palette`**(带 `hex`):填了它顶部色板就照你这份摆,',
+    '不填则由推荐产品推。**两者填其一** —— 不要一边说"复古红"、一边在产品里推另一个红。',
+    '★ 步骤名用「当前状态」里「可用步骤名」那一行的词(可以是变体),',
+    '编一个表外的名字会让这一步**没有图**。',
+    // ★ v20:`zones` 的判据从"配方的步骤"换成了"你自己写的那几步"。
+    '★ `zones` 里要有哪些区,由**你自己写的那几步**决定:一个不多、一个不少。',
+    // ★ v15 起 `styleId` 就在妆面单上;v20 降为可选参考(见文件头)。
+    '★ 参考了哪条配方就填 `styleId`(从「当前状态」里「可选风格」那一行挑),完全自己写就不填。',
+    '填了它,**步骤仍然要你自己写**——它是你挑颜色的依据,不是照着抄的模板。',
     '',
     '## 硬规则(不是建议)',
     ...rules,
@@ -578,6 +599,8 @@ export function buildSystemPrompt(session: Session, options: SystemPromptOptions
     // ★ 存在理由见文件头 v15 那段:这份清单与场合无关,但**每轮都要印**——
     //   用户中途换风格(或者第一次提 `propose_look`)时,模型手上得有一份能挑的清单。
     describeStyleOptions(),
+    // ★ v20:步骤名是硬校验(认不出来的那一步没有图),所以词表每轮都摆在它眼前。
+    describeStepVocabulary(),
     look,
     // ★ 出图那一行的存在理由见文件头 v5 那段:模型过去只能靠猜,而它猜错过一次。
     describeRenderState(session),

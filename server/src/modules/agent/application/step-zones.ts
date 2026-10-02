@@ -58,6 +58,27 @@ export function targetOfStepName(name: string): StepTarget | undefined {
 }
 
 /**
+ * 给模型看的**规范步骤名**,每个位置一个。★ 与 `ZONE_PATTERNS` 逐条对应,
+ * 改了那边这里要跟着改(`test/step-zones.test.ts` 把每一条都过一遍 `targetOfStepName`)。
+ * ⚠️ 这是**建议不是白名单**:`彩色睫毛` / `烟熏眼妆` 这类变体照旧通过(判据是正则)。
+ */
+export const STEP_VOCABULARY: readonly string[] = [
+  '底妆', '遮瑕', '腮红', '眼影', '眼线', '睫毛', '唇妆', '修容', '高光', '卧蚕', '眉',
+  '护肤', '妆前', '防晒', '定妆',
+];
+
+/** 不认识的那些步骤名。★ 空数组 = 全部认得。 */
+export function checkStepNames(names: readonly string[]): string[] {
+  return names.filter((name) => targetOfStepName(name) === undefined);
+}
+
+/**
+ * 一次确认最多出几张图。★ **`base` 那一张要算进去**:配方以底妆开头时,
+ *   它会和后面每个区各出一张 —— 上限是「每个区一张 + 底妆一张」。
+ */
+export const MAX_RENDER_SHOTS = ZONE_ROLES.length + 1;
+
+/**
  * 一次确认要出的**一张图**。
  * ★ 不是「一个步骤一张」:同一个区在一套配方里出现两次时(两次遮瑕 / 两次眼妆),
  *   第二次**复用**上一张——措辞层只有色 / 质地 / 浓度,没有位置维度,

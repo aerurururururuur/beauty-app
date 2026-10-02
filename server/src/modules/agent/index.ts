@@ -40,6 +40,11 @@ export type {
   ProductFact,
 } from './domain/ports/product-library.js';
 /**
+ * ★ 色号词表端口。**与上面 `ProductLibrary` 成对**由组装根同处给出,
+ * 两个都缺或都齐(见 `application/tools/registry.ts` 的判据)。
+ */
+export type { ShadeCatalog, ShadeOffer } from './domain/ports/shade-catalog.js';
+/**
  * ★ 开会话时校验归属用户的端口。
  * ⚠️ 它与 `cabinet` 那份**同名同形但不是同一个类型**——本模块不 import cabinet(§7.1)。
  * 组装根那边可以用同一个闭包满足两边(形状相同),见 `src/index.ts`。
@@ -158,6 +163,13 @@ export { describeLookState } from './application/look-state-description.js';
 //   `demo-llm` 认行的前缀)**都是按名字去找那一行**,而名字本身是自由文本 ——
 //   谁也不能手抄一份,测试也没法指认。见 `style-options-description.ts` 的文件头。
 export { describeStyleOptions, STYLE_OPTIONS_HEAD, styleOptionsHint } from './application/style-options-description.js';
+// ★ 步骤名词表同一条先例:系统提示 / `read_style_recipe` / `propose_look` 的打回消息
+//   三处共用一份清单,谁也不许手抄(见 `step-vocabulary-description.ts` 文件头)。
+export {
+  describeStepVocabulary,
+  stepVocabularyHint,
+  STEP_VOCABULARY_HEAD,
+} from './application/step-vocabulary-description.js';
 export { StartSession } from './application/usecases/start-session.js';
 export { GetSession } from './application/usecases/get-session.js';
 export { SendMessage } from './application/usecases/send-message.js';

@@ -11,6 +11,7 @@ import type { ShadeLookup } from '../styling/index.js';
 import type { CosmeticReader } from './domain/ports/cosmetic-reader.js';
 import type { FeatureStrategies } from './domain/ports/feature-strategies.js';
 import type { ProductLibrary } from './domain/ports/product-library.js';
+import type { ShadeCatalog } from './domain/ports/shade-catalog.js';
 import type { UserDirectory } from './domain/ports/user-directory.js';
 import type { SessionStore } from './domain/ports/session-store.js';
 import type { SessionArtifacts } from './domain/ports/session-artifacts.js';
@@ -111,6 +112,11 @@ export interface AgentModuleOptions {
    */
   products?: ProductLibrary;
   /**
+   * ★ 色号词表。**与 `products` 成对** —— 同一份产品库的两个视图,组装根一处给出。
+   *   不传(或只有其中一个)= 那两个工具都不注册,理由见 `application/tools/registry.ts`。
+   */
+  shadeCatalog?: ShadeCatalog;
+  /**
    * ★ 读图分析的三个适配器(`makeup` 的端口,**同一批实例**由组装根注进来)。
    *
    * **可选,而且缺省就是"这个部署没有读图能力"**:不传 = 那两条路由**不注册**、
@@ -167,6 +173,7 @@ export function createAgentModule(options: AgentModuleOptions): AgentModuleServi
     // 只在真有时才传:`exactOptionalPropertyTypes` 下不能塞一个 `undefined` 进去,
     // 而且"没有产品库"与"产品库是 undefined"在这里本来就是同一件事。
     ...(options.products ? { products: options.products } : {}),
+    ...(options.shadeCatalog ? { shadeCatalog: options.shadeCatalog } : {}),
   });
   const loop = new AgentLoop({
     llm,

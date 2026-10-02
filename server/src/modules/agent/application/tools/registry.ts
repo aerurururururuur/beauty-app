@@ -13,6 +13,7 @@ import type { Engine, SkinTonePalette } from '../../../makeup/index.js';
 import type { CosmeticReader } from '../../domain/ports/cosmetic-reader.js';
 import type { FeatureStrategies } from '../../domain/ports/feature-strategies.js';
 import type { ProductLibrary } from '../../domain/ports/product-library.js';
+import type { ShadeCatalog } from '../../domain/ports/shade-catalog.js';
 import type { SessionArtifacts } from '../../domain/ports/session-artifacts.js';
 import type { ShadeLookup } from '../../../styling/index.js';
 import type { Tool } from '../../domain/tools/tool.js';
@@ -50,7 +51,7 @@ export interface ToolDeps {
    */
   shades: ShadeLookup;
   /**
-   * ★ **唯一一个可选依赖。** 读品牌产品库。
+   * ★ **可选依赖之一。** 读品牌产品库。
    *
    * 缺省 = **这个部署没有产品库** → `list_products` / `read_product` **不注册**。
    * ⚠️ **刻意不做成"注册了但返回空列表"**——那是假开关:模型会以为自己有个空产品库,
@@ -60,8 +61,17 @@ export interface ToolDeps {
    * 为什么它可以可选、而上面五个必须必填:那五个缺了,这个 agent 就**干不成它的事**
    * (没引擎出不了图、没衣橱读不了柜子、没策略卡方案里那块恒空)。产品库是**增强项**——没有它,
    * "聊需求 → 出妆面 → 出图"整条链路一点没缺,只是最后少一句"买什么"。
+   *
+   * ★ 它与下面的 `shadeCatalog` **成对**:同一份产品库的两个视图,组装根一处给出。
+   *   ⚠️ 只有其中一个时**两个工具都不注册**(见 `createToolRegistry` 的判据)——
+   *   半配的部署里"读得成产品、印不出色号"是没有意义的中间态。
    */
   products?: ProductLibrary;
+  /**
+   * ★ 同上,成对的那一半:`read_product` 拿它印出产品的色号表,
+   * `propose_look` 拿它校验模型推荐的 `(pid, code)`。见 `domain/ports/shade-catalog.ts`。
+   */
+  shadeCatalog?: ShadeCatalog;
 }
 
 /**
@@ -70,14 +80,20 @@ export interface ToolDeps {
  *   (见 `ToolDeps.products` 与 `definitions.ts` 里"为什么从 4 变 6、又从 6 变 7"那两段)。
  */
 export function createToolRegistry(deps: ToolDeps): Map<string, Tool> {
+  // ★ 产品库那两件**一起进或一起不进**(理由见 `ToolDeps.products`)。
+  const catalog =
+    deps.products && deps.shadeCatalog
+      ? { library: deps.products, shades: deps.shadeCatalog }
+      : undefined;
+
   return indexTools([
     new PatchBriefTool(),
-    // ★ 排在 `propose_look` 前面:它是那一步的前置功课(填 `zones` 前先读配方)。
+    // ★ 排在 `propose_look` 前面:它是那一步的前置功课(写 `steps` 前先读配方当参考)。
     new ReadStyleRecipeTool(deps.shades),
-    new ProposeLookTool(deps.palette, deps.features, deps.shades),
+    new ProposeLookTool(deps.palette, deps.features, deps.shades, catalog?.library, catalog?.shades),
     new ListCabinetTool(deps.cosmetics),
-    ...(deps.products
-      ? [new ListProductsTool(deps.products), new ReadProductTool(deps.products)]
+    ...(catalog
+      ? [new ListProductsTool(catalog.library), new ReadProductTool(catalog.library, catalog.shades)]
       : []),
     new RenderLookTool({
       engine: deps.engine,

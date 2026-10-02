@@ -13,13 +13,20 @@
  *   配方是编译期常量,`derivePlan` 的入参由调用方校验(那串 id 认不认得)。
  *   跨条目规则(配方里提到的色号必须查得到)钉在 `test/styling-plan.test.ts`。
  *
- * ── 产出分两步:`derivePlan`(纯推导, `PlanDraft`)→ `decoratePlan`(+色值, `PlanView`) ──
+ * ── 产出分两步:`PlanDraft`(纯推导 / 给定数据组装)→ `decoratePlan`(+色值, `PlanView`) ──
  * 对外的形状**只有 `PlanView`**;`PlanDraft` 是中间物,别把它直接递给会话。
+ *
+ * ★ **两条入口**:`derivePlan`(配方参考展开)与 `composePlan`(模型自撰步骤)。
+ *   后者是主路 —— 配方只当参考(见 `docs/` 与 `propose_look` 的说明)。
  */
 export { STYLE_LIBRARY, styleById } from './domain/entities/style-recipes.js';
 export type { StyleProduct, StyleRecipe, StyleStep } from './domain/entities/style-recipes.js';
 export type { ShadeLookup } from './domain/ports/shade-lookup.js';
 export { derivePlan } from './application/derive-plan.js';
+export { composePlan } from './application/compose-plan.js';
+export type { ComposePlanInput, ComposePlanStep } from './application/compose-plan.js';
+/** ★ 色板条数上限 —— `propose_look` 拿它当模型自给色板的那道闸(超了打回,不静默截)。 */
+export { MAX_PALETTE } from './application/plan-products.js';
 export { decoratePlan } from './application/decorate-plan.js';
 export type {
   PlanDraft,
@@ -28,8 +35,6 @@ export type {
   PlanPersonalized,
   PlanProduct,
   PlanProductDraft,
-  PlanStep,
   PlanStepDraft,
-  PlanStyleOption,
   PlanView,
 } from './application/plan-view.js';

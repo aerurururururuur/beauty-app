@@ -11,9 +11,16 @@ import * as api from '@/api/design'
  *    (步骤/色板/产品/个性化)与「妆面单」**在同一次工具调用里**一起写进会话。
  *    本 store 只是那份会话视图的一份缓存。
  *
- * ★ **所以「生成」「换风格」「出图」全是真的要等的**(最长 90 秒,见
+ * ★ **所以「生成」「出图」全是真的要等的**(最长 90 秒,见
  *   `api/agent.js` 的 `AGENT_TIMEOUT_MS`)。`generating` 不是装饰,页面必须拿它
  *   禁用按钮——出图那条路点两下是真的会花两次钱。
+ *
+ * ✏️ 2026-10-02:**`styleOptions` / `setStyle` / `regenerate` / `runTurn` 都删了**。
+ *   步骤改由模型自己写之后,配方不再是一份"可选清单"(`plan.styleOptions` 连同
+ *   `family` 一起从 `PlanView` 下线),那一排 chips 与「换一版」按钮整块消失。
+ *   ⚠️ `runTurn` 是**跟着它们一起死的**:它当时只有这两个调用点,而 `/result` 上
+ *   没有任何输入框——留一个零消费者的"发一句话"就是本仓最恨的假开关形状
+ *   (`api/agent.js` 的 `sendAgentMessage` 照旧留着,`submit` 还在用它发开场白)。
  *
  * ★ **页面之间传的是 URL 参数 `?session=<id>`,不是这家 store。**
  *   会话**可深链**:刷新 `/result` 靠 `loadSession()` 从服务端把同一次会话拉回来
@@ -47,8 +54,12 @@ export const useDesignStore = defineStore('design', () => {
 
   /**
    * 后端那份方案,原样。★ **前端一个字段都不补**——色值也已经在里面了
-   * (`steps[].products[].hex` / `palette[].hex`,由服务端的 `decoratePlan` 填,
+   * (`palette[].hex` / `products[].hex`,由服务端的 `decoratePlan` 填,
    * 理由见 `api/design.js` 文件头)。页面拿到什么就画什么。
+   *
+   * ✏️ 2026-10-02:步骤改由模型自己写(`plan.steps`),色号只住在**计划级**的
+   *   `plan.products` 里——**步骤不再带 products**,所以页面别再去每步里找产品。
+   *   `plan.meta` 也只剩 `stepCount`(`minutes` / `level` 随配方下线)。
    */
   const plan = computed(() => session.value?.plan || null)
   /** 「这套妆是什么」的唯一说法,由服务端的 `describeLook` 确定性生成,原样展示。 */
@@ -74,7 +85,6 @@ export const useDesignStore = defineStore('design', () => {
   /** 上一次读图没读成的理由(后端 `notice` 原文)。★ 不是错误,别塞进 `error`。 */
   const analysisNotice = ref('')
   const stepCount = computed(() => plan.value?.steps?.length || 0)
-  const styleOptions = computed(() => plan.value?.styleOptions || [])
 
   /* ------------------------------ 场景 ------------------------------ */
 
@@ -183,23 +193,6 @@ export const useDesignStore = defineStore('design', () => {
     }
   }
 
-  /** 跑一轮对话。换风格 / 换一版都走这里——它们都是「再让 agent 定一套」。 */
-  async function runTurn(userId, text) {
-    if (!sessionId.value || generating.value) return false
-    generating.value = true
-    error.value = ''
-    try {
-      const agent = await agentApi()
-      adopt(await agent.sendAgentMessage({ sessionId: sessionId.value, userId, text }))
-      return true
-    } catch (e) {
-      error.value = e?.message || '这一轮没跑完，请稍后再试'
-      return false
-    } finally {
-      generating.value = false
-    }
-  }
-
   /**
    * ★ **出图**——全项目唯一会真的花钱的动作。调用方**必须**拿 `generating` 禁用按钮。
    *
@@ -262,33 +255,6 @@ export const useDesignStore = defineStore('design', () => {
   }
 
   /**
-   * 换一个妆容风格。★ **代价是它不再免费、也不再是毫秒级**——一次 agent 回合,
-   * 最长 90 秒(决策:方案改由 agent 产出)。步骤的数量与顺序会跟着配方变。
-   *
-   * 说给 agent 的那句话里**同时带 id 与中文名**:模型看到的那份清单本来就是
-   * `id(中文名)` 的形状(见后端 `style-options-description.ts`),带上 id 它不必猜。
-   * ★ 换的是**配方**,不是场合 —— 风格与场合是两张各自独立的表,换它不会动 `brief`。
-   */
-  function setStyle({ userId, styleId = '' }) {
-    const option = styleOptions.value.find((o) => o.id === styleId)
-    if (!option) return Promise.resolve(false)
-    return runTurn(userId, `换成「${option.name}」(${option.id}) 这个风格，重新给我一套。`)
-  }
-
-  /**
-   * 换一版:切到这个配方的**同族兄弟**里的下一个。
-   * ★ 候选由后端给(`plan.styleOptions`,同 `family` 的配方,含自身),这里是环状的:
-   *   走到最后一个就绕回第一个。不再有"按场合派池子"那回事。
-   */
-  function regenerate({ userId }) {
-    const pool = styleOptions.value
-    if (!pool.length) return Promise.resolve(false)
-    const at = pool.findIndex((o) => o.id === plan.value?.styleId)
-    const next = pool[(at + 1) % pool.length]
-    return setStyle({ userId, styleId: next.id })
-  }
-
-  /**
    * 「记下这一版」。★ 不调任何接口、不假装落库——返回的就是一份**本地 JSON 快照**
    *   (`api/design.js` 的 snapshotDesign 说明为什么这么设计)。
    *   页面的按钮文案要说「已记下这一版」,不能说「已保存到我的作品」。
@@ -328,7 +294,6 @@ export const useDesignStore = defineStore('design', () => {
     renders,
     stepRenders,
     stepCount,
-    styleOptions,
     analysisOffer,
     analysisNotice,
     sceneNameOf,
@@ -337,8 +302,6 @@ export const useDesignStore = defineStore('design', () => {
     loadSession,
     analyze,
     confirmRender,
-    setStyle,
-    regenerate,
     snapshot,
     reset,
   }

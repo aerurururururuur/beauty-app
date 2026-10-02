@@ -25,11 +25,21 @@
  *   "8 个场合 × 各 4 条" 换成"**21 条配方各一次**"——覆盖面反而更大(此前有配方
  *   `retrosmokey` 一条池子都进不去,遍历池子根本跑不到它)。
  *   前端 `kb/styles.js` 里那张同名的表随之成了孤儿,所以那条"池子对表"删掉了:
- *   配方内容本身(含 `family`)已由上面 ① 逐字段钉住,池子是它的派生。
+ *   配方内容本身已由上面 ① 逐字段钉住,池子是它的派生。
+ *
+ * ✏️ **2026-10-02:步骤改由模型自撰,配方降为参考。** 于是 ④⑤ 两段换了两条口径:
+ *   步骤不再挂产品(**色号上移到计划级的 `products`**),`meta` 只剩 `stepCount`
+ *   (`minutes` / `level` 随配方定死一起删),`styleOptions` / `family` 整块消失。
+ *   配方内容本身一个字没动(① 照旧),参考还要用。
  */
 import { describe, expect, it } from 'vitest';
 import { STYLE_LIBRARY, decoratePlan, derivePlan, styleById } from '../src/modules/styling/index.js';
-import type { PlanDraft, PlanPersonalized, StyleRecipe } from '../src/modules/styling/index.js';
+import type {
+  PlanDraft,
+  PlanPersonalized,
+  PlanProductDraft,
+  StyleRecipe,
+} from '../src/modules/styling/index.js';
 import { realFeatures } from './helpers/face-catalog.js';
 import { realCatalog, realHexOf } from './helpers/product-content.js';
 import { frontendFeatureGroups, frontendStyles } from './helpers/frontend-kb.js';
@@ -52,6 +62,40 @@ function personalizedOf(ids: readonly string[]): PlanPersonalized[] {
     .filter((card): card is PlanPersonalized => card !== undefined);
 }
 
+/**
+ * 一条配方里的推荐产品摊平成**计划级**的样子:**按 `pid|code` 去重、顺序即首次出现**。
+ * ★ 它是 ④ 那条对表的**期望值**(与实现对的是同一份原料),改动这条规则要两边一起改。
+ */
+function recipeProductsOf(style: StyleRecipe): PlanProductDraft[] {
+  const out: PlanProductDraft[] = [];
+  const seen = new Set<string>();
+  for (const step of style.steps) {
+    for (const p of step.products) {
+      const key = `${p.pid}|${p.code}`;
+      // 空 pid = 这条产品没有对到库里(配方里有一批这样写的名字),摊平时跳掉。
+      if (p.pid === '' || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: p.name, pid: p.pid, code: p.code });
+    }
+  }
+  return out;
+}
+
+/** 一条配方里**重复出现**的 `pid|code`(正常为空)。 */
+function duplicateProductsOf(style: StyleRecipe): string[] {
+  const seen = new Set<string>();
+  const dupes: string[] = [];
+  for (const step of style.steps) {
+    for (const p of step.products) {
+      if (p.pid === '') continue;
+      const key = `${p.pid}|${p.code}`;
+      if (seen.has(key)) dupes.push(`${style.id} ${key}`);
+      seen.add(key);
+    }
+  }
+  return dupes;
+}
+
 // ── ① 内容对表:后端那份配方 ≡ 前端 `kb/styles.js`(搬运前的原件)──────────────
 
 describe('★ 配方内容与 kb/styles.js 逐字段相同', () => {
@@ -69,12 +113,6 @@ describe('★ 配方内容与 kb/styles.js 逐字段相同', () => {
     expect([...feById.keys()].filter((id) => styleById(id) === undefined)).toEqual([]);
   });
 
-  it('★ 每条配方的 family 都非空(「换一版」靠它分组,空了那一组就只有它自己)', () => {
-    // family 是**分组的唯一依据**(`derivePlan` 的 `styleOptions`),而它是自由字符串:
-    // 写错一个字、漏填一次,都不会有别的征兆 —— 界面照常渲染,只是"换一版"里
-    // 只剩当前这一条。所以这里点名钉住,别指望类型。
-    expect(STYLE_LIBRARY.filter((s) => s.family.trim() === '').map((s) => s.id)).toEqual([]);
-  });
 });
 
 // ── ② 色值回填的前提:配方里的 (pid, code) 必须查得到色值 ────────────────────
@@ -186,18 +224,6 @@ describe('derivePlan 的边界与展开', () => {
     expect(derivePlan({ styleId: '' })).toBeUndefined();
   });
 
-  it('★ 「换一版」的候选 = 同 family 的兄弟(含自身,顺序即 `STYLE_LIBRARY`)', () => {
-    const style = styleById('banquet')!;
-    const plan = derivePlan({ styleId: 'banquet' })!;
-    const want = STYLE_LIBRARY.filter((s) => s.family === style.family).map((s) => s.id);
-
-    expect(plan.styleOptions.map((o) => o.id)).toEqual(want);
-    // 自身在名单里(界面上那一条要能显示"就是它")。
-    expect(want).toContain('banquet');
-    // 别把整张表当成候选 —— 那就成了"换一版"会跳到不相干的路数上。
-    expect(want.length).toBeLessThan(STYLE_LIBRARY.length);
-  });
-
   /**
    * ★ 展开的唯一正确性判据:**拿方案对着配方自己看**。
    *   配方是内容(`STYLE_LIBRARY`),方案是它展开出来的东西 ——
@@ -221,19 +247,19 @@ describe('derivePlan 的边界与展开', () => {
         expect(got?.name).toBe(step.name);
         // `desc` 是配方里的操作手法,不是另写的一句。
         expect(got?.desc).toBe(step.action);
-        // 产品逐条照搬(名称 / 色号 / pid 都不改),**顺序也照搬**。
-        expect(got?.products).toEqual(step.products);
       });
 
       // 顶部那几格直接取配方,不是拼出来的。
       expect(plan!.keywords).toEqual([...style.keywords]);
       expect(plan!.summary).toBe(style.summary);
-      expect(plan!.family).toBe(style.family);
-      expect(plan!.meta).toEqual({
-        stepCount: style.steps.length,
-        minutes: style.minutes,
-        level: style.level,
-      });
+      // ★ 只有 `stepCount`,而且是**数出来的**:`minutes` / `level` 随
+      //   "配方定死步骤"一起删了(模型自撰步骤时它们没有信息源)。
+      expect(plan!.meta).toEqual({ stepCount: style.steps.length });
+
+      // ★ 配方步骤里那几支产品**整批上移到计划级**(色号从此只住在那儿)。
+      expect(plan!.products, `配方 ${style.id} 的推荐产品与配方对不上`).toEqual(
+        recipeProductsOf(style),
+      );
       checked += 1;
     }
     // 表空掉时上面那个循环一次都不进,"全过"与"什么都没比"长得一样。
@@ -241,11 +267,24 @@ describe('derivePlan 的边界与展开', () => {
     expect(checked).toBeGreaterThan(0);
   });
 
-  it('★ 色板只收「步骤里真的用到的色号」:按 code 去重、最多 8 条', () => {
+  it('★ 同一条产品在两步里各出现一次 ⇒ 推荐产品里只留一支', () => {
+    // ★ 21 套配方里**只有 `retrosmokey` 有这个写法**(腮红膏既当底妆打底、又当腮红),
+    //   所以它必须点着名钉 —— 拿它当"重复的那种输入"是这段唯一的机会,
+    //   别的配方都没有重复(没有它这条断言会在"全都没有重复"的世界里照样绿)。
+    expect(STYLE_LIBRARY.flatMap(duplicateProductsOf)).toEqual(['retrosmokey bl-couture-blush|37']);
+
+    const plan = derivePlan({ styleId: 'retrosmokey' })!;
+    const hits = plan.products.filter((p) => p.pid === 'bl-couture-blush');
+    expect(hits).toHaveLength(1);
+    // 留下的那支带着第一次出现时的名字(不是被去重那次的)。
+    expect(hits[0]?.name).toBe('恒久完美透肤烟染腮红');
+  });
+
+  it('★ 色板只收「推荐产品里真的用到的色号」:按 code 去重、最多 8 条', () => {
     let sawCapped = false;
     for (const style of STYLE_LIBRARY) {
       const plan = derivePlan({ styleId: style.id })!;
-      const used = plan.steps.flatMap((s) => s.products).filter((p) => p.pid !== '' && p.code !== '');
+      const used = plan.products.filter((p) => p.pid !== '' && p.code !== '');
       const where = `配方 ${style.id}`;
 
       expect(plan.palette.length, `${where} 的色板超过 8 条`).toBeLessThanOrEqual(8);
@@ -253,10 +292,10 @@ describe('derivePlan 的边界与展开', () => {
       expect(new Set(plan.palette.map((p) => p.code)).size, `${where} 的色板里有重复色号`).toBe(
         plan.palette.length,
       );
-      // 每一条都真有来处 —— 色板里不该出现步骤里没用到的色号。
+      // 每一条都真有来处 —— 色板里不该出现推荐产品里没有的色号。
       for (const entry of plan.palette) {
         const hit = used.find((p) => p.code === entry.code);
-        expect(hit, `${where} 的色板里 ${entry.code} 在步骤里没用到`).toBeDefined();
+        expect(hit, `${where} 的色板里 ${entry.code} 在产品里没用到`).toBeDefined();
         // `name` 是"出自哪个产品",取的是第一个带着它的那一支。
         expect(entry.name).toBe(hit!.name);
       }
@@ -275,7 +314,7 @@ describe('derivePlan 的边界与展开', () => {
   });
 
   /**
-   * 步骤下的「注意事项」来自 `derive-plan.ts` 里那张正则表(`STEP_LOGIC`)。
+   * 步骤下的「注意事项」来自 `step-logic.ts` 里那张正则表(`STEP_LOGIC`)。
    * ★ 它**不是**从用户特征来的,而是按**步骤名**命中的 —— 所以这里按步骤名钉几条:
    *   命中哪一条、命中不了会不会硬塞一句。
    *   ⚠️ 这张表**没导出**,所以只能经 `derivePlan` 从真配方里读;
@@ -311,7 +350,7 @@ describe('derivePlan 的边界与展开', () => {
 describe('★ decoratePlan', () => {
   const shades = { hexOf: realHexOf };
 
-  it('用真产品库补完:每块色板都有颜色,且与"第一个带它的步骤产品"一致', () => {
+  it('用真产品库补完:每块色板都有颜色,且与"第一个带它的推荐产品"一致', () => {
     let checked = 0;
     for (const style of STYLE_LIBRARY) {
       const draft = derivePlan({ styleId: style.id })!;
@@ -323,25 +362,19 @@ describe('★ decoratePlan', () => {
         expect(entry.hex, `${where} 的色板里 ${entry.code} 没有颜色`).toMatch(/^#[0-9a-f]{6}$/i);
       }
 
-      // 每块色板的色值 = 步骤里**第一个**带着这个 code、且查得到色的那一支。
+      // 每块色板的色值 = 推荐产品里**第一个**带着这个 code、且查得到色的那一支。
       for (const entry of plan.palette) {
-        const hit = plan.steps
-          .flatMap((s) => s.products)
-          .find((p) => p.code === entry.code && p.hex !== '');
-        expect(hit, `${where} 的色板里 ${entry.code} 在步骤里没有带颜色的那一支`).toBeDefined();
+        const hit = plan.products.find((p) => p.code === entry.code && p.hex !== '');
+        expect(hit, `${where} 的色板里 ${entry.code} 没有带颜色的那一支`).toBeDefined();
         expect(entry.hex).toBe(hit!.hex);
       }
 
-      // 步骤里的产品一个不少;有色号的每一支都带上了色值。
-      expect(plan.steps.map((s) => s.products.length)).toEqual(
-        draft.steps.map((s) => s.products.length),
-      );
-      for (const step of plan.steps) {
-        for (const p of step.products) {
-          expect(p.hex).toBe(realHexOf(p.pid, p.code));
-          if (p.pid !== '' && p.code !== '') {
-            expect(p.hex, `${where} 的步骤产品 ${p.pid} ${p.code} 没查到颜色`).not.toBe('');
-          }
+      // 推荐产品一个不少;有色号的每一支都带上了色值。
+      expect(plan.products.length).toBe(draft.products.length);
+      for (const p of plan.products) {
+        expect(p.hex).toBe(realHexOf(p.pid, p.code));
+        if (p.pid !== '' && p.code !== '') {
+          expect(p.hex, `${where} 的推荐产品 ${p.pid} ${p.code} 没查到颜色`).not.toBe('');
         }
       }
       checked++;
@@ -353,32 +386,23 @@ describe('★ decoratePlan', () => {
     // 第一支产品的色值查不到、第二支查得到,同一个 code —— 色板该拿到第二支的。
     // (这是"这一支没色块",不是"这个色号没色块"。)
     //
-    // ⚠️ **这里手拼一份配方,不走 `STYLE_LIBRARY`。** 21 套真配方里**没有**同一个色号
+    // ⚠️ **这里手拼一份方案,不走 `STYLE_LIBRARY`。** 21 套真配方里**没有**同一个色号
     //   出现两次的(每支产品的色号都不同),拿真配方跑这条规则根本跑不到 ——
     //   删掉规则本体它照样绿,那就是一条自我安慰的断言。
     const draft: PlanDraft = {
       styleId: 'test',
       styleName: '测试',
-      family: 'test',
       summary: '',
       keywords: [],
-      // 色板只有一条,而它在步骤里对应**两支**产品。
+      // 色板只有一条,而它在推荐产品里对应**两支**。
       palette: [{ code: 'X1', name: '甲' }],
-      meta: { stepCount: 1, minutes: 1, level: 'easy' },
-      steps: [
-        {
-          id: 'test-01',
-          name: '底妆',
-          desc: '',
-          tips: [],
-          products: [
-            { name: '甲', code: 'X1', pid: 'p-first' },
-            { name: '甲(备选)', code: 'X1', pid: 'p-second' },
-          ],
-        },
+      meta: { stepCount: 1 },
+      steps: [{ id: 'test-01', name: '底妆', desc: '', tips: [] }],
+      products: [
+        { name: '甲', code: 'X1', pid: 'p-first' },
+        { name: '甲(备选)', code: 'X1', pid: 'p-second' },
       ],
       personalized: [],
-      styleOptions: [],
     };
 
     const plan = decoratePlan(draft, {
@@ -387,20 +411,20 @@ describe('★ decoratePlan', () => {
 
     expect(plan.palette).toEqual([{ code: 'X1', name: '甲', hex: '#123456' }]);
     // 而**第一支**自己仍然没有色块(它是"这一支没颜色",不该被别人的色值顶上)。
-    expect(plan.steps[0]?.products.map((p) => p.hex)).toEqual(['', '#123456']);
+    expect(plan.products.map((p) => p.hex)).toEqual(['', '#123456']);
   });
 
-  it('★ 一个色值都查不到时:**色板空、步骤原样留着**(hex 为空串),不报错', () => {
+  it('★ 一个色值都查不到时:**色板空、推荐产品原样留着**(hex 为空串),不报错', () => {
     const draft = derivePlan({ styleId: 'natural' })!;
     const plan = decoratePlan(draft, { hexOf: () => '' });
 
     expect(plan.palette).toEqual([]);
     // ★ 产品**一支都不许少** —— 色号查不到不等于这件产品没用到。
-    //   把步骤里的产品删掉,用户就看不见自己要用什么了(与色板那一格刻意相反)。
-    expect(plan.steps.map((s) => s.products.map((p) => [p.name, p.code, p.pid]))).toEqual(
-      draft.steps.map((s) => s.products.map((p) => [p.name, p.code, p.pid])),
+    //   把它删掉,用户就看不见要买什么了(与色板那一格刻意相反)。
+    expect(plan.products.map((p) => [p.name, p.code, p.pid])).toEqual(
+      draft.products.map((p) => [p.name, p.code, p.pid]),
     );
-    for (const step of plan.steps) for (const p of step.products) expect(p.hex).toBe('');
+    for (const p of plan.products) expect(p.hex).toBe('');
     // 除色值外一个字没动。
     expect(plan.styleId).toBe(draft.styleId);
     expect(plan.personalized).toEqual(draft.personalized);
