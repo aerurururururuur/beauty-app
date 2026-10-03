@@ -17,8 +17,8 @@
 
 /**
  * 帖子封面 URL:图在**前端** `vue/public/assets/posts/`,命名 = `<帖子 id>.webp`,不拼 `API_BASE`。
- * ★ 这是**生成的 AI 妆容渲染**(源图在 `server/out/`),不是商品图、也不是用户拍的照片。
- * ★ 源图只有 7 张、两个列表共 16 格,同一个妆面会在两处各出现一次;缺图时页面回落 `.ph`。
+ * ★ 这是**生成的 AI 妆容渲染**(源图池 `帖子封面图片/{首页,灵感,我的}/`),不是商品图。
+ * ✏️ 2026-10-03 换了一轮图(25 张,按标题对 id),同一个妆面不再跨页复用;缺图回落 `.ph`。
  */
 function postCoverOf(id) {
   return `/assets/posts/${id}.webp`
@@ -26,9 +26,12 @@ function postCoverOf(id) {
 
 /* ------------------------------ 首页 ------------------------------ */
 
-/** 顶部轮播:5 张,`coverUrl` 为空时渲染 `.ph` 占位块而不是破图。 */
+/**
+ * 顶部轮播:5 张,`coverUrl` 为空时渲染 `.ph` 占位块而不是破图。
+ * ★ 页面今天只渲染第 1 张(b2~b5 不进 DOM),后四张没有配图,留空。
+ */
 export const BANNERS = [
-  { id: 'b1', tag: '本季主推', title: '枫糖轻暖妆', subtitle: '本季最多人收藏的妆容 · 3.8 万人已试妆', coverUrl: '' },
+  { id: 'b1', tag: '本季主推', title: '枫糖轻暖妆', subtitle: '本季最多人收藏的妆容 · 3.8 万人已试妆', coverUrl: postCoverOf('b1') },
   { id: 'b2', tag: '趋势', title: '白开水通勤妆', subtitle: '干净到像没化妆', coverUrl: '' },
   { id: 'b3', tag: '国风', title: '国风桃枝照水', subtitle: '桃花妆也能日常化', coverUrl: '' },
   { id: 'b4', tag: '进阶', title: '雾面哑光秋冬妆', subtitle: '秋冬最上镜的一支棕调', coverUrl: '' },
@@ -44,10 +47,10 @@ export function getBanners() {
  * `avatarColor` 是 `author` 上的字段(不是独立色值),由 ui 层直接铺成小圆点底色。
  */
 export const RECOMMEND = [
-  { id: 'r1', title: '盐系清透日常妆', coverUrl: '', author: { name: '晚晚不晚', avatarColor: '#e7a6ac' }, likes: 1286 },
-  { id: 'r2', title: '枫糖暖调氛围妆', coverUrl: '', author: { name: '桃气少女阿柚', avatarColor: '#a1c2b1' }, likes: 2143 },
-  { id: 'r3', title: '国风桃枝照水', coverUrl: '', author: { name: '沈叙白', avatarColor: '#b6d5c6' }, likes: 976 },
-  { id: 'r4', title: '白开水通勤妆', coverUrl: '', author: { name: '林小满', avatarColor: '#d48d95' }, likes: 1654 },
+  { id: 'r1', title: '盐系清透日常妆', coverUrl: postCoverOf('r1'), author: { name: '晚晚不晚', avatarColor: '#e7a6ac' }, likes: 1286 },
+  { id: 'r2', title: '枫糖暖调氛围妆', coverUrl: postCoverOf('r2'), author: { name: '桃气少女阿柚', avatarColor: '#a1c2b1' }, likes: 2143 },
+  { id: 'r3', title: '国风桃枝照水', coverUrl: postCoverOf('r3'), author: { name: '沈叙白', avatarColor: '#b6d5c6' }, likes: 976 },
+  { id: 'r4', title: '白开水通勤妆', coverUrl: postCoverOf('r4'), author: { name: '林小满', avatarColor: '#d48d95' }, likes: 1654 },
 ]
 
 export function getRecommend() {
@@ -66,12 +69,15 @@ export function getTips() {
   return TIPS
 }
 
-/** 近期热点话题。 */
+/**
+ * 近期热点话题。
+ * ★ p3 的源图是「港式复古妆」——国风已在 b3 / r3 各出现一次,这一格按源图名换成港风话题。
+ */
 export const TOPICS = [
-  { id: 'p1', title: '# 白开水妆', desc: '这个妆感真的太干净了，通勤也扛得住', stat: '12.6 万人在试', coverUrl: '' },
-  { id: 'p2', title: '# 枫糖暖棕', desc: '秋冬最上镜的一支棕调', stat: '9.4 万人在试', coverUrl: '' },
-  { id: 'p3', title: '# 国风桃枝', desc: '桃花妆也能日常化', stat: '6.8 万人在试', coverUrl: '' },
-  { id: 'p4', title: '# 素颜感底妆', desc: '像没化妆一样的好皮肤', stat: '15.2 万人在试', coverUrl: '' },
+  { id: 'p1', title: '# 白开水妆', desc: '这个妆感真的太干净了，通勤也扛得住', stat: '12.6 万人在试', coverUrl: postCoverOf('p1') },
+  { id: 'p2', title: '# 枫糖暖棕', desc: '秋冬最上镜的一支棕调', stat: '9.4 万人在试', coverUrl: postCoverOf('p2') },
+  { id: 'p3', title: '# 港式复古妆', desc: '浓唇淡眼，拍港风照片最省事的一套', stat: '6.8 万人在试', coverUrl: postCoverOf('p3') },
+  { id: 'p4', title: '# 素颜感底妆', desc: '像没化妆一样的好皮肤', stat: '15.2 万人在试', coverUrl: postCoverOf('p4') },
 ]
 
 export function getTopics() {

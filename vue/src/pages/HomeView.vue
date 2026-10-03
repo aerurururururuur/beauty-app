@@ -15,7 +15,14 @@
     <!-- 潮流轮播。★ 圆点是**指示器**:源站 5 张 banner 只展示第一张,
          圆点既不可点也不轮播(this file 的 port notes 列了这一条)。 -->
     <section v-if="banner" class="hero">
-      <div class="hero__cover ph" style="height: 100%">秋冬主推妆容</div>
+      <img
+        v-if="banner.coverUrl"
+        class="hero__cover"
+        :src="banner.coverUrl"
+        :alt="banner.title"
+        style="object-fit: cover"
+      />
+      <div v-else class="hero__cover ph" style="height: 100%">秋冬主推妆容</div>
       <div class="hero__scrim"></div>
       <div class="hero__text">
         <span class="hero__tag">{{ banner.tag }}</span>
@@ -136,7 +143,14 @@
       </header>
       <div class="card-row">
         <article v-for="t in topics" :key="t.id" class="look-card">
-          <div class="look-card__cover ph" style="height: 130px">话题配图</div>
+          <img
+            v-if="t.coverUrl"
+            class="look-card__cover"
+            :src="t.coverUrl"
+            :alt="t.title"
+            style="height: 130px; object-fit: cover"
+          />
+          <div v-else class="look-card__cover ph" style="height: 130px">话题配图</div>
           <h3 class="look-card__title">{{ t.title }}</h3>
           <p class="look-card__author">{{ t.desc }}</p>
           <span class="look-card__count" style="color: var(--color-rose)">{{ t.stat }}</span>
