@@ -26,6 +26,8 @@ const routes = [
   { path: '/mine', name: 'mine', component: () => import('@/pages/MineView.vue'), meta: { nav: 'mine' } },
   // 我的妆容档案:从「我的」那张卡进。★ `nav: 'mine'` 让侧栏仍高亮「我的」(它属于我的下面一层)。
   { path: '/looks', name: 'looks', component: () => import('@/pages/LooksView.vue'), meta: { nav: 'mine' } },
+  // 档案详情:列表里点一张卡进这里。★ 静态段 `/looks` 必须排在它前面(否则 `:id` 会被吃掉)。
+  { path: '/looks/:id', name: 'look-detail', component: () => import('@/pages/LookDetailView.vue'), meta: { nav: 'mine' } },
   // 帖子详情:灵感广场与「我的」两处进来共用,`?from=` 决定返回去哪。
   // ★ 刻意不写 meta.nav —— 两个入口的上一页不同,高亮哪一个都会骗另一半。
   { path: '/post/:id', name: 'post', component: () => import('@/pages/PostDetailView.vue') },

@@ -24,7 +24,11 @@
 
     <div v-else class="card-grid">
       <div v-for="look in looks" :key="look.id" class="looks-item">
-        <LookCard :item="cardOf(look)" :height="220" />
+        <!-- ★ 卡片外面那层链接:只负责可点,视觉全在 LookCard 的 .look-card 上(页内私有) -->
+        <RouterLink class="looks-item__link" :to="{ name: 'look-detail', params: { id: look.id } }">
+          <LookCard :item="cardOf(look)" :height="220" />
+        </RouterLink>
+        <!-- 「删掉」留在链接**外面**:包进去的话点删除会先跳到详情页 -->
         <button class="looks-item__del" :disabled="removing === look.id" @click="onDelete(look)">
           {{ removing === look.id ? '正在删…' : '删掉' }}
         </button>
@@ -115,6 +119,12 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.looks-item__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
 .looks-item__del {

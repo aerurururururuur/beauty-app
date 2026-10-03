@@ -100,7 +100,7 @@
 
 ## 1. 这个前端在做什么
 
-**桃妆（TAOZHUANG）**——一张脸的妆容设计站。13 屏，两层 IA：
+**桃妆（TAOZHUANG）**——一张脸的妆容设计站。两层 IA：
 
 ```
 /login 登录(唯一不设防的一屏)
@@ -108,7 +108,7 @@
   ├─ 第一层「浏览」  /            首页      ├─ 第二层「数字美妆台」 /vanity · /vanity/add
   │                 /inspiration 灵感广场  │  第二层「开始设计」   /create → /form → /result
   │                 /mine        我的      │  第二层「人设库」     /personas · /personas/new
-  │                                       │                      /personas/quiz · /personas/:id
+  │                                       │                      /personas/:id
 侧栏导航(components/AppSidebar.vue),高亮谁由路由的 `meta.nav` 决定(见 §4)
 ```
 
@@ -130,7 +130,7 @@
 
 ### ★★ 数据从哪来：三档，改之前必须分清
 
-这是本目录**最容易读错、也最容易写出「假开关」**的地方。桃妆的 13 屏背后是**三种完全不同**的数据源，
+这是本目录**最容易读错、也最容易写出「假开关」**的地方。桃妆每一屏背后是**三种完全不同**的数据源，
 页面文案与注释必须与所在的那一档对得上：
 
 | 档 | 谁 | 数据在哪 |
@@ -261,8 +261,7 @@ pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
 
 6. ★ **页面间传业务数据走 `query`，不走 store。**
    （**这条与旧版前端相反**，别照旧文档改。）理由：桃妆的参数**必须可深链**——
-   `/result?session=<会话 id>` 刷新后还得是同一份方案，`/personas/:id`、`/personas/quiz?photo=`
-   同理。只放在 store 里，一刷新就没了，而 store 里那份本来就只是**这次会话的缓存**：
+   `/result?session=<会话 id>` 刷新后还得是同一份方案，`/personas/:id` 同理。只放在 store 里，一刷新就没了，而 store 里那份本来就只是**这次会话的缓存**：
    `design.loadSession()` 拿地址栏那个 id 从服务端把同一次会话拉回来。
    ★ 2026-09-30：`/result` 的入参从「场景 + 风格 + 人设」三件套**收成一个 `?session=`**——
    方案改由后端产出之后，**只有服务端那一次会话能把同一份方案算回来**，
@@ -302,7 +301,7 @@ pages/  ──►  stores/  ──►  api/  ──►  axios 或 mock
 vue/src/
 ├── main.js                    # createApp + pinia + router + 四份 css（★ 顺序有讲究，见 §5.2）
 ├── App.vue                    # 外壳：登录页走无侧栏的 .auth 骨架，其余是 .app + AppSidebar
-├── router/index.js            # 13 条路由 + meta.nav + 一条 beforeEach 登录门禁（★ 不是安全边界，§8-6）
+├── router/index.js            # 路由表 + meta.nav + 一条 beforeEach 登录门禁（★ 不是安全边界，§8-6）
 ├── api/
 │   ├── index.js               # axios 实例 + 错误解包拦截器；导出 API_BASE。★ 只有它认识 axios
 │   ├── users.js               # A 档：账号 5 条（注册 / 登录 / 读档案 / **改资料** / **头像**）+ `avatarSrc`（★ 桃妆 ID ↔ 后端 nickname 的映射只在这里）
@@ -349,7 +348,7 @@ vue/src/
 跨页面**重复**的逻辑与全仓唯一的红线实现点归 `composables/`（§3 第 7 条）。
 两者的界线是判据：**「重复」或「红线集中」才抽，「看着整齐」不抽。**
 
-**13 条路由与它们的 `meta.nav`**（`AppSidebar` 的高亮键，写路由上是因为页面组件是懒加载的）：
+**路由表与它们的 `meta.nav`**（`AppSidebar` 的高亮键，写路由上是因为页面组件是懒加载的）：
 
 | 路径 | `meta.nav` | 说明 |
 | --- | --- | --- |
@@ -359,9 +358,9 @@ vue/src/
 | `/mine` | `mine` | 我的 |
 | `/vanity` · `/vanity/add` | `vanity` | 数字美妆台 / 添新宠 |
 | `/create` · `/form` · `/result` | **不写** | 开始设计那条链，一个都不亮 |
-| `/personas` · `/personas/new` · `/personas/quiz` · `/personas/:id` | `personas` | 人设库 |
+| `/personas` · `/personas/new` · `/personas/:id` | `personas` | 人设库。★ `new` 与 `:id` 是**同一个组件 `PersonaFormView` 的两态**：建档 / 查看编辑 |
 
-★ **顺序**：静态段必须排在动态段前面——`/personas/new`、`/personas/quiz` 都注册在 `/personas/:id` 之前，
+★ **顺序**：静态段必须排在动态段前面——`/personas/new` 注册在 `/personas/:id` 之前，
 否则会被当成 `id='new'` 吃掉。
 
 ---
@@ -433,9 +432,9 @@ props:  tones: Array = []       来自 kb/skintones.js
 ```
 ★ 这里的值永远由**用户确认**，不能把 `personas.analyze()` 的返回值当判定结果直接存（红线 §8-1）。
 ✏️ **2026-09-30：提示语从组件内写死改成了调用方传入。** 理由不是"灵活"，是**不说假话**：
-本组件在两处被渲染——问卷建档页（那里可能真跑过读脸）与**详情改档页（根本没有分析这回事）**。
-写死在组件里，详情页就会跟着宣称「AI 给的是建议档」——那句话在那一屏是**假的**，
-而这个组件看不出区别。所以只有**真跑过读脸**的调用方（`PersonaQuizView` 读到 `readState === 'done'`）
+本组件被同一个组件的两态渲染——建档态（那里可能真跑过读脸）与**编辑态（根本没有分析这回事）**。
+写死在组件里，编辑态就会跟着宣称「AI 给的是建议档」——那句话在那一屏是**假的**，
+而这个组件看不出区别。所以只有**真跑过读脸**的调用方（`PersonaFormView` 读到 `readState === 'done'`）
 才配传含「AI」的那一版；缺省那句只讲照片色差、请按真实情况选。
 
 #### `FeaturePicker.vue` —— 面部特征多选（按分组铺）
@@ -1107,7 +1106,7 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
 2. 挑一张脸 → `/form`。★ **`?persona=` 缺失或那份人设已删时必须回人设库**，
    不许停在一个没有依据的空壳表单上。
    ⚠️ **这两句话现在是异步的**（2026-09-30 人设改从服务端拉，「已删」要等服务端回答）：
-   `FormView` / `PersonaDetailView` 的 `onMounted` 里那句 `personas.load()` **必须 `await`**。
+   `FormView` / `PersonaFormView`（编辑态）的 `onMounted` 里那句 `personas.load()` **必须 `await`**。
    漏了 `await` 的坏法是**静默的**——列表还是空的，于是**每一张脸都会被判成「没有这份人设」**，
    用户被不声不响地踢回人设库（"点进去又弹回来"）。两处都要试：**一张静态图种子**与
    **一张自己传的**（后者的 `photoUrl` 是服务端 URL，还要看它有没有漏 `API_BASE`）。
@@ -1176,13 +1175,15 @@ SFC 的块顺序**一律** `<template>` → `<script setup>` →（有的话）`
    `tz:personas:<userId>` / `tz:personas:seedv:<userId>` 两把键**应当已消失**。
    ⚠️ 但**拉不到列表时它们必须还在**（清理只发生在列表成功之后）——
    把后端停掉再进 `/personas`，键不该被删。
-4. `/personas/new` → 两个上传入口（拍照 / 相册）驱动同一支隐藏 `input`；
+4. `/personas/new` 与 `/personas/:id` **是同一个组件的两态**（建档 / 查看编辑）。
+   建档态：两个上传入口（拍照 / 相册）驱动同一支隐藏 `input`；
    ★ **同一个文件连选两次也要能触发**（`useFilePick` 的 `pick()` 点之前清了 `input.value`）。
-   `/personas/:id` 的「换一张照片」走同一条路，**两处都要试**。
-5. 建档 → `/personas/quiz`：**读脸按钮只在 `canAnalyzeFace` 为真时出现**（见第 8 条）；
+   ★ **不选照片也能建档**（合并前那一步是必经的）。
+5. 建档态：**读脸按钮只在 `canAnalyzeFace` 为真时出现**（见第 8 条）；
    肤色与特征**由用户自己选**；名字或肤色空着时「建好这个人设」要走不通。
    ★ 建档那一刻照片才上传（`stores/personas.js` 的 `create`）。
-6. 详情页 → 换照片 → **只缩图、不碰建档草稿**（`shrinkOnly`，别借 `putDraftPhoto` 那条路）。
+6. 编辑态 → 换照片 → **只缩图、不碰建档草稿**（`shrinkOnly`，别借 `putDraftPhoto` 那条路）；
+   顺手验反向：编辑态换完照片再进 `/personas/new`，**不该**看到刚才那张。
    ★ **照片这一格有三态**（没动过 / 换了一张 / 要删掉），它们在请求里是三种不同的东西：
    不传 `photo` / 传新 dataURL / 传**空串**。三态都要走一遍——「没动过」最容易写成
    "把现有照片再传一次"或者"传空串把照片删了"，而那两件事**都不会报错**。
