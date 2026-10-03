@@ -116,6 +116,53 @@ describe('入站翻译', () => {
     expect(res.content[0]).toMatchObject({ input: '{"tone":' });
   });
 
+  it('★ 解析失败要把**解析器的原话 + 出错位置那一窗**打进日志', async () => {
+    // 实测(2026-10-03):坏的那几次都是 2200~2700 字符、开头 200 字符完全合法,
+    // 只看开头等于什么都没看到。V8 会给出 `position N`,按它截一窗才有得看。
+    const bad = `${' '.repeat(300)}"summary": "第一行\n第二行" }`;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    stubFetch({
+      choices: [
+        {
+          finish_reason: 'tool_calls',
+          message: { content: null, tool_calls: [{ id: 'c1', function: { name: 't', arguments: bad } }] },
+        },
+      ],
+      // ★ 同时要留下**只有这里才有**的两格:平台方报的 finish_reason 与用量。
+      //   "写坏了"和"被截断了"就靠它们分(实测那五次报的都是 `tool_calls`)。
+      usage: { prompt_tokens: 100, completion_tokens: 777 },
+    });
+
+    await adapter().chat({ messages: [textMessage('user', 'x')], maxTokens: 2048 });
+
+    const logged = warn.mock.calls.flat().join(' ');
+    expect(logged).toContain(String(bad.length)); // 多长
+    expect(logged).toContain('JSON'); // 解析器说了什么
+    expect(logged).toContain('第二行'); // 出错位置那一窗
+    expect(logged).toContain('777'); // 用了多少输出 token
+    expect(logged).toContain('2048'); // 上限是多少
+    warn.mockRestore();
+  });
+
+  it('★ 那个字符串**回填时必须换成 `{}`** —— 原样发出去第二轮必 400', async () => {
+    // 实测(2026-10-03):`JSON.stringify('{"tone":')` 是个合法的 JSON *字符串字面量*,
+    // 而接口只收对象 ⇒ 400 `function.arguments ... must be in JSON format`,
+    // 于是「回一句'参数不是合法 JSON'再让模型重试」那条路一次都走不通。
+    const mock = stubFetch(completion());
+    await adapter().chat({
+      messages: [
+        assistantMessage([
+          new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 't', input: '{"tone":' }),
+        ]),
+      ],
+    });
+
+    const msgs = sentBody(mock).messages as Record<string, unknown>[];
+    const call = (msgs[0]?.tool_calls as { function: { arguments: string } }[])[0]!;
+    expect(call.function.arguments).toBe('{}');
+    expect(JSON.parse(call.function.arguments)).toEqual({});
+  });
+
   it('缺 id 也兜一个 —— 没有 id 就配不上 tool_result,下一轮必 400', async () => {
     stubFetch({
       choices: [

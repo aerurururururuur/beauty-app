@@ -67,8 +67,15 @@ import { TOOL_NAMES } from '../domain/tools/definitions.js';
 export const DEFAULT_MAX_ITERATIONS = 8;
 /** 单轮对话墙钟上限。§10 `[I4]`。 */
 export const DEFAULT_TURN_TIMEOUT_MS = 60_000;
-/** 输出上限。★ 线上有的实现对 `max_tokens` 是**必填**,所以这里必须有兜底。 */
-export const DEFAULT_MAX_TOKENS = 1024;
+/**
+ * 输出上限。★ 线上有的实现对 `max_tokens` 是**必填**,所以这里必须有兜底。
+ *
+ * ✏️ **2026-10-03:1024 → 2048。** 1024 装不下一次 `propose_look`:
+ *   九个区位 + 底妆 + 眉部,模型又是**缩进着写**的,实测五次都停在 2278~2716 字符
+ *   那个窄带里(第 2346 个字符处正好断在 `"lash": {` 中间)—— 那是**固定预算**的形状,
+ *   不是"写坏了"的形状。写坏了不会五次都断在同一个字数上。
+ */
+export const DEFAULT_MAX_TOKENS = 2048;
 
 /**
  * 本轮为什么结束。**收束原因要和异常分开**——§12.2 的验收明确要求
@@ -177,6 +184,20 @@ const CLOSING_WORDS: Record<ClosingReason, string> = {
   max_tokens: '我这边的回复被截断了。你把要求再说一次,我简短点回你。',
   refusal: '这次我没能给出回答——模型那边拒答了。换个说法再试一次,或者把要求写得更具体些。',
 };
+
+/**
+ * 这一轮**是不是被输出上限截断的**。
+ *
+ * 依据有两条,取或:`finish_reason` 说 `length`,或用量**顶到了上限**。
+ * ★ 第二条是 2026-10-03 加的:实测参数被截断那五次,`finish_reason` 报的都是
+ *   `tool_calls`(工具调用在场,平台方就不报 `length` 了)⇒ 只看第一条等于没有护栏。
+ * ⚠️ 用量缺字段时(`toUsage` 返回 `undefined`)就只剩第一条 —— 那时**不猜**,
+ *   宁可让循环多走一轮,也不拿"没报用量"当"没被截断"的证据。
+ */
+function isTruncated(response: LlmResponse, maxTokens: number): boolean {
+  if (response.stopReason === 'max_tokens') return true;
+  return response.usage !== undefined && response.usage.outputTokens >= maxTokens;
+}
 
 export class AgentLoop {
   constructor(private readonly opts: AgentLoopOptions) {}
@@ -334,7 +355,10 @@ export class AgentLoop {
       // ★ 截断的保护:`max_tokens` 时工具调用可能是残缺的。
       //   结果已经还了(不还下一轮必 400),但**不再继续循环**——
       //   拿一份残缺的入参接着推理,只会把错误放大。
-      if (response.stopReason === 'max_tokens') {
+      //   ✏️ 2026-10-03:实测**只认 `finish_reason` 判不出来** —— 参数被截断那五次报的
+      //   都是 `tool_calls`,于是这条护栏一次都没生效,循环拿着残缺入参又试了三轮。
+      //   补上对截断的**直接测量**:`completion_tokens` 顶到上限就是被截断。
+      if (isTruncated(response, this.opts.maxTokens ?? DEFAULT_MAX_TOKENS)) {
         return this.close(current, events, 'max_tokens', iteration);
       }
     }
@@ -476,10 +500,14 @@ export class AgentLoop {
     //   在这里统一认出来并直说。让模型去猜"缺字段"(它会收到一个被包在字符串里的 `{}`)
     //   是浪费轮次的典型成因——而轮次在这里是免费的,在阶段 3 就不一定了。
     if (typeof call.input === 'string') {
+      // ★ 原始文本与解析器的原话由**适配器**那一端留档(它才拿得到 `SyntaxError`)。
+      //   这里只说"怎么改":2026-10-03 实测模型连试四次都是同一种非法 JSON,
+      //   而当时回给它的只有"重新给出一段合法 JSON"——**三句废话里没有一句指出哪里错**。
       return {
         content:
           `工具「${call.name}」的参数不是合法 JSON,无法解析。` +
-          '请按该工具的参数 schema 重新给出一段合法 JSON。',
+          '请重新给出**一个** JSON 对象:字符串里的换行和引号要转义,末尾不要多逗号,' +
+          '不要用 ``` 包起来,也不要在 JSON 后面接任何文字。',
         isError: true,
       };
     }

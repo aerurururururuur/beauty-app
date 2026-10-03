@@ -80,10 +80,6 @@ export const useDesignStore = defineStore('design', () => {
    * 不许补一个点下去没结果的空位。
    */
   const stepRenders = computed(() => session.value?.stepRenders || {})
-  /** ★ 这个部署的读图入口(`VISION_ANALYZER=real` 才有);**空则无键**,不是空数组。 */
-  const analysisOffer = computed(() => session.value?.analysisOffer || null)
-  /** 上一次读图没读成的理由(后端 `notice` 原文)。★ 不是错误,别塞进 `error`。 */
-  const analysisNotice = ref('')
   const stepCount = computed(() => plan.value?.steps?.length || 0)
 
   /* ------------------------------ 场景 ------------------------------ */
@@ -113,7 +109,8 @@ export const useDesignStore = defineStore('design', () => {
   }
 
   /**
-   * 三次握手:建会话 → 传脸 → 开场那句话。**这就是「填完交给 agent」那一下。**
+   * 提交那一下:建会话 → 传脸 → 传参考图 → **读图** → 开场那句话(见下面那条 ★)。
+   * **这就是「填完交给 agent」那一下。**
    *
    * 返回可用的会话 id;失败返回空串,**错误不吞**(`error` 里是后端给的那句人话,
    * 页面原样展示,§3 第 2 条)。
@@ -146,12 +143,29 @@ export const useDesignStore = defineStore('design', () => {
       }
       // 参考图逐 `kind` 送一张 —— 挑法只此一处(`refImagesOf`),别在这儿再判一遍。
       // ⚠️ **没有读图能力时一张都别传**:那两条路由根本没注册,传了就是 404,整次提交会栽在这。
-      // ★ 送上去只是"图在那儿了",**读它们要用户点**(会花钱,见 `analyze`)。
-      if (canSendRefImages) {
-        for (const { kind, file } of api.refImagesOf(fields).sent) {
-          adopt(await agent.uploadAgentImage({ sessionId: created.sessionId, userId, file, kind }))
-        }
+      const refs = canSendRefImages ? api.refImagesOf(fields).sent : []
+      for (const { kind, file } of refs) {
+        adopt(await agent.uploadAgentImage({ sessionId: created.sessionId, userId, file, kind }))
       }
+
+      // ★ 读图**必须在开场白之前**:读出来的肤色 / 场景 / 风格是 agent 配妆的输入,
+      //   要赶在 `propose_look` 之前进会话;摆在结果页上点,读完也没有回合会用它
+      //   (2026-10-03 从 `ResultView` 挪到这里)。`face` 也读:人设那档肤色认不出来时
+      //   (自建档)只有它能补上。**已填过的格子服务端会跳过,不花钱**(`would_overwrite`)。
+      // ⚠️ 整段**跟着 `canSendRefImages` 走**(= 服务端那个 `canAnalyzeFace`):为假时
+      //   那两条路由根本没注册,读一次就是 404,整次提交会栽在这。
+      const kinds = canSendRefImages
+        ? [...(faceFile ? ['face'] : []), ...refs.map((r) => r.kind)]
+        : []
+      for (const kind of kinds) {
+        const { session: next } = await agent.analyzeAgentImage({
+          sessionId: created.sessionId,
+          userId,
+          kind,
+        })
+        adopt(next)
+      }
+
       adopt(
         await agent.sendAgentMessage({
           sessionId: created.sessionId,
@@ -224,42 +238,11 @@ export const useDesignStore = defineStore('design', () => {
     }
   }
 
-  /**
-   * ★ **读一张图**(`kind` = `face` / `scene` / `style`)—— **会花钱**。
-   *
-   * ⚠️ 只能由用户点那一下触发,调用方**必须**拿 `generating` 禁用按钮。
-   * ⚠️ `would_overwrite`(用户自己填过了)**没读也没花钱**,那句话落进 `analysisNotice`。
-   */
-  async function analyze({ userId, kind }) {
-    if (!sessionId.value || generating.value) return false
-    generating.value = true
-    error.value = ''
-    analysisNotice.value = ''
-    try {
-      const agent = await agentApi()
-      const { session: next, notice } = await agent.analyzeAgentImage({
-        sessionId: sessionId.value,
-        userId,
-        kind,
-      })
-      adopt(next)
-      // 只有"没读成"那一次才带 notice;读成了就是一段新状态,没有话要说。
-      analysisNotice.value = notice || ''
-      return true
-    } catch (e) {
-      error.value = e?.message || '这次没能读这张图，请稍后再试'
-      return false
-    } finally {
-      generating.value = false
-    }
-  }
-
   function reset() {
     form.value = null
     session.value = null
     sessionId.value = ''
     error.value = ''
-    analysisNotice.value = ''
   }
 
   return {
@@ -277,13 +260,10 @@ export const useDesignStore = defineStore('design', () => {
     renders,
     stepRenders,
     stepCount,
-    analysisOffer,
-    analysisNotice,
     sceneNameOf,
     loadForm,
     submit,
     loadSession,
-    analyze,
     confirmRender,
     reset,
   }

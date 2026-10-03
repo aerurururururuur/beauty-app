@@ -333,6 +333,9 @@ describe('[E] 模型编工具名', () => {
 
     expect(block.isError).toBe(true);
     expect(block.content).toContain('不是合法 JSON');
+    // ★ 回给模型的那句要**指出怎么改**:实测它连试四次都是同一种非法 JSON,
+    //   而当时那句只说了"重新给出一段合法 JSON"(见 `runToolSafely`)。
+    expect(block.content).toContain('转义');
     expect(tool.calls).toHaveLength(0);
   });
 });
@@ -416,6 +419,35 @@ describe('[F] 迭代上限 / 超时 / 上游不可达', () => {
     expect(result.stopReason).toBe('max_tokens');
     expect(llm.requests).toHaveLength(1);
     expect(result.session.messages[2]?.content[0]).toMatchObject({ toolUseId: 'c1' });
+  });
+
+  it('★ 截断**不能只认 finish_reason** —— 实测平台方报的是 tool_calls,于是护栏一次没生效', async () => {
+    const tool = new RecordingTool('t', () => ({ content: 'ok' }));
+    const { llm, loop } = loopWith(
+      [
+        {
+          // 2026-10-03 的实际形状:参数写到一半被上限切断,而 finish_reason 是 tool_calls。
+          content: [new ToolUseBlock({ type: 'tool_use', id: 'c1', name: 't', input: '{"lash":' })],
+          stopReason: 'tool_use',
+          usage: { inputTokens: 900, outputTokens: 2048 },
+        },
+      ],
+      [tool],
+      // 脚本用完会兜一句正文 —— 真接着跑就会多出第二轮请求,所以下面那两条断言才有效。
+      { maxTokens: 2048 },
+    );
+
+    const result = await loop.run(SESSION(), 'go');
+
+    expect(result.stopReason).toBe('max_tokens');
+    expect(llm.requests).toHaveLength(1);
+    // 工具**不执行**(参数没解析出来),但那条结果照还(不还下一轮必 400);
+    // 只是不再拿残缺入参继续推理。
+    expect(tool.calls).toHaveLength(0);
+    expect(result.session.messages[2]?.content[0]).toMatchObject({
+      toolUseId: 'c1',
+      isError: true,
+    });
   });
 });
 

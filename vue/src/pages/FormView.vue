@@ -128,6 +128,9 @@
       </section>
     </div>
 
+    <!-- ★ 提交会顺带读参考图(会花钱),先说清;没传图 / 这个部署读不了时这一句不出现 -->
+    <p v-if="willReadImages" class="form-read-note">提交时会读你传的参考图，一次读图调用会花钱。</p>
+
     <footer class="form-actions">
       <RouterLink class="btn btn--soft" :to="{ path: '/personas', query: personaQuery }">上一步</RouterLink>
       <!-- ★ 没走到最后一格时主按钮是「下一步」:不给它,两头的按钮长得一模一样,
@@ -180,8 +183,10 @@ import { useDesignStore } from '@/stores/design'
  *
  * ✏️ 2026-09-30:参考图会送给 agent —— 每个 `kind` 只送一张(后端槽就一个),
  *   多出来的不静默丢,`toBrief` 会在 `sceneText` 里照实写。
- *   ⚠️ **只有 `canAnalyzeFace` 为真时才送**(那两条路由缺省不注册,传了就是 404);
- *   而送上去 ≠ 读了:读图会花钱,要用户在 `/result` 上点(见 `ResultView`)。
+ *   ⚠️ **只有 `canAnalyzeFace` 为真时才送**(那两条路由缺省不注册,传了就是 404)。
+ *   ✏️ 2026-10-03:读图**也在提交这一下走**(`design.submit` 里,开场白之前)——它读出来的
+ *   肤色 / 场景 / 风格是 agent 配妆的输入,赶在 `propose_look` 之前进会话才有用。
+ *   ⚠️ 那是**付费**调用,所以下面那句提示必须留着(不传图时不出现)。
  *
  * ✏️ 2026-09-30:本页可以拉当日天气(手填城市 / 用当前位置,后端 `GET /weather`),随 `brief` 交给 agent。
  *   它是**可选**的:拉不到照样提交,失败只落在天气那一块,**不写 `design.error`**。
@@ -486,6 +491,13 @@ async function faceFileOf(p) {
   return new File([blob], 'face.jpg', { type: blob.type || 'image/jpeg' })
 }
 
+/** ★ 提交时会读参考图(`design.submit`)——只在**真传了图**且这个部署能读时提示。 */
+const willReadImages = computed(
+  () =>
+    personas.canAnalyzeFace &&
+    Object.values(inputs.value).some((x) => (x.images || []).length > 0)
+)
+
 async function onSubmit() {
   const sessionId = await design.submit({
     userId: user.id,
@@ -508,6 +520,14 @@ async function onSubmit() {
 </script>
 
 <style scoped>
+/* 「提交时会读参考图」那句:靠右、贴着下面那排按钮 */
+.form-read-note {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--color-text-sub);
+  text-align: right;
+}
+
 /* 页内私有:字段 tab 只有这一屏有(美妆台那两个是页签式的,不共用) */
 .field-tabs {
   display: flex;

@@ -979,20 +979,6 @@ img.shade-panel__preview {
   font-weight: 700;
 }
 
-.step-block__name-tag {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
-}
-
 .step-block__body {
   display: flex;
   flex-direction: column;

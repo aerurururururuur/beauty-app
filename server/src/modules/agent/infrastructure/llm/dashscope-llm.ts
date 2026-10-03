@@ -21,6 +21,8 @@
  * 1. **`arguments` 是 JSON 字符串,不是对象。** 这是与块式协议的分歧点。解析失败时
  *    **原样把字符串交上去**,由 `agent-loop` 认出并回一句"参数不是合法 JSON"——
  *    在这里编一个空对象会让模型收到一个莫名其妙的"缺字段"错误。
+ *    ✏️ **2026-10-03:那个字符串回填时必须换成 `{}`**(见 `wireArguments`)——
+ *    出站方向接口只收 JSON 对象,原样发出去第二轮必 400,那条纠错路**一次都走不通**。
  * 2. **结果回填要拆条。** 内部是「一条 user 消息装 N 个结果」(那是对的形状),
  *    而线上这里要求每个结果一条独立的 `role:'tool'` 消息。
  * 3. ★ **`is_error` 在这里没有对应字段,是有损翻译。** 线上这个形状里没有出错位,
@@ -125,7 +127,7 @@ function toWireMessages(system: string | undefined, messages: readonly Message[]
             id: c.id,
             type: 'function',
             // ★ 翻译 1:对象 → JSON 字符串。出去时序列化,回来时解析,两边对称。
-            function: { name: c.name, arguments: JSON.stringify(c.input) },
+            function: { name: c.name, arguments: wireArguments(c.input) },
           })),
         });
       }
@@ -173,9 +175,35 @@ function parseToolArguments(raw: string | undefined): unknown {
   if (typeof raw !== 'string' || raw.trim() === '') return {};
   try {
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    // ★ 解析器的原话**必须留下**:V8 会给出 `position N (line L column C)`,
+    //   那是唯一能在 2000 多字符里定位的线索 —— 实测那几次的开头 200 字符**完全合法**
+    //   (`{ "styleName": …`),毛病在后面某处;只看开头等于什么都没看到。
+    //   所以按解析器给的 offset 截一窗出来打,**别让人去数第几个字符**。
+    const why = err instanceof Error ? err.message : String(err);
+    const at = Number(/position (\d+)/.exec(why)?.[1]);
+    const where = Number.isFinite(at)
+      ? `\n  错处:…${raw.slice(Math.max(0, at - 80), at + 80)}…`
+      : `\n  原文:${raw.slice(0, 120)}…${raw.slice(-160)}`;
+    console.warn(`[agent] 工具参数不是合法 JSON(${raw.length} 字符):${why}${where}`);
     return raw;
   }
+}
+
+/**
+ * 回填时的反方向:把 `input` 序列化成出线的 `arguments`。
+ *
+ * ★ **必须是 JSON 对象。** `input` 可能是 `parseToolArguments` 原样留下的**字符串**
+ *   (解析失败时那一段),直接 `JSON.stringify` 出来是个合法的 JSON *字符串字面量*,
+ *   而接口只收对象 —— 实测报 400 `function.arguments ... must be in JSON format`,
+ *   于是「回一句『参数不是合法 JSON』让模型重试」那条路**一次都走不通**
+ *   (2026-10-03 实测:第二轮必 400,用户看到的是"连不上")。
+ *   ⚠️ 代价:模型回看到自己的参数变成了 `{}`,纠错依据只剩那条工具结果 —— 所以
+ *   `agent-loop.runToolSafely` 那边同时会打一行日志(不让这次替换静默发生)。
+ */
+function wireArguments(input: unknown): string {
+  const text = JSON.stringify(input);
+  return typeof text === 'string' && text.startsWith('{') ? text : '{}';
 }
 
 /**
@@ -276,10 +304,23 @@ export class DashScopeLlm implements Llm {
         ? (choice.message as Record<string, unknown>)
         : {};
 
+    const blocks = toContent(message);
+    const usage = toUsage((json as { usage?: unknown }).usage);
+
+    // ★ 有工具参数没解析出来时,再补一行**只有这里才有的事实**:模型是"写坏了"
+    //   还是"被截断了"。判据在用量上 —— 顶到 `max_tokens` 就是截断。
+    //   (位置窗口由 `parseToolArguments` 那一端打,它才拿得到 `SyntaxError`。)
+    if (blocks.some((b) => b.type === 'tool_use' && typeof b.input === 'string')) {
+      console.warn(
+        `[agent] 上面那条坏参数的来历:finish_reason=${JSON.stringify(choice.finish_reason)}` +
+          ` · completion_tokens=${usage?.outputTokens ?? '未报'} · max_tokens=${request.maxTokens ?? '未传'}`,
+      );
+    }
+
     return {
-      content: toContent(message),
+      content: blocks,
       stopReason: toStopReason(choice.finish_reason),
-      usage: toUsage((json as { usage?: unknown }).usage),
+      usage,
       raw: json,
     };
   }

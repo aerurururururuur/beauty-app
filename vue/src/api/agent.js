@@ -13,6 +13,9 @@ import api, { API_BASE } from './index'
  *   POST /agent/sessions/:id/images    200 会话视图(multipart:file + kind + userId)。免费
  *   POST /agent/sessions/:id/analyses  ★ 200 { session, kind, status, notice? } —— 会花钱
  *   ⚠️ 最后两条**只在 `VISION_ANALYZER=real` 时才注册**;`off`(缺省)是 404,不是"永远失败"。
+ *   ✏️ 2026-10-03:读图从 `/result` 上那个按钮**挪进了 `submit`**——它读出来的东西
+ *      (肤色 / 场景 / 风格)是给 agent **配妆用的输入**,必须赶在开场白(`propose_look`)
+ *      之前进会话;摆在结果页上点,读完了也没有回合会用它。
  *
  * 归属靠显式传 userId(后端不签发 token、不建会话),与 cabinet 一致。
  *
@@ -114,7 +117,7 @@ export async function uploadAgentPhoto({ sessionId, userId, file }) {
 }
 
 /**
- * 上传一张参考图(场景图 / 风格图)→ 会话视图。**这一步免费**,读图在下一条。
+ * 上传一张参考图(场景图 / 风格图)→ 会话视图。**这一步免费**。
  *
  * ⚠️ 文件字段叫 **`file` 不是 `face`**(后端 `IMAGE_UPLOAD_FIELDS`)。
  * ⚠️ 后端每个 `kind` **只有一个槽**:同类再传就是换掉前一张,挑哪张由调用方定。
@@ -131,9 +134,9 @@ export async function uploadAgentImage({ sessionId, userId, file, kind }) {
  * ★ **读一张图**(`kind` = `face` / `scene` / `style`)—— **会花钱**。
  *
  * ⚠️ 只收 `kind`,不收分析参数:「用户填的优先」是服务端的规则(同 `confirmAgentRender`)。
- * ⚠️ **必须由用户点那一下触发**,调用方拿 `generating` 禁用按钮——进页面就跑是替用户花钱。
- * 返回 `{ session, kind, status, notice? }`;`would_overwrite` 时没读也没花钱,
- * `notice` 要**原样展示**。
+ * ⚠️ 调用点在 `stores/design.js` 的 `submit`(**开场白之前**)。`would_overwrite`
+ * (用户自己填过了)那几格服务端不读、不花钱,所以整批一起发是安全的。
+ * 返回 `{ session, kind, status, notice? }`。
  */
 export async function analyzeAgentImage({ sessionId, userId, kind }) {
   return api.post(
