@@ -5,5 +5,40 @@
     "skinTypes": "干性至混合性熟龄肌肤",
     "occasions": "秋冬干燥季节",
     "warnings": "公开参数有限，建议以专柜信息为准"
+  },
+  "shades": {
+    "label": "藏金粉霜 / OR Rouge",
+    "shades": [
+      {
+        "code": "C1",
+        "name": "冷调白皙肤色",
+        "hex": "#f4e2d3",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "N1",
+        "name": "自然色",
+        "hex": "#eed9c2",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "W1",
+        "name": "暖调自然色",
+        "hex": "#ecd3b4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      }
+    ]
   }
 }

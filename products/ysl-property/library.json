@@ -5,7 +5,7 @@
   "source": {
     "file": "source/YSL 全产品性质知识库(1).docx",
     "sha256": "cdc06070714c4c9ae2edda54d129e7a54932d88c182a8384155e107bb5adb7a1",
-    "importedAt": "2026-10-01T08:24:26.059Z",
+    "importedAt": "2026-10-03T06:40:34.509Z",
     "importer": "scripts/import-products.ts"
   },
   "dimensions": [
@@ -469,8 +469,8 @@
         }
       ],
       "shades": {
-        "products": 21,
-        "rows": 163
+        "products": 26,
+        "rows": 212
       }
     },
     "missingDimensions": [

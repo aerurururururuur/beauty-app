@@ -5,5 +5,60 @@
     "skinTypes": "干燥唇部、唇纹较深",
     "occasions": "干燥季节、空调房",
     "warnings": "含香精；含合成酯类，油痘肌注意闭口风险"
+  },
+  "shades": {
+    "label": "啵啵唇冻 / Loveshine Candy Glaze",
+    "shades": [
+      {
+        "code": "03",
+        "name": "蔷薇冻 · 裸透蔷薇 · 纯净浪漫",
+        "hex": "#d98a92",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "04",
+        "name": "乌龙冻 · 冷萃乌龙 · 野欲暗藏",
+        "hex": "#b2705f",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "05",
+        "name": "冷茶冻 · 清冷裸茶 · 慵懒日常",
+        "hex": "#dda286",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "07",
+        "name": "红梨冻 · 清透水红 · 恣意灵动",
+        "hex": "#e0505f",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "08",
+        "name": "玫瑰冻 · 露水玫瑰 · 冷欲氛围",
+        "hex": "#b8446a",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中低明度",
+        "saturation": "中高饱和"
+      }
+    ]
   }
 }

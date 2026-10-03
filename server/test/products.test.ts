@@ -527,7 +527,7 @@ describe('★ 真内容的不变量(加载器看不见的那几条)', () => {
     // 它就是这个库唯一承认"这批色值是按色号名推的"的地方。
     expect(bad).toEqual([]);
     const rows = products.reduce((n, p) => n + (p.shades?.shades.length ?? 0), 0);
-    expect(rows).toBe(163);
+    expect(rows).toBe(212);
   });
 
   it('★ 系列卡的孩子(`derived.contains`)全都真的在库里', () => {
@@ -596,7 +596,7 @@ describe('★ 真内容的不变量(加载器看不见的那几条)', () => {
     }
     // 合并后的三条各自带着两边的色号(去重后)。
     expect(byId.get('base-fd-new')?.shades?.shades.length).toBe(16);
-    expect(byId.get('bl-couture-blush')?.shades?.shades.length).toBe(16);
+    expect(byId.get('bl-couture-blush')?.shades?.shades.length).toBe(17);
     expect(byId.get('con-touch')?.shades?.shades.length).toBe(9);
     // ★ 被并进来那一路的色号名带上了前缀:不加前缀就是拿旧配方的色号冒充新版的。
     const base = byId.get('base-fd-new')!.shades!.shades;

@@ -21,5 +21,40 @@
     "occasions": "夏日长时间外出的补妆利器",
     "warnings": "成分相对安全，无特殊预警"
   },
+  "shades": {
+    "label": "皮革蜜粉饼 / 大白饼",
+    "shades": [
+      {
+        "code": "0.5",
+        "name": "适合偏白肤色",
+        "hex": "#f5e3d4",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "01",
+        "name": "适合健康肤色",
+        "hex": "#e9cfb4",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "透明色",
+        "name": "不挑肤色",
+        "hex": "#f7f2ea",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "低饱和"
+      }
+    ]
+  },
   "blurb": "透明 · 无色号"
 }

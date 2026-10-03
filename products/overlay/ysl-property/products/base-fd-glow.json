@@ -5,5 +5,50 @@
     "skinTypes": "所有肤质，尤其追求光泽妆效又需要高遮瑕的人；干皮与混干评价较高",
     "occasions": "日常通勤、约会、派对；极致高温高湿下控油不如恒久",
     "warnings": "含香精"
+  },
+  "shades": {
+    "label": "恒久光润粉底液 / All Hours Liquid Glow",
+    "shades": [
+      {
+        "code": "LC1",
+        "name": "白皙色",
+        "hex": "#f7e6da",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LC2",
+        "name": "自然白皙色",
+        "hex": "#f2dfd0",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN1",
+        "name": "自然色",
+        "hex": "#f4e1d0",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "LN4",
+        "name": "健康色",
+        "hex": "#e2c6a9",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      }
+    ]
   }
 }

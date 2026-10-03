@@ -186,6 +186,16 @@
         "toneKey": "warm",
         "lightness": "中明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "68",
+        "name": "宿醉 · 欲感裸杏粉",
+        "hex": "#e0a596",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "低饱和"
       }
     ]
   },

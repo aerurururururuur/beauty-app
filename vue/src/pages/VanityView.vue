@@ -339,7 +339,10 @@ const vanity = useVanityStore()
 
 /**
  * 取不到图的产品 id / 图片 URL。★ 缺图是**常态**(大量产品本来就没有图),
- * 所以回落的是那个本来就摆着的占位块,不是破图、也不代用同类别的图。
+ * 所以回落的是那个本来就摆着的占位块,不是破图。
+ * ⚠️ 卡片槽位记的是**产品 id**、试色面板记的是 **URL** —— 两套 key,别互相 `has`:
+ * 卡片 404 不会让试色面板改成占位块(那边会自己再 404 一次,多一个请求而已)。
+ * ★ `productImageOf` 里那张 `CARD_FALLBACK` 替 16 件产品借了别人的图,借来的那张 404 同样落占位块。
  * DEV 下把没取到的喊一声——否则「路径写错了」与「这条本来就没图」在界面上长得一样。
  */
 const brokenImages = ref(new Set())
@@ -349,10 +352,21 @@ function markImageBroken(key) {
   if (import.meta.env.DEV) console.warn('[美妆台] 产品图没取到:', key)
 }
 
-/** 当前选中色号的试色图。没选色号 → 空串 → 走那个占位块。 */
-const shadeImageSrc = computed(() =>
-  vanity.activeShade ? shadeImageOf(vanity.activeProductId, vanity.activeShade.code) : ''
-)
+/**
+ * 当前选中色号的试色图。没选色号 → 空串 → 走那个占位块。
+ * ★ 这件产品没有那张试色图时，退而摆**它自己的**产品图(缺图的色号很多,空着不如摆本尊);
+ *   连产品图也没有才回落占位块。**不代用别的产品、别的色号的试色图**。
+ *   ⚠️ 那 16 件走 `CARD_FALLBACK` 的产品，这里的「它自己的产品图」也就是借来的那张。
+ *   两级都靠 `brokenImages` 的 404 回执驱动，所以这个 computed 会随之下一次重算。
+ */
+const shadeImageSrc = computed(() => {
+  if (!vanity.activeShade) return ''
+  const pid = vanity.activeProductId
+  const own = shadeImageOf(pid, vanity.activeShade.code)
+  if (!brokenImages.value.has(own)) return own
+  const card = productImageOf(pid)
+  return brokenImages.value.has(card) ? '' : card
+})
 
 /** 一张化妆包卡片上最多摆几个色号,多出来的折成「+N」。 */
 const MAX_BAG_DOTS = 5

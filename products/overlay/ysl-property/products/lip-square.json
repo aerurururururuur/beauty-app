@@ -120,6 +120,46 @@
         "toneKey": "neutral",
         "lightness": "中明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "N1",
+        "name": "白桃裸 · 清冷氛围",
+        "hex": "#c9907f",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "N12",
+        "name": "冷杉裸 · 木质茶裸 · 随性松弛",
+        "hex": "#b5877a",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "N8",
+        "name": "烟粉裸 · 蔷薇裸粉 · 冷感美人",
+        "hex": "#c28d8b",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "低饱和"
+      },
+      {
+        "code": "R1966",
+        "name": "无法复刻的红棕 · 高级红棕",
+        "hex": "#9e3230",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "低明度",
+        "saturation": "高饱和"
       }
     ]
   },

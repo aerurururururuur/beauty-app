@@ -109,12 +109,44 @@ export function cardsByIdOf(products = []) {
 }
 
 /**
+ * 源图池里真的没有这几件产品的图,借一张**同分类里别的产品的**顶上(2026-10-03 用户拍板)。
+ * ★ 卡片写着这件产品的名字,图是别人的;同一张图最多出现两次,妆前那 5 件故意没进来
+ *   (分类里只有 pr-satin 一张,5 张卡长一样比空着更像坏了,留在 `.ph`)。
+ * ★ 给某件产品落了自家图,就把这里对应的那行删掉 —— 否则图会被这张借来的永久盖住,
+ *   而且没有任何地方看得出来。
+ */
+const CARD_FALLBACK = {
+  // 底妆:羽毛粉底液 ↔ 恒久粉底液,都是粉底瓶
+  'base-fd-feather': 'base-fd-new',
+  // 提亮/修容:古铜修容液 ↔ 修容饼
+  'ct-bronze': 'ct-powder',
+  // 眼妆:绒密睫毛膏 ↔ 丰盈睫毛膏
+  'eye-lash-volume': 'eye-lash-clash',
+  // 口红:印记唇釉哑光 ↔ 水光;细管丝绒 ↔ 小金条
+  'lip-lock-matte': 'lip-lock-shine',
+  'lip-velvet': 'lip-gold',
+  // 提前护理:自家系列内错开(藏金 4 件空 / 3 张图,所以 sk-or-cream 用两次)
+  'sk-or-cleanser': 'sk-or-cream',
+  'sk-or-eye-cream': 'sk-or-serum',
+  'sk-or-oil': 'sk-or-lotion',
+  'sk-orrouge': 'sk-or-cream',
+  'sk-ps-brightening-serum': 'sk-ps-light-up-serum',
+  'sk-ps-essence': 'sk-ps-night-serum',
+  'sk-ps-pro-xylane-serum': 'sk-ps-lines-away-serum',
+  'sk-ps-water-shield-light': 'sk-ps-plumper-cream',
+  'sk-ps-water-shield-rich': 'sk-ps-hydra-bounce',
+  'sk-pureshots': 'sk-ps-y-shape-serum',
+  'sk-reload': 'sk-rl-serum',
+}
+
+/**
  * 产品图 URL。图在**前端** `vue/public/assets/products/` 下,所以**不拼 `API_BASE`**
  * (与 `avatarSrc` / `renderImageHref` / `photoUrl` 那三条走后端字节的相反)。
- * 命名是落图时定的:`<产品 id>.webp`;缺图时由页面回落 `.ph` 占位块,不代用别的图。
+ * 命名是落图时定的:`<产品 id>.webp`;上下两头都没有时由页面回落 `.ph` 占位块。
  */
 export function productImageOf(id = '') {
-  return id ? `/assets/products/${id}.webp` : ''
+  if (!id) return ''
+  return `/assets/products/${CARD_FALLBACK[id] || id}.webp`
 }
 
 /** 试色图 URL。`<产品 id>__<色号>.webp`。★ 色号对不上的产品**没有图**,取不到就回落占位块。 */

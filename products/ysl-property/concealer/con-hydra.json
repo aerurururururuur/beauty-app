@@ -88,6 +88,66 @@
         "toneKey": "warm",
         "lightness": "中明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "LC5",
+        "name": "浅调冷色",
+        "hex": "#e8cdb8",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "MC2",
+        "name": "中调冷色",
+        "hex": "#d5b08c",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "MN7",
+        "name": "中调中性",
+        "hex": "#c99f78",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "MN10",
+        "name": "中调中性 · 偏深",
+        "hex": "#b98d63",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "DN5",
+        "name": "深调中性",
+        "hex": "#a87b58",
+        "hexApprox": true,
+        "tone": "中性",
+        "toneKey": "neutral",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "DW7",
+        "name": "深调暖色",
+        "hex": "#9b6a44",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "低明度",
+        "saturation": "中饱和"
       }
     ]
   },

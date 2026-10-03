@@ -23,5 +23,100 @@
     "skinTypes": "适合平滑唇部；深唇纹可能积线",
     "occasions": "需要轻薄持久唇妆的场景",
     "warnings": "可能含酒精；含香精；有拔干风险"
+  },
+  "shades": {
+    "label": "水雾唇釉",
+    "shades": [
+      {
+        "code": "01",
+        "name": "浅尝 · 裸杏粉",
+        "hex": "#d08e87",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "07",
+        "name": "余味 · 冷豆沙",
+        "hex": "#c47d7a",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "09",
+        "name": "沉醉 · 干邑棕",
+        "hex": "#a56355",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "44",
+        "name": "欢愉 · 清浅樱",
+        "hex": "#e39aa1",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "510",
+        "name": "放纵 · 烟裸杏",
+        "hex": "#c98a76",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "520",
+        "name": "上瘾 · 醉人琥珀",
+        "hex": "#c9765d",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "530",
+        "name": "静音 · 日落玫瑰",
+        "hex": "#cf6d70",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "540",
+        "name": "回温 · 暖摩卡",
+        "hex": "#b87a68",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "610",
+        "name": "降噪 · 日晒乌龙",
+        "hex": "#b0705c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      }
+    ]
   }
 }

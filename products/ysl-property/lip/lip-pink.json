@@ -99,6 +99,66 @@
         "toneKey": "warm",
         "lightness": "中低明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "5B",
+        "name": "透光赤茶 · 天生红润",
+        "hex": "#cc6a67",
+        "hexApprox": true,
+        "tone": "暖调偏中性",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "7B",
+        "name": "裸感冰咖 · 本色素",
+        "hex": "#b87b6b",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "8B",
+        "name": "透光杏茶 · 慵懒粉杏",
+        "hex": "#de9184",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "9B",
+        "name": "透光冰莓 · 欲感水红",
+        "hex": "#e2606e",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "11B",
+        "name": "透光蔷薇 · 柔和莓果",
+        "hex": "#e26a8c",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "12B",
+        "name": "透光柑茶 · 清透珊瑚",
+        "hex": "#e8756b",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
       }
     ]
   },

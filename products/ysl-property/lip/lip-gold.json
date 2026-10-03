@@ -167,6 +167,76 @@
         "toneKey": "warm",
         "lightness": "中高明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "1988",
+        "name": "摘星者 · 肉桂裸茶",
+        "hex": "#b06a55",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "25",
+        "name": "直白裸棕 · 利落独飒",
+        "hex": "#a3614c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中低明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "28",
+        "name": "野玫瑰 · 暖调玫瑰",
+        "hex": "#cc5f6c",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "29",
+        "name": "波普 · 高阶胡萝卜",
+        "hex": "#e1542b",
+        "hexApprox": true,
+        "tone": "暖调",
+        "toneKey": "warm",
+        "lightness": "中高明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "32",
+        "name": "赤裸豆沙 · 温柔控场",
+        "hex": "#c4796f",
+        "hexApprox": true,
+        "tone": "中性偏暖",
+        "toneKey": "warm",
+        "lightness": "中明度",
+        "saturation": "中饱和"
+      },
+      {
+        "code": "35",
+        "name": "绯红 · 野莓亮粉",
+        "hex": "#d6406d",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中明度",
+        "saturation": "高饱和"
+      },
+      {
+        "code": "37",
+        "name": "帷幕 · 勃艮第红",
+        "hex": "#9c2b34",
+        "hexApprox": true,
+        "tone": "冷调",
+        "toneKey": "cool",
+        "lightness": "低明度",
+        "saturation": "中高饱和"
       }
     ]
   },

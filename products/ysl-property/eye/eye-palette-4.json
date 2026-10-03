@@ -157,6 +157,16 @@
         "toneKey": "neutral",
         "lightness": "低明度",
         "saturation": "中饱和"
+      },
+      {
+        "code": "740",
+        "name": "左岸星辰 · 四色碎钻眼影盘",
+        "hex": "#d3a2ae",
+        "hexApprox": true,
+        "tone": "中性偏冷",
+        "toneKey": "cool",
+        "lightness": "中高明度",
+        "saturation": "中饱和"
       }
     ]
   },
