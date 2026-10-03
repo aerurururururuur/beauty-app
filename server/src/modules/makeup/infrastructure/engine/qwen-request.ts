@@ -44,7 +44,14 @@ export interface QwenRequestOptions {
   /** 如 `1024*1536`。不给则由接口按输入图比例推——**缺省更省心**。 */
   size?: string;
   seed?: number;
-  /** 提示词智能改写。缺省开(与脚本一致)。 */
+  /**
+   * 提示词智能改写(`prompt_extend`)。★ **缺省关**(✏️ 2026-10-03)。
+   *
+   * 本仓的提示词是"色/质地/浓度"这条实测通道的**唯一控制面**(见 `prompt-builder.ts`
+   * 文件头),交给接口再改写一遍等于把控制权让出去。依据是 2026-10-03 那次出图:
+   * `r1`(只上底妆那一步)取景与背景就已被重画,而锚句写死了"背景、光线全部不变"。
+   * ⚠️ **关掉是止损,不是修复** —— 换回来只改 `.env` 的 `QWEN_IMAGE_PROMPT_EXTEND`。
+   */
   promptExtend?: boolean;
 }
 
@@ -144,7 +151,7 @@ export function buildGenerateRequest(input: EngineInput, opts: QwenRequestOption
   // size / prompt_extend 只在支持的模型上出现;**在这里归一化,而不是告警后照发**
   // (§5.3 坑 2 的原话:「按模型能力归一化参数,而不是告警后照发」)。
   if (supportsSizeParams(opts.model)) {
-    parameters.prompt_extend = opts.promptExtend ?? true;
+    parameters.prompt_extend = opts.promptExtend ?? false;
     if (opts.size) parameters.size = opts.size;
   }
 

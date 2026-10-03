@@ -25,6 +25,7 @@ import {
   IDENTITY_ANCHOR,
   LookSpec,
   LookSpecBase,
+  SKIN_TEXTURE_CLAUSE,
   TEMPLATE_VERSION,
   TONE_KEYS,
   ZONE_ROLES,
@@ -428,7 +429,23 @@ describe('buildPrompt', () => {
   });
 
   it('模板版本是个非空常量 —— 措辞一改它就得 +1,否则历史夹具变成假证据', () => {
-    expect(TEMPLATE_VERSION).toBe('v4');
+    expect(TEMPLATE_VERSION).toBe('v5');
+  });
+
+  it('★ 皮肤质感句每一张都要有(含逐步那张),且它自己不许带窄表禁词', () => {
+    // ✏️ 2026-10-03:磨皮**已实测与输入无关**(换 8 倍像素、加高频颗粒,输出纹丝不动)。
+    //   这句改的是概率不是结果,但它必须**真的进到提示词里**——所以钉住它,别让它某次重构掉了。
+    for (const p of [
+      buildPrompt(SPEC).prompt,
+      buildPrompt(FULL_SPEC, { appliedZones: ['lip'] }).prompt,
+      buildPrompt(FULL_SPEC, { appliedZones: ZONE_ROLES }).prompt,
+    ]) {
+      expect(p).toContain('不要磨皮');
+      expect(p).toContain('毛孔');
+    }
+    // 窄表(见文件头那个刻意的切法):质感句在锚句之后,归窄表管。
+    const staging = ['特写', '构图', '裁切', '取景', '工作室', '裸肩', '发型', '发丝', '刘海', '盘发'];
+    expect(hits(SKIN_TEXTURE_CLAUSE, staging)).toEqual([]);
   });
 
   it('场合只作为一句语境,不带 SCENE_RULES 的 direction / tags(那里有「利落」「立体」这类词)', () => {

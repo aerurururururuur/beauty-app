@@ -43,6 +43,11 @@ export interface ServerConfig {
   makeupApiHost: string;
   /** 引擎成品图的落盘目录。 */
   makeupOutDir: string;
+  /**
+   * 生图接口的 `prompt_extend`(提示词智能改写)。**缺省 `false`**(✏️ 2026-10-03)。
+   * 理由与代价见 `makeup/.../qwen-request.ts` 里 `promptExtend` 的注释。
+   */
+  makeupPromptExtend: boolean;
   /** 读图分析:off(缺省,分析入口根本不注册)| real(真实多模态模型,按 token 计费)。 */
   visionAnalyzer: VisionAnalyzerKind;
   /** 视觉模型名。与生图模型并列的第二个模型名(同 key、同域名,不新增凭据)。 */
@@ -119,6 +124,12 @@ const VISION_ANALYZER_CHOICES: readonly KindChoice<VisionAnalyzerKind>[] = [
   { value: 'real', note: '真实读图,按 token 计费' },
 ];
 
+/** `prompt_extend` 的开关。★ 走 `asKind` 而不是 `=== 'true'`:`on/off` 写错会**启动即失败**。 */
+const PROMPT_EXTEND_CHOICES: readonly KindChoice<'on' | 'off'>[] = [
+  { value: 'off', note: '按本仓写好的提示词原样出图(缺省)' },
+  { value: 'on', note: '让接口把提示词再改写一遍' },
+];
+
 /**
  * ★ **开关取值的唯一解析口。认不出来就抛错——这就是「启动即失败」。**
  *
@@ -175,6 +186,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // 引擎的中间产物放 dataDir 下:**它现在没有任何地方清理**(见 makeup/README 的待办,
     // 属 §10 [I8] 那条"会话 TTL 到期照片与产物被真实删除"的同一笔债)。
     makeupOutDir: path.join(env.DATA_DIR ?? './data', 'engine-out'),
+    makeupPromptExtend:
+      asKind('QWEN_IMAGE_PROMPT_EXTEND', env.QWEN_IMAGE_PROMPT_EXTEND, 'off', PROMPT_EXTEND_CHOICES) === 'on',
     // 分析缺省 off:今天的真实状态就是"没有这个能力"。
     // ✏️ 2026-09-30:它现在管**两族**入口——agent 的 `/images` `/analyses`,
     //    加上 user 的 `POST /personas/analyze`(读脸)。两边同一条纪律:

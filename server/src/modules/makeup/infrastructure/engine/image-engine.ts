@@ -36,7 +36,7 @@ import type { Look } from '../../domain/entities/look.js';
 import type { Engine, EngineInput, EngineResult } from '../../domain/ports/engine.js';
 import { TEMPLATE_VERSION } from './prompt-builder.js';
 import type { GenerateRequest, QwenRequestOptions } from './qwen-request.js';
-import { buildGenerateRequest } from './qwen-request.js';
+import { buildGenerateRequest, supportsSizeParams } from './qwen-request.js';
 
 export interface ImageEngineOptions extends Omit<QwenRequestOptions, 'apiHost'> {
   apiKey: string;
@@ -139,9 +139,12 @@ export class ImageEngine implements Engine {
       templateVersion: TEMPLATE_VERSION,
     };
 
+    // ★ 日志记的是**实际生效值**:`prompt_extend` 一改就等于换了提示词,
+    //   而 `TEMPLATE_VERSION` 只管措辞——两项一起才说得清"这张图是哪组参数出的"。
+    const extendOn = supportsSizeParams(opts.model) && this.opts.promptExtend === true;
     console.log(
       `[makeup] 出图 ${(bytes / 1024).toFixed(0)}KB · ${(json as ApiSuccess).request_id ?? '无 request_id'}` +
-        ` · template=${TEMPLATE_VERSION}`,
+        ` · template=${TEMPLATE_VERSION} · prompt_extend=${extendOn ? 'on' : 'off'}`,
     );
 
     return { image: { filePath: dest, mimeType: 'image/png' }, look };

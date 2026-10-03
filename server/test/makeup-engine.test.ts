@@ -146,7 +146,15 @@ describe('buildGenerateRequest', () => {
     // 带后缀的才吃这几个参数。
     const plus = buildGenerateRequest(input(), { ...OPTS, size: '1024*1536' });
     expect((plus.body.parameters as Record<string, unknown>).size).toBe('1024*1536');
-    expect((plus.body.parameters as Record<string, unknown>).prompt_extend).toBe(true);
+  });
+
+  it('★ prompt_extend 缺省**关** —— 缺省交给接口改写提示词,等于让出唯一控制面', () => {
+    const params = (o: Record<string, unknown>) =>
+      (buildGenerateRequest(input(), { ...OPTS, ...o }).body.parameters as Record<string, unknown>)
+        .prompt_extend;
+    // 不传 = 关(接线前这里恒为 true,且没有任何调用方能改)。
+    expect(params({})).toBe(false);
+    expect(params({ promptExtend: true })).toBe(true);
   });
 
   it('watermark 固定 false(我们不希望成品带水印)', () => {
@@ -214,7 +222,7 @@ describe('ImageEngine', () => {
     expect(res.image.mimeType).toBe('image/png');
     expect(readFileSync(res.image.filePath)).toEqual(imageBytes);
     expect(path.dirname(res.image.filePath)).toBe(path.join(dir, 'out'));
-    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v4' });
+    expect(res.look).toMatchObject({ engine: 'image', model: 'qwen-image-edit-plus', templateVersion: 'v5' });
     // style 复用 describeLook:确定性、与 LookSpec 一一对应。
     expect(String((res.look as { style: string }).style)).toContain('玫瑰粉');
   });

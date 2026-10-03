@@ -67,6 +67,9 @@ async function main(): Promise<void> {
     apiHost: config.makeupApiHost,
     model: config.makeupModel,
     outputDir: config.makeupOutDir,
+    // ★ 这是 `ImageEngine` 此前唯一一个**没人传过的旋钮**:它一直走 `?? true`,
+    //   也就是始终开着接口改写、而代码里看不出来(✏️ 2026-10-03 接线)。
+    promptExtend: config.makeupPromptExtend,
   });
   // ★ `VISION_ANALYZER=real` 时装出三个读图适配器(同一个 key、同一个域名,
   //   只多一个模型名);`off`(缺省)时 `analyzers` 整个键不出现

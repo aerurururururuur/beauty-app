@@ -86,6 +86,7 @@ export type { ImageEngineOptions } from './infrastructure/engine/image-engine.js
 export {
   IDENTITY_ANCHOR,
   NEGATIVE_PROMPT,
+  SKIN_TEXTURE_CLAUSE,
   TEMPLATE_VERSION,
   buildPrompt,
   renderLookClauses,

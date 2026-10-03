@@ -2,9 +2,10 @@
  * config.test.ts —— 开关取值的解析口径:**认不出来就抛错,不许静默回落**。
  *
  * ★ 2026-10-02:演示模式那三个开关(`MAKEUP_ENGINE` / `WEATHER_PROVIDER` / `AGENT_LLM`)
- *   连同假实现一起删了,现在只剩 `VISION_ANALYZER` 一处在走 `asKind`。
- *   口径不变,而且这个开关**尤其**要抛错:静默回落成 `off` 是"入口消失",
- *   回落成 `real` 是"用户一点就花钱"——两头都不该悄悄发生。
+ *   连同假实现一起删了。✏️ 2026-10-03 起走 `asKind` 的有两处:`VISION_ANALYZER`
+ *   与 `QWEN_IMAGE_PROMPT_EXTEND`。
+ *   口径不变,而且这两个开关**尤其**要抛错:静默回落成 `off` 是"入口消失",
+ *   回落成 `real` / `on` 是"用户一点就花钱"或"提示词被改写"——都不该悄悄发生。
  */
 import { describe, expect, it } from 'vitest';
 // ★ 直接从实现文件 import,不走 `shared/index.ts` 的 barrel —— `loadConfig` 属于
@@ -52,5 +53,22 @@ describe('VISION_ANALYZER —— 认不出来 = 启动即失败', () => {
 
   it('大小写不认:取值是小写枚举,不是自由文本', () => {
     expect(() => loadConfig(envWith('REAL'))).toThrow(/VISION_ANALYZER/);
+  });
+});
+
+describe('QWEN_IMAGE_PROMPT_EXTEND —— 同一个口径', () => {
+  it('两个取值都认', () => {
+    expect(loadConfig({ QWEN_IMAGE_PROMPT_EXTEND: 'on' }).makeupPromptExtend).toBe(true);
+    expect(loadConfig({ QWEN_IMAGE_PROMPT_EXTEND: 'off' }).makeupPromptExtend).toBe(false);
+  });
+
+  it('★ 不设 = 缺省 off(提示词是本仓唯一那条实测通道的控制面,不许悄悄让给接口)', () => {
+    expect(loadConfig({}).makeupPromptExtend).toBe(false);
+  });
+
+  it('★ 写 `true` 必须抛错 —— 布尔字面量是这一格最容易写错的值', () => {
+    expect(() => loadConfig({ QWEN_IMAGE_PROMPT_EXTEND: 'true' })).toThrow(
+      /QWEN_IMAGE_PROMPT_EXTEND/,
+    );
   });
 });
