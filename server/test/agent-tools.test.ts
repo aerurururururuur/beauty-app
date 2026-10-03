@@ -1287,6 +1287,11 @@ describe('read_style_recipe', () => {
     const withCode = plan.products.find((p) => p.code !== '')!;
     expect(out.content).toContain(`${withCode.pid}/${withCode.code}`);
     expect(out.content).toContain(realHexOf(withCode.pid, withCode.code));
+
+    // ✏️ v21:这一节不光是"色号来源"——正文里就**要它照这份填 `products`**。
+    //   少这句,模型读到了也不填,结果页那栏永远是「本次方案未指定产品」。
+    expect(out.content).toContain('填进 `products`');
+    expect(out.content).toContain('不用等用户开口问');
   });
 
   it('★★ 印出来的区名单就是校验器认的那一套:照它填能过,少填一个就被打回', async () => {
@@ -1719,13 +1724,25 @@ describe('系统提示', () => {
   });
 
   describe('产品推荐(§13-6)', () => {
-    it('★ 有产品库时:只推库里有的 / 用户开口才读 / 转述要说来源', () => {
+    it('★ 有产品库时:配料表定妆面时填 / 库只推有的 / 读库等开口 / 转述要说来源', () => {
       const prompt = buildSystemPrompt(session(), { hasProducts: true });
 
-      expect(prompt).toContain('库要等用户开口才读');
-      expect(prompt).toContain('产品名只能来自这两个工具');
+      // ✏️ v21:配料表那一半 —— `products` 不空着,照配方正文那份抄。
+      expect(prompt).toContain('提出妆面的那一次调用里,`products` 就要一起填好');
+      expect(prompt).toContain('从 `read_style_recipe` 正文「它用到的产品与色号」那一节挑');
+      // 库那一半(口径没变):问随时可以,读要等用户开口。
+      expect(prompt).toContain('读,等用户点头');
+      expect(prompt).toContain('产品名只能来自工具给你的正文');
       expect(prompt).toContain('一个都不许说'); // 库里没有就宁可空着
       expect(prompt).toContain('必须说明它出自品牌资料');
+    });
+
+    it('★★ `products` 那一格也要钉住"定妆面时就填"(模型填参读的是它,不是系统提示)', () => {
+      // 同 §13-6 那条先例:提示词与工具描述是两处独立的文案,只改一处另一处会把它拉回旧行为。
+      // 模型填 `products` 时贴着读的是这一格,所以 v21 的话必须在这里也有一份。
+      const products = (PROPOSE_LOOK.inputSchema as JsonSchema).properties?.products;
+      expect(products?.description ?? '').toContain('定妆面时就一起填');
+      expect(products?.description ?? '').toContain('read_style_recipe');
     });
 
     it('★★ 「问」和「读」必须分开写 —— 只写一句模型就会倒向一边', () => {

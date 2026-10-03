@@ -50,7 +50,12 @@ export function renderStyleRecipe(plan: PlanView): string {
     '【上妆步骤 —— **参考**,别照抄】颜色 / 质地 / 浓度照这些来,步骤文本你要自己写:',
     ...planGuidance(plan),
     ...(plan.products.length > 0
-      ? ['', '【它用到的产品与色号】想推荐产品可以直接挑这里面的(填进 `products`):', ...productGuidance(plan)]
+      ? [
+          '',
+          '【它用到的产品与色号】★ **这块妆用到哪几样,就照这份挑哪几样填进 `products`** ——',
+          '那是方案的配料表,`propose_look` 时一起填,不用等用户开口问:',
+          ...productGuidance(plan),
+        ]
       : []),
     '',
     '【这套参考涉及的区】',

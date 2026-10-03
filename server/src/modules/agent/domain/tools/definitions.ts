@@ -321,9 +321,12 @@ export const PROPOSE_LOOK: LlmToolDefinition = {
       products: {
         type: 'array',
         description:
-          '**推荐产品**(可省)。★ 色号只写在这里。每一对 `pid`/`code` 必须是你真见过的:' +
-          '从配方正文里挑,或用 `list_products` / `read_product` 读出来。' +
-          '⚠️ 库里查不到的会被**整条略去**(不打回,但也不会出现在方案里)——宁缺毋滥。',
+          '**这块妆用到的产品与色号**。★★ **定妆面时就一起填**——它是方案的配料表,不是推销,' +
+          '用户拿了方案就该看得见用哪几样,不必再问一次"那我该买什么"。' +
+          '★ 照 `read_style_recipe` 正文「它用到的产品与色号」那一节挑,`name`/`pid`/`code` 照抄;' +
+          '用户另外要产品时,才用 `list_products` / `read_product` 再读几条。' +
+          '⚠️ 那份清单里没有的、或这块妆用不到的就**别写**(宁缺毋滥);' +
+          '库里查不到的会被**整条略去**(不打回,但也不会出现在方案里)。',
         items: {
           type: 'object',
           properties: {
