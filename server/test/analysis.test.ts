@@ -64,7 +64,7 @@ import { createCabinetModule } from '../src/modules/cabinet/index.js';
 import { createProductsModule } from '../src/modules/products/index.js';
 import { createUserModule } from '../src/modules/user/index.js';
 import { createWeatherModule } from '../src/modules/weather/index.js';
-import { FakeAnalyzers, FakeVisionClient } from './helpers/fakes.js';
+import { FakeAnalyzers, FakeVisionClient, fakeLooksModule } from './helpers/fakes.js';
 import { MockLlm } from './helpers/mock-llm.js';
 import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 import { MockEngine } from './helpers/mock-engine.js';
@@ -571,6 +571,7 @@ async function makeApp(withAnalysis: boolean): Promise<FastifyInstance> {
     user: createUserModule({ dataDir: config.dataDir }),
     weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    looks: fakeLooksModule({ dataDir: config.dataDir, userExists }),
     // ★ 走真 compose(与 `src/index.ts` 同一条路),不是塞一个空壳 —— 这条测试
     //   要验的正是**装配层**的事,拿手搓的替身就把要验的那一层换掉了。
     products: createProductsModule({ contentDir: config.productsDir }),

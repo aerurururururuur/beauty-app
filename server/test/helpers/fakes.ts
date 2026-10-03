@@ -27,6 +27,14 @@ import type {
   CosmeticRepository,
   UserDirectory,
 } from '../../src/modules/cabinet/index.js';
+import type {
+  Look,
+  LookCoverStore,
+  LookRepository,
+  LooksModuleServices,
+  RenderSource,
+} from '../../src/modules/looks/index.js';
+import { createLooksModule } from '../../src/modules/looks/index.js';
 import { LookSpecBase, StyleRead, ZoneSpec } from '../../src/modules/makeup/index.js';
 import type {
   AnalysisOf,
@@ -125,6 +133,113 @@ export class FakeUserDirectory implements UserDirectory {
   async exists(userId: string): Promise<boolean> {
     return this.ids.includes(userId);
   }
+}
+
+// ── 我的妆容档案(✏️ 2026-10-03:「保存到我的妆容档案」落地那一轮)────────────
+
+export class FakeLookRepository implements LookRepository {
+  private map = new Map<string, Look>();
+
+  /** 置上之后每次 `save` 都抛它 —— 用来验「记录写砸 ⇒ 刚刚复制的字节被清掉」。 */
+  failSaveWith?: Error;
+
+  async save(look: Look): Promise<void> {
+    if (this.failSaveWith) throw this.failSaveWith;
+    this.map.set(look.id, look);
+  }
+  async findById(id: string): Promise<Look | null> {
+    return this.map.get(id) ?? null;
+  }
+  async listByUser(userId: string): Promise<Look[]> {
+    return [...this.map.values()].filter((look) => look.userId === userId);
+  }
+  async remove(id: string): Promise<void> {
+    this.map.delete(id);
+  }
+  /** 断言辅助:表里现有档案数(跨全部账号)。 */
+  size(): number {
+    return this.map.size;
+  }
+}
+
+/**
+ * 源图假实现。★ 构造时给一个查表函数,用例测试自己决定「哪张给得出来」。
+ * `calls` 记下每次询问 —— 「源图解析不到时盘上什么都没写」那条红线靠它断言。
+ */
+export class FakeRenderSource implements RenderSource {
+  readonly calls: Array<{ sessionId: string; seq: number; userId: string }> = [];
+  private readonly lookup: (
+    sessionId: string,
+    seq: number,
+    userId: string,
+  ) => ResolvedImage | null;
+
+  constructor(
+    lookup: (sessionId: string, seq: number, userId: string) => ResolvedImage | null = () =>
+      null,
+  ) {
+    this.lookup = lookup;
+  }
+
+  /** 常用形状:按 `sessionId` 给一份「这个会话里有哪些图」的清单。 */
+  static of(
+    images: Record<string, Record<number, ResolvedImage>>,
+  ): FakeRenderSource {
+    return new FakeRenderSource((sessionId, seq) => images[sessionId]?.[seq] ?? null);
+  }
+
+  async resolve(sessionId: string, seq: number, userId: string): Promise<ResolvedImage | null> {
+    this.calls.push({ sessionId, seq, userId });
+    return this.lookup(sessionId, seq, userId);
+  }
+}
+
+/** 封面字节假实现:记下每次复制 / 删除,**真的**维护一份「哪个档案有字节」的表。 */
+export class FakeLookCoverStore implements LookCoverStore {
+  readonly saved: Array<{ lookId: string; sourceFilePath: string; mimeType: string }> = [];
+  readonly removed: string[] = [];
+  private readonly dirs = new Map<string, ResolvedImage>();
+
+  /** 置上之后每次 `save` 都抛它 —— 用来验「复制字节失败 ⇒ 不写记录」。 */
+  failSaveWith?: Error;
+  /** 置上之后每次 `remove` 都抛它 —— 用来验「先删字节:字节删失败时记录还在」。 */
+  failRemoveWith?: Error;
+
+  async save(lookId: string, sourceFilePath: string, mimeType: string): Promise<void> {
+    if (this.failSaveWith) throw this.failSaveWith;
+    this.saved.push({ lookId, sourceFilePath, mimeType });
+    // 形状同真实现:键由 lookId 推导,不回值(见 LookCoverStore 端口头)。
+    this.dirs.set(lookId, { filePath: `/fake/look-covers/${lookId}/cover`, mimeType });
+  }
+  async resolve(lookId: string): Promise<ResolvedImage | null> {
+    return this.dirs.get(lookId) ?? null;
+  }
+  async remove(lookId: string): Promise<void> {
+    if (this.failRemoveWith) throw this.failRemoveWith;
+    this.removed.push(lookId);
+    this.dirs.delete(lookId);
+  }
+  /** 断言辅助:这个档案名下的字节还在不在。 */
+  has(lookId: string): boolean {
+    return this.dirs.has(lookId);
+  }
+}
+
+/**
+ * 给**不测档案**的 `buildApp` 调用点用的最小组装(三个外部端口全走假实现)。
+ * ★ `AppDeps.looks` 是必填的,所以每个 `buildApp` 调用点都得给一个 ——
+ *   那是故意的:可选键会造出「忘了传 ⇒ 四条路由静默不存在」的洞。
+ */
+export function fakeLooksModule(options: {
+  dataDir: string;
+  userExists: (userId: string) => Promise<boolean>;
+}): LooksModuleServices {
+  return createLooksModule({
+    dataDir: options.dataDir,
+    userExists: options.userExists,
+    renders: new FakeRenderSource(),
+    covers: new FakeLookCoverStore(),
+  });
 }
 
 // ── 人设库(✏️ 2026-09-30:人设库落地到 user 模块那一轮)──────────────────────

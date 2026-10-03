@@ -41,7 +41,15 @@
     <div v-if="isEmpty" class="empty">这个分类下还没有作品</div>
     <div v-else class="masonry">
       <div v-for="(col, i) in columns" :key="i" class="masonry__col">
-        <LookCard v-for="it in col" :key="it.id" :item="it" :height="it.coverHeight || 260" />
+        <!-- 点进帖子详情。★ 链接包在卡片外面,LookCard 保持纯展示(不认路由) -->
+        <RouterLink
+          v-for="it in col"
+          :key="it.id"
+          class="masonry__link"
+          :to="{ name: 'post', params: { id: it.id }, query: { from: 'inspiration' } }"
+        >
+          <LookCard :item="it" :height="it.coverHeight || 260" />
+        </RouterLink>
       </div>
     </div>
   </main>
@@ -49,6 +57,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import LookCard from '@/components/LookCard.vue'
 import { getCategories, getPosts } from '@/api/home'
@@ -77,3 +86,12 @@ const columns = computed(() => {
 
 const isEmpty = computed(() => result.value.items.length === 0)
 </script>
+
+<style scoped>
+/* 卡片外面那层链接:只负责可点,视觉全在 LookCard 的 .look-card 上(页内私有,不外提) */
+.masonry__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+</style>

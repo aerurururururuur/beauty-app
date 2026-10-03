@@ -10,7 +10,8 @@
     <div v-else class="look-card__cover ph" :style="{ height: `${height}px` }">{{ label }}</div>
 
     <h3 class="look-card__title">{{ item.title }}</h3>
-    <div class="look-card__meta">
+    <!-- 作者与点赞是可选的:自己的妆容档案里没有这两格,那时整条不渲染(不摆一个空头像位) -->
+    <div v-if="item.author || item.likes" class="look-card__meta">
       <span class="avatar" :style="{ background: item.author?.avatarColor || 'var(--color-peach)' }"></span>
       <span class="look-card__author">{{ item.author?.name || '' }}</span>
       <Icon name="heart" :size="14" color="var(--color-text-disabled)" />

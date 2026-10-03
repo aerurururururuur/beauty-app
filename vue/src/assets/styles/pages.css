@@ -550,11 +550,6 @@
   flex: 1;
 }
 
-.tag-row {
-  display: flex;
-  gap: 10px;
-}
-
 .tag {
   display: inline-flex;
   align-items: center;

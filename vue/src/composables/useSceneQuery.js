@@ -8,7 +8,7 @@ import { useQueryParam } from './useQueryParam'
  * **只有带了场景,选人模式才成立**——没有场景可代入时,"从人设库挑一张脸"没有意义,
  * 所以 `?pick=1` 单独出现是无效的,必须与 `?scene=` 一起。
  *
- * 这条规则原先在 `PersonasView` 与 `PersonaNewView` 各写了一份(逐字节相同),
+ * 这条规则原先在 `PersonasView` 与建档那一屏各写了一份(逐字节相同),
  * 集中到这里之后,以后改规则不会再漏掉某一屏。
  *
  * ★ 这里的 `scene` 兜底是 `''`(不是 `'party'`):它服务的是人设库那几屏,

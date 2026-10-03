@@ -593,6 +593,17 @@ img.shade-panel__preview {
   font-weight: 500;
 }
 
+/* 级联上游没选时顶替 chip 的那句话(内容来自字段的 `lockHint`) */
+.opt-locked {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px dashed var(--color-line);
+  border-radius: 10px;
+  background: var(--color-warm-white);
+  font-size: 12px;
+  color: var(--color-text-sub);
+}
+
 /* 图片上传 */
 .uploader__slots {
   display: flex;
@@ -1697,10 +1708,11 @@ img.shade-panel__preview {
  * 创建人设 · 上传照片
  * ================================================================== */
 
+/* ★ 单列:它住在 360px(窄屏 300px)的左栏里,两列会把两张卡挤扁。 */
 .upload-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-5);
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
 }
 
 .upload-card {
@@ -1743,46 +1755,8 @@ img.shade-panel__preview {
   color: var(--color-text-sub);
 }
 
-.photo-stage {
-  display: flex;
-  gap: var(--space-6);
-  margin-top: var(--space-6);
-  padding: var(--space-5);
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-card);
-}
-
-.photo-stage__img {
-  width: 220px;
-  height: 280px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  flex: none;
-}
-
-.photo-stage__body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-  justify-content: center;
-}
-
-.photo-stage__title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.photo-stage__desc {
-  font-size: 13px;
-  color: var(--color-text-sub);
-}
-
 /* ================================================================== *
- * 创建人设 · 面诊问卷
+ * 人设档案(新建 / 查看编辑,同一个组件两态)
  * ================================================================== */
 
 .quiz-layout {
@@ -1806,16 +1780,6 @@ img.shade-panel__preview {
   border-radius: var(--radius-md);
   object-fit: cover;
   background: var(--color-warm-white);
-}
-
-.quiz-photo.ph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--color-text-disabled);
-  font-size: 13px;
-  line-height: 1.8;
 }
 
 .analyze-state {

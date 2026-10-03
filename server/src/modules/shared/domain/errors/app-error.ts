@@ -69,6 +69,18 @@ export const ErrorCode = {
    *   这条只表达"这个 id 在库里查不到"。
    */
   PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
+  /** 妆容档案不存在(**或不属于该用户**——两者共用,不外泄存在性,同 CABINET_ITEM_NOT_FOUND)。 */
+  LOOK_NOT_FOUND: 'LOOK_NOT_FOUND',
+  /** 单账号档案上限:同 `CABINET_FULL`,JSON 单表是整表读改写,不设上限会越写越慢。 */
+  LOOK_FULL: 'LOOK_FULL',
+  /**
+   * 存档案时,**源图已经找不到了**(会话过期被清 / 进程重启后会话没了 / 序号不在里面)。
+   * ★ 与下面那条**分开**:这一句是「存不下来,请重新生成」,印在一条**根本不存在**的档案上;
+   *   而 `LOOK_COVER_NOT_FOUND` 是「档案在、它的图读不出来」。合成一个会让其中一句变假话。
+   */
+  LOOK_COVER_UNAVAILABLE: 'LOOK_COVER_UNAVAILABLE',
+  /** 档案**在**、但它的封面字节读不到(记录与盘不一致)。同 `USER_AVATAR_NOT_FOUND` 的一条。 */
+  LOOK_COVER_NOT_FOUND: 'LOOK_COVER_NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

@@ -55,6 +55,18 @@ export interface ArtifactStore {
   remove(id: string): Promise<void>;
 
   /**
+   * 把一份已落盘的图**复制**成某个妆容档案的封面(`look-covers/<lookId>/cover.<ext>`)。
+   * ★ **必须复制,不能存引用**:源图在 `results/` 下、受会话 TTL 管(空闲 24h 被递归删掉),
+   *   而档案要长期留在盘上——存引用会在某天静默指空,且不报错。
+   * ⚠️ 键由 `lookId` 推导、MIME 记在档案行里,所以这里**不回值**(回一个没人接的 ref 就是养零消费者)。
+   */
+  putLook(lookId: string, sourceFilePath: string, mimeType: string): Promise<void>;
+  /** 解析档案封面(同 `resolveResult`:路径 + MIME,不给流)。没有则 `null`。 */
+  resolveLook(lookId: string): Promise<ResolvedImage | null>;
+  /** ★ 真删这个档案的封面目录(`look-covers/<lookId>/`)。**幂等**,删不存在的不算错。 */
+  removeLook(lookId: string): Promise<void>;
+
+  /**
    * ★ **列出存储里现有的全部顶层 id**(输入区与产物区的并集,去重)。
    *
    * 起因与会 `remove` 相同:会话 TTL 那条隐私红线(`[I8]`)。清理任务此前只能
@@ -65,6 +77,11 @@ export interface ArtifactStore {
    * ⚠️ **只返回顶层那一段**:`results/<id>/r1/` 这种嵌套产物的 id 是 `<id>`,
    *   不是 `<id>/r1`——调用方要拿它去 `remove`,而 `remove` 是递归删。
    * ⚠️ 不存在的东西返回空数组,**不抛**(同 `remove` 的幂等口径:清理任务会重复跑)。
+   *
+   * ★★ **这份返回值喂的是会话清理的孤儿清扫,那里会删掉一切没人认领的 id。**
+   *   所以它的契约**不是**"枚举我的存储",而是"枚举**会话名下的**存储"——
+   *   任何**不属于会话 id 空间**的新区域都必须留在它之外(`look-covers/` 就是这样一个区域)。
+   *   往这里加一个区域 = 让 agent 的清扫去删那个区域,而且是每小时一次、静默的。
    */
   listIds(): Promise<string[]>;
 }

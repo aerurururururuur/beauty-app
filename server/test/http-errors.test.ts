@@ -30,6 +30,7 @@ import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
 import { MockLlm } from './helpers/mock-llm.js';
 import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
+import { fakeLooksModule } from './helpers/fakes.js';
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -60,6 +61,7 @@ async function makeApp(): Promise<FastifyInstance> {
     user: createUserModule({ dataDir: config.dataDir }),
     weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    looks: fakeLooksModule({ dataDir: config.dataDir, userExists }),
     products: createProductsModule({ contentDir: config.productsDir }),
     agent: createAgentModule({
       llm: new MockLlm(),

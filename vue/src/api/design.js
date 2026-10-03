@@ -1,6 +1,9 @@
-import { FEATURE_GROUPS, FEATURE_LIBRARY, featureById, featureLabel } from './kb/features'
-import { SKIN_TONES } from './kb/skintones'
-import { STYLE_LIBRARY } from './kb/styles'
+import { FEATURE_GROUPS, FEATURE_LIBRARY, featureById, featureLabel } from './kb/features.js'
+import { SKIN_TONES } from './kb/skintones.js'
+import { STYLE_LIBRARY } from './kb/styles.js'
+// ★ 上面三条写全 `.js` 后缀，是为了让 `tools/check-form.mjs` 能在裸 node 里
+//   直接 import 本文件（node 的 ESM 解析器要求扩展名；Vite 两种写法都认）。
+import { OUTFIT_TREE, formOptions } from './kb/outfit.js'
 
 /**
  * api/design.js —— 「开始设计」那条链的**输入侧**数据层:场景 → 信息收集表单。
@@ -62,7 +65,7 @@ export function getScenes() {
  */
 const OCCASION_FIELD = {
   key: 'occasion',
-  label: '这是什么场合',
+  label: '场合',
   placeholder: '例如：朋友的婚礼、毕业典礼、第一次见客户 —— 用自己的话说就行',
   hint: '照你自己的说法写，越具体越好；不限于上面那几个场景',
   required: false,
@@ -139,7 +142,26 @@ export function refImagesOf(fields = []) {
  *
  * ★ 两格是**每个场景都有**的,拼在各自字段的两头:`OCCASION_FIELD` 在最前
  *   (它框住这次要为什么化妆),`STYLE_FIELD` 在最后(它是最具体的那句偏好)。
+ * ★ 级联链(对象 → 地点 → 穿搭,见 `kb/outfit.js`)上的每一格都是**单选**:
+ *   多选时「地点随哪个对象变」根本没有答案。
  */
+
+/** 单选(只亮一个 chip)。级联链上的四个字段都走它。 */
+const singleField = (f) => ({ ...f, single: true })
+
+/**
+ * 级联链上一格:单选,`options` 空着 —— 选项由 `getFieldOptions` 按上游现算。
+ * `dependsOn` 只是声明(给页面与自检脚本看);`lockHint` 在上游未选时顶替 chip 显示。
+ */
+const cascadeField = ({ dependsOn = null, lockHint = '', ...f }) => ({
+  ...f,
+  single: true,
+  cascade: true,
+  dependsOn,
+  lockHint,
+  options: [],
+})
+
 const SCENE_FORMS = {
   party: {
     sceneId: 'party',
@@ -147,30 +169,32 @@ const SCENE_FORMS = {
     tagline: '派对焦点妆',
     fields: [
       OCCASION_FIELD,
-      {
+      singleField({
         key: 'relation',
         label: '对象 / 人物关系',
         placeholder: '例如：闺蜜局、同事生日会、陌生人多的派对',
         hint: '关系越具体，妆感强度越准',
         required: true,
-        options: ['闺蜜局', '同事 / 同学聚会', '生日会', '陌生人多的派对', '家人聚餐'],
-      },
-      {
+        options: OUTFIT_TREE.party.relations,
+      }),
+      cascadeField({
         key: 'place',
         label: '地点',
         placeholder: '例如：KTV、 rooftop bar、家里客厅',
         hint: '灯光环境直接决定高光与眼妆浓度',
         required: true,
-        options: ['室内暖光餐厅', 'KTV / 酒吧', '户外夜场', '家中聚会', '酒店宴会厅'],
-      },
-      {
+        dependsOn: 'relation',
+        lockHint: '先选「对象 / 人物关系」，地点会跟着变',
+      }),
+      cascadeField({
         key: 'outfit',
         label: '穿搭',
         placeholder: '例如：黑色吊带 + 银色配饰',
         hint: '告诉我们主色与材质，妆面会跟着呼应',
         required: false,
-        options: ['黑色系', '白色 / 浅色系', '亮片 / 金属', '彩色撞色', '还没定'],
-      },
+        dependsOn: 'place',
+        lockHint: '先选好地点，再给你搭配合适穿搭',
+      }),
       STYLE_FIELD,
     ],
   },
@@ -179,30 +203,32 @@ const SCENE_FORMS = {
     name: '约会',
     tagline: '心动氛围妆',
     fields: [
-      {
+      singleField({
         key: 'relation',
         label: '对象 / 人物关系',
         placeholder: '例如：暧昧对象第一次见面、恋爱三周年的男朋友',
         hint: '相处阶段不同，甜度和距离感也不同',
         required: true,
-        options: ['暧昧期 / 初见', '稳定恋爱中', '纪念日', '相亲', '朋友以上'],
-      },
-      {
+        options: OUTFIT_TREE.date.relations,
+      }),
+      cascadeField({
         key: 'place',
         label: '地点',
         placeholder: '例如：法餐小馆、电影院、江边散步',
         hint: '烛光 vs 日光，妆感差别很大',
         required: true,
-        options: ['烛光餐厅', '咖啡 / 甜品店', '电影院', '户外散步', '自驾 / 兜风'],
-      },
-      {
+        dependsOn: 'relation',
+        lockHint: '先选「对象 / 人物关系」，地点会跟着变',
+      }),
+      cascadeField({
         key: 'outfit',
         label: '穿搭',
         placeholder: '例如：奶油白针织 + 珍珠耳环',
         hint: '柔和面料配柔雾妆，硬挺面料配干净线条',
         required: false,
-        options: ['温柔针织', '连衣裙', '休闲 / 街头', '衬衫 / 通勤', '还没定'],
-      },
+        dependsOn: 'place',
+        lockHint: '先选好地点，再给你搭配合适穿搭',
+      }),
       STYLE_FIELD,
     ],
   },
@@ -211,38 +237,40 @@ const SCENE_FORMS = {
     name: '面试汇报',
     tagline: '专业得体妆',
     fields: [
-      {
+      singleField({
         key: 'industry',
         label: '行业',
         placeholder: '例如：互联网大厂产品岗、四大审计、设计工作室',
         hint: '不同行业对妆感的容忍度差别明显',
         required: true,
-        options: ['互联网 / 科技', '金融 / 咨询', '法律 / 政务', '教育 / 医疗', '创意 / 设计', '媒体 / 公关'],
-      },
-      {
+        options: OUTFIT_TREE.interview.industries,
+      }),
+      singleField({
         key: 'relation',
         label: '人物关系',
         placeholder: '例如：HR 一面、部门总监终面、向客户汇报',
         hint: '决定你要多"可靠"还是多"亲和"',
         required: true,
-        options: ['HR 一面', '直属主管', '部门总监 / 终面', '客户 / 甲方', '全员汇报'],
-      },
-      {
+        options: OUTFIT_TREE.interview.relations,
+      }),
+      cascadeField({
         key: 'place',
         label: '地点',
         placeholder: '例如：公司会议室、线上面试、大型会议厅',
         hint: '线上要考虑镜头与顶光',
         required: true,
-        options: ['公司会议室', '线上面试 / 视频', '会议厅 / 讲台', '咖啡厅'],
-      },
-      {
+        dependsOn: 'relation',
+        lockHint: '先选「人物关系」，地点会跟着变',
+      }),
+      cascadeField({
         key: 'outfit',
         label: '穿搭',
         placeholder: '例如：藏青西装 + 白衬衫',
         hint: '正装越硬挺，妆越要收',
         required: false,
-        options: ['全套西装', '衬衫 + 西裤', '商务休闲', '制服 / 工装', '还没定'],
-      },
+        dependsOn: 'place',
+        lockHint: '先选好地点，再给你搭配合适穿搭',
+      }),
       STYLE_FIELD,
     ],
   },
@@ -251,22 +279,24 @@ const SCENE_FORMS = {
     name: '旅行',
     tagline: '上镜持妆',
     fields: [
-      {
+      cascadeField({
         key: 'place',
         label: '地点',
         placeholder: '例如：北海道雪景、三亚海边、西北戈壁',
         hint: '气候和光线决定持妆与色彩策略',
         required: true,
-        options: ['海边 / 热带', '雪景 / 高原', '城市街拍', '古镇 / 人文', '山林 / 户外'],
-      },
-      {
+        dependsOn: null,
+        lockHint: '',
+      }),
+      cascadeField({
         key: 'outfit',
         label: '穿搭',
         placeholder: '例如：米色风衣 + 牛仔裤 + 草帽',
         hint: '旅行拍照讲究整体氛围统一',
         required: false,
-        options: ['浅色 / 米白系', '牛仔 / 休闲', '亮色度假风', '深色机能风', '还没定'],
-      },
+        dependsOn: 'place',
+        lockHint: '先选好地点，再给你搭配合适穿搭',
+      }),
       STYLE_FIELD,
     ],
   },
@@ -320,6 +350,18 @@ function occasionIdOf(text) {
 }
 
 /* --------------------------- 知识库直出 --------------------------- */
+
+/**
+ * 取级联字段当前的选项(转发 `kb/outfit.js` 的 `formOptions`)。
+ * @param {object}    p
+ * @param {string}    p.sceneId
+ * @param {string}    p.fieldKey  `industry` | `relation` | `place` | `outfit`
+ * @param {object}    p.values    已选值 `{ relation, place }`
+ * @returns {string[]|null} **null = 上游没选,这一格应锁定**,页面显示 `lockHint`
+ */
+export function getFieldOptions({ sceneId, fieldKey, values = {} } = {}) {
+  return formOptions(sceneId, fieldKey, values)
+}
 
 /** 面部特征标签库:信息收集页(勾选)与结果页(个性化调整)共用同一份。 */
 export function getFeatureTags() {
@@ -546,25 +588,3 @@ export function toBrief({
   return brief
 }
 
-/**
- * 「保存妆容」。后端**没有**「我的作品」这个集合,这里也**不编一个假的成功**:
- * 返回的就是本地事实——这一版方案已经**整理成一份 JSON 快照**了,没有落到任何地方。
- * 页面照这句话展示即可(「已记下这一版」),别说成「已保存到作品」——
- * 那会让人以为下次换台机器还能看到。
- */
-export function snapshotDesign({ sceneId = '', sceneName = '', plan = null } = {}) {
-  if (!plan) return null
-  return {
-    sceneId,
-    sceneName,
-    // ★ `styleId` 可选(模型完全自己写时没有),别给它兜一个默认值 —— 快照要如实。
-    styleId: plan.styleId,
-    styleName: plan.styleName,
-    // ⚠️ `meta` 只剩 `stepCount`:`minutes` / `level` 随配方一起下线了(凭空来的数字,§8-4)。
-    stepCount: plan.meta.stepCount,
-    palette: plan.palette,
-    // ★ 色号只住在**计划级**的推荐产品里;每一步只剩名字与那句用法。
-    products: plan.products,
-    steps: plan.steps.map((s) => ({ name: s.name, desc: s.desc })),
-  }
-}

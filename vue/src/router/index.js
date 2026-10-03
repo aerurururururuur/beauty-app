@@ -13,8 +13,8 @@ import { useUserStore } from '@/stores/user'
  *   这些参数**可深链**:结果页刷新后必须还是那一版方案(personas 详情、人设问卷同理),
  *   只放 store 里一刷新就没了。这是分层约束 §3.6 说的那个例外。
  *
- * ★ 顺序:静态段必须排在动态段前面——`/personas/new` 与 `/personas/quiz`
- *   都比 `/personas/:id` 先注册,否则会被当成 id='new' 吃掉。
+ * ★ 顺序:静态段必须排在动态段前面——`/personas/new` 比 `/personas/:id` 先注册,
+ *   否则会被当成 id='new' 吃掉。
  */
 const routes = [
   // 登录页是唯一不设防的一屏:没登录时一切路径都先落到这里。
@@ -24,6 +24,11 @@ const routes = [
   { path: '/', name: 'home', component: () => import('@/pages/HomeView.vue'), meta: { nav: 'home' } },
   { path: '/inspiration', name: 'inspiration', component: () => import('@/pages/InspirationView.vue'), meta: { nav: 'inspiration' } },
   { path: '/mine', name: 'mine', component: () => import('@/pages/MineView.vue'), meta: { nav: 'mine' } },
+  // 我的妆容档案:从「我的」那张卡进。★ `nav: 'mine'` 让侧栏仍高亮「我的」(它属于我的下面一层)。
+  { path: '/looks', name: 'looks', component: () => import('@/pages/LooksView.vue'), meta: { nav: 'mine' } },
+  // 帖子详情:灵感广场与「我的」两处进来共用,`?from=` 决定返回去哪。
+  // ★ 刻意不写 meta.nav —— 两个入口的上一页不同,高亮哪一个都会骗另一半。
+  { path: '/post/:id', name: 'post', component: () => import('@/pages/PostDetailView.vue') },
 
   /* 第二层:数字美妆台。★ `/vanity/add` 必须排在 `/vanity` 之前(无参动态段没有,但保持同类顺序习惯) */
   { path: '/vanity/add', name: 'vanity-add', component: () => import('@/pages/VanityAddView.vue'), meta: { nav: 'vanity' } },
@@ -34,10 +39,10 @@ const routes = [
   { path: '/form', name: 'form', component: () => import('@/pages/FormView.vue') },
   { path: '/result', name: 'result', component: () => import('@/pages/ResultView.vue') },
 
-  /* 人设库:静态段(new / quiz)排在前,`:id` 兜底 */
-  { path: '/personas/new', name: 'persona-new', component: () => import('@/pages/PersonaNewView.vue'), meta: { nav: 'personas' } },
-  { path: '/personas/quiz', name: 'persona-quiz', component: () => import('@/pages/PersonaQuizView.vue'), meta: { nav: 'personas' } },
-  { path: '/personas/:id', name: 'persona-detail', component: () => import('@/pages/PersonaDetailView.vue'), meta: { nav: 'personas' } },
+  /* 人设库:静态段 new 排在前,`:id` 兜底。
+     ★ 建档与查看编辑是**同一个组件**(`PersonaFormView`),它按路由上有没有 `:id` 分两态。 */
+  { path: '/personas/new', name: 'persona-new', component: () => import('@/pages/PersonaFormView.vue'), meta: { nav: 'personas' } },
+  { path: '/personas/:id', name: 'persona-detail', component: () => import('@/pages/PersonaFormView.vue'), meta: { nav: 'personas' } },
   { path: '/personas', name: 'personas', component: () => import('@/pages/PersonasView.vue'), meta: { nav: 'personas' } },
 
   { path: '/:pathMatch(.*)*', redirect: '/' },

@@ -30,7 +30,7 @@ import {
   MAX_TONES_PER_USER,
   PERSONA_SEED_VERSION,
 } from '../src/modules/user/index.js';
-import { FakeFaceReader } from './helpers/fakes.js';
+import { FakeFaceReader, fakeLooksModule } from './helpers/fakes.js';
 import { MockLlm } from './helpers/mock-llm.js';
 import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
@@ -98,6 +98,7 @@ async function makeFixture(faceReader?: FaceReader): Promise<Fixture> {
     user,
     weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    looks: fakeLooksModule({ dataDir: config.dataDir, userExists }),
     // 真 compose(与 `src/index.ts` 同一条路)——这条测试验的正是装配层的事。
     products: createProductsModule({ contentDir: config.productsDir }),
     agent,

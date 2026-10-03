@@ -26,6 +26,7 @@ import { buildApp } from '../src/app.js';
 import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
 import { REAL_PRODUCTS_DIR } from './helpers/product-content.js';
+import { fakeLooksModule } from './helpers/fakes.js';
 import { MockLlm } from './helpers/mock-llm.js';
 import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
@@ -78,6 +79,7 @@ async function makeApp(productsDir: string): Promise<FastifyInstance> {
     user: createUserModule({ dataDir: config.dataDir }),
     weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    looks: fakeLooksModule({ dataDir: config.dataDir, userExists }),
     // ★ 与 `src/index.ts` 同一条路:真 compose,不是手搓的空壳。
     products: createProductsModule({ contentDir: config.productsDir }),
     agent,

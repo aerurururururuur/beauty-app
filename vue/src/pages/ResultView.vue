@@ -69,11 +69,18 @@
         </div>
 
         <div class="result-hero__actions">
-          <button class="btn btn--primary" :disabled="saved" @click="onSave">
-            {{ saved ? '已记下这一版' : '保存妆容' }}
+          <!--
+            ★ **没出图就点不动**:存档案必须有一张能复制走的图(见 `canSave`)。
+              摆一个点下去必失败的按钮比置灰更糟 —— 用户会以为是网络问题。
+          -->
+          <button class="btn btn--primary" :disabled="!canSave" @click="onSave">
+            {{ saveButtonText }}
           </button>
+          <RouterLink v-if="saved" class="btn btn--soft" to="/looks">查看我的妆容档案</RouterLink>
           <RouterLink class="btn btn--soft" to="/vanity">去美妆台看产品</RouterLink>
         </div>
+        <p v-if="!mainShot" class="result-hero__save-note">出了图之后才能存进妆容档案。</p>
+        <ErrorNote :text="saveError" />
       </div>
     </section>
 
@@ -222,6 +229,7 @@ import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
 import Icon from '@/components/Icon.vue'
 import { renderImageHref } from '@/api/agent'
+import { saveLook } from '@/api/looks'
 import { useQueryParam } from '@/composables/useQueryParam'
 import { useStepRail } from '@/composables/useStepRail'
 import { useUserStore } from '@/stores/user'
@@ -260,9 +268,11 @@ import { useDesignStore } from '@/stores/design'
  * ★ 读图那一块(2026-09-30):只摆**真有图可读**的那几格,点了才真读(会花钱,
  *   见 `stores/design.js` 的 `analyze`);置灰的理由是后端给的 `notice`,**原样展示**。
  *
- * ★ 「保存妆容」= 导出这一版的 JSON 快照,**没有落到任何服务端**
- *   (`api/design.js` 的 snapshotDesign 说明了为什么)。按钮文案因此是
- *   「已记下这一版」,不是「已保存到我的作品」——后者会让人以为换台机器还能看到。
+ * ★ 2026-10-03:「保存到我的妆容档案」**真的存到服务端了**(`POST /looks`,新页 `/looks`)。
+ *   上一版它只导出一份本地 JSON 快照,所以按钮写「已记下这一版」——那句话在真的落盘之后
+ *   反而是假话,已改。封面用**正在展示的那张主图**,由服务端**复制**进档案自己的目录。
+ *   ⚠️ 存下来的带妆图**不随 24h 删除**,会一直留在服务端直到用户自己删掉这一版。
+ *   ⚠️ 没出图就存不了,按钮置灰并写明理由(不摆一个点下去必失败的按钮)。
  *
  * ★ 步骤导航靠 IntersectionObserver 反向高亮,点击则平滑跳过去(见 `useStepRail`)。
  *   路由的 scrollBehavior 对带 hash 的跳转返回 false,就是为了不抢这里的锚点滚动——
@@ -280,6 +290,8 @@ const plan = computed(() => design.plan)
 const lookDescription = computed(() => design.lookDescription || plan.value?.summary || '')
 const sceneName = computed(() => design.sceneNameOf(design.session?.brief?.occasion || ''))
 const saved = ref(false)
+const saving = ref(false)
+const saveError = ref('')
 
 const steps = computed(() => plan.value?.steps || [])
 const personalized = computed(() => plan.value?.personalized || [])
@@ -296,12 +308,21 @@ const { activeId: activeStepId, els: stepEls, jumpTo: jumpToStep } = useStepRail
 const palette = computed(() => plan.value?.palette || [])
 const products = computed(() => plan.value?.products || [])
 
-/* ------------------------------ 出图 ------------------------------ */
+/* ------------------------------ 出图与存档 ------------------------------ */
 
-/** 最新那张成片。★ 取"最新"而不是第一张：后面那些是同一套妆的再生成，新的盖住旧的。 */
-const shotSrc = computed(() => {
-  const last = design.renders[design.renders.length - 1]
-  return last ? renderImageHref(last.url, user.id) : ''
+/**
+ * 最新那张成片，也是**存档时当封面的那张**。
+ * ★ 取"最新"而不是第一张：后面那些是同一套妆的再生成，新的盖住旧的。
+ */
+const mainShot = computed(() => design.renders[design.renders.length - 1] || null)
+const shotSrc = computed(() => (mainShot.value ? renderImageHref(mainShot.value.url, user.id) : ''))
+
+/** ★ 没图就没得存 —— 服务端此时没有字节可复制，按钮得跟着置灰。 */
+const canSave = computed(() => !saved.value && !saving.value && Boolean(mainShot.value))
+const saveButtonText = computed(() => {
+  if (saved.value) return '已存进我的妆容档案'
+  if (saving.value) return '正在保存…'
+  return '保存到我的妆容档案'
 })
 
 /**
@@ -367,13 +388,76 @@ function onRender() {
   design.confirmRender({ userId: user.id })
 }
 
-function onSave() {
-  design.snapshot()
-  saved.value = true
+/**
+ * 把这一版存进「我的妆容档案」。
+ *
+ * ★ 方案那几格**原样带给后端**(它就是 `/result` 上正在展示的那一套)，前端不编任何一格。
+ * ★ `sceneId` **如实留空**:它是表单里的定义，而刷新后的 `/result` 上 `form` 是空的
+ *   (`loadSession()` 不设它)。编一个出来会在档案里留下一条**错的**场合。
+ *   场景名走 `brief.occasion`，那个刷新后仍在。
+ * ★ 三个自由文本数组里**丢掉空串**:存一句空话没有意义，而服务端会拒收空条目。
+ */
+function archiveBody(shot) {
+  const p = plan.value
+  const nonEmpty = (list) => (list || []).filter((s) => String(s).trim() !== '')
+  return {
+    userId: user.id,
+    sessionId: sessionId.value,
+    seq: shot.seq,
+    sceneId: '',
+    sceneName: sceneName.value,
+    ...(p.styleId ? { styleId: p.styleId } : {}),
+    styleName: p.styleName,
+    lookDescription: lookDescription.value,
+    summary: p.summary || '',
+    keywords: nonEmpty(p.keywords),
+    stepCount: p.meta.stepCount,
+    palette: p.palette || [],
+    products: p.products || [],
+    steps: (p.steps || []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      desc: s.desc || '',
+      tips: nonEmpty(s.tips),
+    })),
+    personalized: (p.personalized || []).map((x) => ({
+      id: x.id,
+      group: x.group,
+      groupName: x.groupName,
+      name: x.name,
+      desc: x.desc || '',
+      fix: x.fix || '',
+      products: nonEmpty(x.products),
+    })),
+  }
+}
+
+async function onSave() {
+  const shot = mainShot.value
+  if (!shot || !canSave.value) return
+  saving.value = true
+  saveError.value = ''
+  try {
+    await saveLook(archiveBody(shot))
+    saved.value = true
+  } catch (err) {
+    // ★ 不置 `saved`:存失败却显示"已存"是本仓最恨的那种假成功。
+    //   后端那句 message 已经是给人看的(「这次生成的图已经找不到了…」),原样上屏。
+    saveError.value = err.message || '没能存进妆容档案，请稍后再试。'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
 <style scoped>
+/* 「出了图之后才能存进妆容档案」——按钮下面那句置灰的理由 */
+.result-hero__save-note {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
 /* hero 那一列竖着排：成片在上、出图那条在下 */
 .hero-side {
   flex-direction: column;

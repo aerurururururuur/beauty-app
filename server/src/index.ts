@@ -19,6 +19,7 @@ import { createUserModule, dataUrlToBytes } from './modules/user/index.js';
 import type { FaceReader } from './modules/user/index.js';
 import { OpenMeteoWeatherProvider, createWeatherModule } from './modules/weather/index.js';
 import { createCabinetModule } from './modules/cabinet/index.js';
+import { createLooksModule } from './modules/looks/index.js';
 import { createProductsModule, toLibraryView, toProductDetailView } from './modules/products/index.js';
 import { createFaceCatalogModule } from './modules/face-catalog/index.js';
 import { DashScopeLlm, createAgentModule } from './modules/agent/index.js';
@@ -32,6 +33,7 @@ import type { SkinTonePalette } from './modules/makeup/index.js';
 import type { ShadeLookup } from './modules/styling/index.js';
 import { AppError, ErrorCode } from './modules/shared/index.js';
 import { createSessionArtifacts } from './session-artifacts.js';
+import { createRenderSource } from './look-renders.js';
 import { buildApp } from './app.js';
 
 /**
@@ -372,8 +374,26 @@ async function main(): Promise<void> {
     sessionTtlHours: config.agentSessionTtlHours,
   });
 
+  // 我的妆容档案:一条动线要接三个外部能力,三种粘合**都只发生在这里**——
+  //   · `userExists`       —— 上面那个闭包(与 cabinet 共用同一个);
+  //   · `renders`          —— agent 的 `GetRender` 收窄一层(收窄规则在 `src/look-renders.ts`);
+  //   · `covers`           —— **同一个 `artifactStore` 实例**,没有第二套封面存储。
+  // ★ `covers` 桥到 `ArtifactStore.putLook/resolveLook/removeLook`(落 `look-covers/` 新根)。
+  //   ⚠️ 那三个方法所在的位置与 `listIds()` 的关系是硬约束,见 assets 端口上的说明。
+  const looks = createLooksModule({
+    dataDir: config.dataDir,
+    userExists,
+    renders: createRenderSource(agent.getRender),
+    covers: {
+      save: (lookId, sourceFilePath, mimeType) =>
+        artifactStore.putLook(lookId, sourceFilePath, mimeType),
+      resolve: (lookId) => artifactStore.resolveLook(lookId),
+      remove: (lookId) => artifactStore.removeLook(lookId),
+    },
+  });
+
   // —— web shell ——
-  const app = await buildApp({ config, user, weather, cabinet, products, agent });
+  const app = await buildApp({ config, user, weather, cabinet, products, agent, looks });
 
   /**
    * ★ **读图能力这一行。** 同上面那段:分析是"用户点一下才会去读图"的,

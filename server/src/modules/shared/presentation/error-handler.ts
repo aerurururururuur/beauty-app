@@ -50,6 +50,15 @@ const STATUS_BY_CODE: Record<ErrorCodeValue, number> = {
   // 产品库里没有这个 id。★ 与上面几条不同:产品库是**品牌内容**、不挂账号,
   //   所以这个码里没有"还是不是你的"那层意思,就是纯粹查不到。
   PRODUCT_NOT_FOUND: 404,
+  // 妆容档案的「不存在」与「不是你的」共用 404,同 CABINET_ITEM_NOT_FOUND 的理由。
+  LOOK_NOT_FOUND: 404,
+  // 单账号档案上限,同 CABINET_FULL。
+  LOOK_FULL: 409,
+  // 存档案时源图已不在(会话过期/重启):同样是"要取的东西不存在"。410 更贴字面,
+  // 但本仓没有第二个 410,为一致取 404。
+  LOOK_COVER_UNAVAILABLE: 404,
+  // 档案在、封面字节读不到:同样是"取的东西不存在"。
+  LOOK_COVER_NOT_FOUND: 404,
   VALIDATION_ERROR: 422,
   INTERNAL_ERROR: 500,
 };

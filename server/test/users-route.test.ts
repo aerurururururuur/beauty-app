@@ -28,6 +28,7 @@ import { createSessionArtifacts } from '../src/session-artifacts.js';
 import type { Engine } from '../src/modules/makeup/index.js';
 import type { UserModuleServices } from '../src/modules/user/index.js';
 import { MockLlm } from './helpers/mock-llm.js';
+import { fakeLooksModule } from './helpers/fakes.js';
 import { MockWeatherProvider } from './helpers/mock-weather-provider.js';
 
 const dirs: string[] = [];
@@ -83,6 +84,7 @@ async function makeFixture(): Promise<Fixture> {
     user,
     weather: createWeatherModule({ provider: new MockWeatherProvider() }),
     cabinet: createCabinetModule({ dataDir: config.dataDir, userExists }),
+    looks: fakeLooksModule({ dataDir: config.dataDir, userExists }),
     products: createProductsModule({ contentDir: config.productsDir }),
     agent,
   });

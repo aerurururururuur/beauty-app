@@ -1,6 +1,7 @@
 /**
  * infrastructure/file-system/artifact-store.ts —— ArtifactStore 的本地文件系统实现。
- * 目录:dataDir/inputs/<jobId>/face|scene/* 与 dataDir/results/<jobId>/result<ext>。
+ * 目录:dataDir/inputs/<jobId>/face|scene/* 、dataDir/results/<jobId>/result<ext>,
+ * 以及 dataDir/look-covers/<lookId>/cover<ext>(妆容档案的封面,★ 不受会话 TTL 管)。
  * 输入文件用随机文件名,避免与用户文件名碰撞;storeKey 统一用正斜杠相对路径。
  */
 import { createWriteStream, existsSync } from 'node:fs';
@@ -108,7 +109,39 @@ export class FileSystemArtifactStore implements ArtifactStore {
   }
 
   /**
+   * 把源头那份图**复制**成档案封面。`copyFile` 而不是 `rename`/软链:
+   *   源在 `results/` 下、会被会话 TTL 递归删掉,复制出来才不受它影响。
+   */
+  async putLook(lookId: string, sourceFilePath: string, mimeType: string): Promise<void> {
+    const dir = path.join(this.dataDir, 'look-covers', lookId);
+    await mkdir(dir, { recursive: true });
+    await copyFile(sourceFilePath, path.join(dir, `cover${extFor(mimeType)}`));
+  }
+
+  /** ★ 只解析路径,不建流(同 `resolveResult`);MIME 由扩展名反推。 */
+  async resolveLook(lookId: string): Promise<ResolvedImage | null> {
+    const dir = path.join(this.dataDir, 'look-covers', lookId);
+    if (!existsSync(dir)) return null;
+    const entries = await readdir(dir);
+    const name = entries.find((f) => f.startsWith('cover.'));
+    if (!name) return null;
+    return {
+      filePath: path.join(dir, name),
+      mimeType: mimeForExt(path.extname(name)),
+    };
+  }
+
+  /** 同 `remove` 的越界校验与幂等口径,只删 `look-covers/` 这一支。 */
+  async removeLook(lookId: string): Promise<void> {
+    await rm(toAbs(this.dataDir, path.join('look-covers', lookId)), { recursive: true, force: true });
+  }
+
+  /**
    * ★ 两个区各列一层目录名,并起来去重。
+   *
+   * ★★ **`look-covers/` 刻意不在这里面,别"顺手"加进来。** 返回值喂的是
+   *   `sweepOrphans`——它每小时把这里列出、却没有活会话认领的 id **立刻删掉**。
+   *   加进来 ⇒ 每一次清扫删光用户的全部妆容档案,而且 200、日志干净。
    *
    * ⚠️ **必须只取目录**(`withFileTypes` + `isDirectory()`)。
    *   `results/<id>/` 下是 `result.png` 这类文件,若把 `readdir` 的原始结果

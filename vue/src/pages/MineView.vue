@@ -72,12 +72,11 @@
       <div class="ai-card">
         <div class="ai-card__texts">
           <h3 class="ai-card__title">我的 AI 妆容档案</h3>
-          <div class="tag-row">
-            <span v-for="t in demo.aiProfile.tags" :key="t.label" class="tag">{{ t.label }}</span>
-          </div>
+          <!-- ★ 套数拉不到就**不显示这一行**,绝不编一个 0(那会把「没读到」说成「一版都没有」) -->
+          <p v-if="lookCount !== null" class="ai-card__sub">已经存下 {{ lookCount }} 版</p>
         </div>
         <div class="ai-card__spacer"></div>
-        <button class="btn btn--brand">重新测一测</button>
+        <RouterLink class="btn btn--brand" to="/looks">查看我的妆容档案</RouterLink>
       </div>
 
       <!-- 快捷入口 -->
@@ -114,11 +113,24 @@
     <!-- 内容网格。三个 Tab 的空态文案各不相同,别统一成「暂无内容」 -->
     <div v-if="!items.length" class="empty">{{ emptyText }}</div>
     <div v-else class="card-grid">
-      <article v-for="it in items" :key="it.id" class="look-card">
-        <div class="look-card__cover ph" :style="{ height: `${it.coverHeight || 250}px` }">妆容封面</div>
+      <!-- 点进帖子详情。★ 有图用真图,没图仍回落 .ph(不代用别的图) -->
+      <RouterLink
+        v-for="it in items"
+        :key="it.id"
+        class="look-card"
+        :to="{ name: 'post', params: { id: it.id }, query: { from: 'mine' } }"
+      >
+        <img
+          v-if="it.coverUrl"
+          class="look-card__cover"
+          :src="it.coverUrl"
+          :alt="it.title"
+          :style="{ height: `${it.coverHeight || 250}px`, objectFit: 'cover' }"
+        />
+        <div v-else class="look-card__cover ph" :style="{ height: `${it.coverHeight || 250}px` }">妆容封面</div>
         <h3 class="look-card__title">{{ it.title }}</h3>
         <span class="look-card__count">{{ it.likes }} 赞</span>
-      </article>
+      </RouterLink>
     </div>
 
     <!-- 退出登录:源站没有这一项(它没有登录态),这是搬过来时后加的 -->
@@ -137,6 +149,7 @@ import { useUserStore } from '@/stores/user'
 import { shrinkPhoto } from '@/api/image'
 import { avatarSrc, fetchProfile, MAX_BIO, updateProfile } from '@/api/users'
 import { getMyWorks, getProfile, WORKS_EMPTY } from '@/api/home'
+import { listLooks } from '@/api/looks'
 import { useFilePick } from '@/composables/useFilePick'
 
 /**
@@ -145,11 +158,14 @@ import { useFilePick } from '@/composables/useFilePick'
  * ★ 这一屏的数据两档混在一起,别读串:
  *   · **账号资料(昵称 / 简介 / 头像)是真的** —— 来自 `GET /users/:id`,改一次落一次盘,
  *     换台机器登录还在(证明它真的存在账号下)。
- *   · 桃妆号是按 id 推出来的、三项统计与 AI 档案标签是 `api/home.js` 里的**演示值**——
+ *   · 桃妆号是按 id 推出来的、三项统计是 `api/home.js` 里的**演示值**——
  *     别照着这里的数字写任何真实统计。
  *
- * ★ 内容 Tab 的**计数与档案卡取同一份 demo 对象**:源站特意如此,
+ * ★ 内容 Tab 的**计数与个人信息卡的统计取同一份 demo 对象**:源站特意如此,
  *   免得页面上两处数字对不上(一处改了另一处没改,静默不一致)。
+ *
+ * ★ 「我的 AI 妆容档案」那张卡的**套数是真的** —— `GET /looks` 数出来的,
+ *   按钮进 `/looks`。它跟上面那两档不是一回事,别跟着 demo 改。
  *
  * ★ 退出登录:源站没有登录态,这是搬过来时**新加的一项**——
  *   不然后端登录进来的账号在界面上没有出口(只能清浏览器数据)。
@@ -161,6 +177,8 @@ const user = useUserStore()
 /** 账号资料(后端那份)。★ 拉不到时为 null,页面照常显示演示内容 + 一句错误。 */
 const profile = ref(null)
 const error = ref('')
+/** 妆容档案套数。★ `null` = 还没读到/没读到 —— 与 0 严格区分,模板靠它决定显不显示那行。 */
+const lookCount = ref(null)
 
 const demo = getProfile({ userId: user.id })
 
@@ -267,6 +285,12 @@ onMounted(async () => {
     // ★ 拉不到就照实说,不拿演示值假装是账号里的简介/头像(那正是本仓头号 bug 的形状)。
     error.value = e?.message || '没能读到账号资料，请稍后再试'
   }
+  // ★ 档案套数**单独一段**,失败只让数字不出现:不能因为档案拉不到,连账号资料也一起报错。
+  try {
+    lookCount.value = (await listLooks({ userId: user.id })).length
+  } catch {
+    // 拉不到就不显示那一行(见模板注释)
+  }
 })
 
 function onLogout() {
@@ -281,6 +305,12 @@ function onLogout() {
   display: flex;
   justify-content: center;
   padding: 8px 0 24px;
+}
+
+/* 档案卡上的套数。页内私有:共享样式表里没有这一格 */
+.ai-card__sub {
+  color: var(--color-text-sub);
+  font-size: 13px;
 }
 
 .profile-edit {

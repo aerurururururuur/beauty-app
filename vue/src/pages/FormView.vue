@@ -54,9 +54,25 @@
       <p v-if="weatherLine || weatherNote" class="weather-bar__state">{{ weatherLine || weatherNote }}</p>
     </div>
 
-    <!-- 字段依场景而定:旅行只有两个,面试有四个 -->
+    <!--
+      字段依场景而定(旅行 4 格、面试 6 格),一格一个 tab,切着看而不是一路下滑。
+      ★ 面板用 `v-show` 不是 `v-if`:留着重进时 textarea 的滚动位置还在。
+    -->
+    <nav class="field-tabs">
+      <button
+        v-for="f in fields"
+        :key="f.key"
+        type="button"
+        class="field-tab"
+        :class="{ 'field-tab--on': f.key === activeKey }"
+        @click="activeKey = f.key"
+      >
+        {{ f.label }}
+      </button>
+    </nav>
+
     <div class="form-fields">
-      <section v-for="f in form?.fields || []" :key="f.key" class="info-field" :data-key="f.key">
+      <section v-for="f in fields" v-show="f.key === activeKey" :key="f.key" class="info-field">
         <header class="info-field__head">
           <h3 class="info-field__label">
             {{ f.label }}
@@ -73,10 +89,15 @@
         <div class="info-field__pane">
           <span class="info-field__pane-label">文字描述</span>
           <textarea v-model="inputs[f.key].text" class="info-field__input" rows="3" :placeholder="f.placeholder || ''"></textarea>
-          <!-- 预设选项是多选快捷输入,与手写的文字一起提交(不是二选一) -->
-          <div v-if="(f.options || []).length" class="info-field__opts">
+          <!--
+            预设选项是快捷输入,与手写的文字一起提交(不是二选一)。
+            ★ 级联格(`f.cascade`)上游没选时 `optionsOf` 返回 `null` —— 那时摆的是
+              `f.lockHint` 那句话,不是一排点了也没有下文的 chip。
+          -->
+          <div v-if="optionsOf(f) === null" class="opt-locked">{{ f.lockHint }}</div>
+          <div v-else-if="optionsOf(f).length" class="info-field__opts">
             <button
-              v-for="o in f.options"
+              v-for="o in optionsOf(f)"
               :key="o"
               type="button"
               class="opt-chip"
@@ -109,7 +130,17 @@
 
     <footer class="form-actions">
       <RouterLink class="btn btn--soft" :to="{ path: '/personas', query: personaQuery }">上一步</RouterLink>
-      <button class="btn btn--primary" :disabled="design.generating" @click="onSubmit">
+      <!-- ★ 没走到最后一格时主按钮是「下一步」:不给它,两头的按钮长得一模一样,
+           用户不知道后面还有几格没看 -->
+      <button
+        v-if="activeIndex < fields.length - 1"
+        class="btn btn--primary"
+        type="button"
+        @click="nextField"
+      >
+        下一步
+      </button>
+      <button v-else class="btn btn--primary" :disabled="design.generating" @click="onSubmit">
         {{ design.generating ? '正在配妆…' : '生成我的妆容' }}
       </button>
     </footer>
@@ -121,7 +152,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { briefWeatherOf } from '@/api/design'
+import { briefWeatherOf, getFieldOptions } from '@/api/design'
 import { MAX_CITY, fetchWeather } from '@/api/weather'
 import ErrorNote from '@/components/ErrorNote.vue'
 import FlowTopbar from '@/components/FlowTopbar.vue'
@@ -204,6 +235,71 @@ watch(
     inputs.value = seeded
   },
   { immediate: true }
+)
+
+/* --------------------------- 字段 tab --------------------------- */
+
+/**
+ * 当前展开的那一格。★ 存的是**字段键**不是下标——换场景时下标会指到另一格上去。
+ * ★ `immediate` 是前提不是收尾:首屏渲染早于 `onMounted`,不在这里先定一次,
+ *   第一帧就是「tab 全不亮、下面也没有面板」。
+ */
+const activeKey = ref('')
+
+const fields = computed(() => form.value?.fields || [])
+
+/** 没找到时是 -1;模板据此决定摆「下一步」还是「生成我的妆容」。 */
+const activeIndex = computed(() => fields.value.findIndex((f) => f.key === activeKey.value))
+
+function nextField() {
+  const next = fields.value[activeIndex.value + 1]
+  if (next) activeKey.value = next.key
+}
+
+watch(
+  fields,
+  (list) => {
+    if (!list.some((f) => f.key === activeKey.value)) activeKey.value = list[0]?.key || ''
+  },
+  { immediate: true }
+)
+
+/* --------------------------- 级联选项 --------------------------- */
+
+/** 级联链上游的当前取值,交给 `getFieldOptions` 查表。只认链上那几格。 */
+function currentValues() {
+  const first = (key) => inputs.value[key]?.opts?.[0] || ''
+  return { industry: first('industry'), relation: first('relation'), place: first('place') }
+}
+
+/**
+ * 这一格当前该显示的选项。
+ * ★ 级联格(`f.cascade`)的选项**不写在字段上**(那里是空数组),由上游现算;
+ *   上游还没选 ⇒ 返回 `null`(模板据此显示 `f.lockHint`);非级联格就是字段自带那份。
+ */
+function optionsOf(f) {
+  if (!f.cascade) return f.options || []
+  return getFieldOptions({ sceneId: sceneId.value, fieldKey: f.key, values: currentValues() })
+}
+
+/**
+ * 级联失效清理:上游一改,下游原来选的那个可能已经不在新选项里了。
+ * ★ **必须清掉。** 留着的话 `collectFields` 会把它照常提交 —— 用户看到的是新地点,
+ *   送出去的却还是上一个对象对应的旧地点,而界面上看不出任何异常。
+ * ★ 按字段顺序走这一遍瀑布:清完「地点」再算「穿搭」,顺序反了穿搭就清不干净。
+ */
+watch(
+  inputs,
+  () => {
+    for (const f of form.value?.fields || []) {
+      if (!f.cascade) continue
+      const picked = inputs.value[f.key]?.opts || []
+      if (!picked.length) continue
+      const opts = optionsOf(f)
+      if (!opts || !picked.every((o) => opts.includes(o))) inputs.value[f.key].opts = []
+    }
+  },
+  { deep: true }
 )
 
 const personaQuery = computed(() => ({ scene: sceneId.value, pick: '1' }))
@@ -327,11 +423,20 @@ function onFiles(key, event) {
   event.target.value = ''
 }
 
-/** 预设选项:再点一次就取消。它与手写的文字一起进 `collectFields`。 */
+/**
+ * 预设选项:再点一次就取消。它与手写的文字一起进 `collectFields`。
+ * ★ `f.single` 的格子(级联链上的那四格)**一次只亮一个**:多选时「地点随哪个对象变」
+ *   根本没有答案。其余格子照旧多选。
+ */
 function toggleOpt(key, option) {
   const picked = inputs.value[key].opts
   const at = picked.indexOf(option)
-  if (at >= 0) picked.splice(at, 1)
+  if (at >= 0) {
+    picked.splice(at, 1)
+    return
+  }
+  const single = (form.value?.fields || []).find((f) => f.key === key)?.single
+  if (single) picked.splice(0, picked.length, option)
   else picked.push(option)
 }
 
@@ -401,3 +506,39 @@ async function onSubmit() {
   router.push({ path: '/result', query: { session: sessionId } })
 }
 </script>
+
+<style scoped>
+/* 页内私有:字段 tab 只有这一屏有(美妆台那两个是页签式的,不共用) */
+.field-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+}
+
+.field-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-sub);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.field-tab:hover {
+  color: var(--color-text);
+}
+
+.field-tab--on {
+  background: var(--color-white);
+  color: var(--color-text);
+  font-weight: 700;
+  box-shadow: var(--shadow-card);
+}
+</style>

@@ -254,23 +254,6 @@ export const useDesignStore = defineStore('design', () => {
     }
   }
 
-  /**
-   * 「记下这一版」。★ 不调任何接口、不假装落库——返回的就是一份**本地 JSON 快照**
-   *   (`api/design.js` 的 snapshotDesign 说明为什么这么设计)。
-   *   页面的按钮文案要说「已记下这一版」,不能说「已保存到我的作品」。
-   *
-   * ⚠️ 场景取自**表单定义**,不是 `brief.occasion` —— 后者从 2026-09-30 起可能是
-   *   用户自己的话(「朋友的婚礼」),拿它当场景 id 查出来是空的。
-   */
-  function snapshot() {
-    const sceneId = form.value?.sceneId || ''
-    return api.snapshotDesign({
-      sceneId,
-      sceneName: sceneNameOf(sceneId),
-      plan: plan.value,
-    })
-  }
-
   function reset() {
     form.value = null
     session.value = null
@@ -302,7 +285,6 @@ export const useDesignStore = defineStore('design', () => {
     loadSession,
     analyze,
     confirmRender,
-    snapshot,
     reset,
   }
 })

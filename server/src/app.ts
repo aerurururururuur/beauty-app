@@ -15,6 +15,8 @@ import type { WeatherModuleServices } from './modules/weather/index.js';
 import { registerWeatherRoutes } from './modules/weather/index.js';
 import type { CabinetModuleServices } from './modules/cabinet/index.js';
 import { registerCabinetRoutes } from './modules/cabinet/index.js';
+import type { LooksModuleServices } from './modules/looks/index.js';
+import { registerLooksRoutes } from './modules/looks/index.js';
 import type { ProductsModuleServices } from './modules/products/index.js';
 import { registerProductsRoutes } from './modules/products/index.js';
 import type { AgentModuleServices } from './modules/agent/index.js';
@@ -25,6 +27,11 @@ export interface AppDeps {
   user: UserModuleServices;
   weather: WeatherModuleServices;
   cabinet: CabinetModuleServices;
+  /**
+   * 我的妆容档案。★ **必填** —— 可选键会造出「忘了传 ⇒ 四条路由静默不存在」的洞,
+   * 那正是本仓要防的假开关(同上面 `products`)。
+   */
+  looks: LooksModuleServices;
   /**
    * 产品库。★ **必填**(不是 `products?`)—— 这一格表达的是"装配时有没有把模块接上",
    * 而"这个部署有没有产品库"是**它内部** `queries` 空不空的事(见下面那段注册)。
@@ -136,6 +143,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         listCosmetics: deps.cabinet.listCosmetics,
         updateCosmetic: deps.cabinet.updateCosmetic,
         removeCosmetic: deps.cabinet.removeCosmetic,
+      });
+
+      // 我的妆容档案。「保存到我的妆容档案」写这里、`/looks` 读这里。
+      // ★ 四条路由**无条件注册**(不看任何开关):这条动线不花钱、不依赖分析器。
+      registerLooksRoutes(scoped, {
+        addLook: deps.looks.addLook,
+        listLooks: deps.looks.listLooks,
+        removeLook: deps.looks.removeLook,
+        readLookCover: deps.looks.readLookCover,
       });
 
       // 产品库(数字美妆台读它)。★ **整段跟着 `queries` 走**:`PRODUCTS_DIR` 指了不存在的
